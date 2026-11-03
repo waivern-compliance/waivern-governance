@@ -1,0 +1,91 @@
+import { sql as pg } from "@/db/client";
+import { sweepAll } from "@/services/sweep";
+
+/**
+ * The scheduled run, as a job rather than an HTTP call.
+ *
+ * `/api/cron/sweep` still exists for platforms whose scheduler can only make a
+ * request, but where the scheduler can run a process — Railway's cron, a
+ * container, a laptop — this is the better shape: it does not depend on the web
+ * tier being healthy, needs no shared secret, and cannot be reached by anyone
+ * who guesses a URL.
+ *
+ * Exits non-zero if anything fails, so a failed run shows as a failed run
+ * rather than a green tick over a silent error.
+ */
+async function main() {
+  const started = Date.now();
+  const results = await sweepAll();
+
+  for (const r of results) {
+    const did =
+      r.schedulesMaterialised +
+      r.acceptanceReviewsRaised +
+      r.mitigationRemindersRaised +
+      r.breachesRecorded +
+      r.countryReviewsRaised +
+      r.dpaReviewsRaised +
+      r.conversationsForgotten +
+      r.breachDeadlinesRaised +
+      r.requestDeadlinesRaised +
+      r.complaintDeadlinesRaised +
+      r.rescansRaised +
+      r.tpsScreeningsRaised +
+      r.consentScansFinished +
+      r.objectionReviewsRaised +
+      r.lapsedReviewsRaised +
+      r.aiReviewsRaised +
+      r.appetiteReviewsRaised +
+      r.documentsScanned +
+      r.webhooksDelivered +
+      r.webhooksFailed +
+      r.notificationsEmailed;
+
+    // A quiet sweep is the normal case, and saying so plainly is what makes the
+    // log worth reading when something does happen.
+    if (did === 0) {
+      console.log(`${r.organisation}: nothing due.`);
+      continue;
+    }
+    console.log(
+      `${r.organisation}: ` +
+        [
+          r.schedulesMaterialised && `${r.schedulesMaterialised} scheduled task(s) raised`,
+          r.acceptanceReviewsRaised && `${r.acceptanceReviewsRaised} lapsed acceptance(s) flagged`,
+          r.mitigationRemindersRaised && `${r.mitigationRemindersRaised} overdue mitigation(s) chased`,
+          r.breachesRecorded && `${r.breachesRecorded} service-level breach(es) recorded`,
+          r.countryReviewsRaised && `${r.countryReviewsRaised} country review(s) raised`,
+          r.dpaReviewsRaised && `${r.dpaReviewsRaised} processor agreement(s) flagged`,
+          r.breachDeadlinesRaised && `${r.breachDeadlinesRaised} breach deadline(s) flagged`,
+          r.requestDeadlinesRaised && `${r.requestDeadlinesRaised} data subject request deadline(s) flagged`,
+          r.complaintDeadlinesRaised && `${r.complaintDeadlinesRaised} complaint deadline(s) flagged`,
+          r.rescansRaised && `${r.rescansRaised} cookie rescan(s) due`,
+          r.tpsScreeningsRaised && `${r.tpsScreeningsRaised} TPS screening(s) due`,
+          r.consentScansFinished && `${r.consentScansFinished} consent scan(s) finished`,
+          r.objectionReviewsRaised && `${r.objectionReviewsRaised} LIA review(s) raised by objections`,
+          r.lapsedReviewsRaised && `${r.lapsedReviewsRaised} assessment(s) past review`,
+          r.aiReviewsRaised && `${r.aiReviewsRaised} AI system(s) past review`,
+          r.appetiteReviewsRaised && `${r.appetiteReviewsRaised} risk appetite statement(s) past review`,
+          r.documentsScanned && `${r.documentsScanned} stored file(s) virus-scanned`,
+          r.documentsQuarantined && `${r.documentsQuarantined} file(s) quarantined as infected`,
+          r.conversationsForgotten && `${r.conversationsForgotten} assistant conversation(s) forgotten`,
+          r.webhooksDelivered && `${r.webhooksDelivered} webhook(s) delivered`,
+          r.webhooksFailed && `${r.webhooksFailed} webhook(s) failed`,
+          r.notificationsEmailed && `${r.notificationsEmailed} notification email(s) sent`,
+        ]
+          .filter(Boolean)
+          .join(", "),
+    );
+  }
+
+  console.log(
+    `Swept ${results.length} organisation(s) in ${Date.now() - started}ms.`,
+  );
+  await pg.end();
+}
+
+main().catch(async (err) => {
+  console.error("Sweep failed:", err);
+  await pg.end();
+  process.exit(1);
+});

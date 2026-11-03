@@ -1,0 +1,1089 @@
+import { and, asc, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { db, withOrganisation } from "@/db/client";
+import {
+  aiUseCases,
+  approvals,
+  assessments,
+  documents,
+  entities,
+  mitigations,
+  notifications,
+  organisations,
+  processingActivities,
+  riskAcceptances,
+  risks,
+  schedules,
+  slaPolicies,
+  tasks,
+  templateVersions,
+  templates,
+} from "@/db/schema";
+import { appendAuditEvent } from "@/lib/audit";
+import { addMonths } from "@/lib/dates";
+import { queueNotification, raiseTask } from "./workflow";
+import { deliverPending } from "./webhooks";
+import { deliverNotifications } from "./member-email";
+import { countriesDueForReview } from "./countries";
+import { forgetExpiredConversations } from "./assistant";
+import { notificationDeadline } from "@/lib/breach/statutory";
+import { breachesNeedingAttention } from "./breaches";
+import { objectionCounts, objectionReviewThreshold, requestsNeedingAttention } from "./data-subject-requests";
+import { pruneIntakeAttempts } from "./dsr-intake";
+import { complaintsNeedingAttention } from "./complaints";
+import { propertiesDueForRescan } from "./storage-inventory";
+import { activitiesDueTpsScreening } from "./marketing";
+import { finishRunningScans } from "./consent-analyser";
+import { objectionReviewDue } from "@/lib/dsr/statutory";
+import { EXPIRING_WITHIN_LABEL, dpasNeedingAttention } from "./third-party";
+import { appetitesDueForReview } from "./risk-policy";
+import { scopeLabel } from "@/lib/risk/appetite";
+import { ScannerUnavailable, scanBuffer, scannerConfig, type ScannerConfig } from "@/lib/documents/scan";
+import { log } from "@/lib/log";
+
+/**
+ * Everything that happens because time passed.
+ *
+ * The design called for durable step functions on Inngest. This is the same
+ * work behind a cron-triggered entry point instead: every step is idempotent —
+ * tasks and notifications carry keys and conflict away — so running it twice,
+ * or re-running it after a partial failure, converges on the same state. That
+ * is most of what durability buys, and it needs no third-party account to work.
+ * Wrapping these functions in Inngest steps later changes the trigger, not the
+ * logic.
+ *
+ * Nothing here changes a governance decision. The sweep raises tasks and
+ * records notifications; a human still decides.
+ */
+
+const SYSTEM = {
+  actorKind: "system" as const,
+  actorUserId: null,
+  actorLabel: "scheduler",
+};
+
+export type SweepResult = {
+  organisation: string;
+  schedulesMaterialised: number;
+  acceptanceReviewsRaised: number;
+  mitigationRemindersRaised: number;
+  breachesRecorded: number;
+  countryReviewsRaised: number;
+  dpaReviewsRaised: number;
+  conversationsForgotten: number;
+  breachDeadlinesRaised: number;
+  requestDeadlinesRaised: number;
+  complaintDeadlinesRaised: number;
+  rescansRaised: number;
+  tpsScreeningsRaised: number;
+  consentScansFinished: number;
+  objectionReviewsRaised: number;
+  intakeAttemptsForgotten: number;
+  lapsedReviewsRaised: number;
+  aiReviewsRaised: number;
+  appetiteReviewsRaised: number;
+  documentsScanned: number;
+  documentsQuarantined: number;
+  webhooksDelivered: number;
+  webhooksFailed: number;
+  notificationsEmailed: number;
+};
+
+/** Turn schedules that are within their lead time into tasks. */
+async function materialiseSchedules(organisationId: string): Promise<number> {
+  const due = await db
+    .select()
+    .from(schedules)
+    .where(and(eq(schedules.organisationId, organisationId), eq(schedules.isActive, true)));
+
+  let raised = 0;
+  for (const s of due) {
+    const raiseFrom = new Date(s.nextDueAt.getTime() - s.leadDays * 24 * 3600 * 1000);
+    if (raiseFrom.getTime() > Date.now()) continue;
+
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: s.entityId,
+        type: s.action === "reassess" ? "reassess" : s.action === "verify" ? "verify_mitigation" : "review_assessment",
+        title: s.title,
+        description: `Recurring ${s.action}, due ${s.nextDueAt.toISOString().slice(0, 10)}.`,
+        subjectType: s.subjectType,
+        subjectId: s.subjectId,
+        assigneeUserId: s.assigneeUserId,
+        dueAt: s.nextDueAt,
+        // Keyed on the occurrence, not the schedule, so each cycle raises
+        // exactly one task however often the sweep runs.
+        idempotencyKey: `schedule:${s.id}:${s.nextDueAt.toISOString().slice(0, 10)}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+
+      /**
+       * The people who approved it are asked to reapprove.
+       *
+       * A schedule holds one name, and the owner redoing the work is not the
+       * same person as the approver signing it off again. So the approvers are
+       * found here, from the approvals themselves, rather than being guessed
+       * at when the schedule was created — membership changes over a year, and
+       * the record of who actually decided does not.
+       */
+      if (s.action === "reassess" && s.subjectType === "assessment") {
+        const decided = await tx
+          .select({
+            userId: approvals.decidedByUserId,
+            name: approvals.name,
+            role: approvals.requiredRole,
+          })
+          .from(approvals)
+          .where(
+            and(
+              eq(approvals.assessmentId, s.subjectId),
+              eq(approvals.status, "approved"),
+            ),
+          );
+
+        const seen = new Set<string>();
+        for (const gate of decided) {
+          if (!gate.userId || seen.has(gate.userId)) continue;
+          // Not the owner twice: they already have the reassessment task.
+          if (gate.userId === s.assigneeUserId) continue;
+          seen.add(gate.userId);
+
+          const notice = await raiseTask(tx, {
+            organisationId,
+            entityId: s.entityId,
+            type: "review_assessment",
+            title: `Reapproval due: ${s.title.replace(/^Reassess /, "")}`,
+            description:
+              `You approved this at the "${gate.name}" stage. It is being reassessed and ` +
+              `will need deciding again.`,
+            subjectType: s.subjectType,
+            subjectId: s.subjectId,
+            assigneeUserId: gate.userId,
+            dueAt: s.nextDueAt,
+            idempotencyKey: `reapproval:${s.id}:${s.nextDueAt.toISOString().slice(0, 10)}:${gate.userId}`,
+            actor: SYSTEM,
+          });
+          if (notice) raised += 1;
+        }
+      }
+
+      // Roll forward whether or not the task was new: if it already existed,
+      // this occurrence is handled and the next one is what matters.
+      await tx
+        .update(schedules)
+        .set({ lastRunAt: new Date(), nextDueAt: addMonths(s.nextDueAt, s.intervalMonths) })
+        .where(eq(schedules.id, s.id));
+    });
+  }
+  return raised;
+}
+
+/**
+ * Raise a review for every acceptance that has run out.
+ *
+ * The risk deliberately stays recorded as accepted. Flipping it back would mean
+ * the system overturning a named person's decision without them, which is
+ * exactly the thing this platform must not do — so the lapse becomes a prompt.
+ */
+async function reviewLapsedAcceptances(organisationId: string): Promise<number> {
+  const lapsed = await db
+    .select({ acceptance: riskAcceptances, risk: risks })
+    .from(riskAcceptances)
+    .innerJoin(risks, eq(risks.id, riskAcceptances.riskId))
+    .where(
+      and(
+        eq(risks.organisationId, organisationId),
+        isNull(riskAcceptances.supersededAt),
+        isNull(riskAcceptances.revokedAt),
+        lte(riskAcceptances.expiresAt, new Date()),
+      ),
+    );
+
+  let raised = 0;
+  for (const { acceptance, risk } of lapsed) {
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: risk.entityId,
+        type: "review_acceptance",
+        title: `Acceptance lapsed: ${risk.reference} ${risk.title}`,
+        description:
+          `Accepted by ${acceptance.acceptedByLabel} until ` +
+          `${acceptance.expiresAt.toISOString().slice(0, 10)}. The risk remains recorded ` +
+          `as accepted until somebody decides otherwise.`,
+        subjectType: "risk",
+        subjectId: risk.id,
+        idempotencyKey: `acceptance-review:${acceptance.id}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/** Nudge mitigations that are due and not yet done. */
+async function remindOverdueMitigations(organisationId: string): Promise<number> {
+  const overdue = await db
+    .select({ mitigation: mitigations, risk: risks })
+    .from(mitigations)
+    .innerJoin(risks, eq(risks.id, mitigations.riskId))
+    .where(
+      and(
+        eq(risks.organisationId, organisationId),
+        inArray(mitigations.status, ["planned", "in_progress"]),
+        lte(mitigations.dueAt, new Date()),
+      ),
+    );
+
+  let raised = 0;
+  for (const { mitigation, risk } of overdue) {
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: risk.entityId,
+        type: "mitigation_due",
+        title: `Overdue: ${mitigation.description}`,
+        description: `On ${risk.reference} ${risk.title}.`,
+        subjectType: "mitigation",
+        subjectId: mitigation.id,
+        assigneeUserId: mitigation.ownerId,
+        idempotencyKey: `mitigation-overdue:${mitigation.id}:${mitigation.dueAt?.toISOString().slice(0, 10)}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
+ * Mark tasks that have missed their service level and escalate them.
+ *
+ * Recording the breach on the task is what makes it a fact rather than a
+ * calculation: "was this late" stays answerable after the task is finally
+ * completed, which is the only version of the question that matters in a
+ * management report.
+ */
+async function recordBreaches(organisationId: string): Promise<number> {
+  const breached = await db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.organisationId, organisationId),
+        inArray(tasks.status, ["open", "in_progress"]),
+        isNull(tasks.breachedAt),
+        lte(tasks.dueAt, new Date()),
+      ),
+    );
+
+  const policies = await db
+    .select()
+    .from(slaPolicies)
+    .where(eq(slaPolicies.organisationId, organisationId));
+  const escalateTo = new Map(policies.map((p) => [p.taskType, p.escalateToRole]));
+
+  let count = 0;
+  for (const task of breached) {
+    await db.transaction(async (tx) => {
+      const now = new Date();
+      await tx
+        .update(tasks)
+        .set({ breachedAt: now, escalatedAt: now })
+        .where(eq(tasks.id, task.id));
+
+      await appendAuditEvent(tx, {
+        ...SYSTEM,
+        organisationId,
+        action: "task.sla_breached",
+        subjectType: "task",
+        subjectId: task.id,
+        entityId: task.entityId,
+        after: {
+          title: task.title,
+          dueAt: task.dueAt?.toISOString() ?? null,
+          escalatedTo: escalateTo.get(task.type) ?? null,
+        },
+      });
+
+      await queueNotification(tx, {
+        organisationId,
+        recipient: escalateTo.get(task.type) ?? task.assigneeEmail ?? task.assigneeRole ?? "unassigned",
+        kind: "task.sla_breached",
+        subject: `Overdue: ${task.title}`,
+        body: `Due ${task.dueAt?.toISOString().slice(0, 10)}, still ${task.status}.`,
+        taskId: task.id,
+        idempotencyKey: `notify:breach:${task.id}`,
+      });
+      count += 1;
+    });
+  }
+  return count;
+}
+
+/**
+ * Turn a country library falling out of date into somebody's work.
+ *
+ * One task for the library, not one per country. Sixty-six identical reminders
+ * is not sixty-six times as useful as one — it buries every other task a person
+ * has, and the rational response is to stop reading the list. The task names
+ * the count and the worst of it; the library page is where the work happens.
+ *
+ * This is what "kept up to date" means in practice. Transfer assessments cite
+ * this library, so an entry nobody has checked weakens every assessment relying
+ * on it — quietly, because the assessment still reads as evidenced.
+ */
+async function raiseCountryReviews(organisationId: string): Promise<number> {
+  const due = (await countriesDueForReview()).filter(
+    // A shared row is due for everybody; an override is due only for its owner.
+    (c) => c.organisationId === null || c.organisationId === organisationId,
+  );
+  if (due.length === 0) return 0;
+
+  const [entity] = await db
+    .select()
+    .from(entities)
+    .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+  if (!entity) return 0;
+
+  const unverified = due.filter((c) => c.reviewedBy === "seed — not verified").length;
+  const oldest = due[0];
+
+  // Keyed on the month, so a neglected library nags once a month rather than
+  // once an hour, and a fresh lapse next month raises a fresh task.
+  const period = new Date().toISOString().slice(0, 7);
+
+  let raised = 0;
+  await db.transaction(async (tx) => {
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: entity.id,
+      type: "review_assessment",
+      title: `${due.length} countries need their transfer information checked`,
+      description:
+        (unverified > 0
+          ? `${unverified} have never been checked by a person. `
+          : `Oldest is ${oldest.name}, last checked ${oldest.reviewedAt.toISOString().slice(0, 10)}. `) +
+        "Transfer assessments cite this library.",
+      subjectType: "country_risk",
+      subjectId: oldest.id,
+      assigneeRole: "privacy_admin",
+      idempotencyKey: `country-library-review:${period}`,
+      actor: SYSTEM,
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
+/**
+ * Contracts that are lapsing, or were never signed.
+ *
+ * Article 28(3) requires processing to be governed by a contract. An expiry
+ * date is recorded on the agreement and then nothing watches it, so the
+ * failure mode is a processor still processing under an agreement that ended
+ * months ago and nobody noticing until somebody asks.
+ *
+ * One task naming the count rather than one per agreement: a supplier list
+ * that turns over produces dozens at once, and thirty near-identical tasks are
+ * ignored as a block.
+ */
+async function raiseDpaReviews(organisationId: string): Promise<number> {
+  const due = await dpasNeedingAttention(organisationId);
+  if (due.length === 0) return 0;
+
+  const [entity] = await db
+    .select()
+    .from(entities)
+    .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+  if (!entity) return 0;
+
+  const now = new Date();
+  const expired = due.filter((d) => d.dpa.expiresAt && d.dpa.expiresAt <= now);
+  const unsigned = due.filter((d) => !d.dpa.signedAt);
+  const first = expired[0] ?? due[0];
+
+  const parts: string[] = [];
+  if (expired.length > 0) parts.push(`${expired.length} already expired`);
+  if (unsigned.length > 0) parts.push(`${unsigned.length} never signed`);
+  const soon = due.length - expired.length - unsigned.length;
+  if (soon > 0) parts.push(`${soon} expiring within ${EXPIRING_WITHIN_LABEL}`);
+
+  // Keyed on the month so a neglected contract file nags monthly rather than
+  // hourly, and a fresh lapse next month raises a fresh task.
+  const period = new Date().toISOString().slice(0, 7);
+
+  let raised = 0;
+  await db.transaction(async (tx) => {
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: entity.id,
+      type: "review_assessment",
+      title: `${due.length} processor agreement(s) need attention`,
+      description:
+        `${parts.join(", ")}. Earliest is ${first.supplier}` +
+        (first.dpa.expiresAt
+          ? `, ending ${first.dpa.expiresAt.toISOString().slice(0, 10)}.`
+          : ", which has no signature recorded.") +
+        " Processing under a lapsed agreement is processing without a contract.",
+      subjectType: "dpa",
+      subjectId: first.dpa.id,
+      assigneeRole: "privacy_admin",
+      idempotencyKey: `dpa-review:${period}`,
+      actor: SYSTEM,
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
+/**
+ * Breaches whose seventy-two hours is running out, or has run out.
+ *
+ * One task per breach rather than one naming a count, which is the opposite of
+ * how country reviews and processor agreements are handled — and deliberately.
+ * Those are housekeeping that accumulates; this is a statutory deadline
+ * attaching to a specific incident, and rolling three of them into one line
+ * would be the wrong instinct entirely.
+ *
+ * Keyed on the breach and the state, so a breach that moves from due-soon to
+ * overdue raises a second task rather than silently reusing the first.
+ */
+async function raiseBreachDeadlines(organisationId: string): Promise<number> {
+  const pressing = await breachesNeedingAttention(organisationId);
+  if (pressing.length === 0) return 0;
+
+  let raised = 0;
+  for (const { breach, clock, regime } of pressing) {
+    const overdue = clock.state === "overdue";
+    const pecr = regime === "pecr_5a";
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: breach.entityId,
+        type: "breach_deadline",
+        title:
+          (overdue
+            ? `${breach.reference}: past seventy-two hours`
+            : `${breach.reference}: seventy-two hours running out`) + (pecr ? " (PECR reg 5A)" : ""),
+        description:
+          `${clock.words}. ` +
+          (pecr
+            ? overdue
+              ? "PECR reg 5A still requires the Information Commission to be told, with the reasons for the delay."
+              : "Notify the Information Commission under PECR reg 5A. There is no risk test: every breach in providing the service is notified."
+            : overdue
+              ? "Article 33(1) still requires notification, accompanied by the reasons for the delay."
+              : "Notify the supervisory authority, or record why Article 33 does not require it."),
+        subjectType: "breach",
+        subjectId: breach.id,
+        assigneeRole: "privacy_admin",
+        // The statutory deadline, not a service level counted from now.
+        // Without this the task inherits 72 hours from its own creation and
+        // shows "in 4d" for something due this afternoon.
+        dueAt: notificationDeadline(breach.discoveredAt),
+        idempotencyKey: pecr ? `breach-deadline-5a:${breach.id}:${clock.state}` : `breach-deadline:${breach.id}:${clock.state}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
+ * Requests from data subjects whose month is running out, or has run out.
+ *
+ * One task per request, keyed on the request and the clock state, for the same
+ * reason as breaches: each is a statutory deadline owed to a named person.
+ * Due soon covers the extension as well as the response, because Article 12(3)
+ * requires an extension to be decided and explained within the same month.
+ */
+async function raiseRequestDeadlines(organisationId: string): Promise<number> {
+  const pressing = await requestsNeedingAttention(organisationId);
+  if (pressing.length === 0) return 0;
+
+  let raised = 0;
+  for (const { request, extended, clock } of pressing) {
+    if (!("dueAt" in clock)) continue;
+    const overdue = clock.state === "overdue";
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: request.entityId,
+        type: "dsr_deadline",
+        title: overdue
+          ? `${request.reference}: past the deadline to respond`
+          : `${request.reference}: deadline to respond is close`,
+        description:
+          `${clock.words} ` +
+          (overdue
+            ? "The response is still owed. Send it, and record why it was late."
+            : extended
+              ? "The time has already been extended; there is no further extension."
+              : "Respond, or extend by up to two months and tell the person why, before the deadline."),
+        subjectType: "data_subject_request",
+        subjectId: request.id,
+        // The owner is who knows the request; with none, the privacy team.
+        ...(request.ownerId ? { assigneeUserId: request.ownerId } : { assigneeRole: "privacy_admin" as const }),
+        // The statutory deadline, not a service level counted from now.
+        dueAt: clock.dueAt,
+        idempotencyKey: `dsr-deadline:${request.id}:${clock.state}:${extended ? "extended" : "original"}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+const COMPLAINT_DIAL = {
+  acknowledgement: {
+    soon: "acknowledgement due",
+    over: "acknowledgement past the 30 days",
+    next: "Acknowledge it, as DPA 2018 s.164A(3) requires.",
+    late: "It is still owed. Acknowledge it, and record why it was late.",
+  },
+  outcome: {
+    soon: "outcome target close",
+    over: "past your target for the outcome",
+    next: "Tell the complainant the outcome, or tell them how it stands and when to expect it.",
+    late: "The Act requires the outcome without undue delay. Send it, or update them and record why it is taking longer.",
+  },
+  update: {
+    soon: "progress update due",
+    over: "progress update overdue",
+    next: "Tell the complainant how it stands (s.164A(5)(b)).",
+    late: "Tell the complainant how it stands (s.164A(5)(b)), and record the update.",
+  },
+} as const;
+
+/**
+ * Complaints whose acknowledgement, outcome or next update is due or past.
+ *
+ * One task per complaint, per dial and per due date, so a new update interval
+ * after each update raises its own reminder while the same deadline is never
+ * raised twice. Only the acknowledgement is the Act's; the others are the
+ * organisation's own targets, and the task says so.
+ */
+async function raiseComplaintDeadlines(organisationId: string): Promise<number> {
+  const pressing = await complaintsNeedingAttention(organisationId);
+  if (pressing.length === 0) return 0;
+
+  let raised = 0;
+  for (const { complaint, pressing: dials } of pressing) {
+    for (const dial of dials) {
+      const words = COMPLAINT_DIAL[dial.which];
+      const overdue = dial.state === "overdue";
+      await db.transaction(async (tx) => {
+        const task = await raiseTask(tx, {
+          organisationId,
+          entityId: complaint.entityId,
+          type: "complaint_deadline",
+          title: `${complaint.reference}: ${overdue ? words.over : words.soon}`,
+          description: `${dial.words} ${overdue ? words.late : words.next}`,
+          subjectType: "data_protection_complaint",
+          subjectId: complaint.id,
+          ...(complaint.ownerId ? { assigneeUserId: complaint.ownerId } : { assigneeRole: "privacy_admin" as const }),
+          dueAt: dial.dueAt,
+          idempotencyKey: `complaint-deadline:${complaint.id}:${dial.which}:${dial.dueAt.toISOString().slice(0, 10)}:${dial.state}`,
+          actor: SYSTEM,
+        });
+        if (task) raised += 1;
+      });
+    }
+  }
+  return raised;
+}
+
+/**
+ * Websites and apps due to be scanned for cookies again.
+ *
+ * Raised a fortnight ahead, once per due date: a scan moves the date on and
+ * closes the reminder, so the next cycle raises its own. Nothing is scanned
+ * from here; somebody uploads a report, or starts a scan.
+ */
+async function raiseRescans(organisationId: string): Promise<number> {
+  const due = await propertiesDueForRescan(organisationId);
+  let raised = 0;
+  for (const { property, dueAt, state } of due) {
+    const day = dueAt.toISOString().slice(0, 10);
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: property.entityId,
+        type: "pecr_rescan",
+        title: `${property.reference}: ${property.name} is ${state === "overdue" ? "overdue" : "due"} a cookie scan (${day})`,
+        description:
+          `Scan ${property.url} with the Waivern Consent Analyser and upload the report, so the cookie inventory ` +
+          `reflects what the site sets today. Due every ${property.rescanIntervalMonths === 1 ? "month" : `${property.rescanIntervalMonths} months`}; ` +
+          (property.lastScannedAt ? `last scanned ${property.lastScannedAt.toISOString().slice(0, 10)}.` : "never scanned."),
+        subjectType: "digital_property",
+        subjectId: property.id,
+        ...(property.ownerId ? { assigneeUserId: property.ownerId } : { assigneeRole: "privacy_admin" as const }),
+        dueAt,
+        idempotencyKey: `pecr-rescan:${property.id}:${day}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
+ * Live-call marketing whose TPS and CTPS screening is about to run out, has
+ * run out, or never happened. The TPS asks callers to screen at least every
+ * 28 days; recording a screening closes the reminder.
+ */
+async function raiseTpsScreenings(organisationId: string): Promise<number> {
+  const due = await activitiesDueTpsScreening(organisationId);
+  let raised = 0;
+  for (const { activity, dueAt, overdue } of due) {
+    // One reminder per screening that runs out, and one for never having screened.
+    const key = activity.tpsScreenedAt ? dueAt.toISOString().slice(0, 10) : "never";
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: activity.entityId,
+        type: "marketing_tps_screening",
+        title: activity.tpsScreenedAt
+          ? `${activity.reference}: ${activity.name} ${overdue ? "is overdue" : "is due"} TPS screening (${key})`
+          : `${activity.reference}: ${activity.name} has never been screened against the TPS`,
+        description:
+          "Screen the call list against the Telephone and Corporate Telephone Preference Services and record the date. " +
+          "PECR regulation 21 bars calls to registered numbers unless the person has told you they do not object; a " +
+          "screening holds for 28 days.",
+        subjectType: "marketing_activity",
+        subjectId: activity.id,
+        ...(activity.ownerId ? { assigneeUserId: activity.ownerId } : { assigneeRole: "privacy_admin" as const }),
+        dueAt,
+        idempotencyKey: `marketing-tps:${activity.id}:${key}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
+ * Activities people keep objecting to.
+ *
+ * Each objection is decided on its own, but a run of them says something
+ * about the balance struck in the legitimate interests assessment: that the
+ * people affected do not expect the processing, or mind it more than the
+ * assessment supposed. Past the organisation's threshold in twelve months,
+ * the activity's current LIA goes back to its owner; where there is none,
+ * that absence is the task.
+ *
+ * Keyed on how many thresholds have been crossed, so a second run of
+ * objections raises a second review rather than nothing.
+ */
+async function raiseObjectionReviews(organisationId: string): Promise<number> {
+  const threshold = await objectionReviewThreshold(organisationId);
+  if (threshold === 0) return 0;
+  const counts = await objectionCounts(organisationId);
+  const due = [...counts].filter(([, c]) => objectionReviewDue(c.total, threshold));
+  if (due.length === 0) return 0;
+
+  let raised = 0;
+  for (const [activityId, count] of due) {
+    const [activity] = await db
+      .select()
+      .from(processingActivities)
+      .where(and(eq(processingActivities.id, activityId), eq(processingActivities.organisationId, organisationId)));
+    if (!activity) continue;
+    const [lia] = await db
+      .select({ assessment: assessments })
+      .from(assessments)
+      .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+      .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+      .where(
+        and(
+          eq(assessments.organisationId, organisationId),
+          eq(assessments.subjectType, "processing_activity"),
+          eq(assessments.subjectId, activityId),
+          eq(templates.kind, "lia"),
+          inArray(assessments.status, ["draft", "in_progress", "in_review", "returned", "approved"]),
+        ),
+      )
+      .orderBy(sql`${assessments.createdAt} desc`)
+      .limit(1);
+
+    const tally = `${count.total} objection(s) in the last twelve months: ${count.upheld} upheld, ${count.overridden} overridden.`;
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: activity.entityId,
+        type: "reassess",
+        ...(lia
+          ? {
+              title: `Review the LIA for ${activity.reference} ${activity.name}: people keep objecting`,
+              description: `${tally} Revisit the balancing test in ${lia.assessment.reference} with that in mind.`,
+              subjectType: "assessment" as const,
+              subjectId: lia.assessment.id,
+              ...(lia.assessment.ownerId
+                ? { assigneeUserId: lia.assessment.ownerId }
+                : { assigneeRole: "privacy_admin" as const }),
+            }
+          : {
+              title: `${activity.reference} ${activity.name} has no LIA, and people keep objecting`,
+              description: `${tally} Carry out a legitimate interests assessment, or check the lawful basis recorded for it.`,
+              subjectType: "processing_activity" as const,
+              subjectId: activity.id,
+              ...(activity.ownerId ? { assigneeUserId: activity.ownerId } : { assigneeRole: "privacy_admin" as const }),
+            }),
+        idempotencyKey: `objection-review:${activityId}:${Math.floor(count.total / threshold)}`,
+        actor: SYSTEM,
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
+ * Approved assessments whose review date has passed.
+ *
+ * Separate from the schedule that raised the reassessment, because the two say
+ * different things. A schedule coming due means work is now expected; a review
+ * date in the past means the organisation is currently relying on a stale
+ * assessment, and that is worth saying out loud rather than leaving a task to
+ * sit quietly in somebody's queue.
+ *
+ * Keyed on the month, so a neglected review nags monthly rather than hourly.
+ */
+async function raiseLapsedReviews(organisationId: string): Promise<number> {
+  const lapsed = await db
+    .select({ assessment: assessments, entityId: assessments.entityId })
+    .from(assessments)
+    .where(
+      and(
+        eq(assessments.organisationId, organisationId),
+        eq(assessments.status, "approved"),
+        isNull(assessments.supersedesId),
+        lte(assessments.reviewDueAt, new Date()),
+      ),
+    )
+    .orderBy(asc(assessments.reviewDueAt));
+  if (lapsed.length === 0) return 0;
+
+  const period = new Date().toISOString().slice(0, 7);
+  let raised = 0;
+
+  await db.transaction(async (tx) => {
+    const oldest = lapsed[0].assessment;
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: oldest.entityId,
+      type: "reassess",
+      title:
+        lapsed.length === 1
+          ? `${oldest.reference} is past its review date`
+          : `${lapsed.length} approved assessments are past their review date`,
+      description:
+        `Oldest is ${oldest.reference}, due ${oldest.reviewDueAt!.toISOString().slice(0, 10)}. ` +
+        `An approved assessment past its review date is one the organisation is still relying on.`,
+      subjectType: "assessment",
+      subjectId: oldest.id,
+      assigneeRole: "privacy_admin",
+      idempotencyKey: `lapsed-reviews:${period}`,
+      actor: SYSTEM,
+    });
+    if (task) raised = lapsed.length;
+  });
+  return raised;
+}
+
+/**
+ * AI systems whose review date has passed.
+ *
+ * The register has always shown an overdue review as a gap, and nothing ever
+ * acted on it — so the date was decoration. DSIT's toolkit treats AI risk as
+ * something reassessed through the system's life rather than signed off once,
+ * and a review date nobody is told about does not get reassessed.
+ *
+ * Retired systems are left alone: there is nothing running to look at. One
+ * task naming the count, for the same reason as lapsed assessment reviews, and
+ * keyed on the month so a neglected register nags monthly rather than hourly.
+ * It goes to AI governance rather than the privacy team, because that is who
+ * the register belongs to.
+ */
+async function raiseAiReviews(organisationId: string): Promise<number> {
+  const due = await db
+    .select()
+    .from(aiUseCases)
+    .where(
+      and(
+        eq(aiUseCases.organisationId, organisationId),
+        ne(aiUseCases.lifecycleStage, "retired"),
+        lte(aiUseCases.nextReviewAt, new Date()),
+      ),
+    )
+    .orderBy(asc(aiUseCases.nextReviewAt));
+  if (due.length === 0) return 0;
+
+  const period = new Date().toISOString().slice(0, 7);
+  const oldest = due[0];
+  let raised = 0;
+
+  await db.transaction(async (tx) => {
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: oldest.entityId,
+      type: "reassess",
+      title:
+        due.length === 1
+          ? `${oldest.reference} ${oldest.name} is due for review`
+          : `${due.length} AI systems are past their review date`,
+      description:
+        `Oldest is ${oldest.reference}, due ${oldest.nextReviewAt!.toISOString().slice(0, 10)}. ` +
+        "Check whether the system, its data or how it is used has changed, and reassess its risks if so.",
+      subjectType: "ai_use_case",
+      subjectId: oldest.id,
+      assigneeRole: "ai_governance",
+      idempotencyKey: `ai-reviews:${period}`,
+      actor: SYSTEM,
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
+/**
+ * Approved risk appetites whose review date has passed.
+ *
+ * An appetite is a judgement about how much risk is worth carrying for a
+ * benefit, and both sides move — particularly for AI, where what a system can
+ * do and what it costs change within a year. A statement past its review date
+ * still governs every risk in its category, so somebody is asked to confirm or
+ * replace it. Raised to the privacy administrators, who can put a fresh
+ * statement in front of whoever signs it off.
+ */
+async function raiseAppetiteReviews(organisationId: string): Promise<number> {
+  const due = await appetitesDueForReview(organisationId);
+  if (due.length === 0) return 0;
+
+  const [entity] = await db
+    .select()
+    .from(entities)
+    .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+  if (!entity) return 0;
+
+  const period = new Date().toISOString().slice(0, 7);
+  const oldest = due[0];
+  let raised = 0;
+  await db.transaction(async (tx) => {
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: entity.id,
+      type: "review_acceptance",
+      title:
+        due.length === 1
+          ? `Risk appetite for ${scopeLabel(oldest.category)} is due for review`
+          : `${due.length} risk appetite statements are due for review`,
+      description:
+        `Oldest is ${scopeLabel(oldest.category)}, due ${oldest.reviewDueAt!.toISOString().slice(0, 10)}. ` +
+        "Every risk in the category is still judged against it. Confirm it or propose a replacement for sign-off.",
+      subjectType: "risk_appetite",
+      subjectId: oldest.id,
+      assigneeRole: "privacy_admin",
+      idempotencyKey: `appetite-reviews:${period}`,
+      actor: SYSTEM,
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
+/** Few at a time: each is up to 10MB held in memory while it is scanned. */
+const SCAN_BATCH = 5;
+
+/**
+ * Stored files that have never been through the virus scanner.
+ *
+ * Everything uploaded before this deployment ran a scanner, worked through a
+ * handful per sweep. A clean one is marked with the scanner it passed. An
+ * infected one is quarantined — kept, refused for download, and raised to the
+ * privacy administrators — rather than deleted: it may be the only copy of a
+ * signed agreement, and whether a detection is real is a person's decision.
+ *
+ * Does nothing where scanning is off. A scanner that cannot be reached ends
+ * the batch quietly and the same files are tried next sweep.
+ */
+async function scanStoredDocuments(
+  organisationId: string,
+  config: ScannerConfig | null = scannerConfig(),
+): Promise<{ scanned: number; quarantined: number }> {
+  const done = { scanned: 0, quarantined: 0 };
+  if (!config) return done;
+
+  const due = await withOrganisation(organisationId, () =>
+    db
+      .select({
+        id: documents.id,
+        entityId: documents.entityId,
+        subjectType: documents.subjectType,
+        subjectId: documents.subjectId,
+        filename: documents.filename,
+        sha256: documents.sha256,
+        content: documents.content,
+      })
+      .from(documents)
+      .where(and(eq(documents.organisationId, organisationId), isNull(documents.scannedAt)))
+      .orderBy(asc(documents.uploadedAt))
+      .limit(SCAN_BATCH),
+  );
+
+  for (const doc of due) {
+    let verdict;
+    try {
+      verdict = await scanBuffer(doc.content, config);
+    } catch (error) {
+      if (error instanceof ScannerUnavailable) {
+        log("warn", "sweep.scan_deferred", { remaining: due.length - done.scanned });
+        break;
+      }
+      throw error;
+    }
+
+    const scannedAt = new Date();
+    if (verdict.outcome === "clean") {
+      await withOrganisation(organisationId, () =>
+        db
+          .update(documents)
+          .set({ scannedAt, scannerVersion: verdict.scanner })
+          .where(eq(documents.id, doc.id)),
+      );
+      done.scanned += 1;
+      continue;
+    }
+
+    await withOrganisation(organisationId, async () => {
+      let entityId = doc.entityId;
+      if (!entityId) {
+        const [entity] = await db
+          .select({ id: entities.id })
+          .from(entities)
+          .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+        entityId = entity?.id ?? null;
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(documents)
+          .set({
+            scannedAt,
+            scannerVersion: verdict.scanner,
+            quarantinedAt: scannedAt,
+            quarantineSignature: verdict.signature,
+          })
+          .where(eq(documents.id, doc.id));
+        await appendAuditEvent(tx, {
+          ...SYSTEM,
+          organisationId,
+          entityId: entityId ?? undefined,
+          action: "document.quarantined",
+          subjectType: doc.subjectType,
+          subjectId: doc.subjectId,
+          after: {
+            document: doc.id,
+            filename: doc.filename,
+            sha256: doc.sha256,
+            signature: verdict.signature,
+            scanner: verdict.scanner,
+          },
+        });
+        if (entityId) {
+          await raiseTask(tx, {
+            organisationId,
+            entityId,
+            type: "review_assessment",
+            title: `A stored file was flagged by the virus scanner: ${doc.filename}`,
+            description:
+              `The scanner (${verdict.scanner}) found ${verdict.signature}. ` +
+              "The file is held and cannot be downloaded. Check it with whoever supplied it, " +
+              "then remove it, or replace it with a clean copy.",
+            subjectType: doc.subjectType,
+            subjectId: doc.subjectId,
+            assigneeRole: "privacy_admin",
+            idempotencyKey: `document-quarantine:${doc.id}`,
+            actor: SYSTEM,
+          });
+        }
+      });
+    });
+    done.scanned += 1;
+    done.quarantined += 1;
+  }
+  return done;
+}
+
+export async function sweepOrganisation(organisationId: string): Promise<SweepResult> {
+  const [org] = await db.select().from(organisations).where(eq(organisations.id, organisationId));
+  const result: SweepResult = {
+    organisation: org?.name ?? organisationId,
+    schedulesMaterialised: await materialiseSchedules(organisationId),
+    acceptanceReviewsRaised: await reviewLapsedAcceptances(organisationId),
+    mitigationRemindersRaised: await remindOverdueMitigations(organisationId),
+    breachesRecorded: await recordBreaches(organisationId),
+    countryReviewsRaised: await raiseCountryReviews(organisationId),
+    dpaReviewsRaised: await raiseDpaReviews(organisationId),
+    // Retention is a promise, and a promise nothing enforces is a claim.
+    conversationsForgotten: await forgetExpiredConversations(organisationId),
+    breachDeadlinesRaised: await raiseBreachDeadlines(organisationId),
+    requestDeadlinesRaised: await raiseRequestDeadlines(organisationId),
+    complaintDeadlinesRaised: await raiseComplaintDeadlines(organisationId),
+    // Scans nobody stayed to watch: take their reports in, or give up on them.
+    // Before rescans, so a scan finished here moves the next due date on.
+    consentScansFinished: await finishRunningScans(organisationId),
+    rescansRaised: await raiseRescans(organisationId),
+    tpsScreeningsRaised: await raiseTpsScreenings(organisationId),
+    objectionReviewsRaised: await raiseObjectionReviews(organisationId),
+    // Kept a day for rate limiting, then forgotten.
+    intakeAttemptsForgotten: await pruneIntakeAttempts(organisationId),
+    lapsedReviewsRaised: await raiseLapsedReviews(organisationId),
+    aiReviewsRaised: await raiseAiReviews(organisationId),
+    appetiteReviewsRaised: await raiseAppetiteReviews(organisationId),
+    documentsScanned: 0,
+    documentsQuarantined: 0,
+    webhooksDelivered: 0,
+    webhooksFailed: 0,
+    notificationsEmailed: 0,
+  };
+
+  // Only where this deployment runs a scanner; otherwise nothing is read.
+  const scanned = await scanStoredDocuments(organisationId);
+  result.documentsScanned = scanned.scanned;
+  result.documentsQuarantined = scanned.quarantined;
+
+  // Delivery is attempted last: a subscriber that is slow or down must not
+  // delay the governance work the sweep exists to do.
+  const delivery = await deliverPending(organisationId);
+  result.webhooksDelivered = delivery.delivered;
+  result.webhooksFailed = delivery.failed;
+  // Then email, for the people who asked for it, where it is switched on.
+  result.notificationsEmailed = (await deliverNotifications(organisationId)).emailed;
+  return result;
+}
+
+export async function sweepAll(): Promise<SweepResult[]> {
+  const orgs = await db.select({ id: organisations.id }).from(organisations);
+  const results: SweepResult[] = [];
+  for (const o of orgs) results.push(await sweepOrganisation(o.id));
+  return results;
+}
+
+/** Notifications recorded but not yet handed to a delivery mechanism. */
+export async function pendingNotifications(organisationId: string) {
+  return withOrganisation(organisationId, async () => {
+    return db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.organisationId, organisationId), isNull(notifications.sentAt)))
+      .orderBy(notifications.createdAt);
+  });
+}

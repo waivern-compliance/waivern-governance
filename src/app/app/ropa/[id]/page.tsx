@@ -1,0 +1,628 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { asc, eq } from "drizzle-orm";
+import { db, scoped } from "@/db/client";
+import { memberships, processingActivities, users } from "@/db/schema";
+import { GapChips } from "@/components/GapChips";
+import { Discussion } from "@/components/Discussion";
+import { NotPermitted } from "@/components/NotPermitted";
+import { can } from "@/lib/rbac";
+import { getActiveSession } from "@/lib/session";
+import { GAP_WORDS, HARD_GAPS, loadActivity } from "@/services/ropa";
+import { objectionCounts, objectionReviewThreshold } from "@/services/data-subject-requests";
+import { objectionReviewDue } from "@/lib/dsr/statutory";
+import { saveFurtherProcessingAction, updateActivityAction } from "../actions";
+import { FurtherProcessingFields } from "../FurtherProcessingFields";
+import { Part3FurtherFields } from "../Part3FurtherFields";
+import { PART3_RESEARCH_SAFEGUARDS, PART3_RESEARCH_SAFEGUARD_KEYS, describePart3Further } from "@/lib/dpa2018/part3-further";
+import {
+  ANNEX2_CONDITIONS,
+  COMPATIBILITY_FACTORS,
+  COMPATIBILITY_FACTOR_KEYS,
+  RESEARCH_SAFEGUARDS,
+  RESEARCH_SAFEGUARD_KEYS,
+  describeFurtherProcessing,
+} from "@/lib/gdpr/further-processing";
+import { savedKey } from "@/lib/saved-key";
+import { EditForm } from "@/components/EditForm";
+import { RECOGNISED_CONDITIONS, describeBases } from "@/lib/gdpr/lawful-basis";
+import { LawfulBasisFields } from "../LawfulBasisFields";
+import { SpecialCategoryFields } from "../SpecialCategoryFields";
+import { ukLawApplies } from "@/lib/dpa2018/applies";
+import { RegimeFields } from "../Part3Fields";
+import { PART3_BASES, REGIMES, SCHEDULE_8, SENSITIVE_ROUTES } from "@/lib/dpa2018/part3";
+import { CategoryPicker } from "../CategoryPicker";
+import { DATA_CATEGORIES, SUBJECT_CATEGORIES } from "@/lib/templates/catalogues";
+import { ART9_CONDITIONS, describeArt10, describeSchedule1 } from "@/lib/dpa2018/schedule-1";
+import { AutomatedDecisions } from "@/components/AutomatedDecisions";
+import { linkedUseCasesOf } from "@/services/automated-decisions";
+import { agreementsFor } from "@/services/sharing-agreements";
+
+const ROLE_WORDS: Record<string, string> = {
+  controller: "Controller — you decide why and how",
+  joint_controller: "Joint controller",
+  processor: "Processor — you act for somebody else",
+};
+
+export default async function ActivityPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const active = await getActiveSession();
+  if (!active) redirect("/sign-in");
+
+  const loaded = await loadActivity(id, active.membership.organisationId);
+  if (!loaded) notFound();
+
+  const { activity, entityName, gaps, hardGaps, assessments, original } = loaded;
+  const ukLaw = ukLawApplies(loaded.dataProtectionLaw);
+  if (!can(active.membership.grants, "record.read", activity.entityId)) {
+    return (
+      <NotPermitted
+        what={`${activity.reference} belongs to another part of the organisation, and`}
+        organisationName={active.membership.organisationName}
+      />
+    );
+  }
+  const mayEdit = can(active.membership.grants, "record.write", activity.entityId);
+
+  const colleagues = await scoped(active.membership.organisationId, () => db
+    .select({ id: users.id, email: users.email })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.organisationId, active.membership.organisationId))
+    .orderBy(asc(users.email)));
+
+  // Counts only — no requester — so anyone who may read the record may see them.
+  const [objections, threshold, linkedUseCases, otherActivities, sharing] = await Promise.all([
+    objectionCounts(active.membership.organisationId, [activity.id]).then((m) => m.get(activity.id)),
+    objectionReviewThreshold(active.membership.organisationId),
+    linkedUseCasesOf(active.membership.organisationId, activity),
+    // What this activity could reuse data from, for the further-processing link.
+    mayEdit
+      ? scoped(active.membership.organisationId, () => db
+          .select({
+            id: processingActivities.id,
+            entityId: processingActivities.entityId,
+            reference: processingActivities.reference,
+            name: processingActivities.name,
+            lawfulBases: processingActivities.lawfulBases,
+            regime: processingActivities.regime,
+          })
+          .from(processingActivities)
+          .where(eq(processingActivities.organisationId, active.membership.organisationId))
+          .orderBy(asc(processingActivities.reference)))
+      : Promise.resolve([]),
+    agreementsFor(active.membership.organisationId, { activityId: activity.id }),
+  ]);
+
+  const transfersText = (activity.transfers ?? [])
+    .map((t) => (t.mechanism ? `${t.country}: ${t.mechanism}` : t.country))
+    .join("\n");
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
+      <header className="space-y-3 border-b border-line pb-6">
+        <Link href="/app/ropa" className="text-xs text-ink-soft hover:text-brand">
+          ← Record of processing activities
+        </Link>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <span className="font-mono text-sm text-ink-soft">{activity.reference}</span>
+          <h1 className="text-2xl font-semibold tracking-tight">{activity.name}</h1>
+        </div>
+        <p className="text-xs text-ink-soft">
+          {entityName} · {ROLE_WORDS[activity.controllerRole ?? "controller"] ?? activity.controllerRole}
+          {activity.sourceConnectionId ? " · arrived from a connected tool" : ""}
+        </p>
+        <GapChips gaps={gaps} words={GAP_WORDS} serious={HARD_GAPS} clear="Article 30 complete" />
+        {hardGaps.length > 0 ? (
+          activity.regime === "dpa_part3" ? (
+            <p className="max-w-prose text-xs text-red-900">
+              The red items are unqualified requirements of section 61, or processing Part 3 does not allow as
+              recorded — no section 35(2) basis, or sensitive processing without a route, a Schedule 8 condition or a
+              policy document covering it. Retention and security measures are qualified by “where possible”, so they
+              are reported without being called a breach.
+            </p>
+          ) : (
+            <p className="max-w-prose text-xs text-red-900">
+              The red items are unqualified Article 30 requirements, or processing
+              the record describes as something the law does not allow — a solely
+              automated decision Article 22B forbids, further processing on a
+              route Article 8A(4) closes, or special category or criminal offence
+              data with no condition{ukLaw ? ", or with a Schedule 1 condition no current appropriate policy document covers" : ""}. Retention and security measures are
+              qualified by “where possible”, so they are reported without being
+              called a breach.
+            </p>
+          )
+        ) : null}
+        {objections ? (
+          <p
+            className={`max-w-prose text-xs ${
+              objectionReviewDue(objections.total, threshold) ? "text-amber-900" : "text-ink-soft"
+            }`}
+          >
+            {objections.total} objection{objections.total === 1 ? "" : "s"} in the last twelve months: {objections.upheld} upheld,{" "}
+            {objections.overridden} overridden.
+            {objectionReviewDue(objections.total, threshold)
+              ? " Past the organisation's threshold, so its legitimate interests assessment is due a review."
+              : ""}
+          </p>
+        ) : null}
+      </header>
+
+      {assessments.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">Assessments of this processing</h2>
+          <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
+            {assessments.map(({ assessment, kind }) => (
+              <li key={assessment.id}>
+                <Link
+                  href={`/app/assessments/${assessment.id}`}
+                  className="flex items-baseline justify-between gap-4 px-4 py-3 text-sm hover:bg-ground"
+                >
+                  <span className="flex items-baseline gap-3">
+                    <span className="font-mono text-xs text-ink-soft">{assessment.reference}</span>
+                    <span>{kind}</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-ink-soft">{assessment.status}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {sharing.length > 0 || (ukLaw && loaded.uncoveredControllers.length > 0) ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">Data sharing agreements</h2>
+          {sharing.length > 0 ? (
+            <ul className="space-y-0.5 text-sm">
+              {sharing.map((a) => (
+                <li key={a.id}>
+                  <Link href={`/app/sharing-agreements/${a.id}`} className="hover:text-brand">
+                    <span className="font-mono text-xs text-ink-soft">{a.reference}</span> {a.title}
+                    {a.endedAt ? <span className="text-xs text-ink-soft"> (ended)</span> : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {ukLaw && loaded.uncoveredControllers.length > 0 ? (
+            <p className="text-xs text-amber-900">
+              Shared with {loaded.uncoveredControllers.map((c) => c.name).join(", ")}, recorded as another controller,
+              with no current agreement covering this activity.{" "}
+              <Link href="/app/sharing-agreements" className="text-brand hover:underline">Data sharing agreements</Link>
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {mayEdit ? (
+        <EditForm
+          key={savedKey(activity)}
+          action={updateActivityAction.bind(null, activity.id)}
+          className="space-y-5 rounded border border-line bg-surface p-5"
+        >
+          <h2 className="text-sm font-semibold">The record</h2>
+
+          <Field label="Name" name="name" defaultValue={activity.name} />
+          <Area label="Description" name="description" defaultValue={activity.description ?? ""} rows={2} />
+
+          <Area
+            label="Purposes"
+            name="purposes"
+            hint="Article 30(1)(b) — one per line"
+            defaultValue={(activity.purposes ?? []).join("\n")}
+          />
+          <CategoryPicker
+            name="subjectCategories"
+            title="Categories of data subject"
+            hint="Article 30(1)(c)"
+            catalogue={SUBJECT_CATEGORIES}
+            values={activity.subjectCategories ?? []}
+          />
+          <CategoryPicker
+            name="dataCategories"
+            title="Categories of personal data"
+            hint="Article 30(1)(c)"
+            catalogue={DATA_CATEGORIES}
+            values={activity.dataCategories ?? []}
+          />
+          <RegimeFields
+            regime={activity.regime}
+            available={loaded.competentAuthority || activity.regime === "dpa_part3"}
+            record={activity}
+            systems={activity.systems ?? []}
+            ukGdpr={
+              <div className="space-y-5">
+                <LawfulBasisFields
+                  bases={activity.lawfulBases ?? []}
+                  condition={activity.recognisedCondition}
+                  note={activity.lawfulBasis ?? ""}
+                  publicAuthority={loaded.publicAuthority}
+                  outsidePublicTasks={activity.outsidePublicTasks}
+                />
+                <SpecialCategoryFields record={activity} ukLaw={ukLaw} />
+                <label className="block space-y-1">
+                  <Label
+                    text="Likely to be accessed by children?"
+                    hint="Article 25(1A) — an online service in this processing that children are likely to use. Preventive and counselling services are not included. Where it is, the measures must take the children's higher protection matters into account, and the DPIA should say how."
+                  />
+                  <select
+                    name="childrenLikely"
+                    defaultValue={activity.childrenLikely === null ? "" : activity.childrenLikely ? "yes" : "no"}
+                    className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+                  >
+                    <option value="">Not yet known</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+              </div>
+            }
+          />
+          <Area
+            label="Categories of recipient"
+            name="recipients"
+            hint="Article 30(1)(d) — who it is disclosed to, including processors"
+            defaultValue={(activity.recipients ?? []).join("\n")}
+          />
+          <Area
+            label="Transfers outside the UK"
+            name="transfers"
+            hint="Article 30(1)(e) — one per line, as “US: SCCs”. A country with no mechanism is flagged unless the library says it needs none."
+            defaultValue={transfersText}
+          />
+          <Field
+            label="Retention"
+            name="retention"
+            hint="Article 30(1)(f) — how long, or how the period is decided"
+            defaultValue={activity.retention ?? ""}
+          />
+          <Area
+            label="Security measures"
+            name="securityMeasures"
+            hint="Article 30(1)(g) — a general description is enough"
+            defaultValue={activity.securityMeasures ?? ""}
+            rows={2}
+          />
+          <Area
+            label="Systems"
+            name="systems"
+            hint="What it runs on — one per line"
+            defaultValue={(activity.systems ?? []).join("\n")}
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <Label text="Your role" />
+              <select
+                name="controllerRole"
+                defaultValue={activity.controllerRole ?? "controller"}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                {Object.entries(ROLE_WORDS).map(([value, words]) => (
+                  <option key={value} value={value}>{words}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <Label text="Owner" hint="who keeps this record true" />
+              <select
+                name="ownerId"
+                defaultValue={activity.ownerId ?? ""}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                <option value="">Nobody yet</option>
+                {colleagues.map((c) => (
+                  <option key={c.id} value={c.id}>{c.email}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <Field
+            label="Controller acted for"
+            name="controllerName"
+            hint="Article 30(2)(a) — required when you are the processor"
+            defaultValue={activity.controllerName ?? ""}
+          />
+
+          <button
+            type="submit"
+            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            Save the record
+          </button>
+        </EditForm>
+      ) : (
+        <section className="space-y-4 rounded border border-line bg-surface p-5 text-sm">
+          <h2 className="text-sm font-semibold">The record</h2>
+          <Read label="Purposes" value={(activity.purposes ?? []).join(" · ")} />
+          <Read label="Regime" value={REGIMES[activity.regime]} />
+          {activity.regime === "dpa_part3" ? (
+            <>
+              <Read label="Section 35(2)" value={activity.part3Basis ? PART3_BASES[activity.part3Basis] : null} />
+              <Read label="Data subjects" value={(activity.subjectCategories ?? []).join(" · ")} />
+              <Read label="Personal data" value={(activity.dataCategories ?? []).join(" · ")} />
+              <Read
+                label="Sensitive processing"
+                value={
+                  activity.sensitiveProcessing === null
+                    ? null
+                    : !activity.sensitiveProcessing
+                      ? "None"
+                      : [
+                          activity.sensitiveRoute ? SENSITIVE_ROUTES[activity.sensitiveRoute] : "No route chosen",
+                          activity.schedule8Condition
+                            ? `Schedule 8, paragraph ${SCHEDULE_8[activity.schedule8Condition].paragraph} — ${SCHEDULE_8[activity.schedule8Condition].label}`
+                            : "",
+                        ].filter(Boolean).join(" — ")
+                }
+              />
+              <Read
+                label="Fact and opinion"
+                value={activity.factOpinionMarked === null ? null : activity.factOpinionMarked ? "Distinguished (s.38(2))" : "Not distinguished"}
+              />
+              <Read
+                label="Logging"
+                value={(activity.logging ?? []).map((l) => `${l.system}: ${l.operations.length} of 6 operations${l.reviewer ? `, reviewed by ${l.reviewer}` : ""}`).join(" · ")}
+              />
+            </>
+          ) : (
+            <>
+              <Read
+                label="Lawful basis"
+                value={
+                  [
+                    describeBases(activity.lawfulBases ?? []),
+                    activity.recognisedCondition ? `${RECOGNISED_CONDITIONS[activity.recognisedCondition].label} (${RECOGNISED_CONDITIONS[activity.recognisedCondition].paragraph})` : "",
+                  ].filter(Boolean).join(" — ")
+                }
+              />
+              {activity.lawfulBasis ? <Read label="Note on the basis" value={activity.lawfulBasis} /> : null}
+              <Read label="Data subjects" value={(activity.subjectCategories ?? []).join(" · ")} />
+              <Read label="Personal data" value={(activity.dataCategories ?? []).join(" · ")} />
+              <Read
+                label="Special category"
+                value={
+                  activity.specialCategory === null
+                    ? null
+                    : !activity.specialCategory
+                      ? "None"
+                      : [
+                          activity.art9Condition ? ART9_CONDITIONS[activity.art9Condition].point : "No Article 9(2) condition chosen",
+                          activity.schedule1Condition ? describeSchedule1(activity.schedule1Condition) : "",
+                        ].filter(Boolean).join(" — ")
+                }
+              />
+              <Read
+                label="Criminal offence"
+                value={
+                  activity.criminalOffence === null
+                    ? null
+                    : !activity.criminalOffence
+                      ? "None"
+                      : activity.art10Condition
+                        ? describeArt10(activity.art10Condition)
+                        : "No Article 10 condition chosen"
+                }
+              />
+            </>
+          )}
+          <Read label="Recipients" value={(activity.recipients ?? []).join(" · ")} />
+          <Read label="Transfers" value={transfersText.replace(/\n/g, " · ")} />
+          <Read label="Retention" value={activity.retention} />
+          <Read label="Security measures" value={activity.securityMeasures} />
+          <Read
+            label="Children"
+            value={activity.childrenLikely === null ? null : activity.childrenLikely ? "Likely to be accessed by children" : "Not likely to be accessed by children"}
+          />
+        </section>
+      )}
+
+      {activity.regime === "dpa_part3" ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold">
+            Further processing and research{" "}
+            <span className="font-normal text-ink-soft">· Data Protection Act 2018 ss.36 and 41 (Part 3)</span>
+          </h2>
+          {mayEdit ? (
+            <EditForm
+              key={savedKey(activity)}
+              action={saveFurtherProcessingAction.bind(null, activity.id)}
+              className="space-y-4 rounded border border-line bg-surface p-4"
+            >
+              <Part3FurtherFields
+                record={activity}
+                activities={otherActivities
+                  .filter((a) => a.id !== activity.id && can(active.membership.grants, "record.read", a.entityId))
+                  .map((a) => ({ id: a.id, label: `${a.reference} ${a.name}` }))}
+              />
+              <button
+                type="submit"
+                className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
+              >
+                Save further processing and research
+              </button>
+            </EditForm>
+          ) : (
+            <div className="space-y-1 rounded border border-line bg-surface p-4 text-sm">
+              <p>{describePart3Further(activity)}</p>
+              <ul className="space-y-0.5 text-xs text-ink-soft">
+                {original ? <li>Collected for {original.reference} {original.name}</li> : null}
+                {activity.furtherProcessing ? (
+                  <li>
+                    Necessary and proportionate (s.36(3)(b)):{" "}
+                    {activity.furtherNecessaryProportionate === null ? "not confirmed" : activity.furtherNecessaryProportionate ? "yes" : "no"}
+                  </li>
+                ) : null}
+                {activity.research
+                  ? PART3_RESEARCH_SAFEGUARD_KEYS.map((k) => (
+                      <li key={k}>
+                        {activity.researchSafeguards?.[k]?.confirmed ? "✓" : "✗"} {PART3_RESEARCH_SAFEGUARDS[k]!.label}
+                        {activity.researchSafeguards?.[k]?.note ? ` — ${activity.researchSafeguards[k]!.note}` : ""}
+                      </li>
+                    ))
+                  : null}
+              </ul>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {activity.regime !== "dpa_part3" ? (
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">
+          Further processing and research{" "}
+          <span className="font-normal text-ink-soft">· UK GDPR Articles 8A, 13(5) and 84A–84C</span>
+        </h2>
+        {mayEdit ? (
+          <EditForm
+            key={savedKey(activity)}
+            action={saveFurtherProcessingAction.bind(null, activity.id)}
+            className="space-y-4 rounded border border-line bg-surface p-4"
+          >
+            <FurtherProcessingFields
+              record={activity}
+              activities={otherActivities
+                .filter((a) => a.id !== activity.id && can(active.membership.grants, "record.read", a.entityId))
+                .map((a) => ({
+                  id: a.id,
+                  label: `${a.reference} ${a.name}`,
+                  consent: (a.lawfulBases ?? []).includes("consent"),
+                  part3: a.regime === "dpa_part3",
+                }))}
+            />
+            <button
+              type="submit"
+              className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
+            >
+              Save further processing and research
+            </button>
+          </EditForm>
+        ) : (
+          <div className="space-y-1 rounded border border-line bg-surface p-4 text-sm">
+            <p>{describeFurtherProcessing(activity)}</p>
+            <ul className="space-y-0.5 text-xs text-ink-soft">
+              {original ? <li>Collected for {original.reference} {original.name}</li> : null}
+              {activity.furtherAuthorisedBy ? <li>Authorised by law (DPA 2018 s.36(4)): {activity.furtherAuthorisedBy}</li> : null}
+              {activity.annex2Condition ? <li>{ANNEX2_CONDITIONS[activity.annex2Condition].label} ({ANNEX2_CONDITIONS[activity.annex2Condition].paragraph})</li> : null}
+              {activity.compatibilityRoute === "assessed"
+                ? COMPATIBILITY_FACTOR_KEYS.map((k) => (
+                    <li key={k}>{COMPATIBILITY_FACTORS[k].label}: {activity.compatibilityFactors?.[k] ?? "not recorded"}</li>
+                  ))
+                : null}
+              {activity.compatibilityNote ? <li>{activity.compatibilityNote}</li> : null}
+              {activity.research
+                ? RESEARCH_SAFEGUARD_KEYS.map((k) => (
+                    <li key={k}>
+                      {activity.researchSafeguards?.[k]?.confirmed ? "✓" : "✗"} {RESEARCH_SAFEGUARDS[k].label}
+                      {activity.researchSafeguards?.[k]?.note ? ` — ${activity.researchSafeguards[k]!.note}` : ""}
+                    </li>
+                  ))
+                : null}
+              {activity.publicInformationUrl ? (
+                <li>
+                  <a href={activity.publicInformationUrl} className="underline" rel="noreferrer" target="_blank">
+                    Published information (Article 13(7))
+                  </a>
+                </li>
+              ) : null}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      ) : null}
+
+      <AutomatedDecisions
+        side="processing_activity"
+        recordId={activity.id}
+        record={activity}
+        bases={activity.lawfulBases ?? []}
+        linked={linkedUseCases}
+        mayEdit={mayEdit}
+        regime={activity.regime}
+      />
+
+      <Discussion
+        subjectType="processing_activity"
+        subjectId={id}
+        entityId={activity.entityId}
+        subjectLabel={activity.reference}
+      />
+    </main>
+  );
+}
+
+function Label({ text, hint }: { text: string; hint?: string }) {
+  return (
+    <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
+      {text}
+      {hint ? (
+        <span className="block font-normal normal-case tracking-normal">{hint}</span>
+      ) : null}
+    </span>
+  );
+}
+
+function Field({
+  label,
+  name,
+  hint,
+  defaultValue,
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  defaultValue: string;
+}) {
+  return (
+    <label className="block space-y-1">
+      <Label text={label} hint={hint} />
+      <input
+        name={name}
+        defaultValue={defaultValue}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand"
+      />
+    </label>
+  );
+}
+
+function Area({
+  label,
+  name,
+  hint,
+  defaultValue,
+  rows = 3,
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  defaultValue: string;
+  rows?: number;
+}) {
+  return (
+    <label className="block space-y-1">
+      <Label text={label} hint={hint} />
+      <textarea
+        name={name}
+        rows={rows}
+        defaultValue={defaultValue}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand"
+      />
+    </label>
+  );
+}
+
+function Read({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[10rem_1fr]">
+      <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</span>
+      <span className={value ? "" : "text-ink-soft"}>{value || "Not recorded"}</span>
+    </div>
+  );
+}

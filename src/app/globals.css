@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ground: oklch(98.2% 0.004 240);
+  --color-surface: oklch(100% 0 0);
+  --color-line: oklch(90.5% 0.008 240);
+  --color-ink: oklch(24% 0.02 250);
+  --color-ink-soft: oklch(50% 0.018 250);
+  /* Waivern navy, from the mark. Dark enough to carry white text at ~14:1,
+     so it is used for the masthead and anywhere the brand is the surface. */
+  --color-navy: #0a2540;
+  /* Interactive blue, on the same hue as the navy but light enough to read as
+     a link rather than as body text. Deliberately not the navy itself: at 22%
+     lightness a link would sit two points from --color-ink and stop looking
+     like one. */
+  --color-brand: oklch(38% 0.09 254);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html { color-scheme: light; }
+body { background: var(--color-ground); color: var(--color-ink); }
+
+/* ---- Chart roles ----------------------------------------------------------
+   Two palettes, each run through the data-viz validator against the chart
+   surface (#ffffff):
+
+   Ordinal pair (inherent -> residual): one hue, two steps, monotone lightness,
+   light end at 2.11:1 against the surface. All checks pass.
+
+   Status trio (on time / due soon / overdue): the fixed status palette without
+   "serious" — amber and orange measure only 13.6 apart in normal vision, too
+   close to sit side by side, and dropping to three clears both separation
+   floors (normal-vision 27.6, worst CVD 11.3). Amber is under 3:1 on a light
+   surface by design; every status mark therefore ships a visible label and a
+   count, so colour never carries the meaning alone.
+   -------------------------------------------------------------------------- */
+.viz {
+  --viz-before: #86b6ef;
+  --viz-after: #2a78d6;
+  --viz-good: #0ca30c;
+  --viz-warning: #fab219;
+  --viz-critical: #d03b3b;
+}

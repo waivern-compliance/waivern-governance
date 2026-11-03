@@ -1,0 +1,570 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { asc, eq } from "drizzle-orm";
+import { db, scoped } from "@/db/client";
+import { memberships, users } from "@/db/schema";
+import { Attachments } from "@/components/documents/Attachments";
+import { AgreementAdmin } from "@/components/thirdparty/AgreementAdmin";
+import { ReadAgreement } from "@/components/thirdparty/ReadAgreement";
+import { GapChips } from "@/components/GapChips";
+import { Discussion } from "@/components/Discussion";
+import { NotPermitted } from "@/components/NotPermitted";
+import { can } from "@/lib/rbac";
+import { getActiveSession } from "@/lib/session";
+import { documentsFor } from "@/services/documents";
+import { agreementsFor } from "@/services/sharing-agreements";
+import { SUPPLIER_ROLES, SUPPLIER_ROLE_KEYS, isController } from "@/lib/dpa2018/sharing";
+import { extractionAvailable, latestExtraction } from "@/services/extraction";
+import { GAP_WORDS, HARD_GAPS, loadSupplier } from "@/services/third-party";
+import { StartAssessment } from "@/components/StartAssessment";
+import {
+  AI_CONTRACT_TERMS,
+  AI_GAP_WORDS,
+  AI_INVOLVEMENT_LABEL,
+  RECOMMENDATION_LABEL,
+  SERIOUS_AI_GAPS,
+  involvesAi,
+  isRecommendation,
+  type AiInvolvement,
+} from "@/lib/thirdparty/ai-procurement";
+import { SupplierStandings } from "@/components/thirdparty/SupplierStandings";
+import {
+  confirmSupplierAction,
+  recordDpaAction,
+  setAiInvolvementAction,
+  setSupplierRoleAction,
+  updateSupplierAction,
+} from "../actions";
+import { savedKey } from "@/lib/saved-key";
+import { EditForm } from "@/components/EditForm";
+
+const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+export default async function SupplierPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const active = await getActiveSession();
+  if (!active) redirect("/sign-in");
+
+  if (!can(active.membership.grants, "record.read")) {
+    return (
+      <NotPermitted
+        what="The third-party register"
+        organisationName={active.membership.organisationName}
+      />
+    );
+  }
+
+  const loaded = await loadSupplier(id, active.membership.organisationId);
+  if (!loaded) notFound();
+
+  const { supplier, dpas, current, gaps, hardGaps, privacy, ai } = loaded;
+  const mayEdit = can(active.membership.grants, "record.write");
+
+  const colleagues = await scoped(active.membership.organisationId, () => db
+    .select({ id: users.id, email: users.email })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.organisationId, active.membership.organisationId))
+    .orderBy(asc(users.email)));
+
+  const org = active.membership.organisationId;
+  const [sharing, supplierDocs, ...dpaDocs] = await Promise.all([
+    agreementsFor(org, { supplierId: supplier.id }),
+    documentsFor(org, "supplier", supplier.id),
+    ...dpas.map((d) => documentsFor(org, "dpa", d.id)),
+  ]);
+  const docsByDpa = new Map(dpas.map((d, i) => [d.id, dpaDocs[i] ?? []]));
+
+  // What a model has already been asked to read out of each agreement, and
+  // whether asking is even on offer for this organisation.
+  const [mayRead, ...readings] = await Promise.all([
+    extractionAvailable(org),
+    ...dpas.map((d) => latestExtraction(org, d.id)),
+  ]);
+  const readingByDpa = new Map(dpas.map((d, i) => [d.id, readings[i] ?? null]));
+
+  /**
+   * Everywhere on this third party a document could belong.
+   *
+   * Offered on every file so a contract filed against the third party can be
+   * moved onto the agreement it governs. Without it the two lists read as
+   * unrelated, and an agreement says "nothing attached" while its own contract
+   * sits a few inches below.
+   */
+  const moveTargets = (current: string) => [
+    {
+      value: `supplier:${supplier.id}`,
+      label: `${supplier.name} — not tied to one agreement`,
+      current: current === `supplier:${supplier.id}`,
+    },
+    ...dpas.map((d) => ({
+      value: `dpa:${d.id}`,
+      label: d.title + (d.archivedAt ? " (archived)" : ""),
+      current: current === `dpa:${d.id}`,
+    })),
+  ];
+
+  /**
+   * What a reading of one agreement would actually be given.
+   *
+   * Documents held against the third party are included, because a
+   * sub-processor annexe is as often filed there as against the contract — but
+   * that is invisible unless the files are named, so they are.
+   */
+  const readableFor = (dpaId: string) => [
+    ...(docsByDpa.get(dpaId) ?? []).map((d) => ({ name: d.filename, where: "this agreement" })),
+    ...supplierDocs.map((d) => ({ name: d.filename, where: supplier.name })),
+  ];
+  const mayConfigure = can(active.membership.grants, "org.manage");
+  const here = `/app/third-parties/${supplier.id}`;
+
+  const needsConfirming = Boolean(supplier.sourceConnectionId && !supplier.reviewedAt);
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
+      <header className="space-y-3 border-b border-line pb-6">
+        <Link href="/app/third-parties" className="text-xs text-ink-soft hover:text-brand">
+          ← Third parties
+        </Link>
+        <h1 className="text-2xl font-semibold tracking-tight">{supplier.name}</h1>
+        <p className="text-xs text-ink-soft">
+          {supplier.sourceConnectionId ? "Reported by a connected tool" : "Recorded by a person"}
+          {supplier.reviewedAt ? ` · confirmed ${day(supplier.reviewedAt)}` : ""}
+        </p>
+        <SupplierStandings privacy={privacy} ai={ai.standing} />
+        <GapChips
+          gaps={gaps}
+          words={GAP_WORDS}
+          serious={HARD_GAPS}
+          clear={supplier.role === "controller" ? "Nothing missing" : "Article 28 satisfied"}
+        />
+        {hardGaps.length > 0 ? (
+          <p className="max-w-prose text-xs text-red-900">
+            Article 28(3) requires processing to be governed by a contract. No
+            agreement, an unsigned one and an expired one are the same failure
+            in substance.
+          </p>
+        ) : null}
+      </header>
+
+      {needsConfirming && mayEdit ? (
+        <section className="space-y-3 rounded border border-amber-700 bg-amber-50 p-5">
+          <h2 className="text-sm font-semibold text-amber-900">
+            A tool reported this. Is it really your processor?
+          </h2>
+          <p className="max-w-prose text-xs text-amber-900">
+            A scanner sees a third party on a page; it cannot tell whether that
+            party processes personal data on your behalf, or is a recipient in
+            its own right, or was a mistake. Confirming records that a person
+            looked — it does not assert an agreement exists.
+          </p>
+          <form action={confirmSupplierAction.bind(null, supplier.id)}>
+            <button
+              type="submit"
+              className="rounded bg-amber-800 px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              I have looked at this
+            </button>
+          </form>
+        </section>
+      ) : null}
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">What they are to you</h2>
+        {mayEdit ? (
+          <EditForm
+            key={savedKey(supplier.role)}
+            action={setSupplierRoleAction.bind(null, supplier.id)}
+            className="flex flex-wrap items-end gap-2"
+          >
+            <label className="block space-y-1">
+              <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
+                Processor or controller?
+              </span>
+              <select
+                name="role"
+                defaultValue={supplier.role}
+                className="rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                {SUPPLIER_ROLE_KEYS.map((r) => (
+                  <option key={r} value={r}>{SUPPLIER_ROLES[r]}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand"
+            >
+              Save
+            </button>
+          </EditForm>
+        ) : (
+          <p className="text-sm">{SUPPLIER_ROLES[supplier.role]}</p>
+        )}
+        {isController(supplier.role) ? (
+          <div className="space-y-1.5 text-sm">
+            <p className="max-w-prose text-xs text-ink-soft">
+              Sharing with another controller is governed by a data sharing agreement, not an Article 28 contract.
+            </p>
+            {sharing.length > 0 ? (
+              <ul className="space-y-0.5">
+                {sharing.map((a) => (
+                  <li key={a.id}>
+                    <Link href={`/app/sharing-agreements/${a.id}`} className="hover:text-brand">
+                      <span className="font-mono text-xs text-ink-soft">{a.reference}</span> {a.title}
+                      {a.endedAt ? <span className="text-xs text-ink-soft"> (ended)</span> : null}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-amber-900">
+                No data sharing agreement names them.{" "}
+                <Link href="/app/sharing-agreements" className="text-brand hover:underline">Record one</Link>.
+              </p>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">AI</h2>
+        {mayEdit ? (
+          <EditForm
+            key={savedKey(supplier.aiInvolvement)}
+            action={setAiInvolvementAction.bind(null, supplier.id)}
+            className="flex flex-wrap items-end gap-2"
+          >
+            <label className="block space-y-1">
+              <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
+                Does this supplier use AI?
+              </span>
+              <select
+                name="aiInvolvement"
+                defaultValue={supplier.aiInvolvement ?? ""}
+                className="rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                <option value="">Not asked yet</option>
+                {(Object.keys(AI_INVOLVEMENT_LABEL) as AiInvolvement[]).map((v) => (
+                  <option key={v} value={v}>{AI_INVOLVEMENT_LABEL[v]}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand"
+            >
+              Save
+            </button>
+          </EditForm>
+        ) : (
+          <p className="text-sm">
+            {supplier.aiInvolvement
+              ? AI_INVOLVEMENT_LABEL[supplier.aiInvolvement as AiInvolvement]
+              : "Not asked whether it uses AI."}
+          </p>
+        )}
+        {ai.systems > 0 ? (
+          <p className="text-xs text-ink-soft">
+            Supplies {ai.systems} AI system{ai.systems === 1 ? "" : "s"} on the{" "}
+            <Link href="/app/ai" className="text-brand hover:underline">AI register</Link>.
+          </p>
+        ) : null}
+        {ai.gaps.length > 0 ? (
+          <GapChips gaps={ai.gaps} words={AI_GAP_WORDS} serious={SERIOUS_AI_GAPS} clear="" />
+        ) : null}
+        {ai.missingTerms.length > 0 ? (
+          <div className="space-y-1 text-xs">
+            <p className="text-ink-soft">The contract, as last assessed, does not provide that:</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {ai.missingTerms.map((t) => (
+                <li key={t}>{AI_CONTRACT_TERMS.find((x) => x.value === t)?.label}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {ai.assessed?.approved && isRecommendation(ai.assessed.recommendation) ? (
+          <div
+            className={`space-y-1 rounded border px-3 py-2 text-sm ${
+              ai.assessed.recommendation === "do_not_proceed"
+                ? "border-red-700 bg-red-50 text-red-900"
+                : ai.assessed.recommendation === "proceed_with_conditions"
+                  ? "border-amber-700 bg-amber-50 text-amber-900"
+                  : "border-emerald-700 bg-emerald-50 text-emerald-900"
+            }`}
+          >
+            <p>
+              <span className="font-semibold">AI assessment recommends:</span>{" "}
+              {RECOMMENDATION_LABEL[ai.assessed.recommendation]}
+            </p>
+            {ai.assessed.conditions ? (
+              <p className="whitespace-pre-line text-xs">{ai.assessed.conditions}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {ai.assessed ? (
+          <p className="text-xs text-ink-soft">
+            Last assessed in{" "}
+            <Link href={`/app/assessments/${ai.assessed.assessmentId}`} className="font-mono text-brand hover:underline">
+              {ai.assessed.reference}
+            </Link>
+            {ai.assessed.approved ? "" : " — not yet approved, so its answers are not relied on yet"}
+          </p>
+        ) : null}
+        {(involvesAi(supplier.aiInvolvement as AiInvolvement | null) || ai.systems > 0) && mayEdit ? (
+          <StartAssessment
+            organisationId={org}
+            subjectType="supplier"
+            subjectId={supplier.id}
+            prefer="AI supplier assessment"
+          />
+        ) : null}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Agreements</h2>
+        <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
+          {dpas.map((d) => (
+            <li key={d.id} className="space-y-1 px-4 py-3 text-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+                <span className="font-medium">
+                  {d.title}
+                  {current?.id === d.id ? (
+                    <span className="ml-2 rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
+                      in force
+                    </span>
+                  ) : null}
+                  {d.archivedAt ? (
+                    <span className="ml-2 rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
+                      archived
+                    </span>
+                  ) : null}
+                </span>
+                <span className="font-mono text-[11px] text-ink-soft">
+                  {d.signedAt ? `signed ${day(d.signedAt)}` : "not signed"}
+                  {d.expiresAt ? ` → ${day(d.expiresAt)}` : " → no end date"}
+                </span>
+              </div>
+              <p className={`text-xs text-ink-soft${d.archivedAt ? " line-through" : ""}`}>
+                {d.documentRef ? `${d.documentRef} · ` : ""}
+                {d.transferMechanism
+                  ? `transfers: ${d.transferMechanism}`
+                  : "no transfer mechanism recorded"}
+                {" · "}
+                {(d.subProcessors ?? []).length > 0
+                  ? `sub-processors: ${(d.subProcessors ?? []).join(", ")}`
+                  : "sub-processors not recorded"}
+              </p>
+              <Attachments
+                subjectType="dpa"
+                subjectId={d.id}
+                entityId={null}
+                revalidate={here}
+                documents={docsByDpa.get(d.id) ?? []}
+                mayEdit={mayEdit}
+                what="the signed agreement and its schedules go here"
+                moveTargets={moveTargets(`dpa:${d.id}`)}
+              />
+              <ReadAgreement
+                dpaId={d.id}
+                entityId={null}
+                revalidate={here}
+                available={mayRead}
+                latest={readingByDpa.get(d.id) ?? null}
+                mayEdit={mayEdit}
+                mayConfigure={mayConfigure}
+                readable={readableFor(d.id)}
+              />
+              {mayEdit ? <AgreementAdmin supplierId={supplier.id} dpa={d} /> : null}
+            </li>
+          ))}
+          {dpas.length === 0 ? (
+            <li className="px-4 py-6 text-sm text-ink-soft">
+              No agreement recorded. If one exists, record it here so the expiry
+              is watched — otherwise nothing will notice when it lapses.
+            </li>
+          ) : null}
+        </ul>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Other documents</h2>
+        <p className="max-w-prose text-xs text-ink-soft">
+          Anything about this third party that is not tied to one agreement —
+          due diligence, certifications, an audit report. These are read
+          alongside every agreement when a model is asked to find transfers and
+          sub-processors, so a sub-processor annexe filed here is still found.
+          If a file belongs to one specific agreement, move it there.
+        </p>
+        <Attachments
+          subjectType="supplier"
+          subjectId={supplier.id}
+          entityId={null}
+          revalidate={here}
+          documents={supplierDocs}
+          mayEdit={mayEdit}
+          what="due diligence, certifications, an audit report"
+          moveTargets={moveTargets(`supplier:${supplier.id}`)}
+        />
+      </section>
+
+      {mayEdit ? (
+        <>
+          <details className="rounded border border-line bg-surface">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+              Record an agreement
+            </summary>
+            <form
+              action={recordDpaAction.bind(null, supplier.id)}
+              className="space-y-3 border-t border-line p-4"
+            >
+              <Field label="Title" name="title" required />
+              <Field label="Document reference" name="documentRef" hint="where the signed copy lives" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Signed" name="signedAt" type="date" />
+                <Field label="Expires" name="expiresAt" type="date" hint="leave empty if perpetual" />
+              </div>
+              <Field
+                label="Transfer mechanism"
+                name="transferMechanism"
+                hint="IDTA, UK Addendum, approved destination — if data leaves the UK"
+              />
+              <Area
+                label="Sub-processors"
+                name="subProcessors"
+                hint="Article 28(2) — one per line"
+              />
+              <button
+                type="submit"
+                className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              >
+                Record it
+              </button>
+            </form>
+          </details>
+
+          <EditForm
+            key={savedKey(supplier)}
+            action={updateSupplierAction.bind(null, supplier.id)}
+            className="space-y-4 rounded border border-line bg-surface p-5"
+          >
+            <h2 className="text-sm font-semibold">The third party</h2>
+            <Field label="Name" name="name" defaultValue={supplier.name} />
+            <Area
+              label="What they do for you"
+              name="description"
+              defaultValue={supplier.description ?? ""}
+              rows={2}
+            />
+            <Area
+              label="Categories"
+              name="categories"
+              defaultValue={(supplier.categories ?? []).join("\n")}
+            />
+            <label className="block space-y-1">
+              <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
+                Owner
+                <span className="block font-normal normal-case tracking-normal">
+                  who is accountable for this relationship
+                </span>
+              </span>
+              <select
+                name="ownerId"
+                defaultValue={supplier.ownerId ?? ""}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                <option value="">Nobody yet</option>
+                {colleagues.map((c) => (
+                  <option key={c.id} value={c.id}>{c.email}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              Save
+            </button>
+          </EditForm>
+        </>
+      ) : null}
+
+      <Discussion
+        subjectType="supplier"
+        subjectId={id}
+        entityId={null}
+        subjectLabel={supplier.name}
+      />
+    </main>
+  );
+}
+
+function Label({ text, hint }: { text: string; hint?: string }) {
+  return (
+    <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
+      {text}
+      {hint ? (
+        <span className="block font-normal normal-case tracking-normal">{hint}</span>
+      ) : null}
+    </span>
+  );
+}
+
+function Field({
+  label,
+  name,
+  hint,
+  type = "text",
+  required,
+  defaultValue,
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  type?: string;
+  required?: boolean;
+  defaultValue?: string;
+}) {
+  return (
+    <label className="block space-y-1">
+      <Label text={label} hint={hint} />
+      <input
+        name={name}
+        type={type}
+        required={required}
+        defaultValue={defaultValue}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand"
+      />
+    </label>
+  );
+}
+
+function Area({
+  label,
+  name,
+  hint,
+  defaultValue,
+  rows = 3,
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  defaultValue?: string;
+  rows?: number;
+}) {
+  return (
+    <label className="block space-y-1">
+      <Label text={label} hint={hint} />
+      <textarea
+        name={name}
+        rows={rows}
+        defaultValue={defaultValue}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand"
+      />
+    </label>
+  );
+}
