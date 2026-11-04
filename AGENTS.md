@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md
 
-Guidance for coding agents (and people) working in this repository. Most conventions are enforced by tools; this file covers what they can't check and points to the tools for the rest. The README explains what the product is and why it is built the way it is.
+Guidance for coding agents (and people) working in this repository. Most conventions are enforced by tools; this file covers what they can't check and points to the tools for the rest. The README explains what the product is; `docs/architecture.md` explains why it is built the way it is.
 
 ## Project
 
