@@ -19,7 +19,7 @@ export function NotPermitted({
       <h1 className="text-2xl font-semibold tracking-tight">Not part of your access</h1>
       <p className="text-ink-soft">
         {what} is not something your account can see in {organisationName}. That
-        is a matter of what you have been granted, not a fault — ask whoever
+        is a matter of what you have been granted, not a fault - ask whoever
         administers the platform if you need it.
       </p>
       <p>

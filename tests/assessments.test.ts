@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { after, before, describe, it } from "node:test";
-import { eq, sql } from "drizzle-orm";
+import { after, describe, it } from "node:test";
+import { sql } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
 import {
-  assessmentRevisions,
-  assessments,
   entities,
   organisations,
 } from "@/db/schema";

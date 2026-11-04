@@ -37,7 +37,7 @@ export function BasisForm({
         <select name="basis" value={basis} onChange={(e) => setBasis(e.target.value as StorageBasis)} className={input}>
           {BASIS_KEYS.map((b) => (
             <option key={b} value={b}>
-              {BASES[b].label} — {BASES[b].citation}
+              {BASES[b].label} - {BASES[b].citation}
             </option>
           ))}
         </select>

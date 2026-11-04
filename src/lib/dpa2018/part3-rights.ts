@@ -161,7 +161,7 @@ export const PART3_REFUSAL_MUST_SAY =
 
 /** Section 68(3) and (7): when the people affected by a Part 3 breach are not told individually. */
 export const PART3_COMMUNICATION_EXEMPTIONS = {
-  "s.68(3)(a)": "The data was protected — encryption, for example — so unintelligible to anyone unauthorised",
+  "s.68(3)(a)": "The data was protected - encryption, for example - so unintelligible to anyone unauthorised",
   "s.68(3)(b)": "Subsequent measures mean the high risk is no longer likely to materialise",
   "s.68(3)(c)": "Individual communication would involve disproportionate effort, so the information was made available in another equally effective way",
   "s.68(7)(a)": `Restricted: ${RESTRICTION_GROUNDS.a.charAt(0).toLowerCase()}${RESTRICTION_GROUNDS.a.slice(1)}`,

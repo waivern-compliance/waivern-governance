@@ -187,7 +187,7 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
           <div className="space-y-5 border-t border-line p-4">
             <p className="max-w-prose text-xs text-ink-soft">
               Complaints received since {metrics.from.toISOString().slice(0, 10)}. {metrics.totals.outcomesSent} outcome
-              {metrics.totals.outcomesSent === 1 ? "" : "s"} sent — {metrics.outcomes.upheld} upheld,{" "}
+              {metrics.totals.outcomesSent === 1 ? "" : "s"} sent - {metrics.outcomes.upheld} upheld,{" "}
               {metrics.outcomes.partlyUpheld} partly upheld, {metrics.outcomes.notUpheld} not upheld
               {metrics.outcomes.passedToController > 0 ? `, ${metrics.outcomes.passedToController} passed to the controller` : ""}.{" "}
               {metrics.totals.outcomeWithinTarget} within your target, {metrics.totals.outcomeAfterTarget} after it.{" "}
@@ -235,7 +235,7 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
         {register.rows.length === 0 ? (
           <li className="rounded border border-line bg-surface px-4 py-6 text-sm text-ink-soft">
             Nothing recorded. When somebody complains about how their personal data has been
-            handled, record it here the day it arrives — the 30 days to acknowledge it run from then,
+            handled, record it here the day it arrives - the 30 days to acknowledge it run from then,
             wherever it landed.
           </li>
         ) : null}

@@ -26,9 +26,9 @@ const STATE: Record<Dial["state"], string> = {
  */
 export function ComplaintClock({ clock, compact = false }: { clock: Clock; compact?: boolean }) {
   const dials: Array<[string, Dial]> = [
-    [clock.statutory ? "Acknowledge — s.164A(3)" : "Acknowledge", clock.acknowledgement],
-    ["Outcome — your target", clock.outcome],
-    ["Next update — your interval", clock.update],
+    [clock.statutory ? "Acknowledge - s.164A(3)" : "Acknowledge", clock.acknowledgement],
+    ["Outcome - your target", clock.outcome],
+    ["Next update - your interval", clock.update],
   ];
   const shown = compact ? dials.filter(([, d]) => d.state !== "off" && d.state !== "met") : dials;
   if (shown.length === 0) return null;

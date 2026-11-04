@@ -448,7 +448,7 @@ export async function ingestAnalyserReport(input: {
           organisationId: input.organisationId,
           entityId: property.entityId,
           kind: "scan",
-          title: `Consent Analyser run ${summary.runId ?? "(no run id)"} — ${summary.targetUrl ?? property.url}`,
+          title: `Consent Analyser run ${summary.runId ?? "(no run id)"} - ${summary.targetUrl ?? property.url}`,
           description: `${observed.length} cookies or similar items seen; ${failures.length} checks failed or partly passed.`,
           uri: summary.targetUrl ?? property.url,
           collectedAt: scannedAt,
@@ -520,7 +520,7 @@ export async function ingestAnalyserReport(input: {
             url: summary.targetUrl ?? property.url,
             category: "consent_check",
             severity: SEVERITY[f.result] ?? "low",
-            title: `${property.name} — ${f.itemId}: ${f.description}`,
+            title: `${property.name} - ${f.itemId}: ${f.description}`,
             detail: [
               f.notes,
               EXEMPTION_MAY_APPLY.has(f.itemId)
@@ -681,7 +681,7 @@ async function raiseScanTasks(
     description:
       "Accept or reject what the scan proposed, and give anything new a basis. " +
       (outcome.newlyBeforeConsent
-        ? "Items set before consent need a basis that allows it — strictly necessary, statistics or appearance with its conditions met — or they must wait for consent."
+        ? "Items set before consent need a basis that allows it - strictly necessary, statistics or appearance with its conditions met - or they must wait for consent."
         : ""),
     subjectType: "digital_property",
     subjectId: property.id,

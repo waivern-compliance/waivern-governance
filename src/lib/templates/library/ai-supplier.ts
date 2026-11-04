@@ -70,7 +70,7 @@ export const AI_SUPPLIER: TemplateDefinition = {
             help: "Including data about the people we serve, and prompts and outputs.",
             legalRefs: ["ccs.dataethics", "ukgdpr.art5"], evidence: "optional",
             options: [
-              { value: "no", label: "No — the contract excludes it", weight: 0 },
+              { value: "no", label: "No - the contract excludes it", weight: 0 },
               { value: "with_agreement", label: "Only where we have agreed to it", weight: 1 },
               { value: "yes_without_agreement", label: "Yes, without our agreement", weight: 6 },
               { value: "unknown", label: "Not established", weight: 4 },
@@ -100,7 +100,7 @@ export const AI_SUPPLIER: TemplateDefinition = {
               { value: "done", label: "Yes, with results", weight: 0 },
               { value: "partial", label: "In part", weight: 2 },
               { value: "none", label: "No", weight: 4 },
-              { value: "not_relevant", label: "Not relevant — the AI makes no judgement about people", weight: 0 },
+              { value: "not_relevant", label: "Not relevant - the AI makes no judgement about people", weight: 0 },
             ] },
           { key: "explainability", label: "Can the supplier explain how outputs are produced, to the level our use needs?", type: "single_select", required: true,
             legalRefs: ["ccs.dataethics", "ico.ai"], evidence: "none",
@@ -110,7 +110,7 @@ export const AI_SUPPLIER: TemplateDefinition = {
               { value: "no", label: "No", weight: 4 },
             ] },
           { key: "atrs_support", label: "Will the supplier provide what a transparency record needs?", type: "single_select", required: true,
-            help: "An Algorithmic Transparency Recording Standard record asks about the model, its data and its testing — information only the supplier may hold.",
+            help: "An Algorithmic Transparency Recording Standard record asks about the model, its data and its testing - information only the supplier may hold.",
             legalRefs: ["atrs"], evidence: "none",
             options: [
               { value: "yes", label: "Yes", weight: 0 },
@@ -140,7 +140,7 @@ export const AI_SUPPLIER: TemplateDefinition = {
               { value: "caf", label: "Assessed against the Cyber Assessment Framework" },
               { value: "none", label: "None" },
             ] },
-          { key: "ai_threats", label: "Has the supplier shown how it defends against attacks specific to AI — prompt injection, data poisoning, model extraction?", type: "single_select", required: true,
+          { key: "ai_threats", label: "Has the supplier shown how it defends against attacks specific to AI - prompt injection, data poisoning, model extraction?", type: "single_select", required: true,
             legalRefs: ["ncsc.mlprinciples"], evidence: "optional",
             options: [
               { value: "yes", label: "Yes", weight: 0 },
@@ -165,7 +165,7 @@ export const AI_SUPPLIER: TemplateDefinition = {
             options: [
               { value: "straightforward", label: "Straightforward", weight: 0 },
               { value: "possible", label: "Possible, with effort", weight: 1 },
-              { value: "hard", label: "Hard — data, prompts or integrations would not come with us", weight: 3 },
+              { value: "hard", label: "Hard - data, prompts or integrations would not come with us", weight: 3 },
             ] },
           { key: "fallback", label: "Could the service continue if the supplier's AI failed or was withdrawn?", type: "single_select", required: true,
             legalRefs: ["dsit.airmt"], evidence: "none",

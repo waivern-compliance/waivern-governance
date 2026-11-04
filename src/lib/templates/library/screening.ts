@@ -24,7 +24,7 @@ export const SCREENING: TemplateDefinition = {
       {
         key: "triggers",
         title: "Screening criteria",
-        description: "Tick everything that applies. If you are unsure, tick it — an unnecessary DPIA costs an hour, a missing one costs rather more.",
+        description: "Tick everything that applies. If you are unsure, tick it - an unnecessary DPIA costs an hour, a missing one costs rather more.",
         questions: [
           {
             key: "criteria",

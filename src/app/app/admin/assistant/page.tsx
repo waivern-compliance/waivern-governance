@@ -52,7 +52,7 @@ export default async function AssistantAdminPage() {
           Answers are proposals. Nothing reaches a record until somebody writes
           it themselves, and that act is what the audit log attributes to them.
           Obvious identifiers are stripped from a question before it is sent and
-          the person is told what was removed — a partial control, and described
+          the person is told what was removed - a partial control, and described
           as one. Conversations are kept for {RETAIN_DAYS} days and then deleted.
         </p>
       </section>

@@ -24,17 +24,17 @@ import type { TemplateDefinition } from "../schema";
  */
 
 const SEVERITY = [
-  { value: "negligible", label: "Negligible — those affected will not be affected, or may encounter minor inconvenience" },
-  { value: "limited", label: "Limited — significant inconvenience, which they will overcome despite difficulties" },
-  { value: "significant", label: "Significant — significant consequences they should be able to overcome, but with serious difficulty" },
-  { value: "maximum", label: "Maximum — significant, or even irreversible, consequences they may not overcome" },
+  { value: "negligible", label: "Negligible - those affected will not be affected, or may encounter minor inconvenience" },
+  { value: "limited", label: "Limited - significant inconvenience, which they will overcome despite difficulties" },
+  { value: "significant", label: "Significant - significant consequences they should be able to overcome, but with serious difficulty" },
+  { value: "maximum", label: "Maximum - significant, or even irreversible, consequences they may not overcome" },
 ];
 
 const LIKELIHOOD = [
-  { value: "negligible", label: "Negligible — does not seem possible for the identified risk sources" },
-  { value: "limited", label: "Limited — appears difficult for the identified risk sources" },
-  { value: "significant", label: "Significant — appears possible for the identified risk sources" },
-  { value: "maximum", label: "Maximum — appears extremely easy for the identified risk sources" },
+  { value: "negligible", label: "Negligible - does not seem possible for the identified risk sources" },
+  { value: "limited", label: "Limited - appears difficult for the identified risk sources" },
+  { value: "significant", label: "Significant - appears possible for the identified risk sources" },
+  { value: "maximum", label: "Maximum - appears extremely easy for the identified risk sources" },
 ];
 
 /** One feared event, rated the way the method rates it. */
@@ -42,7 +42,7 @@ function fearedEvent(key: string, label: string, help: string) {
   return [
     {
       key: `${key}_impacts`,
-      label: `${label} — what would the impacts on data subjects be?`,
+      label: `${label} - what would the impacts on data subjects be?`,
       type: "long_text" as const,
       required: true,
       help,
@@ -51,7 +51,7 @@ function fearedEvent(key: string, label: string, help: string) {
     },
     {
       key: `${key}_sources`,
-      label: `${label} — which risk sources could bring it about?`,
+      label: `${label} - which risk sources could bring it about?`,
       type: "long_text" as const,
       required: true,
       help: "Internal or external, human or non-human. The method asks for sources, not adjectives.",
@@ -60,7 +60,7 @@ function fearedEvent(key: string, label: string, help: string) {
     },
     {
       key: `${key}_measures`,
-      label: `${label} — which existing or planned controls address it?`,
+      label: `${label} - which existing or planned controls address it?`,
       type: "long_text" as const,
       required: true,
       legalRefs: ["eugdpr.art32"],
@@ -68,7 +68,7 @@ function fearedEvent(key: string, label: string, help: string) {
     },
     {
       key: `${key}_severity`,
-      label: `${label} — severity`,
+      label: `${label} - severity`,
       type: "single_select" as const,
       required: true,
       options: SEVERITY,
@@ -77,7 +77,7 @@ function fearedEvent(key: string, label: string, help: string) {
     },
     {
       key: `${key}_likelihood`,
-      label: `${label} — likelihood`,
+      label: `${label} - likelihood`,
       type: "single_select" as const,
       required: true,
       options: LIKELIHOOD,
@@ -106,7 +106,7 @@ export const CNIL_PIA: TemplateDefinition = {
             requireWhen: { op: "equals", question: "special_category", value: true },
             legalRefs: ["eugdpr.art9"], evidence: "none" },
           { key: "data_subjects", label: "Categories of data subject", type: "long_text", required: true, help: "Note where they include children or others in a position of dependence.", legalRefs: ["cnil.pia.method"], evidence: "none" },
-          { key: "lifecycle", label: "Describe the data lifecycle", type: "long_text", required: true, help: "Collection, use, storage, transmission and erasure — the method asks for the processes, not just the fields.", legalRefs: ["cnil.pia.method"], evidence: "none" },
+          { key: "lifecycle", label: "Describe the data lifecycle", type: "long_text", required: true, help: "Collection, use, storage, transmission and erasure - the method asks for the processes, not just the fields.", legalRefs: ["cnil.pia.method"], evidence: "none" },
           { key: "supporting_assets", label: "Supporting assets", type: "long_text", required: true, help: "Hardware, software, networks, people, paper and premises the data depends on.", legalRefs: ["cnil.pia.knowledge"], evidence: "none" },
           { key: "retention", label: "Retention period, and how it is decided", type: "short_text", required: true, legalRefs: ["eugdpr.art5"], evidence: "none" },
         ],

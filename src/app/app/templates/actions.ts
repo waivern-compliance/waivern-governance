@@ -87,7 +87,7 @@ export async function saveDraftAction(
   } catch (error) {
     return {
       ok: false,
-      problems: [`That is not valid JSON — ${error instanceof Error ? error.message : "unparseable"}`],
+      problems: [`That is not valid JSON - ${error instanceof Error ? error.message : "unparseable"}`],
     };
   }
 

@@ -43,13 +43,13 @@ export function Handover({
   return (
     <details className="rounded border border-line bg-ground">
       <summary className="cursor-pointer px-3 py-2 text-[11px] text-ink-soft">
-        Holds {parts.join(", ")} — hand over
+        Holds {parts.join(", ")} - hand over
       </summary>
       <form action={action} className="space-y-2 border-t border-line p-3">
         <p className="text-xs text-ink-soft">
           Moves everything open that names {email} to somebody else: assigned tasks and
           owned records. Finished work and decided approvals stay where they are, because
-          they are a record of what happened. Approvals waiting on a role are unaffected —
+          they are a record of what happened. Approvals waiting on a role are unaffected -
           those move when the role does.
         </p>
         <label className="block space-y-1">

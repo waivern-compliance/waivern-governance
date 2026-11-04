@@ -13,7 +13,7 @@ export const TREATMENT_LABEL: Record<TreatmentType, string> = {
 };
 
 export const TREATMENT_HELP: Record<TreatmentType, string> = {
-  avoidance: "Remove the exposure — stop, or do it another way",
+  avoidance: "Remove the exposure - stop, or do it another way",
   limitation: "Keep the exposure within acceptable limits",
   transference: "Move some of it to a party better placed to carry it",
 };

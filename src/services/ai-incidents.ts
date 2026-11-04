@@ -32,10 +32,10 @@ export type Harm = "none_known" | "potential" | "actual";
 export type IncidentStatus = "reported" | "triaged" | "investigating" | "resolved" | "closed";
 
 export const KIND_LABEL: Record<IncidentKind, string> = {
-  incident: "Incident — it failed or misbehaved",
-  harm: "Harm — someone was or may have been harmed",
-  challenge: "Challenge — someone is contesting an outcome",
-  concern: "Concern — raised about the system",
+  incident: "Incident - it failed or misbehaved",
+  harm: "Harm - someone was or may have been harmed",
+  challenge: "Challenge - someone is contesting an outcome",
+  concern: "Concern - raised about the system",
 };
 
 export const SOURCE_LABEL: Record<IncidentSource, string> = {
@@ -175,7 +175,7 @@ export async function reportIncident(input: {
         type: "triage_incident",
         title: `${reference}: ${summary.slice(0, 80)}`,
         description:
-          `${KIND_LABEL[input.kind].split(" — ")[0]}${useCase ? ` about ${useCase.reference} ${useCase.name}` : ""}. ` +
+          `${KIND_LABEL[input.kind].split(" - ")[0]}${useCase ? ` about ${useCase.reference} ${useCase.name}` : ""}. ` +
           (input.harm === "actual" ? "Harm is reported as actual. " : "") +
           "Decide what it needs, and who handles it.",
         subjectType: "ai_incident",

@@ -70,7 +70,7 @@ export const SYSTEM_TEMPLATES: Array<{
     kind: "dpia",
     name: "Data protection impact assessment (CNIL method)",
     description:
-      "The CNIL's PIA structure — context, fundamental principles, three feared events, validation.",
+      "The CNIL's PIA structure - context, fundamental principles, three feared events, validation.",
     jurisdiction: "EU",
     definition: CNIL_PIA,
   },
@@ -145,7 +145,7 @@ export const SYSTEM_TEMPLATES: Array<{
     kind: "supplier_record",
     name: "AI supplier assessment",
     description:
-      "What a supplier's AI does with our data, how it was tested, and what the contract holds them to — following PPN 02/24 and the Crown Commercial Service's data ethics requirements.",
+      "What a supplier's AI does with our data, how it was tested, and what the contract holds them to - following PPN 02/24 and the Crown Commercial Service's data ethics requirements.",
     jurisdiction: "UK",
     definition: AI_SUPPLIER,
   },
@@ -153,7 +153,7 @@ export const SYSTEM_TEMPLATES: Array<{
     kind: "eia",
     name: "Equality impact assessment",
     description:
-      "The public sector equality duty's three aims, and the impact on each protected characteristic — including how an AI system performs across them.",
+      "The public sector equality duty's three aims, and the impact on each protected characteristic - including how an AI system performs across them.",
     jurisdiction: "UK",
     definition: EIA,
   },

@@ -105,7 +105,7 @@ export function isArt9Condition(v: unknown): v is Art9Condition {
 
 /** "Schedule 1, paragraph 18 — Safeguarding of children and of individuals at risk". */
 export function describeSchedule1(key: Schedule1Condition): string {
-  return `Schedule 1, paragraph ${SCHEDULE_1[key].paragraph} — ${SCHEDULE_1[key].label}`;
+  return `Schedule 1, paragraph ${SCHEDULE_1[key].paragraph} - ${SCHEDULE_1[key].label}`;
 }
 
 /** The Schedule 1 conditions an Article 9(2) point may rest on: none where it needs none (s.10). */

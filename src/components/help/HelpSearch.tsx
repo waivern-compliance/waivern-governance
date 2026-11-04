@@ -59,7 +59,7 @@ export function HelpSearch({ autoFocus = false }: { autoFocus?: boolean }) {
         ) : (
           <p className="rounded border border-dashed border-line px-4 py-5 text-sm text-ink-soft">
             Nothing on that. Try a word from the screen you are looking at, or
-            browse the list below — the help is short enough to skim.
+            browse the list below - the help is short enough to skim.
           </p>
         )
       ) : null}

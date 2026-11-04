@@ -51,7 +51,7 @@ export default async function SignIn({
           {isFault ? (
             <>
               <strong className="block">Sign-in is not working right now.</strong>
-              This is a fault on our side, not a problem with your account —
+              This is a fault on our side, not a problem with your account -
               whether you have access was never established. An administrator
               should check the server log; the cause is recorded there.
             </>
@@ -61,7 +61,7 @@ export default async function SignIn({
               Access is granted per email address, and the one your identity
               provider just presented is not registered here. The usual cause is
               signing in with a different account from the one that was granted
-              — check which account you used. If it is the right one, ask an
+              - check which account you used. If it is the right one, ask an
               administrator to add it.
             </>
           )}

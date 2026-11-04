@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
 import {
-  appRole,
   entities,
   memberships,
   organisations,
@@ -87,7 +86,7 @@ async function main() {
     usage(
       orgSlug
         ? `No organisation with slug "${orgSlug}".`
-        : `More than one organisation exists — name one with --org:\n` +
+        : `More than one organisation exists - name one with --org:\n` +
             allOrgs.map((o) => `    ${o.slug}  (${o.name})`).join("\n"),
     );
   }
@@ -188,7 +187,7 @@ async function main() {
     );
     console.log(
       `\nThey sign in at /sign-in with the identity provider account for ${email}.` +
-        `\nThe email must match exactly — that is what the platform matches on.`,
+        `\nThe email must match exactly - that is what the platform matches on.`,
     );
   });
 

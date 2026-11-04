@@ -68,7 +68,7 @@ export function Guide({ guidance }: { guidance: Guidance }) {
                 </span>
                 <span className="flex-1 text-sm font-medium">
                   {step.title}
-                  <span className="sr-only">{step.done ? " — done" : " — not done yet"}</span>
+                  <span className="sr-only">{step.done ? " - done" : " - not done yet"}</span>
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">{step.measure}</span>
               </summary>
@@ -105,7 +105,7 @@ export function Guide({ guidance }: { guidance: Guidance }) {
         <span>
           {guidance.chosen
             ? "You chose this stage."
-            : "Chosen for you from what your registers hold — change it if it is wrong."}
+            : "Chosen for you from what your registers hold - change it if it is wrong."}
         </span>
         {(["setup", "maintain"] as Stage[])
           .filter((s) => s !== guidance.stage)

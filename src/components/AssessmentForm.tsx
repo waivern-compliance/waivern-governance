@@ -354,7 +354,7 @@ function Field({
               <span className="font-mono">
                 {r.regime} {r.citation}
               </span>
-              {" — "}
+              {" - "}
               {r.url ? (
                 <a
                   href={r.url}

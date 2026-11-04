@@ -31,7 +31,7 @@ export default async function AiGraphPage() {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">AI assurance chain</h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          What each AI system is covered by, and what came of it — assessment,
+          What each AI system is covered by, and what came of it - assessment,
           the risks it raised, and whether anything was done about them. The
           point is where a chain stops.
         </p>

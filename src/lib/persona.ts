@@ -17,7 +17,7 @@ export const PERSONA_LABEL: Record<Persona, string> = {
 };
 
 export const PERSONA_BLURB: Record<Persona, string> = {
-  privacy_governance: "The full console — assessments, risks, templates, reporting.",
+  privacy_governance: "The full console - assessments, risks, templates, reporting.",
   ai_governance: "AI systems, their risk, and what nobody has looked at yet.",
   engineering: "Questions about your services, and controls you own.",
   product: "Whether your work needs a review, and what is holding it up.",

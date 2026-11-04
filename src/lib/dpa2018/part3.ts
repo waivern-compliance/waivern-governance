@@ -82,7 +82,7 @@ export function isPart3PolicyKey(v: unknown): v is Part3PolicyKey {
 export function describePart3PolicyKey(key: Part3PolicyKey): string {
   return key === "part3_consent"
     ? "Part 3 sensitive processing on consent (s.35(4))"
-    : `Schedule 8, paragraph ${SCHEDULE_8[key].paragraph} — ${SCHEDULE_8[key].label}`;
+    : `Schedule 8, paragraph ${SCHEDULE_8[key].paragraph} - ${SCHEDULE_8[key].label}`;
 }
 
 /** Section 62(1): what an automated processing system logs. */

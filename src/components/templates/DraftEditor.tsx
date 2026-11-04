@@ -69,7 +69,7 @@ export function DraftEditor({
           role="status"
           className="rounded border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
         >
-          Saved. Nothing outstanding — this can be published.
+          Saved. Nothing outstanding - this can be published.
         </p>
       ) : null}
 

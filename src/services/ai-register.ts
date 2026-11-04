@@ -82,7 +82,7 @@ export const DEPLOYMENT_PATTERN_LABEL: Record<DeploymentPattern, string> = {
 
 /** Whether the Algorithmic Transparency Recording Standard applies. */
 export const TRANSPARENCY_SCOPE_LABEL: Record<TransparencyScope, string> = {
-  required: "Required — we must publish an ATRS record",
+  required: "Required - we must publish an ATRS record",
   voluntary: "Not required, but we publish one",
   not_in_scope: "Not in scope",
 };

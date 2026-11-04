@@ -16,7 +16,7 @@ function appUrl(env: Record<string, string | undefined> = process.env): string {
 }
 
 const footer = (url: string) =>
-  `\n\n—\nSent by ${PRODUCT_NAME}${url ? ` (${url})` : ""} to the Waivern platform administrators.`;
+  `\n\n-\nSent by ${PRODUCT_NAME}${url ? ` (${url})` : ""} to the Waivern platform administrators.`;
 
 export function organisationRequestEmail(
   request: { organisationName: string; entityName: string; requestedByEmail: string; note: string | null },

@@ -66,7 +66,7 @@ export function ScanStatus({
   }
   return (
     <p role="status" aria-live="polite" className="rounded border border-line bg-ground px-4 py-2.5 text-sm text-ink-soft">
-      Scanning — started {minutes === 0 ? "just now" : `${minutes} minute${minutes === 1 ? "" : "s"} ago`}. Scans usually take one to
+      Scanning - started {minutes === 0 ? "just now" : `${minutes} minute${minutes === 1 ? "" : "s"} ago`}. Scans usually take one to
       five minutes{progress.step ? `; now: ${progress.step}` : ""}. You can leave this page: if you do, the report is taken in within the hour.
     </p>
   );

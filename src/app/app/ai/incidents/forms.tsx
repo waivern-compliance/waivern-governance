@@ -93,7 +93,7 @@ export function ReportForm({
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1">
-          <span className={label}>{source === "staff" ? "Raised by" : "Raised by — name and how to reply"}</span>
+          <span className={label}>{source === "staff" ? "Raised by" : "Raised by - name and how to reply"}</span>
           <input
             name="reportedBy"
             className={field}

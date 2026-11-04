@@ -42,7 +42,7 @@ export function LawfulBasisFields({
       <legend className={label}>
         Lawful basis
         <span className="block font-normal normal-case tracking-normal">
-          Article 6(1) — each basis this processing relies on
+          Article 6(1) - each basis this processing relies on
         </span>
       </legend>
       <div className="grid gap-1.5 sm:grid-cols-2">
@@ -98,7 +98,7 @@ export function LawfulBasisFields({
             <option value="">Not yet chosen</option>
             {RECOGNISED_CONDITION_KEYS.map((c) => (
               <option key={c} value={c}>
-                {RECOGNISED_CONDITIONS[c].label} — {RECOGNISED_CONDITIONS[c].paragraph}
+                {RECOGNISED_CONDITIONS[c].label} - {RECOGNISED_CONDITIONS[c].paragraph}
               </option>
             ))}
           </select>

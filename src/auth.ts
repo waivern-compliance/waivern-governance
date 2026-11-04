@@ -4,7 +4,7 @@ import Google from "next-auth/providers/google";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { memberships, roleAssignments, users } from "@/db/schema";
+import { memberships, users } from "@/db/schema";
 import type { Grant } from "@/lib/rbac";
 import type { Persona } from "@/lib/persona";
 import { mayJoinByDomain, mayRequestOrganisation, unverifiedEmail } from "@/lib/auth/domains";
@@ -219,7 +219,7 @@ export const authConfig: NextAuthConfig = {
         );
       } catch (cause) {
         console.error(
-          `[auth] could not check membership for ${user.email} — this is not an ` +
+          `[auth] could not check membership for ${user.email} - this is not an ` +
             `authorisation decision, the lookup itself failed:`,
           cause,
         );

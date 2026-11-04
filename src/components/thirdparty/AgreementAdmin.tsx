@@ -47,7 +47,7 @@ export function AgreementAdmin({
       <div className="space-y-1.5 rounded border border-line bg-ground px-3 py-2">
         <p className="text-xs text-ink-soft">
           Archived {day(dpa.archivedAt)}
-          {dpa.archivedReason ? ` — ${dpa.archivedReason}` : ""}. It is out of the
+          {dpa.archivedReason ? ` - ${dpa.archivedReason}` : ""}. It is out of the
           in-force calculation and raises no renewal reminders, and remains here
           because the register has to be able to say what governed processing then.
         </p>
@@ -92,13 +92,13 @@ export function AgreementAdmin({
             label="Transfer mechanism"
             name="transferMechanism"
             defaultValue={dpa.transferMechanism ?? ""}
-            hint="IDTA, UK Addendum, approved destination — if data leaves the UK"
+            hint="IDTA, UK Addendum, approved destination - if data leaves the UK"
           />
           <label className="block space-y-1">
             <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
               Sub-processors
               <span className="block font-normal normal-case tracking-normal">
-                Article 28(2) — one per line
+                Article 28(2) - one per line
               </span>
             </span>
             <textarea
@@ -124,7 +124,7 @@ export function AgreementAdmin({
         <form action={archive} className="space-y-2 border-t border-line p-3">
           <p className="text-xs text-ink-soft">
             For an agreement that has ended for a reason its expiry date does not
-            describe — terminated, superseded, the supplier dropped, or recorded in
+            describe - terminated, superseded, the supplier dropped, or recorded in
             error. It stays in the record and stops counting as in force. If it is
             the only agreement, this third party will immediately report as
             uncovered, which is the point.

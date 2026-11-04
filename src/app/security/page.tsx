@@ -285,8 +285,8 @@ function Hosting() {
           the application over HTTPS.
         </li>
         <li>
-          The records are held in the EU, not the UK. That is lawful &mdash; the EU holds UK adequacy, so the
-          transfer needs no further safeguard &mdash; but if your organisation needs its records kept in the UK,
+          The records are held in the EU, not the UK. That is lawful - the EU holds UK adequacy, so the
+          transfer needs no further safeguard - but if your organisation needs its records kept in the UK,
           a dedicated instance can be.
         </li>
         <li>

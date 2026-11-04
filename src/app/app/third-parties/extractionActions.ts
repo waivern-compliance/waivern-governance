@@ -45,7 +45,7 @@ export async function readAgreementAction(
       ".";
     const skipped =
       run.unreadable.length > 0
-        ? ` Not read: ${run.unreadable.map((u) => `${u.name} — ${u.reason}`).join(" ")}`
+        ? ` Not read: ${run.unreadable.map((u) => `${u.name} - ${u.reason}`).join(" ")}`
         : "";
     return { ok: true, message: found + skipped };
   } catch (error) {

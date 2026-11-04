@@ -57,7 +57,7 @@ export const BASES: Record<
     label: "Strictly necessary",
     citation: "PECR Sch A1 para 4",
     summary:
-      "Strictly necessary to provide a service the person asked for — for example security, fraud prevention, fault detection, authentication, or remembering what they entered.",
+      "Strictly necessary to provide a service the person asked for - for example security, fraud prevention, fault detection, authentication, or remembering what they entered.",
     conditions: [{ key: "requested_service", label: "The service would not work as the person asked without it" }],
     needsInformation: false,
     needsObjection: false,
@@ -176,7 +176,7 @@ export function gapsOf({ item, decision, property }: GapInput): Gap[] {
   if (basis.needsInformation && !property.informationUrl?.trim()) {
     out.push({
       kind: "no_information",
-      text: "No clear and comprehensive information recorded for this website or app — where people are told about it.",
+      text: "No clear and comprehensive information recorded for this website or app - where people are told about it.",
     });
   }
   if (basis.needsObjection && !property.objectionMechanism?.trim()) {

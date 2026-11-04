@@ -15,10 +15,10 @@ async function main() {
   for (const org of orgs) {
     const result = await verifyAuditChain(org.id);
     if (result.ok) {
-      console.log(`✓ ${org.name} — ${result.events} events, head ${result.headHash.slice(0, 16)}…`);
+      console.log(`✓ ${org.name} - ${result.events} events, head ${result.headHash.slice(0, 16)}…`);
     } else {
       failed = true;
-      console.error(`✗ ${org.name} — ${result.reason} at sequence ${result.failedAtSeq} of ${result.events}`);
+      console.error(`✗ ${org.name} - ${result.reason} at sequence ${result.failedAtSeq} of ${result.events}`);
     }
   }
 

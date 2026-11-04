@@ -183,7 +183,7 @@ export default async function AtrsRecordPage({
                         <span className="font-mono">{f.ref}</span> {f.label}
                       </dt>
                       <dd className="whitespace-pre-line">
-                        {record.fields[f.ref] ?? <span className="text-ink-soft">—</span>}
+                        {record.fields[f.ref] ?? <span className="text-ink-soft">-</span>}
                       </dd>
                     </div>
                   ))}

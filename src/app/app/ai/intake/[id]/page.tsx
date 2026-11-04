@@ -80,7 +80,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">Priority</h2>
         {quadrant ? (
           <p className="text-sm">
-            <strong>{QUADRANT_LABEL[quadrant]}</strong> — value {request.valueScore}, feasibility{" "}
+            <strong>{QUADRANT_LABEL[quadrant]}</strong> - value {request.valueScore}, feasibility{" "}
             {request.feasibilityScore}, priority {priority} of 25.{" "}
             <span className="text-ink-soft">{QUADRANT_HELP[quadrant]}.</span>
             {scorerEmail ? <span className="block text-xs text-ink-soft">Scored by {scorerEmail} on {day(request.scoredAt)}{request.scoringNote ? `: ${request.scoringNote}` : ""}</span> : null}

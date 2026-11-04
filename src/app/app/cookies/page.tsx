@@ -44,7 +44,7 @@ export default async function CookiesPage() {
         <p className="max-w-prose text-sm text-ink-soft">
           Every cookie, pixel and stored item on your websites and apps, and the basis each relies on
           under UK PECR regulation 6 and Schedule A1, as the Data (Use and Access) Act 2025 amended it.
-          Statistics and appearance cookies no longer need consent — but only where people are told
+          Statistics and appearance cookies no longer need consent - but only where people are told
           about them and can object, simply and for free. This is where you show that.
         </p>
       </header>

@@ -138,7 +138,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         {request.controllerRole === "processor" && !request.passedToControllerAt ? (
           <p className="max-w-prose rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             You are the processor. Article 28(3)(e): pass the request to the
-            controller without delay and help them answer it — do not answer
+            controller without delay and help them answer it - do not answer
             the person yourself unless the controller has told you to.
           </p>
         ) : null}
@@ -153,7 +153,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
             return right ? (
               <li key={r} className="rounded border border-line bg-surface px-3 py-2 text-xs">
                 <span className="font-medium">{right.label}</span>{" "}
-                <span className="font-mono text-ink-soft">{right.article}</span> — {right.summary}
+                <span className="font-mono text-ink-soft">{right.article}</span> - {right.summary}
               </li>
             ) : null;
           })}
@@ -240,7 +240,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-sm font-medium">
                   {d.kind.replace(/_/g, " ")}
-                  {d.outcome !== "done" ? ` — ${OUTCOME_LABEL[d.outcome]}` : ""}
+                  {d.outcome !== "done" ? ` - ${OUTCOME_LABEL[d.outcome]}` : ""}
                   {d.right && request.rights.length > 1 ? ` (${RIGHTS[d.right as Right]?.label ?? d.right})` : ""}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">{d.statutoryBasis ?? "no provision cited"}</span>
@@ -304,7 +304,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
                       {ADM_SAFEGUARD_KEYS.map((k) => (
                         <li key={k}>
                           {a.admSafeguards?.[k]?.confirmed ? "✓" : "✗"} {ADM_SAFEGUARDS[k].label}
-                          {a.admSafeguards?.[k]?.note ? ` — ${a.admSafeguards[k]!.note}` : ""}
+                          {a.admSafeguards?.[k]?.note ? ` - ${a.admSafeguards[k]!.note}` : ""}
                         </li>
                       ))}
                     </ul>
@@ -368,7 +368,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           <p className="max-w-prose text-xs text-ink-soft">
             Write it in whatever you use for letters; record here what was sent
             and, if you can, link to it. Anything short of doing everything
-            asked must say why — {part3 ? PART3_REFUSAL_MUST_SAY : REFUSAL_MUST_SAY}
+            asked must say why - {part3 ? PART3_REFUSAL_MUST_SAY : REFUSAL_MUST_SAY}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block space-y-1">
@@ -414,7 +414,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           <h2 className="text-sm font-semibold">Close</h2>
           <p className="max-w-prose text-xs text-ink-soft">
             {request.respondedAt
-              ? "Once anything that followed the response is done — corrections made, recipients told."
+              ? "Once anything that followed the response is done - corrections made, recipients told."
               : "An unanswered request can only be closed if the person withdrew it, or never confirmed who they were after you reasonably asked."}
           </p>
           <label className="block space-y-1">
@@ -502,7 +502,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           </label>
         </div>
         <label className="block space-y-1">
-          <Label text="Who they are to you" hint="Customer, employee, applicant — one per line. Decides where to look." />
+          <Label text="Who they are to you" hint="Customer, employee, applicant - one per line. Decides where to look." />
           <textarea name="subjectCategories" rows={2} defaultValue={request.subjectCategories.join("\n")} className={inputClass} />
         </label>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -568,7 +568,7 @@ function DecisionDetail({
     const o = detail as HealthOpinion;
     return (
       <p className="text-xs text-ink-soft">
-        {o.professionalRole}, given {o.givenOn} — {APPROPRIATE_PROFESSIONAL[o.appropriate]}. Serious harm test{" "}
+        {o.professionalRole}, given {o.givenOn} - {APPROPRIATE_PROFESSIONAL[o.appropriate]}. Serious harm test{" "}
         {o.testMet ? "met" : "not met"}.
       </p>
     );

@@ -103,7 +103,7 @@ export function Scope({
               <p className="text-xs text-ink-soft">
                 Article 19: {NOTICE_LABEL[e.recipientNotice]}
                 {e.recipientNoticeAt ? ` ${stamp(e.recipientNoticeAt)}` : ""}
-                {e.recipientNoticeNote ? ` — ${e.recipientNoticeNote}` : ""}
+                {e.recipientNoticeNote ? ` - ${e.recipientNoticeNote}` : ""}
               </p>
             ) : null}
 
@@ -167,7 +167,7 @@ export function Scope({
         {scope.length === 0 ? (
           <li className="px-4 py-5 text-sm text-ink-soft">
             {request.subjectCategories.length === 0
-              ? "Nothing yet. Say who they are to you — customer, employee, applicant — in the record below, and the ROPA will list where to look."
+              ? "Nothing yet. Say who they are to you - customer, employee, applicant - in the record below, and the ROPA will list where to look."
               : "The ROPA has no activity about who they are. Add the places to look by hand, and consider whether the ROPA is missing something."}
           </li>
         ) : null}

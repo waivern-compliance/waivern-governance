@@ -542,7 +542,7 @@ async function main() {
       organisationId: org.id,
       entityId: aiEntityId,
       templateVersionId: aiTemplateVersion,
-      title: `AI risk assessment — ${spec.name}`,
+      title: `AI risk assessment - ${spec.name}`,
       subjectType: "ai_use_case",
       subjectId: useCase.id,
       ownerId: analyst.id,

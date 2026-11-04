@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, lte } from "drizzle-orm";
 import { db, withOrganisation } from "@/db/client";
 import {
   approvals,

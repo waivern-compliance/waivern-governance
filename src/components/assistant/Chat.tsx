@@ -54,7 +54,7 @@ export function Chat({
               }
             >
               <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-ink-soft">
-                {turn.role === "user" ? "You asked" : "Suggested — check before you use it"}
+                {turn.role === "user" ? "You asked" : "Suggested - check before you use it"}
               </span>
               <span className="whitespace-pre-wrap">{turn.content}</span>
             </li>
@@ -73,7 +73,7 @@ export function Chat({
           role="alert"
           className="rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900"
         >
-          {state.error} Your question is still here — nothing else on this page
+          {state.error} Your question is still here - nothing else on this page
           is affected.
         </p>
       ) : null}

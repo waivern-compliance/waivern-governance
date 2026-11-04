@@ -45,7 +45,7 @@ describe("files that are what they say", () => {
   });
 
   it("accepts text and CSV in UTF-8, with or without a byte-order mark", () => {
-    assert.ok(contentMatchesType("text/plain", Buffer.from("Schedule 2 — processing details\n")));
+    assert.ok(contentMatchesType("text/plain", Buffer.from("Schedule 2 - processing details\n")));
     assert.ok(contentMatchesType("text/csv", Buffer.from("﻿supplier,country\nAcme,Ireland\n")));
   });
 

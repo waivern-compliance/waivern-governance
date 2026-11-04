@@ -98,7 +98,7 @@ export default async function SupplierPage({
   const moveTargets = (current: string) => [
     {
       value: `supplier:${supplier.id}`,
-      label: `${supplier.name} — not tied to one agreement`,
+      label: `${supplier.name} - not tied to one agreement`,
       current: current === `supplier:${supplier.id}`,
     },
     ...dpas.map((d) => ({
@@ -160,7 +160,7 @@ export default async function SupplierPage({
             A scanner sees a third party on a page; it cannot tell whether that
             party processes personal data on your behalf, or is a recipient in
             its own right, or was a mistake. Confirming records that a person
-            looked — it does not assert an agreement exists.
+            looked - it does not assert an agreement exists.
           </p>
           <form action={confirmSupplierAction.bind(null, supplier.id)}>
             <button
@@ -312,7 +312,7 @@ export default async function SupplierPage({
             <Link href={`/app/assessments/${ai.assessed.assessmentId}`} className="font-mono text-brand hover:underline">
               {ai.assessed.reference}
             </Link>
-            {ai.assessed.approved ? "" : " — not yet approved, so its answers are not relied on yet"}
+            {ai.assessed.approved ? "" : " - not yet approved, so its answers are not relied on yet"}
           </p>
         ) : null}
         {(involvesAi(supplier.aiInvolvement as AiInvolvement | null) || ai.systems > 0) && mayEdit ? (
@@ -385,7 +385,7 @@ export default async function SupplierPage({
           {dpas.length === 0 ? (
             <li className="px-4 py-6 text-sm text-ink-soft">
               No agreement recorded. If one exists, record it here so the expiry
-              is watched — otherwise nothing will notice when it lapses.
+              is watched - otherwise nothing will notice when it lapses.
             </li>
           ) : null}
         </ul>
@@ -394,7 +394,7 @@ export default async function SupplierPage({
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Other documents</h2>
         <p className="max-w-prose text-xs text-ink-soft">
-          Anything about this third party that is not tied to one agreement —
+          Anything about this third party that is not tied to one agreement -
           due diligence, certifications, an audit report. These are read
           alongside every agreement when a model is asked to find transfers and
           sub-processors, so a sub-processor annexe filed here is still found.
@@ -431,12 +431,12 @@ export default async function SupplierPage({
               <Field
                 label="Transfer mechanism"
                 name="transferMechanism"
-                hint="IDTA, UK Addendum, approved destination — if data leaves the UK"
+                hint="IDTA, UK Addendum, approved destination - if data leaves the UK"
               />
               <Area
                 label="Sub-processors"
                 name="subProcessors"
-                hint="Article 28(2) — one per line"
+                hint="Article 28(2) - one per line"
               />
               <button
                 type="submit"

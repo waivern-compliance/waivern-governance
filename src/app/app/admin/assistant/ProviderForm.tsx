@@ -80,10 +80,10 @@ export function ProviderForm({
               className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
             >
               <option value="openai_compatible">
-                OpenAI-compatible — Azure OpenAI, OpenAI, self-hosted
+                OpenAI-compatible - Azure OpenAI, OpenAI, self-hosted
               </option>
               <option value="anthropic">
-                Anthropic — api.anthropic.com, or a proxy speaking its shape
+                Anthropic - api.anthropic.com, or a proxy speaking its shape
               </option>
             </select>
           </label>
@@ -91,7 +91,7 @@ export function ProviderForm({
             <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
               Model
               <span className="block font-normal normal-case tracking-normal">
-                The API identifier, not the name it is marketed under — {'"'}claude-sonnet-5{'"'},
+                The API identifier, not the name it is marketed under - {'"'}claude-sonnet-5{'"'},
                 not {'"'}Sonnet 5{'"'}.
               </span>
             </span>
@@ -106,13 +106,13 @@ export function ProviderForm({
             <datalist id="model-suggestions">
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.vendor} — {m.label}
+                  {m.vendor} - {m.label}
                 </option>
               ))}
             </datalist>
             <span className="block text-xs text-ink-soft">
               Suggestions for this wire format, reviewed {SUGGESTIONS_REVIEWED}. Type
-              anything — a fine-tune, a private deployment, an Azure deployment
+              anything - a fine-tune, a private deployment, an Azure deployment
               name. Your provider&rsquo;s documentation is what is authoritative.
             </span>
           </label>
@@ -138,12 +138,12 @@ export function ProviderForm({
             {endpoints.map((e) => (
               <option key={e.url} value={e.url}>
                 {e.vendor}
-                {e.note ? ` — ${e.note}` : ""}
+                {e.note ? ` - ${e.note}` : ""}
               </option>
             ))}
           </datalist>
           <span className="block text-xs text-ink-soft">
-            Endpoints for this wire format. Some are templates — anything in
+            Endpoints for this wire format. Some are templates - anything in
             angle brackets is yours to replace, and saving it unedited is
             refused rather than failing later as a name that will not resolve.
           </span>
@@ -248,7 +248,7 @@ export function ProviderForm({
           <h2 className="text-sm font-semibold">Check it answers</h2>
           <p className="max-w-prose text-xs text-ink-soft">
             Sends one throwaway question containing no records. Worth doing
-            before anybody meets this in the middle of an assessment — a wrong
+            before anybody meets this in the middle of an assessment - a wrong
             endpoint or a missing API version shows up here instead of there.
           </p>
           {tested ? (

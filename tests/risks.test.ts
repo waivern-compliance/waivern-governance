@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
-import { entities, memberships, organisations, riskAcceptances, users } from "@/db/schema";
+import { entities, memberships, organisations, users } from "@/db/schema";
 import { verifyAuditChain } from "@/lib/audit";
 import { rate } from "@/lib/risk/scale";
 import { capabilitiesFor } from "@/lib/rbac";

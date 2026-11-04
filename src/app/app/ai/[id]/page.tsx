@@ -46,7 +46,7 @@ import { AutomatedDecisions } from "@/components/AutomatedDecisions";
 import { linkedActivitiesOf, regimeOfUseCase } from "@/services/automated-decisions";
 
 const CONSEQUENCE_WORDS: Record<string, string> = {
-  informational: "Informational only — no decision follows",
+  informational: "Informational only - no decision follows",
   influences: "Influences a decision a person takes",
   recommends: "Recommends a decision that is usually followed",
   decides: "Decides, with no meaningful human review",
@@ -185,7 +185,7 @@ export default async function UseCasePage({
             <p>
               <span className="font-medium">{ownerEmail}</span>
               <span className="text-ink-soft">
-                {" "}is accountable for this system — its senior responsible owner.
+                {" "}is accountable for this system - its senior responsible owner.
               </span>
             </p>
           ) : (
@@ -257,7 +257,7 @@ export default async function UseCasePage({
               <Fact term="Bias assessment" value={assessed.biasConsidered?.replace(/_/g, " ")} />
             </dl>
             <p className="text-xs text-ink-soft">
-              These come from the assessment, not from this record — so what you
+              These come from the assessment, not from this record - so what you
               see here is what somebody actually signed off, not a copy that has
               since drifted.
             </p>
@@ -341,7 +341,7 @@ export default async function UseCasePage({
                       {h.kind === "model" ? "Model changed" : h.kind === "data" ? "Data changed" : "Use changed"}
                     </strong>
                   )}{" "}
-                  — {h.summary}
+                  - {h.summary}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {h.recordedByLabel} · {h.createdAt.toISOString().slice(0, 10)}
@@ -434,7 +434,7 @@ export default async function UseCasePage({
                 .slice(0, 10)
                 .map((h) => ({
                   id: h.id,
-                  label: `${h.createdAt.toISOString().slice(0, 10)} — ${h.summary}`,
+                  label: `${h.createdAt.toISOString().slice(0, 10)} - ${h.summary}`,
                 }))}
             />
           </details>

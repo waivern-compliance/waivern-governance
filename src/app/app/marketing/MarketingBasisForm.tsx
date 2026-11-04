@@ -42,7 +42,7 @@ export function MarketingBasisForm({
         <select name="basis" value={basis} onChange={(e) => setBasis(e.target.value as MarketingBasis)} className={input}>
           {offered.map((b) => (
             <option key={b} value={b}>
-              {MARKETING_BASES[b].label} — {MARKETING_BASES[b].citation}
+              {MARKETING_BASES[b].label} - {MARKETING_BASES[b].citation}
             </option>
           ))}
         </select>

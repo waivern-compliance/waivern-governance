@@ -63,8 +63,8 @@ const org = active.membership.organisationId;
             <strong>
               {lapsed.length} acceptance{lapsed.length === 1 ? "" : "s"} lapsed.
             </strong>{" "}
-            These risks are still recorded as accepted — nothing changes a
-            person&rsquo;s decision behind their back — but each one now needs
+            These risks are still recorded as accepted - nothing changes a
+            person&rsquo;s decision behind their back - but each one now needs
             someone to look at it again.
           </p>
         </div>

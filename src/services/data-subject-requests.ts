@@ -606,7 +606,7 @@ export async function recordIdentity(input: {
   const at = input.at ?? new Date();
   const method = input.method?.trim() || null;
   if (input.step === "verified" && !method) {
-    throw new RequestRefused("Say how identity was checked — not the document itself, which should not be kept.");
+    throw new RequestRefused("Say how identity was checked - not the document itself, which should not be kept.");
   }
 
   return withOrganisation(input.organisationId, async () => {
@@ -1034,7 +1034,7 @@ export async function seedRequestScope(input: { requestId: string; organisationI
       const request = await lockedRequest(tx, input.requestId, input.organisationId);
       if (request.closedAt) throw new RequestRefused("This request is closed.");
       if (request.subjectCategories.length === 0) {
-        throw new RequestRefused("Say who the requester is to you — customer, employee, applicant — so the ROPA can say where to look.");
+        throw new RequestRefused("Say who the requester is to you - customer, employee, applicant - so the ROPA can say where to look.");
       }
       const added = await seedScope(tx, request);
       await appendAuditEvent(tx, {
@@ -1127,7 +1127,7 @@ export async function recordScopeResult(input: {
 }) {
   const note = input.note?.trim() || null;
   if (input.status === "not_actioned" && !note) {
-    throw new RequestRefused("Say why nothing was done with what was found — an exemption, an Article 17(3) exception, a refusal.");
+    throw new RequestRefused("Say why nothing was done with what was found - an exemption, an Article 17(3) exception, a refusal.");
   }
 
   return withOrganisation(input.organisationId, async () => {

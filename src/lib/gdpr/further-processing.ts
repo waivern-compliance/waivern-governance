@@ -272,7 +272,7 @@ export function describeFurtherProcessing(record: FurtherProcessingRecord): stri
   if (record.furtherProcessing === true) {
     parts.push(
       record.compatibilityRoute
-        ? `Further processing — ${COMPATIBILITY_ROUTES[record.compatibilityRoute].label} (${COMPATIBILITY_ROUTES[record.compatibilityRoute].point})`
+        ? `Further processing - ${COMPATIBILITY_ROUTES[record.compatibilityRoute].label} (${COMPATIBILITY_ROUTES[record.compatibilityRoute].point})`
         : "Further processing, route not recorded",
     );
   } else if (record.furtherProcessing === false) parts.push("Not further processing");

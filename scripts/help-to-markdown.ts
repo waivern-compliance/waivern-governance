@@ -13,7 +13,7 @@ const OUT = "docs/help.md";
 
 function main() {
   const lines: string[] = [
-    `# ${PRODUCT_NAME} — help`,
+    `# ${PRODUCT_NAME} - help`,
     "",
     "Every help topic the application carries, in the order it presents them.",
     "",
@@ -35,7 +35,7 @@ function main() {
         .replace(/[^a-z0-9\s-]/g, "")
         .trim()
         .replace(/\s+/g, "-");
-      lines.push(`- [${topic.title}](#${anchor}) — ${topic.summary}`);
+      lines.push(`- [${topic.title}](#${anchor}) - ${topic.summary}`);
     }
     lines.push("");
   }
@@ -81,7 +81,7 @@ function main() {
     // Should be unreachable — a test asserts it — but saying so beats
     // silently omitting a topic from the document.
     lines.push("---", "", "# Not filed under any heading", "");
-    for (const topic of unfiled) lines.push(`- **${topic.title}** — ${topic.summary}`);
+    for (const topic of unfiled) lines.push(`- **${topic.title}** - ${topic.summary}`);
     lines.push("");
   }
 

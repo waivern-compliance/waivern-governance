@@ -215,7 +215,7 @@ export async function startSeverityAssessmentAction(breachId: string) {
     organisationId: active.membership.organisationId,
     entityId: breach.entityId,
     templateVersionId: available.version.id,
-    title: `Severity — ${breach.reference} ${breach.title}`,
+    title: `Severity - ${breach.reference} ${breach.title}`,
     subjectType: "breach",
     subjectId: breach.id,
     ownerId: active.userId,

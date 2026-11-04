@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { db, withOrganisation } from "@/db/client";
 import {
   approvals,

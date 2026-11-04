@@ -69,7 +69,7 @@ export function Attachments({
                     {d.filename}
                     <span className="block text-xs font-normal">
                       Held: the virus scanner found {d.quarantineSignature ?? "something"} in it. It cannot be
-                      downloaded — remove it, or replace it with a clean copy.
+                      downloaded - remove it, or replace it with a clean copy.
                     </span>
                   </span>
                 ) : (
@@ -129,7 +129,7 @@ export function Attachments({
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-ink-soft">Nothing attached here yet — {what}.</p>
+        <p className="text-xs text-ink-soft">Nothing attached here yet - {what}.</p>
       )}
 
       {mayEdit ? (
@@ -138,7 +138,7 @@ export function Attachments({
             <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
               Attach {what}
               <span className="block font-normal normal-case tracking-normal">
-                Several at once. Up to {MAX_BYTES / 1024 / 1024}MB each —{" "}
+                Several at once. Up to {MAX_BYTES / 1024 / 1024}MB each -{" "}
                 {[...new Set(ACCEPTED.values())].join(", ")}.
               </span>
             </span>

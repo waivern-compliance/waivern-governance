@@ -49,7 +49,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
 export const STAGE_BLURB: Record<Stage, string> = {
   setup:
     "Getting what your organisation actually does into the tool, once. Work down " +
-    "the list — each step assumes the one before it.",
+    "the list - each step assumes the one before it.",
   maintain:
     "The work that recurs. Nothing here is a one-off: records go stale, agreements " +
     "lapse, and assessments come round again.",
@@ -79,18 +79,18 @@ export const SETUP: Step[] = [
     id: "people",
     title: "Add the people who will do the work",
     what:
-      "Invite your colleagues and give each a role. Roles say what somebody may decide — " +
+      "Invite your colleagues and give each a role. Roles say what somebody may decide - " +
       "who can approve an assessment, who can accept a risk.",
     why:
       "The tool routes work to named people. Until somebody is named, nothing is assigned " +
       "and nothing moves. Accountability for a decision is also the point of recording it " +
-      "at all — UK GDPR Article 5(2) makes you responsible for demonstrating compliance, " +
+      "at all - UK GDPR Article 5(2) makes you responsible for demonstrating compliance, " +
       "and a decision nobody's name is on demonstrates nothing.",
     finishedWhen: "Everyone who needs to approve or answer something can sign in and has a role.",
     href: "/app/admin/people",
     watchOut:
       "Whoever approves an assessment should not be the same person who wrote it. The " +
-      "tool allows it, because in a small organisation there may be nobody else — but it " +
+      "tool allows it, because in a small organisation there may be nobody else - but it " +
       "is worth knowing that is what you are doing.",
   },
   {
@@ -118,7 +118,7 @@ export const SETUP: Step[] = [
       "support calls. Say what data, whose, why, who else sees it, and how long you keep it.",
     why:
       "This is the record UK GDPR Article 30 requires, and a regulator can ask for it " +
-      "without warning. It is also the spine of everything else here — you cannot assess " +
+      "without warning. It is also the spine of everything else here - you cannot assess " +
       "a risk in an activity you have not written down.",
     finishedWhen: "Every system that holds personal data appears at least once.",
     href: "/app/ropa",
@@ -131,7 +131,7 @@ export const SETUP: Step[] = [
     id: "third-parties",
     title: "List everyone else who touches the data",
     what:
-      "Every supplier that processes personal data for you — hosting, email, analytics, " +
+      "Every supplier that processes personal data for you - hosting, email, analytics, " +
       "payroll, a freelancer with a login. Record the agreement you have with each, and " +
       "attach the signed copy.",
     why:
@@ -168,7 +168,7 @@ export const SETUP: Step[] = [
     why:
       "UK GDPR Article 35(1) requires a DPIA where processing is likely to result in a " +
       "high risk to people. Screening first is what tells you which those are, and " +
-      "records your reasoning for the ones you decided did not need one — which is the " +
+      "records your reasoning for the ones you decided did not need one - which is the " +
       "half people forget and a regulator asks about.",
     finishedWhen: "Every activity has been screened, and every screening that said 'DPIA' has one.",
     href: "/app/assessments",
@@ -199,7 +199,7 @@ export const MAINTAIN: Step[] = [
       "Your task list is the only page that shows what is actually assigned to you. " +
       "Start there, every time.",
     why:
-      "Work here is routed to named people, so an unattended task is not a reminder — it " +
+      "Work here is routed to named people, so an unattended task is not a reminder - it " +
       "is a step of a process that has stopped. Overdue items are shown to administrators " +
       "as well, because a stalled approval is an organisational problem.",
     finishedWhen: "Nothing on your list is overdue.",
@@ -229,7 +229,7 @@ export const MAINTAIN: Step[] = [
       "replace, or record that the relationship has ended.",
     why:
       "Processing under an expired contract is the same Article 28 failure as processing " +
-      "with no contract at all. Six months is renewal lead time — a warning at ninety " +
+      "with no contract at all. Six months is renewal lead time - a warning at ninety " +
       "days arrives after the window to renegotiate has closed.",
     finishedWhen: "Nothing is expiring unattended, and anything ended is archived with a reason.",
     href: "/app/third-parties",
@@ -255,7 +255,7 @@ export const MAINTAIN: Step[] = [
       "before it goes live, not at audit time.",
     why:
       "Article 30 requires the record to be current, and a record updated once a year " +
-      "describes last year. This is also the cheapest moment to notice you need a DPIA — " +
+      "describes last year. This is also the cheapest moment to notice you need a DPIA - " +
       "before the thing is built.",
     finishedWhen: "Nothing is running that is not written down.",
     href: "/app/ropa",
@@ -270,7 +270,7 @@ export const MAINTAIN: Step[] = [
       "A risk sits open until somebody either does something about it or accepts it in " +
       "writing, with a reason and a date.",
     why:
-      "An open risk nobody decided on is not a decision — it is a gap with a number " +
+      "An open risk nobody decided on is not a decision - it is a gap with a number " +
       "beside it. Accepting a risk is a legitimate answer, but it has to be somebody's " +
       "name and reasoning, which is what makes it defensible later.",
     finishedWhen: "Every open risk has either a mitigation in progress or a recorded acceptance.",
@@ -307,7 +307,7 @@ export const MAINTAIN: Step[] = [
     finishedWhen: "You know where requests are recorded, and who in your team handles them.",
     href: "/app/requests",
     watchOut:
-      "The month starts when the request arrives, wherever it lands — not when it reaches you. " +
+      "The month starts when the request arrives, wherever it lands - not when it reaches you. " +
       "An objection to direct marketing must always be upheld.",
   },
   {
@@ -336,7 +336,7 @@ export const MAINTAIN: Step[] = [
       "every cookie and similar item relies on.",
     why:
       "UK PECR regulation 6 restricts storing anything on a person's device. Since 5 February 2026, " +
-      "Schedule A1 lets statistics and appearance cookies go without consent — but only where people " +
+      "Schedule A1 lets statistics and appearance cookies go without consent - but only where people " +
       "are told about them and can object simply and for free. Everything else needs consent or must " +
       "be strictly necessary.",
     finishedWhen: "Every item in use on every site has a basis with no gaps.",
@@ -366,7 +366,7 @@ export const MAINTAIN: Step[] = [
     title: "Take an export when you need to show your work",
     what:
       "Export the registers and the audit trail. Do it before an audit, a funding round, " +
-      "or a customer's security review — not during.",
+      "or a customer's security review - not during.",
     why:
       "Article 5(2) puts the burden on you to demonstrate compliance, not on a regulator " +
       "to disprove it. The audit trail here is hash-linked, so an export can be shown as " +

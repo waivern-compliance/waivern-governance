@@ -64,7 +64,7 @@ export function InviteForm({
           >
             {roles.map((r) => (
               <option key={r} value={r}>
-                {r.replace(/_/g, " ")} — {roleNotes[r] ?? ""}
+                {r.replace(/_/g, " ")} - {roleNotes[r] ?? ""}
               </option>
             ))}
           </select>
@@ -124,7 +124,7 @@ export function InviteForm({
           {pending ? "Granting…" : "Grant access"}
         </button>
         <p className="text-xs text-ink-soft">
-          They sign in with the identity provider — no password is created here.
+          They sign in with the identity provider - no password is created here.
           Somebody who already has access keeps what they have and gains this
           role as well.
         </p>

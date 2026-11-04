@@ -49,7 +49,7 @@ export function RecordBreachForm({
           <label className="block space-y-1">
             <Label
               text="When did you become aware?"
-              hint="This starts the seventy-two hours — not when it happened."
+              hint="This starts the seventy-two hours - not when it happened."
             />
             <input
               name="discoveredAt"
@@ -100,9 +100,9 @@ export function RecordBreachForm({
             What kind of breach
           </legend>
           {[
-            ["confidentiality", "Confidentiality — seen or taken by somebody unauthorised"],
-            ["integrity", "Integrity — altered when it should not have been"],
-            ["availability", "Availability — lost, destroyed or unreachable"],
+            ["confidentiality", "Confidentiality - seen or taken by somebody unauthorised"],
+            ["integrity", "Integrity - altered when it should not have been"],
+            ["availability", "Availability - lost, destroyed or unreachable"],
           ].map(([value, label]) => (
             <label key={value} className="flex items-start gap-2.5 text-sm">
               <input type="checkbox" name="categories" value={value} className="mt-1 accent-brand" />
@@ -110,7 +110,7 @@ export function RecordBreachForm({
             </label>
           ))}
           <p className="text-xs text-ink-soft">
-            More than one can apply — ransomware that exfiltrated first is both.
+            More than one can apply - ransomware that exfiltrated first is both.
           </p>
         </fieldset>
 

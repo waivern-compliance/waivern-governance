@@ -39,9 +39,9 @@ import { linkedUseCasesOf } from "@/services/automated-decisions";
 import { agreementsFor } from "@/services/sharing-agreements";
 
 const ROLE_WORDS: Record<string, string> = {
-  controller: "Controller — you decide why and how",
+  controller: "Controller - you decide why and how",
   joint_controller: "Joint controller",
-  processor: "Processor — you act for somebody else",
+  processor: "Processor - you act for somebody else",
 };
 
 export default async function ActivityPage({
@@ -121,14 +121,14 @@ export default async function ActivityPage({
           activity.regime === "dpa_part3" ? (
             <p className="max-w-prose text-xs text-red-900">
               The red items are unqualified requirements of section 61, or processing Part 3 does not allow as
-              recorded — no section 35(2) basis, or sensitive processing without a route, a Schedule 8 condition or a
+              recorded - no section 35(2) basis, or sensitive processing without a route, a Schedule 8 condition or a
               policy document covering it. Retention and security measures are qualified by “where possible”, so they
               are reported without being called a breach.
             </p>
           ) : (
             <p className="max-w-prose text-xs text-red-900">
               The red items are unqualified Article 30 requirements, or processing
-              the record describes as something the law does not allow — a solely
+              the record describes as something the law does not allow - a solely
               automated decision Article 22B forbids, further processing on a
               route Article 8A(4) closes, or special category or criminal offence
               data with no condition{ukLaw ? ", or with a Schedule 1 condition no current appropriate policy document covers" : ""}. Retention and security measures are
@@ -213,7 +213,7 @@ export default async function ActivityPage({
           <Area
             label="Purposes"
             name="purposes"
-            hint="Article 30(1)(b) — one per line"
+            hint="Article 30(1)(b) - one per line"
             defaultValue={(activity.purposes ?? []).join("\n")}
           />
           <CategoryPicker
@@ -248,7 +248,7 @@ export default async function ActivityPage({
                 <label className="block space-y-1">
                   <Label
                     text="Likely to be accessed by children?"
-                    hint="Article 25(1A) — an online service in this processing that children are likely to use. Preventive and counselling services are not included. Where it is, the measures must take the children's higher protection matters into account, and the DPIA should say how."
+                    hint="Article 25(1A) - an online service in this processing that children are likely to use. Preventive and counselling services are not included. Where it is, the measures must take the children's higher protection matters into account, and the DPIA should say how."
                   />
                   <select
                     name="childrenLikely"
@@ -266,32 +266,32 @@ export default async function ActivityPage({
           <Area
             label="Categories of recipient"
             name="recipients"
-            hint="Article 30(1)(d) — who it is disclosed to, including processors"
+            hint="Article 30(1)(d) - who it is disclosed to, including processors"
             defaultValue={(activity.recipients ?? []).join("\n")}
           />
           <Area
             label="Transfers outside the UK"
             name="transfers"
-            hint="Article 30(1)(e) — one per line, as “US: SCCs”. A country with no mechanism is flagged unless the library says it needs none."
+            hint="Article 30(1)(e) - one per line, as “US: SCCs”. A country with no mechanism is flagged unless the library says it needs none."
             defaultValue={transfersText}
           />
           <Field
             label="Retention"
             name="retention"
-            hint="Article 30(1)(f) — how long, or how the period is decided"
+            hint="Article 30(1)(f) - how long, or how the period is decided"
             defaultValue={activity.retention ?? ""}
           />
           <Area
             label="Security measures"
             name="securityMeasures"
-            hint="Article 30(1)(g) — a general description is enough"
+            hint="Article 30(1)(g) - a general description is enough"
             defaultValue={activity.securityMeasures ?? ""}
             rows={2}
           />
           <Area
             label="Systems"
             name="systems"
-            hint="What it runs on — one per line"
+            hint="What it runs on - one per line"
             defaultValue={(activity.systems ?? []).join("\n")}
           />
 
@@ -326,7 +326,7 @@ export default async function ActivityPage({
           <Field
             label="Controller acted for"
             name="controllerName"
-            hint="Article 30(2)(a) — required when you are the processor"
+            hint="Article 30(2)(a) - required when you are the processor"
             defaultValue={activity.controllerName ?? ""}
           />
 
@@ -357,9 +357,9 @@ export default async function ActivityPage({
                       : [
                           activity.sensitiveRoute ? SENSITIVE_ROUTES[activity.sensitiveRoute] : "No route chosen",
                           activity.schedule8Condition
-                            ? `Schedule 8, paragraph ${SCHEDULE_8[activity.schedule8Condition].paragraph} — ${SCHEDULE_8[activity.schedule8Condition].label}`
+                            ? `Schedule 8, paragraph ${SCHEDULE_8[activity.schedule8Condition].paragraph} - ${SCHEDULE_8[activity.schedule8Condition].label}`
                             : "",
-                        ].filter(Boolean).join(" — ")
+                        ].filter(Boolean).join(" - ")
                 }
               />
               <Read
@@ -379,7 +379,7 @@ export default async function ActivityPage({
                   [
                     describeBases(activity.lawfulBases ?? []),
                     activity.recognisedCondition ? `${RECOGNISED_CONDITIONS[activity.recognisedCondition].label} (${RECOGNISED_CONDITIONS[activity.recognisedCondition].paragraph})` : "",
-                  ].filter(Boolean).join(" — ")
+                  ].filter(Boolean).join(" - ")
                 }
               />
               {activity.lawfulBasis ? <Read label="Note on the basis" value={activity.lawfulBasis} /> : null}
@@ -395,7 +395,7 @@ export default async function ActivityPage({
                       : [
                           activity.art9Condition ? ART9_CONDITIONS[activity.art9Condition].point : "No Article 9(2) condition chosen",
                           activity.schedule1Condition ? describeSchedule1(activity.schedule1Condition) : "",
-                        ].filter(Boolean).join(" — ")
+                        ].filter(Boolean).join(" - ")
                 }
               />
               <Read
@@ -463,7 +463,7 @@ export default async function ActivityPage({
                   ? PART3_RESEARCH_SAFEGUARD_KEYS.map((k) => (
                       <li key={k}>
                         {activity.researchSafeguards?.[k]?.confirmed ? "✓" : "✗"} {PART3_RESEARCH_SAFEGUARDS[k]!.label}
-                        {activity.researchSafeguards?.[k]?.note ? ` — ${activity.researchSafeguards[k]!.note}` : ""}
+                        {activity.researchSafeguards?.[k]?.note ? ` - ${activity.researchSafeguards[k]!.note}` : ""}
                       </li>
                     ))
                   : null}
@@ -520,7 +520,7 @@ export default async function ActivityPage({
                 ? RESEARCH_SAFEGUARD_KEYS.map((k) => (
                     <li key={k}>
                       {activity.researchSafeguards?.[k]?.confirmed ? "✓" : "✗"} {RESEARCH_SAFEGUARDS[k].label}
-                      {activity.researchSafeguards?.[k]?.note ? ` — ${activity.researchSafeguards[k]!.note}` : ""}
+                      {activity.researchSafeguards?.[k]?.note ? ` - ${activity.researchSafeguards[k]!.note}` : ""}
                     </li>
                   ))
                 : null}

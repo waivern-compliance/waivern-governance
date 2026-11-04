@@ -39,7 +39,7 @@ export default async function TrendsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Trends</h1>
         <p className="max-w-prose text-sm text-ink-soft">
           The last {MONTHS} months, reconstructed from when each record was
-          raised, decided and closed — not from a sampling job, so the history
+          raised, decided and closed - not from a sampling job, so the history
           goes back as far as the records do.
         </p>
       </header>
@@ -319,7 +319,7 @@ function Table({ points }: { points: TrendPoint[] }) {
                 </th>
                 {cols.map((c) => (
                   <td key={c.key} className="px-3 py-1.5 text-right tabular-nums">
-                    {p[c.key] === null ? <span className="text-ink-soft">—</span> : String(p[c.key])}
+                    {p[c.key] === null ? <span className="text-ink-soft">-</span> : String(p[c.key])}
                   </td>
                 ))}
               </tr>

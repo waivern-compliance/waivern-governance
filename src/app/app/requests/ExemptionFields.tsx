@@ -51,7 +51,7 @@ export function ExemptionFields({ opinions }: { opinions: Array<{ id: string; la
             <optgroup key={p.title} label={p.title}>
               {p.keys.filter(isExemption).map((k) => (
                 <option key={k} value={k}>
-                  {exemptionProvision(k).replace("DPA 2018 ", "")} — {EXEMPTIONS[k].label}
+                  {exemptionProvision(k).replace("DPA 2018 ", "")} - {EXEMPTIONS[k].label}
                 </option>
               ))}
             </optgroup>
@@ -194,7 +194,7 @@ export function Part3RestrictionFields() {
       {provision === "s78a" ? (
         <>
           <Tick name="nationalSecurityRequired">
-            Exemption from the person&apos;s rights is required to safeguard national security — not merely convenient
+            Exemption from the person&apos;s rights is required to safeguard national security - not merely convenient
           </Tick>
           <label className="block space-y-1">
             <Label
@@ -220,7 +220,7 @@ export function Part3RestrictionFields() {
             ))}
           </fieldset>
           <Tick name="necessaryAndProportionate">
-            Necessary and proportionate, having regard to the person&apos;s fundamental rights and legitimate interests — and only
+            Necessary and proportionate, having regard to the person&apos;s fundamental rights and legitimate interests - and only
             for as long as it stays so
           </Tick>
         </>

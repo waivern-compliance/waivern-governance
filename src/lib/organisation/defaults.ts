@@ -10,9 +10,9 @@ export const RETENTION_DEFAULTS: ReadonlyArray<{
   months: number;
   basis: string;
 }> = [
-  { subjectType: "assessment", months: 84, basis: "Corporate retention schedule — governance records" },
+  { subjectType: "assessment", months: 84, basis: "Corporate retention schedule - governance records" },
   { subjectType: "processing_activity", months: 84, basis: "Retained while processing continues, plus 7 years" },
-  { subjectType: "risk", months: 84, basis: "Corporate retention schedule — risk records" },
+  { subjectType: "risk", months: 84, basis: "Corporate retention schedule - risk records" },
   { subjectType: "audit_event", months: 120, basis: "Audit evidence, retained beyond the records it describes" },
 ];
 

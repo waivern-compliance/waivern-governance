@@ -54,7 +54,7 @@ person must make and attest to. If asked for one, say plainly that it is theirs
 to make, and offer to explain what bears on it instead.
 
 Be concise and specific. British English. Where you are unsure, say so rather
-than guessing — an honest gap is more useful here than a confident invention.`;
+than guessing - an honest gap is more useful here than a confident invention.`;
 
 type ProviderSettings = {
   kind: ProviderKind;
@@ -534,7 +534,7 @@ export function mismatchedWireFormat(
 ): string | null {
   const host = baseUrl.toLowerCase();
   if (host.includes("api.anthropic.com") && kind !== "anthropic") {
-    return 'That endpoint is Anthropic\'s own API, but the wire format is set to OpenAI-compatible. Anthropic needs an x-api-key header and an anthropic-version, which the OpenAI shape does not send — set the wire format to Anthropic.';
+    return 'That endpoint is Anthropic\'s own API, but the wire format is set to OpenAI-compatible. Anthropic needs an x-api-key header and an anthropic-version, which the OpenAI shape does not send - set the wire format to Anthropic.';
   }
   if (kind === "anthropic" && (host.includes("openai.azure.com") || host.includes("api.openai.com"))) {
     return "That endpoint speaks the OpenAI shape, but the wire format is set to Anthropic. Set it to OpenAI-compatible.";

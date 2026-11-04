@@ -14,8 +14,8 @@
 export type DataProtectionLaw = "uk" | "eu" | "uk_eu";
 
 export const DATA_PROTECTION_LAWS: Record<DataProtectionLaw, string> = {
-  uk: "UK law — the UK GDPR, the Data Protection Act 2018 and PECR",
-  eu: "EU law only — the EU GDPR",
+  uk: "UK law - the UK GDPR, the Data Protection Act 2018 and PECR",
+  eu: "EU law only - the EU GDPR",
   uk_eu: "Both UK and EU law",
 };
 

@@ -9,7 +9,6 @@ import {
   notifications,
   organisations,
   roleAssignments,
-  riskAcceptances,
   schedules,
   slaPolicies,
   tasks,

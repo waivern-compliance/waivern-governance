@@ -170,7 +170,7 @@ export async function riskProfileFor(useCaseId: string, organisationId: string) 
         appetite:
           basis && basis.state !== "closed"
             ? basis.basis.source === "platform"
-              ? `no appetite signed off — residual up to ${basis.basis.toleratedTier}`
+              ? `no appetite signed off - residual up to ${basis.basis.toleratedTier}`
               : `${basis.basis.source === "category" ? scopeLabel(basis.basis.scope) : "organisation default"}: up to ${basis.basis.toleratedTier}`
             : "",
       };

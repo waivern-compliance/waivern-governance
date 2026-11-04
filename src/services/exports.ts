@@ -5,7 +5,6 @@ import {
   aiUseCases,
   assessments,
   auditEvents,
-  countryRisk,
   entities,
   mitigations,
   riskAcceptances,
@@ -348,7 +347,7 @@ export async function exportAudit(
  */
 export function verificationManifest(organisationName: string, rows: number): string {
   return [
-    `${PRODUCT_NAME} — audit log export`,
+    `${PRODUCT_NAME} - audit log export`,
     `Organisation: ${organisationName}`,
     `Events: ${rows}`,
     ``,
@@ -574,8 +573,8 @@ export async function exportBreaches(organisationId: string, entityIds: string[]
         "People affected", "Records affected", "Special category",
         "Likely consequences", "Measures taken", "Data unintelligible",
         "Risk assessed as", "Seventy-two hour position",
-        "Authority — outcome", "Authority — basis", "Authority — reasoning",
-        "Data subjects — outcome", "Data subjects — basis", "Data subjects — reasoning",
+        "Authority - outcome", "Authority - basis", "Authority - reasoning",
+        "Data subjects - outcome", "Data subjects - basis", "Data subjects - reasoning",
         "Other decisions", "Status", "Closed", "Closure reasoning",
       ],
       rows: register.rows.map((row) => {
@@ -584,7 +583,7 @@ export async function exportBreaches(organisationId: string, entityIds: string[]
         const [sOut, sBasis, sWhy] = decision(row, "data_subjects");
         const others = row.decisions
           .filter((d) => !["supervisory_authority", "data_subjects"].includes(d.kind))
-          .map((d) => `${d.kind.replace(/_/g, " ")}: ${d.outcome} — ${d.rationale}`)
+          .map((d) => `${d.kind.replace(/_/g, " ")}: ${d.outcome} - ${d.rationale}`)
           .join(" | ");
 
         return [
@@ -629,7 +628,7 @@ export async function exportRequests(organisationId: string, entityIds: string[]
         r.rights.join("; "), r.channel, r.receivedAt,
         r.identityRequestedAt, r.identityVerifiedAt, clock.words, extended ? "yes" : "no",
         decisions
-          .map((d) => `${d.kind.replace(/_/g, " ")}: ${d.outcome.replace(/_/g, " ")}${d.statutoryBasis ? ` (${d.statutoryBasis})` : ""} — ${d.rationale}`)
+          .map((d) => `${d.kind.replace(/_/g, " ")}: ${d.outcome.replace(/_/g, " ")}${d.statutoryBasis ? ` (${d.statutoryBasis})` : ""} - ${d.rationale}`)
           .join(" | "),
         r.respondedAt, r.responseChannel,
         clock.state === "met" ? "yes" : clock.state === "late" ? "no" : "",

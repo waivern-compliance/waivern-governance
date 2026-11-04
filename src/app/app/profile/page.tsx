@@ -29,7 +29,7 @@ export default async function ProfilePage() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">You</h2>
         <dl className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
           <dt className="text-ink-soft">Name</dt>
-          <dd>{active.name ?? "—"}</dd>
+          <dd>{active.name ?? "-"}</dd>
           <dt className="text-ink-soft">Email</dt>
           <dd className="break-all font-mono">{active.email}</dd>
         </dl>

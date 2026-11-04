@@ -11,7 +11,7 @@ import {
   templates,
   users,
 } from "@/db/schema";
-import { appendAuditEvent, type AuditInput } from "@/lib/audit";
+import { appendAuditEvent } from "@/lib/audit";
 import {
   checkForSubmission,
   validateAnswer,

@@ -63,8 +63,8 @@ export default async function RequestsPage() {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Data subject requests</h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          Every request from a person exercising their rights — access, erasure,
-          objection and the rest — with the month to answer it, and the
+          Every request from a person exercising their rights - access, erasure,
+          objection and the rest - with the month to answer it, and the
           reasoning behind every decision along the way. A request can arrive
           by any route and need not name the law. Record it the day it arrives.
         </p>
@@ -120,13 +120,13 @@ export default async function RequestsPage() {
             <label className="block space-y-1">
               <Label
                 text="Who are they to you?"
-                hint="Customer, employee, applicant — one per line. Matched against the ROPA to list where to look."
+                hint="Customer, employee, applicant - one per line. Matched against the ROPA to list where to look."
               />
               <textarea name="subjectCategories" rows={2} className={inputClass} />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1">
-                <Label text="When did it arrive?" hint="This starts the month — not when it was noticed." />
+                <Label text="When did it arrive?" hint="This starts the month - not when it was noticed." />
                 <input name="receivedAt" type="datetime-local" required className={inputClass} />
               </label>
               <label className="block space-y-1">
@@ -245,7 +245,7 @@ export default async function RequestsPage() {
           <li className="rounded border border-line bg-surface px-4 py-6 text-sm text-ink-soft">
             Nothing recorded. When somebody asks for their data, asks you to
             delete it or objects to how you use it, record it here the day it
-            arrives — the month runs from then, wherever it landed.
+            arrives - the month runs from then, wherever it landed.
           </li>
         ) : null}
       </ul>
@@ -271,8 +271,8 @@ export default async function RequestsPage() {
       <section className="space-y-3 rounded border border-line bg-surface p-5">
         <h2 className="text-sm font-semibold">Public request form</h2>
         <p className="max-w-prose text-xs text-ink-soft">
-          A web form people can use to make a request without an account, one per entity, and — unless
-          you switch it off — a complaint under DPA 2018 s.164A. Publish its address in your privacy notice. Each submission lands in this register as received by web
+          A web form people can use to make a request without an account, one per entity, and - unless
+          you switch it off - a complaint under DPA 2018 s.164A. Publish its address in your privacy notice. Each submission lands in this register as received by web
           form, and raises a task for the privacy team. The form shows nothing back except a reference
           and the deadline, takes no identity documents, and limits how often one address can submit.
           It is one route among many: requests by email, post or in person still count.
@@ -344,7 +344,7 @@ export default async function RequestsPage() {
         <p className="max-w-prose text-xs text-ink-soft">
           {threshold === 0
             ? "Off. Objections are decided one by one and never counted against the processing."
-            : `After ${threshold} objection${threshold === 1 ? "" : "s"} to one processing activity in twelve months, upheld or overridden, its LIA goes back to its owner for review — or, where there is none, a task asks for one.`}{" "}
+            : `After ${threshold} objection${threshold === 1 ? "" : "s"} to one processing activity in twelve months, upheld or overridden, its LIA goes back to its owner for review - or, where there is none, a task asks for one.`}{" "}
           A run of objections is evidence that people do not expect the processing,
           which is what the balancing test is meant to weigh.
         </p>

@@ -20,7 +20,7 @@ export class TemplateNotPublishable extends Error {
   constructor(readonly problems: TemplateProblem[]) {
     super(
       `Template has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ` +
-        problems.map((p) => `${p.path} — ${p.message}`).join("; "),
+        problems.map((p) => `${p.path} - ${p.message}`).join("; "),
     );
   }
 }

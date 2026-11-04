@@ -41,7 +41,7 @@ export default async function BreachesPage() {
         <p className="max-w-prose text-sm text-ink-soft">
           Article 33(5) requires every breach to be documented, not only the
           reported ones. A breach judged not notifiable belongs here with its
-          reasoning — an absence of notification with nothing recorded is
+          reasoning - an absence of notification with nothing recorded is
           indistinguishable from an oversight.
         </p>
       </header>
@@ -99,7 +99,7 @@ export default async function BreachesPage() {
         {register.rows.length === 0 ? (
           <li className="rounded border border-line bg-surface px-4 py-6 text-sm text-ink-soft">
             Nothing recorded. If something has happened, record it before you
-            know whether it is notifiable — the seventy-two hours runs from when
+            know whether it is notifiable - the seventy-two hours runs from when
             you became aware, not from when you finished deciding.
           </li>
         ) : null}

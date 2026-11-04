@@ -100,7 +100,7 @@ export default async function IncidentsPage({
                     </span>
                   </span>
                   <span className="block text-xs text-ink-soft">
-                    {KIND_LABEL[incident.kind as IncidentKind].split(" — ")[0]}
+                    {KIND_LABEL[incident.kind as IncidentKind].split(" - ")[0]}
                     {useCase?.reference ? ` · ${useCase.reference} ${useCase.name}` : " · system not identified"}
                     {incident.harm === "actual" ? " · harm: actual" : ""}
                     {` · ${assigneeEmail ?? "nobody assigned"}`}

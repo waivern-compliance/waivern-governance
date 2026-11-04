@@ -185,7 +185,7 @@ const m = await dashboardMetrics(
             afterLabel="Residual"
             caption={
               m.unratedRisks > 0
-                ? `${m.unratedRisks} risk${m.unratedRisks === 1 ? "" : "s"} not yet rated for residual — those are missing from the residual bars.`
+                ? `${m.unratedRisks} risk${m.unratedRisks === 1 ? "" : "s"} not yet rated for residual - those are missing from the residual bars.`
                 : `Treatment moved ${shift} risk${shift === 1 ? "" : "s"} out of high or critical.`
             }
           />

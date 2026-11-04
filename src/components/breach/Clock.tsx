@@ -26,7 +26,7 @@ export function Clock({ clock, regime = "article33" }: { clock: ClockState; regi
           : clock.state === "running"
             ? regime === "pecr" ? "Reg 5A clock running" : regime === "part3" ? "Section 67 clock running" : "Article 33 clock running"
             : "No seventy-two hour deadline") +
-    (regime === "pecr" && clock.state !== "running" ? " — PECR reg 5A" : "");
+    (regime === "pecr" && clock.state !== "running" ? " - PECR reg 5A" : "");
 
   return (
     <div className={`rounded border px-4 py-3 ${tone}`}>

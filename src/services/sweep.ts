@@ -348,7 +348,7 @@ async function raiseCountryReviews(organisationId: string): Promise<number> {
     .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
   if (!entity) return 0;
 
-  const unverified = due.filter((c) => c.reviewedBy === "seed — not verified").length;
+  const unverified = due.filter((c) => c.reviewedBy === "seed - not verified").length;
   const oldest = due[0];
 
   // Keyed on the month, so a neglected library nags once a month rather than

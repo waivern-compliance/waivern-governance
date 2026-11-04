@@ -75,7 +75,7 @@ export function AcceptPanel({
           {live.lapsed ? (
             <p className="text-sm text-amber-900">
               This acceptance has run out. The risk is still recorded as accepted
-              — nothing overturns a person&rsquo;s decision automatically — but it
+              - nothing overturns a person&rsquo;s decision automatically - but it
               needs looking at again.
             </p>
           ) : null}

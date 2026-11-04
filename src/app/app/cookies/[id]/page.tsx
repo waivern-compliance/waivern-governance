@@ -228,7 +228,7 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
                     {item.history.map((d) => (
                       <li key={d.id} className="text-xs">
                         <span className="font-medium">{BASES[d.basis].label}</span>{" "}
-                        <span className="font-mono text-ink-soft">{d.statutoryBasis}</span> — {d.rationale}{" "}
+                        <span className="font-mono text-ink-soft">{d.statutoryBasis}</span> - {d.rationale}{" "}
                         <span className="font-mono text-[11px] text-ink-soft">
                           {d.decidedByEmail ?? d.decidedByLabel} · {stamp(d.decidedAt)}
                         </span>

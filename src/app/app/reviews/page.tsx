@@ -35,7 +35,7 @@ export default async function ReviewsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Recurring reviews</h1>
         <p className="max-w-prose text-sm text-ink-soft">
           Approved assessments and when each comes round again. Everything you
-          can read is here, not only what is assigned to you — an assessment
+          can read is here, not only what is assigned to you - an assessment
           past its review date is something the organisation is still relying
           on, and that is not one person&rsquo;s problem to notice.
         </p>
@@ -131,7 +131,7 @@ function Group({
                   {i.approvedBy
                     .map((a) => `${a.label ?? "unrecorded"} (${a.name})`)
                     .join(", ")}
-                  {" — they will be asked to decide again."}
+                  {" - they will be asked to decide again."}
                 </p>
               ) : null}
             </Link>

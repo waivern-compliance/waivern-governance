@@ -117,7 +117,7 @@ function Part3Fields({ record, systems }: { record: Part3Record; systems: readon
                 <select name="schedule8Condition" defaultValue={record.schedule8Condition ?? ""} className={input}>
                   <option value="">Not yet chosen</option>
                   {SCHEDULE_8_KEYS.map((k) => (
-                    <option key={k} value={k}>Paragraph {SCHEDULE_8[k].paragraph} — {SCHEDULE_8[k].label}</option>
+                    <option key={k} value={k}>Paragraph {SCHEDULE_8[k].paragraph} - {SCHEDULE_8[k].label}</option>
                   ))}
                 </select>
               </label>

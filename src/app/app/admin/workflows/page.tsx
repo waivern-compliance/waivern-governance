@@ -66,7 +66,7 @@ export default async function WorkflowsPage() {
         <p className="max-w-prose text-sm text-ink-soft">
           Who signs off each kind of assessment, and when a second opinion is required.
           Approvers are named by role rather than by person, so somebody leaving is handled
-          by moving the role — every gate waiting on them follows, and nothing has to be
+          by moving the role - every gate waiting on them follows, and nothing has to be
           reassigned one assessment at a time.
         </p>
       </header>
@@ -161,7 +161,7 @@ export default async function WorkflowsPage() {
           )}
           <details className="rounded border border-line bg-surface">
             <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium">
-              Add a stage — for example a governance board or an ethics committee
+              Add a stage - for example a governance board or an ethics committee
             </summary>
             <AddStageForm workflowId={workflow.id} />
           </details>

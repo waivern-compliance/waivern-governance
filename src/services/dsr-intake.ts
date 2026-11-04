@@ -199,7 +199,7 @@ type OpenForm = NonNullable<Awaited<ReturnType<typeof openIntakeLink>>>;
  */
 async function admit(slug: string, started: string, trap: string | undefined, now: Date): Promise<{ form: OpenForm } | { refused: string }> {
   const form = await openIntakeLink(slug);
-  if (!form) return { refused: "This form is no longer taking requests. Contact the organisation another way — by email or post — and your request still counts." };
+  if (!form) return { refused: "This form is no longer taking requests. Contact the organisation another way - by email or post - and your request still counts." };
   if (trap) return { refused: "This could not be sent. Please contact the organisation directly by email or post." };
   const at = startedAt(slug, started);
   if (!at || now.getTime() - at.getTime() > MAX_OPEN_HOURS * 3_600_000) {
@@ -235,7 +235,7 @@ async function withinLimits(form: OpenForm, address: string, now: Date): Promise
 }
 
 const TOO_MANY =
-  "Too many have been sent from here in the last hour. Try again later, or contact the organisation by email or post — it counts either way.";
+  "Too many have been sent from here in the last hour. Try again later, or contact the organisation by email or post - it counts either way.";
 
 export async function submitIntake(input: {
   slug: string;
@@ -360,7 +360,7 @@ export async function submitComplaintIntake(input: {
   if ("refused" in admitted) return { ok: false, message: admitted.refused };
   const { form } = admitted;
   if (!form.takesComplaints) {
-    return { ok: false, message: "This form does not take complaints. Contact the organisation by email or post — your complaint counts just the same." };
+    return { ok: false, message: "This form does not take complaints. Contact the organisation by email or post - your complaint counts just the same." };
   }
 
   const complainantName = clip(input.complainantName, FIELD_LIMITS.name);

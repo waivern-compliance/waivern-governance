@@ -108,7 +108,7 @@ export function AssuranceForm({
           <label className="block space-y-1 sm:col-span-2">
             <span className={label}>Validated a change</span>
             <select name="changeId" className={field} defaultValue="">
-              <option value="">No — not part of a change</option>
+              <option value="">No - not part of a change</option>
               {changes.map((c) => (
                 <option key={c.id} value={c.id}>{c.label}</option>
               ))}

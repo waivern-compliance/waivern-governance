@@ -106,7 +106,7 @@ export function memberEmail(notice: MemberNotice, url = appUrl()): Omit<Email, "
       "",
       `Open it: ${url}${notice.path}`,
       "",
-      "—",
+      "-",
       `Sent by ${PRODUCT_NAME} because you asked for alert and action emails. To stop them, turn them off on your profile: ${url}/app/profile`,
     ].join("\n"),
     tag: notice.kind.replace(".", "-"),

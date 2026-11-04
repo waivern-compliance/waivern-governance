@@ -31,7 +31,7 @@ export function BasisFields({ basis, who }: { basis: PartyBasis; who: string }) 
           <select name="schedule1Condition" defaultValue={basis.schedule1Condition ?? ""} className={inputClass}>
             <option value="">None, or not shared</option>
             {SCHEDULE_1_KEYS.filter((k) => SCHEDULE_1[k].part !== 3).map((k) => (
-              <option key={k} value={k}>Paragraph {SCHEDULE_1[k].paragraph} — {SCHEDULE_1[k].label}</option>
+              <option key={k} value={k}>Paragraph {SCHEDULE_1[k].paragraph} - {SCHEDULE_1[k].label}</option>
             ))}
           </select>
         </label>
@@ -41,7 +41,7 @@ export function BasisFields({ basis, who }: { basis: PartyBasis; who: string }) 
             <option value="">None, or not shared</option>
             <option value={ART10_OFFICIAL_AUTHORITY}>{describeArt10(ART10_OFFICIAL_AUTHORITY)}</option>
             {SCHEDULE_1_KEYS.map((k) => (
-              <option key={k} value={k}>Paragraph {SCHEDULE_1[k].paragraph} — {SCHEDULE_1[k].label}</option>
+              <option key={k} value={k}>Paragraph {SCHEDULE_1[k].paragraph} - {SCHEDULE_1[k].label}</option>
             ))}
           </select>
         </label>

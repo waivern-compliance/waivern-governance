@@ -188,7 +188,7 @@ export async function prefillFor(useCaseId: string, organisationId: string): Pro
       : "";
 
     const thirdParty = PROVENANCE_THIRD_PARTY.has(useCase.provenance) || Boolean(useCase.vendor);
-    const model = [useCase.vendor, useCase.modelName].filter(Boolean).join(" — ");
+    const model = [useCase.vendor, useCase.modelName].filter(Boolean).join(" - ");
 
     const values: AtrsValues = {
       "0.1": useCase.name,
@@ -214,7 +214,7 @@ export async function prefillFor(useCaseId: string, organisationId: string): Pro
       "2.5.1": approved
         .map(({ assessment, templateName }) =>
           [
-            `${assessment.reference} — ${templateName}`,
+            `${assessment.reference} - ${templateName}`,
             assessment.completedAt ? `, approved ${assessment.completedAt.toISOString().slice(0, 10)}` : "",
             assessment.scoreBand ? `, rated ${assessment.scoreBand}` : "",
             ".",

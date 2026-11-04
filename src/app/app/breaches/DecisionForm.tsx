@@ -28,7 +28,7 @@ const KINDS: Array<{ value: string; label: string; basis?: string; note: string 
     value: "pecr_commissioner",
     label: "The Information Commission, under PECR",
     basis: "PECR reg 5A(2)",
-    note: "A public communications provider notifies every breach in providing the service, whatever the risk — where feasible within seventy-two hours.",
+    note: "A public communications provider notifies every breach in providing the service, whatever the risk - where feasible within seventy-two hours.",
   },
   {
     value: "pecr_subscribers",
@@ -79,7 +79,7 @@ const PART3_BASIS: Record<string, { basis: string; note: string }> = {
   },
   data_subjects: {
     basis: "DPA 2018 s.68(1)",
-    note: "Without undue delay where there is a high risk, unless a s.68(3) exception applies, or telling them is restricted under s.68(7) — in which case the Commission cannot require it (s.68(8)).",
+    note: "Without undue delay where there is a high risk, unless a s.68(3) exception applies, or telling them is restricted under s.68(7) - in which case the Commission cannot require it (s.68(8)).",
   },
   processor_to_controller: {
     basis: "DPA 2018 s.67(9)",
@@ -116,7 +116,7 @@ export function DecisionForm({ breachId, pecr = false, part3 = false }: { breach
           {kinds.map((k) => (
             <option key={k.value} value={k.value}>
               {k.label}
-              {k.basis ? ` — ${k.basis}` : ""}
+              {k.basis ? ` - ${k.basis}` : ""}
             </option>
           ))}
         </select>
@@ -131,7 +131,7 @@ export function DecisionForm({ breachId, pecr = false, part3 = false }: { breach
             defaultValue="done"
             className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
           >
-            <option value="done">Done — it has been notified or carried out</option>
+            <option value="done">Done - it has been notified or carried out</option>
             <option value="not_required">Not required</option>
             <option value="deferred">Deferred for now</option>
             <option value="declined">Decided against</option>
@@ -141,7 +141,7 @@ export function DecisionForm({ breachId, pecr = false, part3 = false }: { breach
         <label className="block space-y-1">
           <Label
             text="Provision relied on"
-            hint={statutory ? "Either to act, or not to." : "Leave blank — this is not a statutory duty."}
+            hint={statutory ? "Either to act, or not to." : "Leave blank - this is not a statutory duty."}
           />
           <input
             name="statutoryBasis"
@@ -189,7 +189,7 @@ export function DecisionForm({ breachId, pecr = false, part3 = false }: { breach
               <span className="font-mono">{code}</span> {words.toLowerCase()}
             </span>
           ))}
-          . The third substitutes a public communication — it is not an
+          . The third substitutes a public communication - it is not an
           exemption from telling anybody.
           {part3
             ? " A restriction under s.68(7) lasts only as far and as long as it is necessary and proportionate: record when it will be looked at again."

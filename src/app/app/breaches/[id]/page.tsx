@@ -83,7 +83,7 @@ export default async function BreachPage({
                   href={`/app/assessments/${breach.assessmentId}`}
                   className="text-sm font-medium hover:text-brand"
                 >
-                  {suggestion.reference} — severity assessment
+                  {suggestion.reference} - severity assessment
                 </Link>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {suggestion.status}
@@ -94,7 +94,7 @@ export default async function BreachPage({
                 <p className="mt-1.5 max-w-prose text-sm">{suggestion.band}</p>
               ) : (
                 <p className="mt-1.5 text-sm text-ink-soft">
-                  Not yet scored — answer it through to the end and a band appears.
+                  Not yet scored - answer it through to the end and a band appears.
                 </p>
               )}
               <p className="mt-1.5 max-w-prose text-xs text-ink-soft">
@@ -118,7 +118,7 @@ export default async function BreachPage({
             <p className="max-w-prose text-sm text-ink-soft">
               Severity has not been assessed with a template. You can record the
               judgement in the decisions below as free text, which is enough for
-              a breach settled quickly — or run the structured assessment, which
+              a breach settled quickly - or run the structured assessment, which
               works through the ICO&rsquo;s factors and proposes an answer to
               both statutory questions.
             </p>
@@ -142,7 +142,7 @@ export default async function BreachPage({
           <p className="rounded border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             Assessed as unlikely to result in a risk to rights and freedoms, so
             neither Article 33 nor Article 34 requires notification. It stays on
-            the register regardless — Article 33(5) asks for all of them.
+            the register regardless - Article 33(5) asks for all of them.
           </p>
         ) : (
           <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
@@ -228,7 +228,7 @@ export default async function BreachPage({
             <li key={d.id} className="space-y-1 px-4 py-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-sm font-medium">
-                  {d.kind.replace(/_/g, " ")} — {d.outcome.replace(/_/g, " ")}
+                  {d.kind.replace(/_/g, " ")} - {d.outcome.replace(/_/g, " ")}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {d.statutoryBasis ?? "not required by law"}
@@ -270,7 +270,7 @@ export default async function BreachPage({
           <h2 className="text-sm font-semibold">The record</h2>
           <p className="max-w-prose text-xs text-ink-soft">
             Article 33(5): the facts, the effects, and the remedial action.
-            Article 33(3) asks for categories and approximate numbers — an
+            Article 33(3) asks for categories and approximate numbers - an
             estimate recorded beats a blank field.
           </p>
 
@@ -301,7 +301,7 @@ export default async function BreachPage({
             <Tri
               label="Was the data unintelligible?"
               name="dataUnintelligible"
-              hint="Encryption or effective pseudonymisation — the Article 34(3)(a) exemption."
+              hint="Encryption or effective pseudonymisation - the Article 34(3)(a) exemption."
               value={breach.dataUnintelligible}
             />
           </div>

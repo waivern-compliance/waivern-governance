@@ -24,7 +24,7 @@ export type RiskLevel = "none" | "risk" | "high_risk";
 
 /** Article 34(3): when the people affected need not be told individually. */
 export const COMMUNICATION_EXEMPTIONS = {
-  "34(3)(a)": "The data was unintelligible to anyone unauthorised — encryption or effective pseudonymisation",
+  "34(3)(a)": "The data was unintelligible to anyone unauthorised - encryption or effective pseudonymisation",
   "34(3)(b)": "Subsequent measures mean the high risk is no longer likely to materialise",
   "34(3)(c)": "Individual communication would involve disproportionate effort, so a public communication was made instead",
 } as const;
@@ -96,7 +96,7 @@ export function obligationsFor(input: {
         basis: part3 ? "DPA 2018 s.67(9)" : "Article 33(2)",
         what: "Tell the controller, without undue delay",
         dueAt: null,
-        deadlineWords: "without undue delay — no fixed period, and not seventy-two hours",
+        deadlineWords: "without undue delay - no fixed period, and not seventy-two hours",
       },
     ];
   }
@@ -231,7 +231,7 @@ export function clockFor(input: {
       words:
         input.notifiedAt <= dueAt
           ? "Notified within seventy-two hours"
-          : `Notified late — ${provision === "s.67" ? "s.67(3)" : provision} requires the reasons for the delay to accompany it`,
+          : `Notified late - ${provision === "s.67" ? "s.67(3)" : provision} requires the reasons for the delay to accompany it`,
     };
   }
 
@@ -239,7 +239,7 @@ export function clockFor(input: {
 }
 
 /** Where no notification has been made yet: how much of the window is left. */
-function runningClock(dueAt: Date, now: Date, overdueWords = "Past seventy-two hours — notification must still be made, with reasons for the delay"): ClockState {
+function runningClock(dueAt: Date, now: Date, overdueWords = "Past seventy-two hours - notification must still be made, with reasons for the delay"): ClockState {
   const remaining = (dueAt.getTime() - now.getTime()) / 3_600_000;
   if (remaining < 0) {
     return { state: "overdue", hoursOver: Math.abs(remaining), dueAt, words: overdueWords };
@@ -280,7 +280,7 @@ export function pecrObligationsFor(input: { discoveredAt: Date }): Obligation[] 
     {
       kind: "pecr_commissioner",
       basis: "PECR reg 5A(2)",
-      what: "Notify the Information Commission — every breach in providing the service, whatever the risk",
+      what: "Notify the Information Commission - every breach in providing the service, whatever the risk",
       dueAt: notificationDeadline(input.discoveredAt),
       deadlineWords: "where feasible within seventy-two hours of becoming aware, with reasons if later",
     },
@@ -305,12 +305,12 @@ export function pecrClockFor(input: { discoveredAt: Date; notifiedAt?: Date | nu
       words:
         input.notifiedAt <= dueAt
           ? "Commissioner notified within seventy-two hours"
-          : "Commissioner notified late — reg 5A requires the reasons for the delay",
+          : "Commissioner notified late - reg 5A requires the reasons for the delay",
     };
   }
   return runningClock(
     dueAt,
     input.now ?? new Date(),
-    "Past seventy-two hours — reg 5A still requires notification, with reasons for the delay",
+    "Past seventy-two hours - reg 5A still requires notification, with reasons for the delay",
   );
 }

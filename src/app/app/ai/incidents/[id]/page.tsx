@@ -71,7 +71,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
           <h1 className="text-2xl font-semibold tracking-tight">{incident.summary}</h1>
         </div>
         <p className="font-mono text-xs text-ink-soft">
-          {STATUS_LABEL[status]} · {KIND_LABEL[incident.kind as IncidentKind].split(" — ")[0]} · harm{" "}
+          {STATUS_LABEL[status]} · {KIND_LABEL[incident.kind as IncidentKind].split(" - ")[0]} · harm{" "}
           {HARM_LABEL[incident.harm as Harm].toLowerCase()}
           {incident.severity ? ` · ${incident.severity}` : ""}
         </p>

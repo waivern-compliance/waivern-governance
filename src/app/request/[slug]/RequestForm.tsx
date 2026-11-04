@@ -69,7 +69,7 @@ export function RequestForm({
         <p className="text-sm">{result.dueWords}</p>
         <p className="text-sm">
           The time can be extended by up to two more months for a complex request, and if they need to
-          confirm who you are they will contact you — the time then runs from when you reply. This page
+          confirm who you are they will contact you - the time then runs from when you reply. This page
           does not show the progress of your request; they will reply to the address you gave.
         </p>
       </section>
@@ -92,7 +92,7 @@ export function RequestForm({
           <legend className="text-sm font-medium">What would you like to do?</legend>
           <label className="flex items-center gap-2 text-sm">
             <input type="radio" name="kind" value="request" defaultChecked onChange={() => setKind("request")} className="accent-brand" />
-            Make a request — for example, for a copy of my data, or to have it deleted
+            Make a request - for example, for a copy of my data, or to have it deleted
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="radio" name="kind" value="complaint" onChange={() => setKind("complaint")} className="accent-brand" />
@@ -111,7 +111,7 @@ export function RequestForm({
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="radio" name="forSomeoneElse" value="yes" onChange={() => setForSomeoneElse(true)} className="accent-brand" />
-          Someone else — I am acting for them (for example as their solicitor, parent or carer)
+          Someone else - I am acting for them (for example as their solicitor, parent or carer)
         </label>
       </fieldset>
 

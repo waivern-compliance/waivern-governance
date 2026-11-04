@@ -32,8 +32,8 @@ export const AI_RISK: TemplateDefinition = {
           { key: "ai_type", label: "What kind of system is it?", type: "single_select", required: true, legalRefs: [], evidence: "none",
             options: [
               { value: "predictive", label: "Predictive or classification model" },
-              { value: "generative", label: "Generative — text, image, audio or video" },
-              { value: "agentic", label: "Agentic — plans and takes actions across tools or systems" },
+              { value: "generative", label: "Generative - text, image, audio or video" },
+              { value: "agentic", label: "Agentic - plans and takes actions across tools or systems" },
               { value: "hybrid", label: "A combination of these" },
             ] },
           { key: "provenance", label: "Where does the system come from?", type: "single_select", required: true, legalRefs: [], evidence: "none",
@@ -63,7 +63,7 @@ export const AI_RISK: TemplateDefinition = {
             requireWhen: { op: "equals", question: "affects_people", value: true },
             legalRefs: ["ukgdpr.art22a"], evidence: "none",
             options: [
-              { value: "informational", label: "Informational only — no decision follows", weight: 0 },
+              { value: "informational", label: "Informational only - no decision follows", weight: 0 },
               { value: "influences", label: "Influences a decision a person then takes", weight: 2 },
               { value: "recommends", label: "Recommends a decision that is usually followed", weight: 4 },
               { value: "decides", label: "Decides, with no meaningful human review", weight: 7 },
@@ -90,7 +90,7 @@ export const AI_RISK: TemplateDefinition = {
           { key: "data_provenance", label: "How well understood is the training and input data?", type: "single_select", required: true, legalRefs: ["ukgdpr.art5"], evidence: "optional",
             options: [
               { value: "documented", label: "Fully documented, with rights and licensing confirmed", weight: 0 },
-              { value: "partial", label: "Partly documented — the main sources are known", weight: 2 },
+              { value: "partial", label: "Partly documented - the main sources are known", weight: 2 },
               { value: "vendor_asserted", label: "Known only through vendor assertion", weight: 3 },
               { value: "opaque", label: "Not established", weight: 5 },
             ] },
@@ -109,8 +109,8 @@ export const AI_RISK: TemplateDefinition = {
         questions: [
           { key: "bias_considered", label: "Has bias and fairness been assessed for this system?", type: "single_select", required: true, legalRefs: ["ukgdpr.art5", "iso42001"], evidence: "optional",
             options: [
-              { value: "tested", label: "Yes — tested, with documented results", weight: 0 },
-              { value: "reviewed", label: "Yes — reviewed qualitatively, not measured", weight: 2 },
+              { value: "tested", label: "Yes - tested, with documented results", weight: 0 },
+              { value: "reviewed", label: "Yes - reviewed qualitatively, not measured", weight: 2 },
               { value: "planned", label: "Planned but not yet done", weight: 4 },
               { value: "not_done", label: "Not assessed", weight: 6 },
             ] },
@@ -118,13 +118,13 @@ export const AI_RISK: TemplateDefinition = {
             showWhen: { op: "equals", question: "bias_considered", value: "tested" },
             requireWhen: { op: "equals", question: "bias_considered", value: "tested" },
             legalRefs: [], evidence: "required" },
-          { key: "affected_groups", label: "Which groups could be disadvantaged, and how would you know?", type: "long_text", required: true, help: "Answer this even where testing found nothing — naming the groups is what makes later monitoring possible.", legalRefs: [], evidence: "none" },
+          { key: "affected_groups", label: "Which groups could be disadvantaged, and how would you know?", type: "long_text", required: true, help: "Answer this even where testing found nothing - naming the groups is what makes later monitoring possible.", legalRefs: [], evidence: "none" },
           { key: "contestability", label: "Can someone affected challenge or appeal an outcome?", type: "single_select", required: true, legalRefs: ["ukgdpr.art22c"], evidence: "none",
             options: [
-              { value: "documented_route", label: "Yes — a documented route, with a human decision-maker", weight: 0 },
+              { value: "documented_route", label: "Yes - a documented route, with a human decision-maker", weight: 0 },
               { value: "informal", label: "Informally, through existing complaints channels", weight: 2 },
               { value: "none", label: "No route exists", weight: 4 },
-              { value: "not_applicable", label: "Not applicable — no decision affects anyone", weight: 0 },
+              { value: "not_applicable", label: "Not applicable - no decision affects anyone", weight: 0 },
             ] },
         ],
       },

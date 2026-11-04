@@ -45,8 +45,8 @@ const KINDS: Array<{
     basis: "Article 21",
     note: "Turns on what the processing objected to relies on.",
     outcomes: [
-      ["complied", "Upheld — processing stopped"],
-      ["refused", "Overridden — compelling grounds, or legal claims"],
+      ["complied", "Upheld - processing stopped"],
+      ["refused", "Overridden - compelling grounds, or legal claims"],
       ["not_applicable", "Article 21 does not apply"],
     ],
   },
@@ -66,7 +66,7 @@ const KINDS: Array<{
     label: "Decided rectification",
     basis: "Article 16",
     note: "Correct what is inaccurate; complete what is incomplete, with a supplementary statement if need be.",
-    outcomes: [["complied", "Corrected"], ["partly", "Partly corrected"], ["refused", "Not corrected — it is accurate"]],
+    outcomes: [["complied", "Corrected"], ["partly", "Partly corrected"], ["refused", "Not corrected - it is accurate"]],
   },
   {
     value: "restriction",
@@ -139,7 +139,7 @@ const PART3_KINDS: Record<string, { basis?: string; note?: string } | null> = {
   portability: null,
   exemption: null,
   health_opinion: null,
-  erasure: { basis: "DPA 2018 s.47", note: "Erase where the processing would breach Part 3, or the law requires it — but where the data must be kept as evidence, restrict instead (s.47(2))." },
+  erasure: { basis: "DPA 2018 s.47", note: "Erase where the processing would breach Part 3, or the law requires it - but where the data must be kept as evidence, restrict instead (s.47(2))." },
   rectification: { basis: "DPA 2018 s.46", note: "Correct or complete it; where it must be kept as evidence, restrict instead (s.46(4)). Tell the competent authority it came from (s.48(7))." },
   restriction: { basis: "DPA 2018 s.47", note: "Where accuracy is contested and cannot be settled (s.47(3)), or as evidence. Tell them before lifting it (s.48(10))." },
   automated_decision: { basis: "DPA 2018 s.50C", note: "The safeguards for a significant decision taken solely by automated means (ss.50A–50C)." },
@@ -260,7 +260,7 @@ export function RequestDecisionForm({
             <p className="text-xs text-ink-soft">
               The ROPA records its lawful basis as {activity.lawfulBasis ? `“${activity.lawfulBasis}”` : "nothing"}
               {activity.suggested && activity.suggested !== basis
-                ? ` — which reads as ${PROCESSING_BASIS_LABEL[activity.suggested].toLowerCase()}, not what is chosen below. If the ROPA is wrong, correct it.`
+                ? ` - which reads as ${PROCESSING_BASIS_LABEL[activity.suggested].toLowerCase()}, not what is chosen below. If the ROPA is wrong, correct it.`
                 : "."}
             </p>
           ) : (
@@ -287,7 +287,7 @@ export function RequestDecisionForm({
                   : "border-amber-700 bg-amber-50 text-amber-900"
               }`}
             >
-              <span className="font-mono">{test.provision}</span> — {test.words}
+              <span className="font-mono">{test.provision}</span> - {test.words}
             </p>
           ) : null}
         </div>

@@ -102,7 +102,6 @@ export function evaluateCondition(c: Condition, answers: Answers): boolean {
  */
 export function evaluate(schema: TemplateSchema, answers: Answers): EvaluationResult {
   const all = questionsOf(schema);
-  const bySectionKey = new Map(schema.sections.map((s) => [s.key, s]));
   const byQuestionKey = new Map(all.map(({ question, section }) => [question.key, { question, section }]));
 
   const order = topologicalOrder(schema);

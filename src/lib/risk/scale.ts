@@ -72,11 +72,11 @@ export const SCALES: Record<RiskScaleId, RiskScale> = {
     // The toolkit's own likelihood scale, probability ranges included, so a
     // rating can be checked against what the number was meant to say.
     likelihood: [
-      { value: 1, label: "Rare", help: "Highly unlikely to occur — under 5%" },
-      { value: 2, label: "Unlikely", help: "Unlikely but possible — 5% to 20%" },
-      { value: 3, label: "Possible", help: "Could occur at some time — 20% to 50%" },
-      { value: 4, label: "Likely", help: "Likely in many circumstances — 50% to 80%" },
-      { value: 5, label: "Almost certain", help: "Almost certain to occur — over 80%" },
+      { value: 1, label: "Rare", help: "Highly unlikely to occur - under 5%" },
+      { value: 2, label: "Unlikely", help: "Unlikely but possible - 5% to 20%" },
+      { value: 3, label: "Possible", help: "Could occur at some time - 20% to 50%" },
+      { value: 4, label: "Likely", help: "Likely in many circumstances - 50% to 80%" },
+      { value: 5, label: "Almost certain", help: "Almost certain to occur - over 80%" },
     ],
     // The toolkit's impact levels, with one quantified marker from each so the
     // levels mean the same thing to everyone rating against them.

@@ -69,8 +69,8 @@ Rules that matter more than completeness:
   an empty array. Never supply the names a company like this usually uses.
 - Every entry must carry a quote copied from the source and the label of that
   source. An entry you cannot quote is one you must not return.
-- Where the document points at a sub-processor list held somewhere else — a web
-  page, an annexe, a trust centre — put the address in "links" or the
+- Where the document points at a sub-processor list held somewhere else - a web
+  page, an annexe, a trust centre - put the address in "links" or the
   description in "elsewhere". This is the normal case and is more useful than a
   guess.
 - Read every source given to you, including any web page. A page fetched from a

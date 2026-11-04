@@ -114,7 +114,7 @@ function DpoForm({
       <summary className="cursor-pointer text-sm">
         <span className="font-medium">{title}</span>{" "}
         <span className="text-xs text-ink-soft">
-          {dpo ? `— ${dpo.name}` : fallback ? `— uses the organisation's (${fallback.name})` : "— none recorded"}
+          {dpo ? `- ${dpo.name}` : fallback ? `- uses the organisation's (${fallback.name})` : "- none recorded"}
         </span>
       </summary>
       <form key={savedKey(dpo)} {...save.formProps} className="mt-3 grid gap-3 sm:grid-cols-2">

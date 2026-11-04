@@ -54,7 +54,7 @@ export function whyUnusable(
 
   if (EMPTY_PASSWORD.test(connectionString)) {
     return (
-      "DATABASE_URL has an empty password — there is nothing between the " +
+      "DATABASE_URL has an empty password - there is nothing between the " +
       "colon and the @.\n\n" +
       "  postgresql://postgres:@host:5432/railway\n" +
       "                       ^ the password belongs here\n\n" +
@@ -71,7 +71,7 @@ export function whyUnusable(
       "  To run a one-off command against the deployed database:\n" +
       "    railway ssh -- pnpm <script>\n\n" +
       "  That runs inside the service, where the private address works and " +
-      "DATABASE_URL is already set — so there is nothing to copy or paste."
+      "DATABASE_URL is already set - so there is nothing to copy or paste."
     );
   }
 

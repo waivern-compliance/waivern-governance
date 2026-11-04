@@ -123,7 +123,7 @@ export default async function OrganisationPage() {
         <h2 className="text-sm font-semibold">A separate organisation</h2>
         <p className="max-w-prose text-sm text-ink-soft">
           Legal entities share this organisation&rsquo;s people, templates, workflows and
-          registers. A body that needs its own — its own account, kept apart from this one — is a
+          registers. A body that needs its own - its own account, kept apart from this one - is a
           separate organisation. Those are not made here: whoever will own it signs in and asks,
           and Waivern approves the request.
         </p>

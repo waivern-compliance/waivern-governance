@@ -16,7 +16,7 @@ async function main() {
   const result = await seedSharedLibrary();
 
   if (result.created === 0) {
-    console.log(`Country library already loaded — ${result.total} entries, nothing added.`);
+    console.log(`Country library already loaded - ${result.total} entries, nothing added.`);
   } else {
     console.log(`Country library: ${result.created} of ${result.total} entries added.`);
   }
@@ -28,7 +28,7 @@ async function main() {
     "It is a starting point generated from public adequacy decisions, not a",
   );
   console.log(
-    "checked source — a privacy professional should confirm each one before an",
+    "checked source - a privacy professional should confirm each one before an",
   );
   console.log("assessment relies on it. The library page lists them.");
 

@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { RiskTierBadge } from "@/components/RiskTierBadge";
 import { navFor } from "@/lib/nav";
 import { statusWords, type Persona } from "@/lib/persona";
-import { actingAs, can } from "@/lib/rbac";
+import { actingAs } from "@/lib/rbac";
 import type { ActiveSession } from "@/lib/session";
 import { visibleEntityIds } from "@/lib/session";
 import { dashboardMetrics } from "@/services/metrics";
 import { anyEntityUnderUkLaw } from "@/services/entities";
 import { Empty, Panel, Row, Rows, Tile, Tiles, dueWords } from "./parts";
-import { aiEstate, myAssessments, myMitigations, myTasks, unratedRisks } from "./data";
+import { aiEstate, myAssessments, myMitigations, myTasks } from "./data";
 import {
   GAP_WORDS,
   SERIOUS_GAPS,
@@ -250,7 +249,7 @@ export async function EngineeringHome({ active }: { active: ActiveSession }) {
                   key={mitigation.id}
                   href={`/app/risks/${risk.id}`}
                   title={mitigation.description}
-                  detail={`On ${risk.reference} — ${risk.title}`}
+                  detail={`On ${risk.reference} - ${risk.title}`}
                   meta={`${mitigation.status.replace(/_/g, " ")} · ${due.text}`}
                   tone={due.tone}
                 />
@@ -268,7 +267,6 @@ export async function EngineeringHome({ active }: { active: ActiveSession }) {
 /** Product: can this ship, and what is holding it up. */
 export async function ProductHome({ active }: { active: ActiveSession }) {
   const mine = await myAssessments(active);
-  const open = mine.filter((r) => !["approved", "rejected", "superseded", "withdrawn"].includes(r.assessment.status));
   const cleared = mine.filter((r) => r.assessment.status === "approved").length;
   const needsYou = mine.filter((r) =>
     ["draft", "in_progress", "returned"].includes(r.assessment.status),
@@ -316,7 +314,7 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
                 title={a.title}
                 detail={
                   a.status === "returned"
-                    ? "Sent back — see what was asked for"
+                    ? "Sent back - see what was asked for"
                     : a.status === "in_review"
                       ? "Nothing needed from you while this is being looked at"
                       : null

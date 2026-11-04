@@ -97,7 +97,7 @@ export function InviteContributor({
 
       {url ? (
         <div className="space-y-1.5 rounded border border-brand bg-surface p-4">
-          <p className="text-sm font-medium">Copy this now — it is not shown again.</p>
+          <p className="text-sm font-medium">Copy this now - it is not shown again.</p>
           <code className="block break-all rounded bg-ground px-3 py-2 font-mono text-xs">
             {url}
           </code>

@@ -25,7 +25,7 @@ export function Decision({ requestId, organisationName }: { requestId: string; o
           <input
             name="note"
             required
-            placeholder="Why not — shown to them"
+            placeholder="Why not - shown to them"
             className="w-56 rounded border border-line bg-ground px-2 py-1.5 text-xs"
           />
           <button

@@ -71,7 +71,7 @@ export default async function ThirdPartiesPage() {
       {health.expiring > 0 ? (
         <p className="rounded border border-amber-700 bg-amber-50 px-4 py-3 text-xs text-amber-900">
           {health.expiring} agreement{health.expiring === 1 ? "" : "s"} expiring
-          within {EXPIRING_WITHIN_LABEL} — renewal lead time, not a reminder.
+          within {EXPIRING_WITHIN_LABEL} - renewal lead time, not a reminder.
           The hourly sweep raises a task for these once a month; it does not
           renew anything.
         </p>
@@ -107,7 +107,7 @@ export default async function ThirdPartiesPage() {
               <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
                 Categories{" "}
                 <span className="font-normal normal-case tracking-normal">
-                  analytics, hosting, payroll — one per line
+                  analytics, hosting, payroll - one per line
                 </span>
               </span>
               <textarea

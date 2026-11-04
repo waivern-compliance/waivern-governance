@@ -364,7 +364,7 @@ describe("deciding on a proposal", () => {
     });
 
     const [row] = await db.select().from(dpas).where(eq(dpas.id, dpa.id));
-    assert.equal(row.transferMechanism, "Standard contractual clauses — Module Two");
+    assert.equal(row.transferMechanism, "Standard contractual clauses - Module Two");
   });
 
   it("keeps a rejected proposal, because that is evidence somebody looked", async () => {

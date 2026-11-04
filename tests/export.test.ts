@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
 import { entities, organisations, users } from "@/db/schema";
 import { SYSTEM_TEMPLATES } from "@/lib/templates/library";

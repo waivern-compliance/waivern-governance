@@ -50,7 +50,7 @@ export default async function AssessmentPage({
     ...definition.schema.sections.flatMap((section) => [
       `Section: ${section.title}`,
       ...section.questions.map((q) =>
-        `- ${q.label}${q.help ? ` — ${q.help}` : ""}`,
+        `- ${q.label}${q.help ? ` - ${q.help}` : ""}`,
       ),
     ]),
   ].join("\n");
@@ -262,7 +262,7 @@ export default async function AssessmentPage({
             subjectId={id}
             entityId={assessment.entityId}
             contextText={assistantContext}
-            invitation="It has been given this assessment's questions, not your answers. It will explain what one is asking, or draft wording for you to edit — it cannot fill anything in for you."
+            invitation="It has been given this assessment's questions, not your answers. It will explain what one is asking, or draft wording for you to edit - it cannot fill anything in for you."
             placeholder="What counts as special category data here?"
           />
         </section>

@@ -195,7 +195,7 @@ export function AutomatedDecisions({
               {ADM_SAFEGUARD_KEYS.map((k) => (
                 <li key={k}>
                   {record.admSafeguards?.[k]?.confirmed ? "✓" : "✗"} {ADM_SAFEGUARDS[k].label}
-                  {record.admSafeguards?.[k]?.note ? ` — ${record.admSafeguards[k]!.note}` : ""}
+                  {record.admSafeguards?.[k]?.note ? ` - ${record.admSafeguards[k]!.note}` : ""}
                 </li>
               ))}
               {part3 && record.admSetAside ? (

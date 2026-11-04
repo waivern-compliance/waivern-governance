@@ -128,7 +128,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
           {events.length === 0 ? (
             <li className="px-4 py-5 text-sm text-ink-soft">
               Nothing yet. Acknowledge it, then record each enquiry you make and each time you tell the
-              complainant how it stands — s.164A(5) says that is what responding includes.
+              complainant how it stands - s.164A(5) says that is what responding includes.
             </li>
           ) : null}
         </ul>
@@ -181,7 +181,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
       {complaint.outcomeAt ? (
         <section className="space-y-1 rounded border border-line bg-surface p-5">
           <h2 className="text-sm font-semibold">
-            {OUTCOME_LABEL[complaint.outcome as ComplaintOutcome]} — told {stamp(complaint.outcomeAt)} by{" "}
+            {OUTCOME_LABEL[complaint.outcome as ComplaintOutcome]} - told {stamp(complaint.outcomeAt)} by{" "}
             {CHANNEL_LABEL[complaint.outcomeChannel ?? ""]?.toLowerCase() ?? complaint.outcomeChannel}
           </h2>
           <p className="max-w-prose text-sm">{complaint.outcomeSummary}</p>

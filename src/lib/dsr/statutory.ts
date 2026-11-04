@@ -228,7 +228,7 @@ export function objectionReviewDue(count: number, threshold: number): boolean {
 
 /** Article 18(1)(d), said where an objection is still being weighed. */
 export const RESTRICT_WHILE_WEIGHED =
-  "Article 18(1)(d): while you weigh an objection to processing on public task or legitimate interests, the person may have it restricted — kept, but not otherwise used — until you decide.";
+  "Article 18(1)(d): while you weigh an objection to processing on public task or legitimate interests, the person may have it restricted - kept, but not otherwise used - until you decide.";
 
 /** How many days before the deadline a request counts as due soon. */
 export const DUE_SOON_DAYS = 7;

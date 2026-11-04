@@ -1,13 +1,11 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
-import { eq } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
 import { entities, memberships, organisations, tasks, users } from "@/db/schema";
 import { NAV, navFor } from "@/lib/nav";
 import type { Grant } from "@/lib/rbac";
 import { openTasks } from "@/services/workflow";
 
-const SYSTEM = { actorKind: "system" as const, actorUserId: null, actorLabel: "test" };
 
 const contributor: Grant[] = [{ role: "contributor", scope: "organisation" }];
 const analyst: Grant[] = [{ role: "privacy_analyst", scope: "organisation" }];

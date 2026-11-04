@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
-import { eq, isNull, sql } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
-import { countryRisk, entities, organisations } from "@/db/schema";
+import { entities, organisations } from "@/db/schema";
 import { verifyAuditChain } from "@/lib/audit";
 import { COUNTRY_LIBRARY, SEED_REVIEWER } from "@/lib/countries/library";
 import { matches } from "@/lib/workflow/routing";
@@ -37,7 +36,7 @@ describe("the shipped library", () => {
     // It is generated from a starting point, not checked against a current
     // source. Shipping it as current would put ratings into transfer
     // assessments that read as evidence and are not.
-    assert.equal(SEED_REVIEWER, "seed — not verified");
+    assert.equal(SEED_REVIEWER, "seed - not verified");
   });
 
   it("leaves the two risk judgements open unless there is something to cite", () => {

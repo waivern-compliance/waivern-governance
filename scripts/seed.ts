@@ -161,7 +161,7 @@ async function main() {
       }
     }
 
-    console.log(`Seeded "${org.name}" — ${ENTITIES.length} entities, ${PEOPLE.length} people.`);
+    console.log(`Seeded "${org.name}" - ${ENTITIES.length} entities, ${PEOPLE.length} people.`);
     organisationId = org.id;
   });
 

@@ -41,8 +41,8 @@ export async function Discussion({
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">Discussion</h2>
         <p className="max-w-prose text-xs text-ink-soft">
-          For questions and context. Decisions — approval, acceptance, sign-off
-          — are recorded separately and are not made here.
+          For questions and context. Decisions - approval, acceptance, sign-off
+          - are recorded separately and are not made here.
         </p>
       </div>
 
@@ -103,7 +103,7 @@ export async function Discussion({
           <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
             Add to the discussion
             <span className="block font-normal normal-case tracking-normal">
-              Type @ and someone&rsquo;s name to notify them — @{" "}
+              Type @ and someone&rsquo;s name to notify them - @{" "}
               {members[0]?.email.split("@")[0] ?? "colleague"} or their full
               address. An @ that matches nobody is left as written.
             </span>

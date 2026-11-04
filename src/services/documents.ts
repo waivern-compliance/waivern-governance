@@ -47,7 +47,7 @@ export async function attachDocument(input: {
     if (input.content.byteLength > MAX_BYTES) {
       throw new UploadRefused(
         `That file is ${(input.content.byteLength / 1024 / 1024).toFixed(1)}MB. ` +
-          `The limit is ${MAX_BYTES / 1024 / 1024}MB — link to it instead if it is genuinely that large.`,
+          `The limit is ${MAX_BYTES / 1024 / 1024}MB - link to it instead if it is genuinely that large.`,
       );
     }
     if (RETIRED.has(input.contentType)) {
@@ -66,7 +66,7 @@ export async function attachDocument(input: {
     if (!contentMatchesType(input.contentType, input.content)) {
       throw new UploadRefused(
         `Its contents are not a ${ACCEPTED.get(input.contentType)} file, whatever its name says. ` +
-          "It may be misnamed or damaged — open it and save it again in that format.",
+          "It may be misnamed or damaged - open it and save it again in that format.",
       );
     }
 

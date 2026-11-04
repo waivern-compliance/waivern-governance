@@ -66,7 +66,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
             requireWhen: { op: "equals", question: "affects_people", value: true },
             legalRefs: ref("MAP 5.1"), evidence: "none",
             options: [
-              { value: "informational", label: "Informational only — no decision follows", weight: 0 },
+              { value: "informational", label: "Informational only - no decision follows", weight: 0 },
               { value: "influences", label: "Influences a decision a person then takes", weight: 2 },
               { value: "recommends", label: "Recommends a decision that is usually followed", weight: 4 },
               { value: "decides", label: "Decides, with no meaningful human review", weight: 7 },
@@ -128,7 +128,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
           { key: "running_costs", label: "Have running, scaling and maintenance costs beyond the pilot been estimated?", type: "single_select", required: true, legalRefs: ref("MAP 3.2"), evidence: "optional",
             options: [
               { value: "estimated", label: "Yes, estimated and budgeted", weight: 0 },
-              { value: "partly", label: "Partly — the pilot is costed, scale is not", weight: 1 },
+              { value: "partly", label: "Partly - the pilot is costed, scale is not", weight: 1 },
               { value: "not_considered", label: "Not considered", weight: 3 },
             ] },
           { key: "error_costs", label: "What would errors, outages or misuse cost, including costs that are not financial?", type: "long_text", required: true,
@@ -156,7 +156,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
               { value: "controlled_monitored", label: "Yes, documented and monitored", weight: 0 },
               { value: "contractual", label: "Contractual assurances only", weight: 2 },
               { value: "none", label: "No", weight: 4 },
-              { value: "not_applicable", label: "Not applicable — no third-party AI component", weight: 0 },
+              { value: "not_applicable", label: "Not applicable - no third-party AI component", weight: 0 },
             ] },
           { key: "legal_frameworks", label: "Which legal requirements have been considered?", type: "multi_select", required: true, legalRefs: ref("GOVERN 1.1"), evidence: "none",
             options: [
@@ -220,7 +220,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
           { key: "data_provenance", label: "How well understood is the training and input data?", type: "single_select", required: true, legalRefs: ref("MAP 2.3"), evidence: "optional",
             options: [
               { value: "documented", label: "Fully documented, with rights and licensing confirmed", weight: 0 },
-              { value: "partial", label: "Partly documented — the main sources are known", weight: 2 },
+              { value: "partial", label: "Partly documented - the main sources are known", weight: 2 },
               { value: "vendor_asserted", label: "Known only through vendor assertion", weight: 3 },
               { value: "opaque", label: "Not established", weight: 5 },
             ] },
@@ -256,7 +256,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
             ] },
           { key: "fallback", label: "If it had to be switched off, could the service carry on?", type: "single_select", required: true, legalRefs: ref("MANAGE 2.4"), evidence: "none",
             options: [
-              { value: "tested", label: "Yes — a fallback exists and has been tried", weight: 0 },
+              { value: "tested", label: "Yes - a fallback exists and has been tried", weight: 0 },
               { value: "planned", label: "A fallback is planned but untried", weight: 2 },
               { value: "none", label: "No", weight: 4 },
             ] },
@@ -288,7 +288,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
               { value: "yes", label: "Yes", weight: 0 },
               { value: "partly", label: "Partly", weight: 2 },
               { value: "no", label: "No", weight: 3 },
-              { value: "not_applicable", label: "Not applicable — we supply no data to it", weight: 0 },
+              { value: "not_applicable", label: "Not applicable - we supply no data to it", weight: 0 },
             ] },
           { key: "security_testing", label: "Is it tested for vulnerabilities before release and after changes?", type: "single_select", required: true, legalRefs: ref("MEASURE 2.7"), evidence: "optional",
             options: [
@@ -322,7 +322,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
               { value: "scheduled", label: "Scheduled", weight: 1 },
               { value: "none", label: "No", weight: 3 },
             ] },
-          { key: "roles_documented", label: "Are roles documented for its data, model changes, deployment and monitoring — including who may change the model?", type: "single_select", required: true, legalRefs: ref("GOVERN 2.1"), evidence: "optional",
+          { key: "roles_documented", label: "Are roles documented for its data, model changes, deployment and monitoring - including who may change the model?", type: "single_select", required: true, legalRefs: ref("GOVERN 2.1"), evidence: "optional",
             options: [
               { value: "documented", label: "Yes", weight: 0 },
               { value: "partly", label: "Partly", weight: 2 },
@@ -353,10 +353,10 @@ export const NIST_AI_RISK: TemplateDefinition = {
             ] },
           { key: "contestability", label: "Can someone affected challenge or appeal an outcome?", type: "single_select", required: true, legalRefs: ref("MEASURE 3.3"), evidence: "none",
             options: [
-              { value: "documented_route", label: "Yes — a documented route, with a human decision-maker", weight: 0 },
+              { value: "documented_route", label: "Yes - a documented route, with a human decision-maker", weight: 0 },
               { value: "informal", label: "Informally, through existing complaints channels", weight: 2 },
               { value: "none", label: "No route exists", weight: 4 },
-              { value: "not_applicable", label: "Not applicable — no decision affects anyone", weight: 0 },
+              { value: "not_applicable", label: "Not applicable - no decision affects anyone", weight: 0 },
             ] },
           { key: "redress_accessible", label: "Is that route accessible to everyone affected, including people in vulnerable circumstances?", type: "single_select", required: false,
             showWhen: { op: "or", any: [
@@ -389,10 +389,10 @@ export const NIST_AI_RISK: TemplateDefinition = {
         questions: [
           { key: "explainability", label: "Can an individual outcome be explained to the person it affects?", type: "single_select", required: true, legalRefs: ref("MEASURE 2.9"), evidence: "none",
             options: [
-              { value: "explainable", label: "Yes — the factors behind each outcome can be given", weight: 0 },
+              { value: "explainable", label: "Yes - the factors behind each outcome can be given", weight: 0 },
               { value: "general_only", label: "Only in general terms", weight: 2 },
               { value: "cannot", label: "No", weight: 4 },
-              { value: "not_needed", label: "Not needed — no outcome affects anyone", weight: 0 },
+              { value: "not_needed", label: "Not needed - no outcome affects anyone", weight: 0 },
             ] },
           { key: "explanations_tested", label: "Have explanations been tested with the people who receive them, for whether they are accurate and understood?", type: "single_select", required: false,
             showWhen: { op: "or", any: [
@@ -456,8 +456,8 @@ export const NIST_AI_RISK: TemplateDefinition = {
         questions: [
           { key: "bias_considered", label: "Has bias and fairness been assessed for this system?", type: "single_select", required: true, legalRefs: ref("MEASURE 2.11"), evidence: "optional",
             options: [
-              { value: "tested", label: "Yes — tested, with documented results", weight: 0 },
-              { value: "reviewed", label: "Yes — reviewed qualitatively, not measured", weight: 2 },
+              { value: "tested", label: "Yes - tested, with documented results", weight: 0 },
+              { value: "reviewed", label: "Yes - reviewed qualitatively, not measured", weight: 2 },
               { value: "planned", label: "Planned but not yet done", weight: 4 },
               { value: "not_done", label: "Not assessed", weight: 6 },
             ] },
@@ -470,10 +470,10 @@ export const NIST_AI_RISK: TemplateDefinition = {
               { value: "intersectional", label: "Yes, including intersectional groups", weight: 0 },
               { value: "single", label: "Group by group only", weight: 1 },
               { value: "not_compared", label: "Not compared", weight: 3 },
-              { value: "not_applicable", label: "Not applicable — no outcome concerns people", weight: 0 },
+              { value: "not_applicable", label: "Not applicable - no outcome concerns people", weight: 0 },
             ] },
           { key: "affected_groups", label: "Which groups could be disadvantaged, and how would you know?", type: "long_text", required: true,
-            help: "Answer this even where testing found nothing — naming the groups is what makes later monitoring possible.",
+            help: "Answer this even where testing found nothing - naming the groups is what makes later monitoring possible.",
             legalRefs: ref("MEASURE 2.11"), evidence: "none" },
           { key: "equality_impact", label: "Has an equality impact assessment been carried out?", type: "single_select", required: true,
             help: "Required of UK public bodies under the Public Sector Equality Duty.",
@@ -482,7 +482,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
               { value: "done", label: "Yes", weight: 0 },
               { value: "planned", label: "Planned", weight: 2 },
               { value: "not_done", label: "No", weight: 4 },
-              { value: "not_public_body", label: "Not applicable — we are not subject to the equality duty", weight: 0 },
+              { value: "not_public_body", label: "Not applicable - we are not subject to the equality duty", weight: 0 },
             ] },
         ],
       },
@@ -534,7 +534,7 @@ export const NIST_AI_RISK: TemplateDefinition = {
             legalRefs: ref("MANAGE 1.2", "MANAGE 1.3"), evidence: "none",
             options: [
               ...NIST_AI_RMF.categories.map((c) => ({ value: c.value, label: c.label })),
-              { value: "none", label: "None — nothing found needs to go on the register" },
+              { value: "none", label: "None - nothing found needs to go on the register" },
             ] },
           { key: "residual_to_users", label: "What negative residual risk remains for the people who use it or receive its outputs?", type: "long_text", required: true,
             legalRefs: ref("MANAGE 1.4"), evidence: "none" },

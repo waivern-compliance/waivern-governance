@@ -19,8 +19,8 @@ import { whyUnusable } from "@/lib/db-url";
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   console.error(
-    "DATABASE_URL is not set. On Railway, set it to a reference — " +
-      "DATABASE_URL=${{Postgres.DATABASE_URL}} — so it follows the database " +
+    "DATABASE_URL is not set. On Railway, set it to a reference - " +
+      "DATABASE_URL=${{Postgres.DATABASE_URL}} - so it follows the database " +
       "rather than a string somebody pasted.",
   );
   process.exit(1);

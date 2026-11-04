@@ -1,6 +1,6 @@
 "use server";
 
-import { EMPTY_CHAT, type ChatState } from "@/lib/assistant/chat-state";
+import { type ChatState } from "@/lib/assistant/chat-state";
 import { requireCapability } from "@/lib/session";
 import { searchHelp } from "@/lib/help/search";
 import { HELP_TOPICS } from "@/lib/help/topics";

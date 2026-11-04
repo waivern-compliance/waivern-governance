@@ -19,7 +19,7 @@ export function PersonaSwitcher({ current }: { current: Persona }) {
     <details className="rounded border border-line bg-surface">
       <summary className="cursor-pointer px-4 py-2.5 text-xs text-ink-soft">
         Showing the <span className="font-medium text-ink">{PERSONA_LABEL[current]}</span> view
-        — change
+        - change
       </summary>
       <ul className="divide-y divide-line border-t border-line">
         {PERSONAS.map((p) => (

@@ -86,7 +86,7 @@ export function FurtherProcessingFields({
         value={further}
         onChange={setFurther}
         title="Is this further processing?"
-        help="Article 8A — using data first collected for a different purpose. The new purpose must be compatible with the original one."
+        help="Article 8A - using data first collected for a different purpose. The new purpose must be compatible with the original one."
       />
 
       {further === "yes" ? (
@@ -111,7 +111,7 @@ export function FurtherProcessingFields({
                 <span className={hint}>
                   That activity is law enforcement processing under Part 3. Data collected for a law enforcement purpose
                   may be processed for any other purpose only where that is authorised by law (Data Protection Act 2018
-                  s.36(4)) — as well as compatible under Article 8A.
+                  s.36(4)) - as well as compatible under Article 8A.
                 </span>
               </span>
               <input name="furtherAuthorisedBy" defaultValue={record.furtherAuthorisedBy ?? ""} className={input} />
@@ -165,7 +165,7 @@ export function FurtherProcessingFields({
                 <option value="">Not yet chosen</option>
                 {ANNEX2_CONDITION_KEYS.map((c) => (
                   <option key={c} value={c}>
-                    {ANNEX2_CONDITIONS[c].label} — {ANNEX2_CONDITIONS[c].paragraph}
+                    {ANNEX2_CONDITIONS[c].label} - {ANNEX2_CONDITIONS[c].paragraph}
                   </option>
                 ))}
               </select>
@@ -178,8 +178,8 @@ export function FurtherProcessingFields({
               value={unobtainable}
               onChange={setUnobtainable}
               title="Can consent not reasonably be obtained?"
-              help="Article 8A(4)(b) — the condition for this route where the data was collected on consent"
-              no="No — consent could be sought"
+              help="Article 8A(4)(b) - the condition for this route where the data was collected on consent"
+              no="No - consent could be sought"
             />
           ) : null}
 
@@ -223,7 +223,7 @@ export function FurtherProcessingFields({
         value={research}
         onChange={setResearch}
         title="Is it for research, archiving or statistics?"
-        help="Articles 84A–84B — scientific or historical research (commercial or not), archiving in the public interest, or statistics producing aggregate results"
+        help="Articles 84A–84B - scientific or historical research (commercial or not), archiving in the public interest, or statistics producing aggregate results"
       />
 
       {research === "yes" ? (
@@ -231,7 +231,7 @@ export function FurtherProcessingFields({
           <fieldset className="space-y-2">
             <legend className={label}>
               Safeguards
-              <span className={hint}>Article 84C — tick each that holds, and say how</span>
+              <span className={hint}>Article 84C - tick each that holds, and say how</span>
             </legend>
             {RESEARCH_SAFEGUARD_KEYS.map((k) => (
               <div key={k} className="grid gap-1.5 sm:grid-cols-[1fr_1fr] sm:items-center">
@@ -280,14 +280,14 @@ export function FurtherProcessingFields({
                 value={art13}
                 onChange={setArt13}
                 title="Is telling people about the new purpose impossible or disproportionate?"
-                help="Article 13(5)–(6) — judged by the number of people, the age of the data and the safeguards"
-                no="No — they will be told"
+                help="Article 13(5)–(6) - judged by the number of people, the age of the data and the safeguards"
+                no="No - they will be told"
               />
               {art13 === "yes" ? (
                 <label className="block space-y-1">
                   <span className={label}>
                     Where the information is published
-                    <span className={hint}>Article 13(7) — the measures taken instead, such as making it publicly available</span>
+                    <span className={hint}>Article 13(7) - the measures taken instead, such as making it publicly available</span>
                   </span>
                   <input
                     name="publicInformationUrl"

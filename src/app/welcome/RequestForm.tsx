@@ -16,13 +16,13 @@ export function RequestForm() {
       </label>
       <label className="block space-y-1">
         <span className={label}>
-          Its legal entity <span className="font-normal normal-case tracking-normal">— if different</span>
+          Its legal entity <span className="font-normal normal-case tracking-normal">- if different</span>
         </span>
         <input name="entityName" maxLength={120} placeholder="The same as above" className={field} />
       </label>
       <label className="block space-y-1">
         <span className={label}>
-          Anything we should know <span className="font-normal normal-case tracking-normal">— optional</span>
+          Anything we should know <span className="font-normal normal-case tracking-normal">- optional</span>
         </span>
         <textarea name="note" rows={3} maxLength={2000} placeholder="What you want to use it for, or who referred you" className={field} />
       </label>

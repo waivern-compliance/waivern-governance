@@ -206,7 +206,7 @@ function Definition({
                       if (!ref) {
                         return (
                           <li key={code} className="font-mono text-[11px] text-amber-900">
-                            {code} — unknown reference
+                            {code} - unknown reference
                           </li>
                         );
                       }
@@ -215,7 +215,7 @@ function Definition({
                           <span className="font-mono">
                             {ref.regime} {ref.citation}
                           </span>
-                          {" — "}
+                          {" - "}
                           {ref.url ? (
                             <a href={ref.url} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
                               {ref.title}

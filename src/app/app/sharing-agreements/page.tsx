@@ -38,7 +38,7 @@ export default async function SharingAgreementsPage() {
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Data sharing agreements</h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          Sharing with other controllers — a council with a health trust, a school with children&apos;s services, a
+          Sharing with other controllers - a council with a health trust, a school with children&apos;s services, a
           safeguarding partnership. Each agreement records the parties, each one&apos;s lawful basis, the legal gateway
           that allows a public body to share, what is shared and when it is reviewed. Processors are governed by
           Article 28 agreements on the third-party register instead.

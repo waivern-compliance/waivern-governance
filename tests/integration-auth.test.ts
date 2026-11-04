@@ -6,7 +6,6 @@ import {
   newSecret,
   openSecret,
   sealSecret,
-  signPayload,
   signRequest,
   verifyRequest,
 } from "@/lib/integration/crypto";

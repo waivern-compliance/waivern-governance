@@ -64,7 +64,7 @@ export default async function PeoplePage() {
         <h1 className="text-2xl font-semibold tracking-tight">People and access</h1>
         <p className="max-w-prose text-sm text-ink-soft">
           Who may sign in, and as what. Every change here is written to the
-          audit log — granting the power to approve is as much a governance
+          audit log - granting the power to approve is as much a governance
           event as an approval.
         </p>
       </header>
@@ -105,7 +105,7 @@ export default async function PeoplePage() {
               {!m.isActive && (holdings.get(m.userId)?.total ?? 0) > 0 ? (
                 <p className="rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   Suspended, but still holds open work. Withdrawing access does not move it,
-                  and a record owned by a suspended person still counts as owned — so nothing
+                  and a record owned by a suspended person still counts as owned - so nothing
                   reports this as a gap. Hand it over below.
                 </p>
               ) : null}
@@ -133,7 +133,7 @@ export default async function PeoplePage() {
                 ))}
                 {m.roles.length === 0 ? (
                   <span className="font-mono text-[11px] text-amber-900">
-                    no roles — they can sign in and see nothing
+                    no roles - they can sign in and see nothing
                   </span>
                 ) : null}
               </div>
@@ -179,7 +179,7 @@ export default async function PeoplePage() {
         </ul>
 
         <p className="max-w-prose text-xs text-ink-soft">
-          The last active owner cannot be suspended or have that role removed —
+          The last active owner cannot be suspended or have that role removed -
           an organisation that locks itself out needs a database console to get
           back in. Persona changes what somebody is shown first, never what
           they may reach.

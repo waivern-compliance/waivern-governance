@@ -122,7 +122,7 @@ function fromPdf(bytes: Buffer): TextResult {
     return {
       ok: false,
       reason:
-        "The text in this PDF could not be decoded into readable words — its fonts " +
+        "The text in this PDF could not be decoded into readable words - its fonts " +
         "carry no readable character map. Re-export it from the original application, " +
         "or paste the relevant clauses in by hand.",
     };
@@ -465,7 +465,7 @@ function fromXlsx(bytes: Buffer): TextResult {
   if (!xml) {
     return {
       ok: false,
-      reason: "No text was found in this spreadsheet — it may hold only numbers or formulas.",
+      reason: "No text was found in this spreadsheet - it may hold only numbers or formulas.",
     };
   }
   const text = xml.toString("utf8").replace(/<\/si>/g, "\n");

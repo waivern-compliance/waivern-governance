@@ -31,7 +31,7 @@ export function Part3FurtherFields({
       <label className="block space-y-1">
         <span className={label}>
           Is data collected for another law enforcement purpose processed here?
-          <span className={hint}>Section 36(3) — by this controller or another, for a different law enforcement purpose</span>
+          <span className={hint}>Section 36(3) - by this controller or another, for a different law enforcement purpose</span>
         </span>
         <select name="furtherProcessing" value={further} onChange={(e) => setFurther(e.target.value)} className={input}>
           <option value="">Not yet known</option>
@@ -57,7 +57,7 @@ export function Part3FurtherFields({
           <label className="block space-y-1">
             <span className={label}>
               Which law authorises us to process it for this purpose?
-              <span className={hint}>Section 36(3)(a) — the statute, common law power or other authority relied on</span>
+              <span className={hint}>Section 36(3)(a) - the statute, common law power or other authority relied on</span>
             </span>
             <input name="furtherAuthorisedBy" defaultValue={record.furtherAuthorisedBy ?? ""} className={input} />
           </label>
@@ -91,7 +91,7 @@ export function Part3FurtherFields({
         <fieldset className="space-y-2 border-l-2 border-line pl-4">
           <legend className={label}>
             It is not permitted unless both hold
-            <span className={hint}>Section 41(2) — tick each that does, and say how</span>
+            <span className={hint}>Section 41(2) - tick each that does, and say how</span>
           </legend>
           {PART3_RESEARCH_SAFEGUARD_KEYS.map((k) => (
             <div key={k} className="grid gap-1.5 sm:grid-cols-[1fr_1fr] sm:items-center">

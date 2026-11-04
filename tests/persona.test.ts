@@ -115,7 +115,7 @@ describe("persona never decides access", () => {
     ]) {
       assert.ok(
         !comparison.test(source),
-        `access.ts branches on persona (${comparison}) — persona must not decide anything`,
+        `access.ts branches on persona (${comparison}) - persona must not decide anything`,
       );
     }
   });

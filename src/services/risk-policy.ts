@@ -125,7 +125,7 @@ export async function proposeAppetite(input: {
     if (!TIER_ORDER.includes(input.toleratedTier)) throw new AppetiteRefused("Unknown tier");
     const statement = input.statement.trim();
     if (!statement) {
-      throw new AppetiteRefused("Say what the appetite means in words — the level alone is not a statement");
+      throw new AppetiteRefused("Say what the appetite means in words - the level alone is not a statement");
     }
 
     return db.transaction(async (tx) => {
@@ -192,7 +192,7 @@ export async function decideAppetite(input: {
     const reference = input.approvalReference?.trim() ?? "";
     const reason = input.rejectionReason?.trim() ?? "";
     if (input.decision === "approved" && !reference) {
-      throw new AppetiteRefused("Say where it was signed off — the board, the date and the minute");
+      throw new AppetiteRefused("Say where it was signed off - the board, the date and the minute");
     }
     if (input.decision === "rejected" && !reason) {
       throw new AppetiteRefused("Say why it was not approved");

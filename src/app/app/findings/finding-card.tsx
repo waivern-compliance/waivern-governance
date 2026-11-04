@@ -79,7 +79,7 @@ export function FindingCard({
       {typeof suggestion === "string" ? (
         <p className="border-l-2 border-line pl-3 text-sm text-ink-soft">
           <span className="font-medium">Scanner suggests:</span> {suggestion}
-          <span className="ml-1 italic">Advisory only — a person decides.</span>
+          <span className="ml-1 italic">Advisory only - a person decides.</span>
         </p>
       ) : null}
 

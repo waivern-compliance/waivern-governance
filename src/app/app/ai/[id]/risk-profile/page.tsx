@@ -84,15 +84,15 @@ export default async function RiskProfilePage({ params }: { params: Promise<{ id
                   <td className="px-3 py-2">{c.label}</td>
                   <td className="px-3 py-2 tabular-nums">{c.open}</td>
                   <td className="px-3 py-2">
-                    {c.open ? <RiskTierBadge tier={c.worstInherent} score={null} /> : "—"}
+                    {c.open ? <RiskTierBadge tier={c.worstInherent} score={null} /> : "-"}
                   </td>
                   <td className="px-3 py-2">
-                    {c.open ? <RiskTierBadge tier={c.worstResidual} score={null} /> : "—"}
+                    {c.open ? <RiskTierBadge tier={c.worstResidual} score={null} /> : "-"}
                   </td>
                   <td className={`px-3 py-2 tabular-nums ${c.outside + c.unrated > 0 ? "font-medium text-red-800" : ""}`}>
-                    {c.open ? `${c.outside}${c.unrated ? ` (+${c.unrated} unrated)` : ""}` : "—"}
+                    {c.open ? `${c.outside}${c.unrated ? ` (+${c.unrated} unrated)` : ""}` : "-"}
                   </td>
-                  <td className="px-3 py-2 text-xs text-ink-soft">{c.appetite || "—"}</td>
+                  <td className="px-3 py-2 text-xs text-ink-soft">{c.appetite || "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -132,7 +132,7 @@ export default async function RiskProfilePage({ params }: { params: Promise<{ id
                         ? "Outside appetite."
                         : "Not yet judged against appetite."}
                   {acceptance
-                    ? ` Accepted until ${acceptance.expiresAt.toISOString().slice(0, 10)}${lapsed ? " — lapsed" : ""}.`
+                    ? ` Accepted until ${acceptance.expiresAt.toISOString().slice(0, 10)}${lapsed ? " - lapsed" : ""}.`
                     : ""}
                 </p>
                 {treatments.length > 0 ? (

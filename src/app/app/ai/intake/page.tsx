@@ -33,7 +33,7 @@ export default async function IntakePage() {
           Ideas for using AI, before anything is built or bought. Each says
           what need it meets and why AI is the right tool. Whoever runs the
           register scores value and feasibility, then accepts, defers or
-          declines — an accepted proposal joins the register as a system at
+          declines - an accepted proposal joins the register as a system at
           the proposed stage.
         </p>
       </header>

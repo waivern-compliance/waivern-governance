@@ -80,7 +80,7 @@ export default async function MarketingActivityPage({ params }: { params: Promis
             <ul className="space-y-1.5 pt-2">
               {history.slice(1).map((d) => (
                 <li key={d.id} className="text-xs">
-                  <span className="font-medium">{MARKETING_BASES[d.basis].label}</span> — {d.rationale}{" "}
+                  <span className="font-medium">{MARKETING_BASES[d.basis].label}</span> - {d.rationale}{" "}
                   <span className="text-ink-soft">{d.decidedByEmail ?? d.decidedByLabel} · {stamp(d.decidedAt)}</span>
                 </li>
               ))}

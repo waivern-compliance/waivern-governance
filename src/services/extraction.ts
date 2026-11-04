@@ -181,7 +181,7 @@ export async function runExtraction(input: {
     if (budget <= 0) {
       unreadable.push({
         name: file.filename,
-        reason: "Not read — the earlier files already filled the amount that can be sent at once.",
+        reason: "Not read - the earlier files already filled the amount that can be sent at once.",
       });
       continue;
     }
@@ -203,7 +203,7 @@ export async function runExtraction(input: {
   if (sources.length === 0) {
     throw new ExtractionUnavailable(
       unreadable.length > 0
-        ? `Nothing could be read. ${unreadable.map((u) => `${u.name} — ${u.reason}`).join(" ")}`
+        ? `Nothing could be read. ${unreadable.map((u) => `${u.name} - ${u.reason}`).join(" ")}`
         : "There are no files attached to this agreement or to the third party.",
     );
   }
@@ -252,7 +252,7 @@ async function persist(input: {
       : clipped
         ? "The model ran out of room before finishing its answer, and not enough " +
           "of it survived to read. There is probably more in these files than one " +
-          "pass can report — move the files that do not bear on transfers and " +
+          "pass can report - move the files that do not bear on transfers and " +
           "sub-processors off this agreement and read them separately."
         : // Carries its own diagnosis: without the stop reason and the size of
           // the reply, "not in a shape that could be read" covers a refusal, a
@@ -283,7 +283,7 @@ async function persist(input: {
         diagnostics,
         notes: clipped && found
         ? [
-            "The model's answer was cut off, so this may be incomplete — " +
+            "The model's answer was cut off, so this may be incomplete - " +
               "check the agreement for anything missing.",
             found.notes,
           ]
@@ -600,7 +600,7 @@ export async function decideFinding(input: {
             }
           } else {
             const value = finding.detail
-              ? `${finding.value} — ${finding.detail}`
+              ? `${finding.value} - ${finding.detail}`
               : finding.value;
             before = { transferMechanism: dpa.transferMechanism };
             after = { transferMechanism: value };

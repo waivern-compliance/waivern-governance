@@ -89,7 +89,7 @@ export default async function RopaPage() {
       {health.fromPortal > 0 ? (
         <p className="rounded border border-line bg-surface px-4 py-3 text-xs text-ink-soft">
           {health.fromPortal} of these arrived from a connected scanning tool.
-          They still need a human to confirm the purposes and lawful basis — a
+          They still need a human to confirm the purposes and lawful basis - a
           scanner can see what data moves, not why.
         </p>
       ) : null}
@@ -134,9 +134,9 @@ export default async function RopaPage() {
                   defaultValue="controller"
                   className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
                 >
-                  <option value="controller">Controller — you decide why and how</option>
+                  <option value="controller">Controller - you decide why and how</option>
                   <option value="joint_controller">Joint controller</option>
-                  <option value="processor">Processor — you act for somebody else</option>
+                  <option value="processor">Processor - you act for somebody else</option>
                 </select>
               </label>
               <label className="block space-y-1">
@@ -216,7 +216,7 @@ export default async function RopaPage() {
         {health.rows.length === 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
             Nothing recorded yet. Start with the processing you already know
-            about — the register is built by filling gaps, not by waiting.
+            about - the register is built by filling gaps, not by waiting.
           </li>
         ) : null}
       </ul>

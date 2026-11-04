@@ -237,7 +237,7 @@ export default async function SharingAgreementPage({ params }: { params: Promise
           <p><span className="text-ink-soft">Purpose:</span> {agreement.purpose ?? "Not recorded"}</p>
           <p>
             <span className="text-ink-soft">Gateway:</span>{" "}
-            {agreement.gatewayKind ? `${GATEWAY_KINDS[agreement.gatewayKind]}${agreement.gateway ? ` — ${agreement.gateway}` : ""}` : "Not recorded"}
+            {agreement.gatewayKind ? `${GATEWAY_KINDS[agreement.gatewayKind]}${agreement.gateway ? ` - ${agreement.gateway}` : ""}` : "Not recorded"}
           </p>
           <p><span className="text-ink-soft">What is shared:</span> {agreement.dataShared ?? "Not recorded"}</p>
           <p><span className="text-ink-soft">Our basis:</span> {describe(agreement)}</p>

@@ -75,7 +75,7 @@ export function StageForm({ stage }: { stage: StageView }) {
           >
             {ROLES.map((role) => (
               <option key={role} value={role}>
-                {ROLE_LABEL[role]} — {ROLE_BLURB[role]}
+                {ROLE_LABEL[role]} - {ROLE_BLURB[role]}
               </option>
             ))}
           </select>
@@ -163,7 +163,7 @@ export function StageForm({ stage }: { stage: StageView }) {
                 {stage.appliesWhen}
                 <span className="mt-1 block">
                   This rule combines several conditions, so it is shown rather than offered for
-                  editing — rebuilding one in a form is how a rule nobody fully read gets
+                  editing - rebuilding one in a form is how a rule nobody fully read gets
                   replaced. The role and timing above can still be changed.
                 </span>
               </p>
@@ -210,7 +210,7 @@ function BoardField({ value }: { value: string }) {
       <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-soft">
         Decided by a board or committee
         <span className="block font-normal normal-case tracking-normal">
-          Its name — the role above records the decision, citing the meeting. Empty for one
+          Its name - the role above records the decision, citing the meeting. Empty for one
           person&rsquo;s decision.
         </span>
       </span>

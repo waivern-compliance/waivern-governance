@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { db, type Db, withOrganisation } from "@/db/client";
 import { integrationConnections, webhookDeliveries } from "@/db/schema";
 import { openSecret, signRequest } from "@/lib/integration/crypto";

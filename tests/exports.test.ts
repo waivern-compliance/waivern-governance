@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
 import { db, sql as pg } from "@/db/client";
-import { entities, organisations, users } from "@/db/schema";
+import { entities, organisations } from "@/db/schema";
 import { GENESIS_HASH, audit } from "@/lib/audit";
 import { canonicalise } from "@/lib/canonical";
 import { toCsv } from "@/lib/csv";

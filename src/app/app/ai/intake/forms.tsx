@@ -112,7 +112,7 @@ export function ScoreForm({
           <select name="value" defaultValue={value ?? ""} required className={field}>
             <option value="" disabled>Choose…</option>
             {SCORES.map((n) => (
-              <option key={n} value={n}>{n}{n === 1 ? " — little" : n === 5 ? " — transformative" : ""}</option>
+              <option key={n} value={n}>{n}{n === 1 ? " - little" : n === 5 ? " - transformative" : ""}</option>
             ))}
           </select>
         </label>
@@ -121,7 +121,7 @@ export function ScoreForm({
           <select name="feasibility" defaultValue={feasibility ?? ""} required className={field}>
             <option value="" disabled>Choose…</option>
             {SCORES.map((n) => (
-              <option key={n} value={n}>{n}{n === 1 ? " — far off" : n === 5 ? " — ready now" : ""}</option>
+              <option key={n} value={n}>{n}{n === 1 ? " - far off" : n === 5 ? " - ready now" : ""}</option>
             ))}
           </select>
         </label>

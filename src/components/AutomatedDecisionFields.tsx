@@ -44,7 +44,7 @@ export function AutomatedDecisionFields({ record, regime = "uk_gdpr" }: { record
         <span className={label}>
           Significant decisions taken solely by automated means?
           <span className={hint}>
-            {part3 ? "Section 50A" : "Article 22A"} — a decision with {part3 ? "an adverse" : "a"} legal or similarly
+            {part3 ? "Section 50A" : "Article 22A"} - a decision with {part3 ? "an adverse" : "a"} legal or similarly
             significant {part3 ? "adverse " : ""}effect on someone, with no meaningful human involvement. Consider how
             far it is reached by profiling.
           </span>
@@ -52,7 +52,7 @@ export function AutomatedDecisionFields({ record, regime = "uk_gdpr" }: { record
         <select name="automatedDecisions" value={solely} onChange={(e) => setSolely(e.target.value)} className={select}>
           <option value="">Not yet known</option>
           <option value="yes">Yes</option>
-          <option value="no">No — a person is meaningfully involved, or the effect is not significant</option>
+          <option value="no">No - a person is meaningfully involved, or the effect is not significant</option>
         </select>
       </label>
 
@@ -63,8 +63,8 @@ export function AutomatedDecisionFields({ record, regime = "uk_gdpr" }: { record
               {part3 ? "Based wholly or partly on sensitive processing?" : "Based wholly or partly on special category data?"}
               <span className={hint}>
                 {part3
-                  ? "Section 50B(1) — the categories in s.35(8): racial or ethnic origin, political opinions, beliefs, trade union membership, genetic or biometric data to identify someone, health, sex life or orientation"
-                  : "Article 22B(1) — health, ethnicity, beliefs, biometrics and the rest of Article 9(1)"}
+                  ? "Section 50B(1) - the categories in s.35(8): racial or ethnic origin, political opinions, beliefs, trade union membership, genetic or biometric data to identify someone, health, sex life or orientation"
+                  : "Article 22B(1) - health, ethnicity, beliefs, biometrics and the rest of Article 9(1)"}
               </span>
             </span>
             <select name="admSpecialCategory" value={special} onChange={(e) => setSpecial(e.target.value)} className={select}>
@@ -84,7 +84,7 @@ export function AutomatedDecisionFields({ record, regime = "uk_gdpr" }: { record
                 <option value="">None yet</option>
                 {ADM_SPECIAL_CONDITIONS_FOR[regime].map((c) => (
                   <option key={c} value={c}>
-                    {ADM_SPECIAL_CONDITIONS[c].label} — {admConditionParagraph(c, regime)}
+                    {ADM_SPECIAL_CONDITIONS[c].label} - {admConditionParagraph(c, regime)}
                   </option>
                 ))}
               </select>
@@ -94,7 +94,7 @@ export function AutomatedDecisionFields({ record, regime = "uk_gdpr" }: { record
           <fieldset className="space-y-2">
             <legend className={label}>
               Safeguards in place
-              <span className={hint}>{part3 ? "Section 50C(2)" : "Article 22C(2)"} — tick each one that is in place, and say how</span>
+              <span className={hint}>{part3 ? "Section 50C(2)" : "Article 22C(2)"} - tick each one that is in place, and say how</span>
             </legend>
             {ADM_SAFEGUARD_KEYS.map((k) => (
               <div key={k} className="grid gap-1.5 sm:grid-cols-[1fr_1fr] sm:items-center">

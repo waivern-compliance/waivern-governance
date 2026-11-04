@@ -63,7 +63,7 @@ export async function uploadDocumentsAction(
       if (error instanceof UploadRefused) {
         // One bad file does not lose the others: the accepted ones are kept
         // and the rest are named, rather than the whole upload failing.
-        refused.push(`${file.name} — ${error.message}`);
+        refused.push(`${file.name} - ${error.message}`);
         continue;
       }
       throw error;

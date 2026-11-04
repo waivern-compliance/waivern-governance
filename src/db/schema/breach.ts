@@ -12,7 +12,6 @@ import {
 } from "drizzle-orm/pg-core";
 import type { Regime } from "@/lib/dpa2018/part3";
 import {
-  breachCategory,
   breachDecisionKind,
   breachDecisionOutcome,
   breachStatus,

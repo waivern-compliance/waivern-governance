@@ -93,7 +93,7 @@ export default async function AppetitePage() {
                     <p>{current.statement}</p>
                     <p className="text-xs text-ink-soft">
                       Signed off by {current.decidedByLabel},{" "}
-                      {current.decidedAt?.toISOString().slice(0, 10)} — {current.approvalReference}.
+                      {current.decidedAt?.toISOString().slice(0, 10)} - {current.approvalReference}.
                       Proposed by {current.proposedByLabel}.{" "}
                       {current.reviewDueAt ? (
                         <span className={overdue ? "font-medium text-amber-800" : ""}>
@@ -167,8 +167,8 @@ export default async function AppetitePage() {
                         <span className="font-mono">{r.status}</span> ·{" "}
                         {APPETITE_LEVEL_LABEL[r.level as AppetiteLevel]}, tolerating {r.toleratedTier} ·{" "}
                         {r.decidedByLabel} {r.decidedAt?.toISOString().slice(0, 10)}
-                        {r.rejectionReason ? ` — ${r.rejectionReason}` : ""}
-                        {r.approvalReference ? ` — ${r.approvalReference}` : ""}
+                        {r.rejectionReason ? ` - ${r.rejectionReason}` : ""}
+                        {r.approvalReference ? ` - ${r.approvalReference}` : ""}
                       </li>
                     ))}
                   </ul>

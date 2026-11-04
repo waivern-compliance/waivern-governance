@@ -116,12 +116,12 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
               )}{" "}
               {appetite.basis.source === "platform"
                 ? "No appetite has been signed off for this, so it is judged against the platform's assumption: residual high or critical is outside."
-                : `Judged against ${appetite.basis.source === "category" ? `the appetite for ${scopeLabel(appetite.basis.scope)}` : "the organisation's default appetite"} — ${APPETITE_LEVEL_LABEL[appetite.basis.level].toLowerCase()}, tolerating residual up to ${appetite.basis.toleratedTier}.`}
+                : `Judged against ${appetite.basis.source === "category" ? `the appetite for ${scopeLabel(appetite.basis.scope)}` : "the organisation's default appetite"} - ${APPETITE_LEVEL_LABEL[appetite.basis.level].toLowerCase()}, tolerating residual up to ${appetite.basis.toleratedTier}.`}
             </p>
             {appetite.state === "unrated" ? (
               <p className="text-xs">
                 Rate the residual risk below. Until then it counts as not within
-                appetite — nobody has measured it.
+                appetite - nobody has measured it.
               </p>
             ) : appetite.state === "outside" ? (
               <p className="text-xs">
@@ -187,7 +187,7 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
           </h2>
           <p className="max-w-prose text-sm text-ink-soft">
             Your judgement of what remains after the mitigations above. Nothing
-            derives this from them — whether a control actually reduces exposure
+            derives this from them - whether a control actually reduces exposure
             is a call someone has to make and be accountable for.
           </p>
           <EditForm
@@ -256,7 +256,7 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
             acceptedBy: a.acceptedByLabel,
             rationale: a.rationale,
             expiresAt: a.expiresAt.toISOString().slice(0, 10),
-            outcome: a.revokedAt ? `revoked — ${a.revokedReason}` : "superseded",
+            outcome: a.revokedAt ? `revoked - ${a.revokedReason}` : "superseded",
           }))}
       />
 

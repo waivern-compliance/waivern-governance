@@ -88,7 +88,7 @@ export function SpecialCategoryFields({ record, ukLaw = true }: { record: Specia
               <option value="">Not yet chosen</option>
               {ART9_CONDITION_KEYS.map((k) => (
                 <option key={k} value={k}>
-                  {ART9_CONDITIONS[k].point} — {ART9_CONDITIONS[k].label}
+                  {ART9_CONDITIONS[k].point} - {ART9_CONDITIONS[k].label}
                 </option>
               ))}
             </select>
@@ -109,7 +109,7 @@ export function SpecialCategoryFields({ record, ukLaw = true }: { record: Specia
                 <option value="">Not yet chosen</option>
                 {allowed.map((k) => (
                   <option key={k} value={k}>
-                    Paragraph {SCHEDULE_1[k].paragraph} — {SCHEDULE_1[k].label}
+                    Paragraph {SCHEDULE_1[k].paragraph} - {SCHEDULE_1[k].label}
                   </option>
                 ))}
               </select>
@@ -136,7 +136,7 @@ export function SpecialCategoryFields({ record, ukLaw = true }: { record: Specia
               <optgroup key={part} label={`Schedule 1, Part ${part}`}>
                 {SCHEDULE_1_KEYS.filter((k) => SCHEDULE_1[k].part === part).map((k) => (
                   <option key={k} value={k}>
-                    Paragraph {SCHEDULE_1[k].paragraph} — {SCHEDULE_1[k].label}
+                    Paragraph {SCHEDULE_1[k].paragraph} - {SCHEDULE_1[k].label}
                   </option>
                 ))}
               </optgroup>

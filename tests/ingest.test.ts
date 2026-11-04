@@ -18,7 +18,6 @@ import { createConnection } from "@/services/connections";
 import {
   canonicalise,
   ingestDpas,
-  ingestEvidence,
   ingestProcessingActivities,
   ingestScan,
   ingestVendors,

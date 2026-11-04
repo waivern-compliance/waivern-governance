@@ -195,7 +195,7 @@ export async function updateStage(input: {
       input.boardName === undefined ? stage.boardName : input.boardName?.trim() || null;
 
     const name = input.name.trim();
-    if (!name) throw new RoutingRefused("A stage needs a name — it is what the approver sees.");
+    if (!name) throw new RoutingRefused("A stage needs a name - it is what the approver sees.");
     if (input.slaHours !== null && (input.slaHours < 1 || input.slaHours > 24 * 90)) {
       throw new RoutingRefused("A service level must be between an hour and ninety days.");
     }
@@ -275,7 +275,7 @@ export async function addStage(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const name = input.name.trim();
-    if (!name) throw new RoutingRefused("A stage needs a name — it is what the approver sees.");
+    if (!name) throw new RoutingRefused("A stage needs a name - it is what the approver sees.");
     const parsed = routingCondition.safeParse(input.condition);
     if (!parsed.success) throw new RoutingRefused("That condition is not one this platform understands.");
 

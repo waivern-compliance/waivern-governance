@@ -93,7 +93,7 @@ const decided: SeedEntry[] = [
     governmentAccess: "high",
     redress: "moderate",
     summary:
-      "The single most common destination and the one most often got wrong. UK approval and EU adequacy are conditional on the recipient's certification, not on the country. Check certification per recipient, and re-check it — certifications lapse.",
+      "The single most common destination and the one most often got wrong. UK approval and EU adequacy are conditional on the recipient's certification, not on the country. Check certification per recipient, and re-check it - certifications lapse.",
     sources: [
       { title: "CJEU C-311/18 (Schrems II) on s.702 FISA and EO 12333", published: "2020-07-16" },
       { title: "UK Extension to the EU-US Data Privacy Framework" },
@@ -150,7 +150,7 @@ export const COUNTRY_LIBRARY: SeedEntry[] = [
  * see at a glance that the country information behind it has not yet been
  * checked by a person.
  */
-export const SEED_REVIEWER = "seed — not verified";
+export const SEED_REVIEWER = "seed - not verified";
 
 /** How long a checked entry stays current before it needs looking at again. */
 export const REVIEW_INTERVAL_MONTHS = 6;

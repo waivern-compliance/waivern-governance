@@ -354,7 +354,7 @@ export async function acceptRisk(input: {
       if (risk.status === "closed") throw new RiskNotAcceptable("A closed risk cannot be accepted");
       if (risk.residualScore === null || risk.residualTier === null) {
         throw new RiskNotAcceptable(
-          "Rate the residual risk before accepting it — there is nothing to accept until someone has judged what remains",
+          "Rate the residual risk before accepting it - there is nothing to accept until someone has judged what remains",
         );
       }
       if (risk.ownerId && input.actor.actorUserId && risk.ownerId === input.actor.actorUserId) {

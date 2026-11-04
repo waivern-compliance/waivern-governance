@@ -66,7 +66,7 @@ export default async function AiRegisterPage() {
           </span>
         </div>
         <p className="max-w-prose text-sm text-ink-soft">
-          Every AI system the organisation is accountable for — including the
+          Every AI system the organisation is accountable for - including the
           ones nobody has assessed yet. A register that only holds assessed
           systems cannot tell you what is running unexamined, which is the
           question worth asking.
@@ -172,7 +172,7 @@ export default async function AiRegisterPage() {
               <span>
                 I am accountable for this system
                 <span className="block text-xs text-ink-soft">
-                  Leave unticked if you are recording something you do not own —
+                  Leave unticked if you are recording something you do not own -
                   an unowned system on the register is better than one nobody
                   knows about.
                 </span>
@@ -217,7 +217,7 @@ export default async function AiRegisterPage() {
         ))}
         {summary.entries.length === 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
-            Nothing on the register. Start with what you already know is running —
+            Nothing on the register. Start with what you already know is running -
             an incomplete register beats none.
           </li>
         ) : null}

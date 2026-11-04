@@ -31,8 +31,8 @@ function Outcome({ result }: { result: AtrsResult }) {
 
 const TIER_LABEL: Record<AtrsSection["tier"], string> = {
   metadata: "Metadata",
-  tier1: "Tier 1 — for the public",
-  tier2: "Tier 2 — for specialists",
+  tier1: "Tier 1 - for the public",
+  tier2: "Tier 2 - for specialists",
 };
 
 /**

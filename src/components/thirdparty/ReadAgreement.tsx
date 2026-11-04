@@ -106,7 +106,7 @@ export function ReadAgreement({
       {running ? (
         <p role="status" className="rounded border border-line bg-surface px-3 py-2 text-xs text-ink-soft">
           Reading{readable.length > 0 ? ` ${readable.length} file${readable.length === 1 ? "" : "s"}` : ""}.
-          A long agreement takes a minute or two — the model reads all of it before
+          A long agreement takes a minute or two - the model reads all of it before
           answering. Leave this page open.
         </p>
       ) : null}
@@ -139,7 +139,7 @@ export function ReadAgreement({
             <ul className="space-y-0.5">
               {readable.map((file) => (
                 <li key={`${file.where}:${file.name}`} className="font-mono text-[11px] text-ink-soft">
-                  {file.name} <span className="font-sans">— on {file.where}</span>
+                  {file.name} <span className="font-sans">- on {file.where}</span>
                 </li>
               ))}
             </ul>
@@ -197,7 +197,7 @@ export function ReadAgreement({
             <ul className="space-y-1 text-xs text-ink-soft">
               {latest.run.unreadable.map((u) => (
                 <li key={u.name}>
-                  <span className="font-medium">{u.name}</span> — {u.reason}
+                  <span className="font-medium">{u.name}</span> - {u.reason}
                 </li>
               ))}
             </ul>
