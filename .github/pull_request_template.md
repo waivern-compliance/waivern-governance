@@ -10,7 +10,7 @@
 
 <!-- Delete the ones that don't apply. -->
 
-- New environment variables (set in Vercel for preview and production):
+- New environment variables (documented in `.env.example`):
 - Database migration included
 - Requires a manual step after merge:
 

@@ -8,8 +8,8 @@ set -euo pipefail
 branch="${1:?usage: $0 <branch>}"
 
 case "$branch" in
-  # `preview` is the disposable Vercel preview branch; dependabot names its own.
-  preview | dependabot/*) exit 0 ;;
+  # Dependabot names its own branches.
+  dependabot/*) exit 0 ;;
 esac
 
 if [[ "$branch" =~ ^(feature|fix|docs|refactor|chore|test|ci|build|perf)/[a-z0-9][a-z0-9._-]*$ ]]; then
