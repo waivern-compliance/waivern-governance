@@ -28,11 +28,10 @@ See `docs/` for the full design.
 
 ## Running it locally
 
-Requires Node 20 or newer, pnpm 10 and Docker.
+Requires Node 24 (see `.nvmrc`), pnpm 10 and Docker.
 
 ```bash
-pnpm install
-cp .env.example .env.local        # then set AUTH_SECRET and INTEGRATION_KEY
+pnpm bootstrap                    # creates .env.local, generating AUTH_SECRET and INTEGRATION_KEY
 pnpm db:up                        # Postgres 16 on port 55432
 pnpm db:migrate
 pnpm seed
@@ -55,6 +54,7 @@ a secret manager rather than in a deployment's history.
 | --- | --- |
 | `pnpm test` | Integration tests. Needs the local database running. |
 | `pnpm typecheck` | `tsc --noEmit`. |
+| `pnpm lint` / `pnpm format` | ESLint and Prettier checks; `lint:fix` and `format:fix` fix what they can. |
 | `pnpm audit:verify` | Recomputes every organisation's audit chain and reports breaks. |
 | `pnpm db:generate` | Generates a migration from schema changes. |
 | `pnpm db:reset` | Drops and rebuilds the schema. Destroys all data, audit chain included. |
@@ -72,7 +72,7 @@ administer yourself.
 
 | Requirement | Detail |
 | --- | --- |
-| Node 20 or newer | Runs `pnpm build` then `pnpm start`. Nothing needs compiling at install time. |
+| Node 24 | Runs `pnpm build` then `pnpm start`. Nothing needs compiling at install time. |
 | PostgreSQL 13 or newer | 16 in development. No extensions — `gen_random_uuid()` is built in from 13. |
 | Environment variables | `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `INTEGRATION_KEY`, `CRON_SECRET`, and the credentials for at least one OIDC provider. |
 | A scheduler | Hourly. Either runs `pnpm sweep:prod` as a job, or makes an authenticated request to `/api/cron/sweep`. |
@@ -426,3 +426,13 @@ sub-processor list is a page that changes.
 stage, nine risks treated to varying degrees, some work already late — because a
 dashboard reviewed against a single record tells you nothing about whether it
 works.
+
+## Contributing
+
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers how to
+propose a change, and [AGENTS.md](AGENTS.md) the conventions the code follows.
+Report security issues privately, as described in [SECURITY.md](SECURITY.md).
+
+## Licence
+
+[GNU Affero General Public License v3.0](LICENSE).
