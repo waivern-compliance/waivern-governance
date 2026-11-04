@@ -1,0 +1,33 @@
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "always",
+    "source.fixAll": "always"
+  },
+  "eslint.useFlatConfig": true,
+  "search.exclude": {
+    "**/.next": true
+  },
+  "tailwindCSS.experimental.configFile": "src/app/globals.css",
+  "typescript.preferences.autoImportSpecifierExcludeRegexes": [
+    "next/dist",
+    "next/document",
+    "next/head",
+    "next/router"
+  ],
+  "html.validate.scripts": false,
+  "html.validate.styles": false,
+  "typescript.validate.enable": true,
+  "javascript.validate.enable": true,
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "html.customData": [],
+  "html.suggest.html5": true,
+  "emmet.includeLanguages": {
+    "typescriptreact": "html"
+  }
+}

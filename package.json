@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "bootstrap": "./scripts/bootstrap.sh",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint --max-warnings 0 --cache --cache-location node_modules/.cache/.eslintcache",
+    "lint:fix": "eslint --fix --max-warnings 0 --cache --cache-location node_modules/.cache/.eslintcache",
+    "format": "prettier --check \"**/*.{js,cjs,mjs,jsx,ts,tsx,mdx}\" --cache --cache-location node_modules/.cache/.prettiercache",
+    "format:fix": "prettier --write \"**/*.{js,cjs,mjs,jsx,ts,tsx,mdx}\" --cache --cache-location node_modules/.cache/.prettiercache",
+    "typecheck": "tsc --noEmit",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
@@ -14,7 +19,6 @@
     "db:studio": "drizzle-kit studio",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "audit:verify": "tsx --env-file-if-exists=.env.local scripts/verify-audit.ts",
-    "typecheck": "tsc --noEmit",
     "db:reset": "docker exec govern-db psql -U govern -d govern -q -c 'drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;' && pnpm db:migrate",
     "test": "DATABASE_URL=postgresql://govern:govern@localhost:55432/govern_test tsx --env-file-if-exists=.env.local --test tests/**/*.test.ts",
     "test:db": "docker exec govern-db psql -U govern -d postgres -tc \"select 1 from pg_database where datname='govern_test'\" | grep -q 1 || docker exec govern-db createdb -U govern govern_test",
@@ -28,7 +32,8 @@
     "sweep:prod": "tsx scripts/sweep.ts",
     "seed:countries": "tsx --env-file-if-exists=.env.local scripts/seed-countries.ts",
     "db:migrate:deploy": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
-    "help:md": "tsx --env-file-if-exists=.env.local scripts/help-to-markdown.ts"
+    "help:md": "tsx --env-file-if-exists=.env.local scripts/help-to-markdown.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -41,8 +46,11 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@commitlint/cli": "20.5.3",
+    "@commitlint/config-conventional": "20.5.3",
+    "@ianvs/prettier-plugin-sort-imports": "4.4.2",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -50,9 +58,17 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "eslint-config-prettier": "10.1.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "3.5.3",
+    "prettier-plugin-tailwindcss": "0.6.12",
     "tailwindcss": "^4",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@10.17.1"
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": "24.x"
+  }
 }
