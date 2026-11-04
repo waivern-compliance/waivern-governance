@@ -435,4 +435,4 @@ Report security issues privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-[GNU Affero General Public License v3.0](LICENSE).
+[GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`).

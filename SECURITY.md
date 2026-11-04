@@ -9,7 +9,7 @@ Please don't open a public issue. Report it privately, either:
 - through GitHub: **Security → Report a vulnerability** on this repository, or
 - by email to [info@waivern.com](mailto:info@waivern.com), with "Security" in the subject.
 
-Include what you found, how to reproduce it, and the impact you think it has. We will acknowledge your report within three working days, keep you updated while we fix it, and credit you when the fix is released, unless you'd rather we didn't.
+Include what you found, how to reproduce it, and the impact you think it has. We will acknowledge your report within five working days, keep you updated while we fix it, and credit you when the fix is released, unless you'd rather we didn't.
 
 ## Supported versions
 

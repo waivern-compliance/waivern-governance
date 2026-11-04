@@ -32,4 +32,4 @@ pnpm dev
 
 ## Licence
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE). By contributing, you agree that your contributions are licensed under the same terms.
+This project is licensed under the [GNU Affero General Public License v3.0 only](LICENSE) (`AGPL-3.0-only`). By contributing, you agree that your contributions are licensed under the same terms.
