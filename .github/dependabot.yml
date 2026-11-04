@@ -14,10 +14,19 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Minor and patch updates only. Each major update gets a PR of its own,
+      # so one that needs work doesn't hold back the rest.
       routine-updates:
         applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Its major version tracks Node's; move it with .nvmrc and engines.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
