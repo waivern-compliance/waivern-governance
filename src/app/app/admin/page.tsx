@@ -1,8 +1,9 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can, type Capability } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { NotPermitted } from '@/components/NotPermitted';
+import { can, type Capability } from '@/lib/rbac';
+import { getActiveSession } from '@/lib/session';
 
 const SETTINGS: Array<{
   href: string;
@@ -11,40 +12,42 @@ const SETTINGS: Array<{
   capability: Capability;
 }> = [
   {
-    href: "/app/admin/organisation",
-    title: "Organisation",
+    href: '/app/admin/organisation',
+    title: 'Organisation',
     detail:
-      "What this organisation is called, and the legal entities within it. Owners add and rename entities here.",
-    capability: "org.manage",
+      'What this organisation is called, and the legal entities within it. Owners add and rename entities here.',
+    capability: 'org.manage'
   },
   {
-    href: "/app/admin/people",
-    title: "People and access",
+    href: '/app/admin/people',
+    title: 'People and access',
     detail:
-      "Who may sign in, and as what. Grant a role, confine it to one entity, suspend or reinstate. Every change is audited.",
-    capability: "member.manage",
+      'Who may sign in, and as what. Grant a role, confine it to one entity, suspend or reinstate. Every change is audited.',
+    capability: 'member.manage'
   },
   {
-    href: "/app/admin/ai-framework",
-    title: "AI governance framework",
+    href: '/app/admin/ai-framework',
+    title: 'AI governance framework',
     detail:
-      "Whether AI risk follows the UK framework (DSIT and the AI Playbook) or NIST AI RMF: the categories risks are filed under, appetite, treatments and the AI risk template.",
-    capability: "workflow.configure",
+      'Whether AI risk follows the UK framework (DSIT and the AI Playbook) or NIST AI RMF: the categories risks are filed under, appetite, treatments and the AI risk template.',
+    capability: 'workflow.configure'
   },
   {
-    href: "/app/admin/assistant",
-    title: "Assistant",
+    href: '/app/admin/assistant',
+    title: 'Assistant',
     detail:
-      "Point the platform at a model you control, and choose where it may appear. Off until you configure it.",
-    capability: "org.manage",
-  },
+      'Point the platform at a model you control, and choose where it may appear. Off until you configure it.',
+    capability: 'org.manage'
+  }
 ];
 
 export default async function AdminPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  const available = SETTINGS.filter((s) => can(active.membership.grants, s.capability));
+  const available = SETTINGS.filter((s) =>
+    can(active.membership.grants, s.capability)
+  );
   if (available.length === 0) {
     return (
       <NotPermitted
@@ -57,7 +60,10 @@ export default async function AdminPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
@@ -75,7 +81,9 @@ export default async function AdminPage() {
               className="block px-4 py-3.5 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
             >
               <p className="text-sm font-medium">{s.title}</p>
-              <p className="mt-0.5 max-w-prose text-xs text-ink-soft">{s.detail}</p>
+              <p className="mt-0.5 max-w-prose text-xs text-ink-soft">
+                {s.detail}
+              </p>
             </Link>
           </li>
         ))}

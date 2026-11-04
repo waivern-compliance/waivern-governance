@@ -1,22 +1,27 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { HelpLink } from "@/components/help/HelpLink";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can, kindsFor } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { shippedWorkflowsMissing, workflowsFor } from "@/services/approval-routing";
-import { AddStageForm, StageForm } from "./StageForm";
-import { installWorkflowsAction, resetWorkflowAction } from "./actions";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { can, kindsFor } from '@/lib/rbac';
+import { getActiveSession } from '@/lib/session';
+import {
+  shippedWorkflowsMissing,
+  workflowsFor
+} from '@/services/approval-routing';
+
+import { installWorkflowsAction, resetWorkflowAction } from './actions';
+import { AddStageForm, StageForm } from './StageForm';
 
 const KIND_LABEL: Record<string, string> = {
-  screening: "Screening",
-  dpia: "Data protection impact assessment",
-  lia: "Legitimate interests assessment",
-  tra: "Transfer risk assessment",
-  tia: "Transfer impact assessment",
-  ai_risk: "AI risk assessment",
-  supplier_record: "Supplier assessment",
-  eia: "Equality impact assessment",
+  screening: 'Screening',
+  dpia: 'Data protection impact assessment',
+  lia: 'Legitimate interests assessment',
+  tra: 'Transfer risk assessment',
+  tia: 'Transfer impact assessment',
+  ai_risk: 'AI risk assessment',
+  supplier_record: 'Supplier assessment',
+  eia: 'Equality impact assessment'
 };
 
 /**
@@ -30,9 +35,9 @@ const KIND_LABEL: Record<string, string> = {
  */
 export default async function WorkflowsPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "workflow.configure")) {
+  if (!can(active.membership.grants, 'workflow.configure')) {
     return (
       <NotPermitted
         what="Approval workflows"
@@ -44,30 +49,38 @@ export default async function WorkflowsPage() {
   // A role limited to some kinds sees and changes only those workflows. The
   // rest are not shown at all, rather than shown with their controls hidden,
   // because a stage one cannot touch reads as one somebody forgot to set up.
-  const kinds = kindsFor(active.membership.grants, "workflow.configure");
+  const kinds = kindsFor(active.membership.grants, 'workflow.configure');
   const reaches = (kind: string) => kinds === null || kinds.includes(kind);
   const [allWorkflows, allMissing] = await Promise.all([
     workflowsFor(active.membership.organisationId),
-    shippedWorkflowsMissing(active.membership.organisationId),
+    shippedWorkflowsMissing(active.membership.organisationId)
   ]);
   const workflows = allWorkflows.filter((w) => reaches(w.templateKind));
   const missing = allMissing.filter((m) => reaches(m.templateKind));
   const stranded = workflows.flatMap((w) =>
-    w.stages.filter((s) => s.eligible.length === 0).map((s) => ({ kind: w.templateKind, stage: s })),
+    w.stages
+      .filter((s) => s.eligible.length === 0)
+      .map((s) => ({ kind: w.templateKind, stage: s }))
   );
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-5">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Approval workflows</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Approval workflows
+        </h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          Who signs off each kind of assessment, and when a second opinion is required.
-          Approvers are named by role rather than by person, so somebody leaving is handled
-          by moving the role - every gate waiting on them follows, and nothing has to be
-          reassigned one assessment at a time.
+          Who signs off each kind of assessment, and when a second opinion is
+          required. Approvers are named by role rather than by person, so
+          somebody leaving is handled by moving the role - every gate waiting on
+          them follows, and nothing has to be reassigned one assessment at a
+          time.
         </p>
       </header>
 
@@ -75,22 +88,27 @@ export default async function WorkflowsPage() {
 
       {kinds !== null ? (
         <p className="text-sm text-ink-soft">
-          Your role configures the workflows for{" "}
-          {kinds.map((k) => KIND_LABEL[k] ?? k).join(", ")}. A privacy administrator or an
-          owner configures the rest.
+          Your role configures the workflows for{' '}
+          {kinds.map((k) => KIND_LABEL[k] ?? k).join(', ')}. A privacy
+          administrator or an owner configures the rest.
         </p>
       ) : null}
 
       {missing.length > 0 ? (
         <section className="space-y-2 rounded border border-amber-700 bg-amber-50 p-4">
           <h2 className="text-sm font-semibold text-amber-900">
-            {missing.length === 1 ? "A shipped workflow is" : `${missing.length} shipped workflows are`} not
-            installed
+            {missing.length === 1
+              ? 'A shipped workflow is'
+              : `${missing.length} shipped workflows are`}{' '}
+            not installed
           </h2>
           <p className="max-w-prose text-xs text-amber-900">
-            Until it is, these can be submitted but never approved:{" "}
-            {missing.map((m) => KIND_LABEL[m.templateKind] ?? m.templateKind).join(", ")}.
-            Installing adds the shipped stages; nothing you already have changes.
+            Until it is, these can be submitted but never approved:{' '}
+            {missing
+              .map((m) => KIND_LABEL[m.templateKind] ?? m.templateKind)
+              .join(', ')}
+            . Installing adds the shipped stages; nothing you already have
+            changes.
           </p>
           <form action={installWorkflowsAction}>
             <button
@@ -106,13 +124,17 @@ export default async function WorkflowsPage() {
       {stranded.length > 0 ? (
         <section className="space-y-2 rounded border border-amber-700 bg-amber-50 p-4">
           <h2 className="text-sm font-semibold text-amber-900">
-            {stranded.length} stage{stranded.length === 1 ? "" : "s"} nobody can decide
+            {stranded.length} stage{stranded.length === 1 ? '' : 's'} nobody can
+            decide
           </h2>
           <p className="max-w-prose text-xs text-amber-900">
-            No active member holds the required role, so any assessment reaching{" "}
-            {stranded.length === 1 ? "this gate" : "these gates"} will wait rather than fail.
-            Grant the role on{" "}
-            <Link href="/app/admin/people" className="underline">
+            No active member holds the required role, so any assessment reaching{' '}
+            {stranded.length === 1 ? 'this gate' : 'these gates'} will wait
+            rather than fail. Grant the role on{' '}
+            <Link
+              href="/app/admin/people"
+              className="underline"
+            >
               People and access
             </Link>
             , or change the role below.
@@ -120,7 +142,8 @@ export default async function WorkflowsPage() {
           <ul className="text-xs text-amber-900">
             {stranded.map(({ kind, stage }) => (
               <li key={stage.id}>
-                {KIND_LABEL[kind] ?? kind} → {stage.name} needs {stage.roleLabel}
+                {KIND_LABEL[kind] ?? kind} → {stage.name} needs{' '}
+                {stage.roleLabel}
               </li>
             ))}
           </ul>
@@ -129,20 +152,31 @@ export default async function WorkflowsPage() {
 
       {workflows.length === 0 ? (
         <p className="text-sm text-ink-soft">
-          No approval workflows are configured, which means nothing can be submitted for
-          approval. This normally means the organisation was created without its defaults.
+          No approval workflows are configured, which means nothing can be
+          submitted for approval. This normally means the organisation was
+          created without its defaults.
         </p>
       ) : null}
 
       {workflows.map((workflow) => (
-        <section key={workflow.id} className="space-y-3">
+        <section
+          key={workflow.id}
+          className="space-y-3"
+        >
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="text-sm font-semibold">
               {KIND_LABEL[workflow.templateKind] ?? workflow.templateKind}
-              <span className="ml-2 font-normal text-ink-soft">{workflow.name}</span>
+              <span className="ml-2 font-normal text-ink-soft">
+                {workflow.name}
+              </span>
             </h2>
-            <form action={resetWorkflowAction.bind(null, workflow.templateKind)}>
-              <button type="submit" className="text-xs text-ink-soft underline hover:text-ink">
+            <form
+              action={resetWorkflowAction.bind(null, workflow.templateKind)}
+            >
+              <button
+                type="submit"
+                className="text-xs text-ink-soft underline hover:text-ink"
+              >
                 Restore the shipped stages
               </button>
             </form>
@@ -150,18 +184,23 @@ export default async function WorkflowsPage() {
 
           {workflow.stages.length === 0 ? (
             <p className="rounded border border-amber-700 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-              This workflow has no stages, so assessments of this kind are approved by nobody.
+              This workflow has no stages, so assessments of this kind are
+              approved by nobody.
             </p>
           ) : (
             <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
               {workflow.stages.map((stage) => (
-                <StageForm key={stage.id} stage={stage} />
+                <StageForm
+                  key={stage.id}
+                  stage={stage}
+                />
               ))}
             </ul>
           )}
           <details className="rounded border border-line bg-surface">
             <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium">
-              Add a stage - for example a governance board or an ethics committee
+              Add a stage - for example a governance board or an ethics
+              committee
             </summary>
             <AddStageForm workflowId={workflow.id} />
           </details>
@@ -169,10 +208,10 @@ export default async function WorkflowsPage() {
       ))}
 
       <p className="max-w-prose text-xs text-ink-soft">
-        Changing a role redirects the approvals already waiting on that stage, because an
-        assessment sitting with the wrong approver is the problem being solved. Approvals
-        already decided keep their own record of who was entitled to decide them, so the
-        history does not move.
+        Changing a role redirects the approvals already waiting on that stage,
+        because an assessment sitting with the wrong approver is the problem
+        being solved. Approvals already decided keep their own record of who was
+        entitled to decide them, so the history does not move.
       </p>
     </main>
   );

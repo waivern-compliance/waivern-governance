@@ -1,10 +1,16 @@
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { integrationConnections } from "@/db/schema";
-import { openSecret, verifyRequest } from "./crypto";
+import { and, eq } from 'drizzle-orm';
+
+import { db } from '@/db/client';
+import { integrationConnections } from '@/db/schema';
+
+import { openSecret, verifyRequest } from './crypto';
 
 /** The connection kinds that may authenticate an inbound request. */
-export const INGEST_KINDS = ["waivern_portal", "har_analyser", "other"] as const;
+export const INGEST_KINDS = [
+  'waivern_portal',
+  'har_analyser',
+  'other'
+] as const;
 
 export type IngestKind = (typeof INGEST_KINDS)[number];
 
@@ -25,9 +31,9 @@ export type AuthedConnection = {
 /** Integrations act as themselves in the audit trail, never as a person. */
 export function connectionActor(connection: AuthedConnection) {
   return {
-    actorKind: "integration" as const,
+    actorKind: 'integration' as const,
     actorUserId: null,
-    actorLabel: `${connection.kind}:${connection.name}`,
+    actorLabel: `${connection.kind}:${connection.name}`
   };
 }
 
@@ -44,7 +50,7 @@ export type AuthFailure = {
 /** Bodies larger than this are refused before any parsing or signing work. */
 export const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
-const REFUSED: AuthFailure = { status: 401, message: "Rejected" };
+const REFUSED: AuthFailure = { status: 401, message: 'Rejected' };
 
 /**
  * Authenticate an inbound integration request.
@@ -55,25 +61,36 @@ const REFUSED: AuthFailure = { status: 401, message: "Rejected" };
  * only one of them was signed.
  */
 export async function authenticate(
-  request: Request,
-): Promise<{ ok: true; connection: AuthedConnection; body: string } | { ok: false; failure: AuthFailure }> {
-  const connectionId = request.headers.get("x-waivern-connection");
-  const timestamp = request.headers.get("x-waivern-timestamp");
-  const signature = request.headers.get("x-waivern-signature");
-  if (!connectionId || !timestamp || !signature) return { ok: false, failure: REFUSED };
+  request: Request
+): Promise<
+  | { ok: true; connection: AuthedConnection; body: string }
+  | { ok: false; failure: AuthFailure }
+> {
+  const connectionId = request.headers.get('x-waivern-connection');
+  const timestamp = request.headers.get('x-waivern-timestamp');
+  const signature = request.headers.get('x-waivern-signature');
+  if (!connectionId || !timestamp || !signature)
+    return { ok: false, failure: REFUSED };
 
-  const declared = request.headers.get("content-length");
+  const declared = request.headers.get('content-length');
   if (declared && Number(declared) > MAX_BODY_BYTES) {
-    return { ok: false, failure: { status: 413, message: "Payload too large" } };
+    return {
+      ok: false,
+      failure: { status: 413, message: 'Payload too large' }
+    };
   }
 
   const body = await request.text();
-  if (Buffer.byteLength(body, "utf8") > MAX_BODY_BYTES) {
-    return { ok: false, failure: { status: 413, message: "Payload too large" } };
+  if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) {
+    return {
+      ok: false,
+      failure: { status: 413, message: 'Payload too large' }
+    };
   }
 
   // A malformed id must not reach the query as a cast error.
-  if (!/^[0-9a-f-]{36}$/i.test(connectionId)) return { ok: false, failure: REFUSED };
+  if (!/^[0-9a-f-]{36}$/i.test(connectionId))
+    return { ok: false, failure: REFUSED };
 
   const [connection] = await db
     .select()
@@ -81,8 +98,8 @@ export async function authenticate(
     .where(
       and(
         eq(integrationConnections.id, connectionId),
-        eq(integrationConnections.isActive, true),
-      ),
+        eq(integrationConnections.isActive, true)
+      )
     );
   if (!connection) return { ok: false, failure: REFUSED };
 
@@ -98,7 +115,7 @@ export async function authenticate(
     secret = openSecret({
       ciphertext: connection.secretCiphertext,
       iv: connection.secretIv,
-      tag: connection.secretTag,
+      tag: connection.secretTag
     });
   } catch {
     // A secret that will not decrypt is a configuration fault, not a caller
@@ -114,7 +131,7 @@ export async function authenticate(
     signature,
     method: request.method,
     pathWithQuery: url.pathname + url.search,
-    body,
+    body
   });
   if (!check.ok) return { ok: false, failure: REFUSED };
 
@@ -131,16 +148,16 @@ export async function authenticate(
       organisationId: connection.organisationId,
       kind: connection.kind as IngestKind,
       name: connection.name,
-      defaultEntityId: connection.defaultEntityId,
-    },
+      defaultEntityId: connection.defaultEntityId
+    }
   };
 }
 
 /** Restrict an endpoint to the systems it is meant for. */
 export function requireKind(
   connection: AuthedConnection,
-  kinds: AuthedConnection["kind"][],
+  kinds: AuthedConnection['kind'][]
 ): AuthFailure | null {
   if (kinds.includes(connection.kind)) return null;
-  return { status: 403, message: "This connection may not use that endpoint" };
+  return { status: 403, message: 'This connection may not use that endpoint' };
 }

@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 export type StatusRow = {
   label: string;
   value: number;
-  tone: "good" | "warning" | "critical" | "neutral";
+  tone: 'good' | 'warning' | 'critical' | 'neutral';
 };
 
-const TONE: Record<StatusRow["tone"], string> = {
-  good: "var(--viz-good)",
-  warning: "var(--viz-warning)",
-  critical: "var(--viz-critical)",
-  neutral: "var(--viz-after)",
+const TONE: Record<StatusRow['tone'], string> = {
+  good: 'var(--viz-good)',
+  warning: 'var(--viz-warning)',
+  critical: 'var(--viz-critical)',
+  neutral: 'var(--viz-after)'
 };
 
 /**
@@ -25,7 +25,7 @@ const TONE: Record<StatusRow["tone"], string> = {
 export function StatusBars({
   rows,
   unit,
-  labelWidth = "7.5rem",
+  labelWidth = '7.5rem'
 }: {
   rows: StatusRow[];
   unit: string;
@@ -52,7 +52,7 @@ export function StatusBars({
               style={{
                 width: `${(r.value / max) * 100}%`,
                 background: TONE[r.tone],
-                minWidth: r.value > 0 ? "3px" : "0",
+                minWidth: r.value > 0 ? '3px' : '0'
               }}
             />
           </div>
@@ -61,7 +61,10 @@ export function StatusBars({
           </span>
         </div>
       ))}
-      <p className="min-h-[1.25rem] font-mono text-[11px] text-ink-soft" role="status">
+      <p
+        className="min-h-[1.25rem] font-mono text-[11px] text-ink-soft"
+        role="status"
+      >
         {hover
           ? `${hover}: ${rows.find((r) => r.label === hover)?.value} of ${total} ${unit}`
           : `${total} ${unit}`}

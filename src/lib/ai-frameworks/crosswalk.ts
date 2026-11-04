@@ -1,6 +1,7 @@
-import type { AiRiskCategory } from "@/lib/risk/categories";
-import type { TrustworthyCharacteristic } from "./nist-ai-rmf";
-import type { AiFrameworkId } from "./types";
+import type { AiRiskCategory } from '@/lib/risk/categories';
+
+import type { TrustworthyCharacteristic } from './nist-ai-rmf';
+import type { AiFrameworkId } from './types';
 
 /**
  * How the UK set and NIST AI RMF 1.0 line up.
@@ -27,23 +28,47 @@ import type { AiFrameworkId } from "./types";
  */
 export const DSIT_TO_NIST: Record<
   AiRiskCategory,
-  { characteristics: readonly TrustworthyCharacteristic[]; subcategories: readonly string[] }
+  {
+    characteristics: readonly TrustworthyCharacteristic[];
+    subcategories: readonly string[];
+  }
 > = {
-  financial: { characteristics: [], subcategories: ["MAP 3.2", "MANAGE 2.1", "MANAGE 2.2"] },
-  legal_regulatory: { characteristics: ["privacy_enhanced"], subcategories: ["GOVERN 1.1", "MAP 4.1", "MEASURE 2.10"] },
+  financial: {
+    characteristics: [],
+    subcategories: ['MAP 3.2', 'MANAGE 2.1', 'MANAGE 2.2']
+  },
+  legal_regulatory: {
+    characteristics: ['privacy_enhanced'],
+    subcategories: ['GOVERN 1.1', 'MAP 4.1', 'MEASURE 2.10']
+  },
   transparency_explainability: {
-    characteristics: ["accountable_transparent", "explainable_interpretable"],
-    subcategories: ["MAP 2.2", "MEASURE 2.8", "MEASURE 2.9"],
+    characteristics: ['accountable_transparent', 'explainable_interpretable'],
+    subcategories: ['MAP 2.2', 'MEASURE 2.8', 'MEASURE 2.9']
   },
-  fairness: { characteristics: ["fair_bias_managed"], subcategories: ["MEASURE 2.11", "MAP 5.1"] },
+  fairness: {
+    characteristics: ['fair_bias_managed'],
+    subcategories: ['MEASURE 2.11', 'MAP 5.1']
+  },
   accountability_governance: {
-    characteristics: ["accountable_transparent"],
-    subcategories: ["GOVERN 2.1", "GOVERN 2.3", "GOVERN 3.2", "MAP 3.5"],
+    characteristics: ['accountable_transparent'],
+    subcategories: ['GOVERN 2.1', 'GOVERN 2.3', 'GOVERN 3.2', 'MAP 3.5']
   },
-  contestability_redress: { characteristics: ["accountable_transparent"], subcategories: ["MEASURE 3.3", "MANAGE 4.1"] },
-  technical_robustness: { characteristics: ["valid_reliable"], subcategories: ["MEASURE 2.3", "MEASURE 2.4", "MEASURE 2.5"] },
-  security: { characteristics: ["secure_resilient"], subcategories: ["MEASURE 2.7"] },
-  environment_people: { characteristics: ["safe"], subcategories: ["MEASURE 2.6", "MEASURE 2.12"] },
+  contestability_redress: {
+    characteristics: ['accountable_transparent'],
+    subcategories: ['MEASURE 3.3', 'MANAGE 4.1']
+  },
+  technical_robustness: {
+    characteristics: ['valid_reliable'],
+    subcategories: ['MEASURE 2.3', 'MEASURE 2.4', 'MEASURE 2.5']
+  },
+  security: {
+    characteristics: ['secure_resilient'],
+    subcategories: ['MEASURE 2.7']
+  },
+  environment_people: {
+    characteristics: ['safe'],
+    subcategories: ['MEASURE 2.6', 'MEASURE 2.12']
+  }
 };
 
 /**
@@ -53,13 +78,13 @@ export const DSIT_TO_NIST: Record<
  * is chosen.
  */
 export const NIST_TO_DSIT: Record<TrustworthyCharacteristic, AiRiskCategory> = {
-  valid_reliable: "technical_robustness",
-  safe: "environment_people",
-  secure_resilient: "security",
-  accountable_transparent: "accountability_governance",
-  explainable_interpretable: "transparency_explainability",
-  privacy_enhanced: "legal_regulatory",
-  fair_bias_managed: "fairness",
+  valid_reliable: 'technical_robustness',
+  safe: 'environment_people',
+  secure_resilient: 'security',
+  accountable_transparent: 'accountability_governance',
+  explainable_interpretable: 'transparency_explainability',
+  privacy_enhanced: 'legal_regulatory',
+  fair_bias_managed: 'fairness'
 };
 
 /**
@@ -70,31 +95,110 @@ export const NIST_TO_DSIT: Record<TrustworthyCharacteristic, AiRiskCategory> = {
  * These were built from the UK set, and this is the evidence that they carry
  * over.
  */
-export const GOVERN_FEATURES_TO_NIST: ReadonlyArray<{ feature: string; label: string; subcategories: readonly string[] }> = [
-  { feature: "ai_register", label: "AI register", subcategories: ["GOVERN 1.6", "MAP 2.1"] },
-  { feature: "ai_intake", label: "Proposals to use AI, prioritised on value and feasibility", subcategories: ["MAP 1.3", "MAP 1.4", "MAP 3.1", "MAP 3.2"] },
-  { feature: "ai_risk_assessment", label: "AI risk identification and assessment", subcategories: ["MAP 1.1", "MAP 5.1", "MEASURE 1.1"] },
-  { feature: "risk_register", label: "Risk register, treatments and acceptance", subcategories: ["MANAGE 1.2", "MANAGE 1.3", "MANAGE 1.4", "MEASURE 3.1"] },
-  { feature: "risk_appetite", label: "Risk appetite per category", subcategories: ["GOVERN 1.3", "MAP 1.5"] },
-  { feature: "approval_chains", label: "Approval chains, with responsible AI review", subcategories: ["GOVERN 1.4", "GOVERN 2.1", "MEASURE 1.3"] },
-  { feature: "ai_board", label: "AI governance board stage", subcategories: ["GOVERN 2.3", "MANAGE 1.1"] },
+export const GOVERN_FEATURES_TO_NIST: ReadonlyArray<{
+  feature: string;
+  label: string;
+  subcategories: readonly string[];
+}> = [
   {
-    feature: "ai_assurance",
-    label: "Assurance records: tests, evaluations and model cards",
-    subcategories: ["MEASURE 1.3", "MEASURE 2.1", "MEASURE 2.3", "MEASURE 2.5", "MEASURE 2.7", "MEASURE 2.11"],
+    feature: 'ai_register',
+    label: 'AI register',
+    subcategories: ['GOVERN 1.6', 'MAP 2.1']
   },
-  { feature: "lifecycle_gates", label: "Lifecycle gates before going live", subcategories: ["MANAGE 1.1", "MEASURE 2.5", "GOVERN 1.5"] },
-  { feature: "retirement", label: "Retiring an AI system", subcategories: ["GOVERN 1.7", "MANAGE 2.4"] },
-  { feature: "training", label: "AI training requirements by role", subcategories: ["GOVERN 2.2", "MAP 3.4"] },
-  { feature: "ai_suppliers", label: "AI supplier assessment", subcategories: ["GOVERN 6.1", "GOVERN 6.2", "MAP 4.1", "MANAGE 3.1", "MANAGE 3.2"] },
   {
-    feature: "ai_incidents",
-    label: "AI incidents and concerns, raised confidentially if need be",
-    subcategories: ["GOVERN 4.3", "GOVERN 5.1", "MANAGE 2.3", "MANAGE 4.3", "MEASURE 3.3"],
+    feature: 'ai_intake',
+    label: 'Proposals to use AI, prioritised on value and feasibility',
+    subcategories: ['MAP 1.3', 'MAP 1.4', 'MAP 3.1', 'MAP 3.2']
   },
-  { feature: "atrs", label: "Algorithmic transparency records", subcategories: ["GOVERN 4.2", "MAP 2.2", "MEASURE 2.8"] },
-  { feature: "eia", label: "Equality impact assessment", subcategories: ["MEASURE 2.11", "MAP 5.1"] },
-  { feature: "dpia", label: "Data protection impact assessment", subcategories: ["MEASURE 2.10", "GOVERN 1.1"] },
+  {
+    feature: 'ai_risk_assessment',
+    label: 'AI risk identification and assessment',
+    subcategories: ['MAP 1.1', 'MAP 5.1', 'MEASURE 1.1']
+  },
+  {
+    feature: 'risk_register',
+    label: 'Risk register, treatments and acceptance',
+    subcategories: ['MANAGE 1.2', 'MANAGE 1.3', 'MANAGE 1.4', 'MEASURE 3.1']
+  },
+  {
+    feature: 'risk_appetite',
+    label: 'Risk appetite per category',
+    subcategories: ['GOVERN 1.3', 'MAP 1.5']
+  },
+  {
+    feature: 'approval_chains',
+    label: 'Approval chains, with responsible AI review',
+    subcategories: ['GOVERN 1.4', 'GOVERN 2.1', 'MEASURE 1.3']
+  },
+  {
+    feature: 'ai_board',
+    label: 'AI governance board stage',
+    subcategories: ['GOVERN 2.3', 'MANAGE 1.1']
+  },
+  {
+    feature: 'ai_assurance',
+    label: 'Assurance records: tests, evaluations and model cards',
+    subcategories: [
+      'MEASURE 1.3',
+      'MEASURE 2.1',
+      'MEASURE 2.3',
+      'MEASURE 2.5',
+      'MEASURE 2.7',
+      'MEASURE 2.11'
+    ]
+  },
+  {
+    feature: 'lifecycle_gates',
+    label: 'Lifecycle gates before going live',
+    subcategories: ['MANAGE 1.1', 'MEASURE 2.5', 'GOVERN 1.5']
+  },
+  {
+    feature: 'retirement',
+    label: 'Retiring an AI system',
+    subcategories: ['GOVERN 1.7', 'MANAGE 2.4']
+  },
+  {
+    feature: 'training',
+    label: 'AI training requirements by role',
+    subcategories: ['GOVERN 2.2', 'MAP 3.4']
+  },
+  {
+    feature: 'ai_suppliers',
+    label: 'AI supplier assessment',
+    subcategories: [
+      'GOVERN 6.1',
+      'GOVERN 6.2',
+      'MAP 4.1',
+      'MANAGE 3.1',
+      'MANAGE 3.2'
+    ]
+  },
+  {
+    feature: 'ai_incidents',
+    label: 'AI incidents and concerns, raised confidentially if need be',
+    subcategories: [
+      'GOVERN 4.3',
+      'GOVERN 5.1',
+      'MANAGE 2.3',
+      'MANAGE 4.3',
+      'MEASURE 3.3'
+    ]
+  },
+  {
+    feature: 'atrs',
+    label: 'Algorithmic transparency records',
+    subcategories: ['GOVERN 4.2', 'MAP 2.2', 'MEASURE 2.8']
+  },
+  {
+    feature: 'eia',
+    label: 'Equality impact assessment',
+    subcategories: ['MEASURE 2.11', 'MAP 5.1']
+  },
+  {
+    feature: 'dpia',
+    label: 'Data protection impact assessment',
+    subcategories: ['MEASURE 2.10', 'GOVERN 1.1']
+  }
 ];
 
 /**
@@ -109,18 +213,24 @@ export const GOVERN_FEATURES_TO_NIST: ReadonlyArray<{ feature: string; label: st
  * brings the transparency of who answers for a system. Each move is recorded
  * against the risk, so a wrong guess is visible and can be put right.
  */
-const UK_TO_NIST_REFILE: Partial<Record<AiRiskCategory, TrustworthyCharacteristic>> = {
-  transparency_explainability: "explainable_interpretable",
-  fairness: "fair_bias_managed",
-  accountability_governance: "accountable_transparent",
-  contestability_redress: "accountable_transparent",
-  technical_robustness: "valid_reliable",
-  security: "secure_resilient",
-  environment_people: "safe",
+const UK_TO_NIST_REFILE: Partial<
+  Record<AiRiskCategory, TrustworthyCharacteristic>
+> = {
+  transparency_explainability: 'explainable_interpretable',
+  fairness: 'fair_bias_managed',
+  accountability_governance: 'accountable_transparent',
+  contestability_redress: 'accountable_transparent',
+  technical_robustness: 'valid_reliable',
+  security: 'secure_resilient',
+  environment_people: 'safe'
 };
 
-export function refileCategory(category: string | null, to: AiFrameworkId): string | null {
+export function refileCategory(
+  category: string | null,
+  to: AiFrameworkId
+): string | null {
   if (!category) return null;
-  if (to === "nist_ai_rmf") return UK_TO_NIST_REFILE[category as AiRiskCategory] ?? null;
+  if (to === 'nist_ai_rmf')
+    return UK_TO_NIST_REFILE[category as AiRiskCategory] ?? null;
   return NIST_TO_DSIT[category as TrustworthyCharacteristic] ?? null;
 }

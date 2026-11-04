@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { recordBreachAction, type BreachResult } from "./actions";
+import { useActionState } from 'react';
+
+import { recordBreachAction, type BreachResult } from './actions';
 
 /**
  * Record it now, assess it after.
@@ -11,21 +12,27 @@ import { recordBreachAction, type BreachResult } from "./actions";
  * that demanded the assessment first would encourage recording it late.
  */
 export function RecordBreachForm({
-  entities,
+  entities
 }: {
   entities: Array<{ id: string; name: string }>;
 }) {
   const [result, action, pending] = useActionState<BreachResult, FormData>(
     recordBreachAction,
-    null,
+    null
   );
 
   return (
-    <details className="rounded border border-line bg-surface" open={Boolean(result && !result.ok)}>
+    <details
+      className="rounded border border-line bg-surface"
+      open={Boolean(result && !result.ok)}
+    >
       <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
         Record a breach
       </summary>
-      <form action={action} className="space-y-3 border-t border-line p-4">
+      <form
+        action={action}
+        className="space-y-3 border-t border-line p-4"
+      >
         <label className="block space-y-1">
           <Label text="What happened?" />
           <input
@@ -36,7 +43,10 @@ export function RecordBreachForm({
           />
         </label>
         <label className="block space-y-1">
-          <Label text="Describe it" hint="What is known so far. It can be added to." />
+          <Label
+            text="Describe it"
+            hint="What is known so far. It can be added to."
+          />
           <textarea
             name="description"
             required
@@ -59,7 +69,10 @@ export function RecordBreachForm({
             />
           </label>
           <label className="block space-y-1">
-            <Label text="When did it happen?" hint="If known. Often it is not." />
+            <Label
+              text="When did it happen?"
+              hint="If known. Often it is not."
+            />
             <input
               name="occurredAt"
               type="datetime-local"
@@ -70,7 +83,10 @@ export function RecordBreachForm({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1">
-            <Label text="Your role" hint="A processor tells the controller, not the authority." />
+            <Label
+              text="Your role"
+              hint="A processor tells the controller, not the authority."
+            />
             <select
               name="controllerRole"
               defaultValue="controller"
@@ -89,7 +105,12 @@ export function RecordBreachForm({
               className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
             >
               {entities.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
+                <option
+                  key={e.id}
+                  value={e.id}
+                >
+                  {e.name}
+                </option>
               ))}
             </select>
           </label>
@@ -100,12 +121,23 @@ export function RecordBreachForm({
             What kind of breach
           </legend>
           {[
-            ["confidentiality", "Confidentiality - seen or taken by somebody unauthorised"],
-            ["integrity", "Integrity - altered when it should not have been"],
-            ["availability", "Availability - lost, destroyed or unreachable"],
+            [
+              'confidentiality',
+              'Confidentiality - seen or taken by somebody unauthorised'
+            ],
+            ['integrity', 'Integrity - altered when it should not have been'],
+            ['availability', 'Availability - lost, destroyed or unreachable']
           ].map(([value, label]) => (
-            <label key={value} className="flex items-start gap-2.5 text-sm">
-              <input type="checkbox" name="categories" value={value} className="mt-1 accent-brand" />
+            <label
+              key={value}
+              className="flex items-start gap-2.5 text-sm"
+            >
+              <input
+                type="checkbox"
+                name="categories"
+                value={value}
+                className="mt-1 accent-brand"
+              />
               <span>{label}</span>
             </label>
           ))}
@@ -115,7 +147,11 @@ export function RecordBreachForm({
         </fieldset>
 
         <label className="flex items-start gap-2.5 text-sm">
-          <input type="checkbox" name="ownMe" className="mt-1 accent-brand" />
+          <input
+            type="checkbox"
+            name="ownMe"
+            className="mt-1 accent-brand"
+          />
           <span>I am handling this</span>
         </label>
 
@@ -124,8 +160,8 @@ export function RecordBreachForm({
             role="alert"
             className={`rounded border px-4 py-2.5 text-sm ${
               result.ok
-                ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                : "border-amber-700 bg-amber-50 text-amber-900"
+                ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                : 'border-amber-700 bg-amber-50 text-amber-900'
             }`}
           >
             {result.message}
@@ -137,7 +173,7 @@ export function RecordBreachForm({
           disabled={pending}
           className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
-          {pending ? "Recording…" : "Record it"}
+          {pending ? 'Recording…' : 'Record it'}
         </button>
         <p className="text-xs text-ink-soft">
           Record it before you know whether it is notifiable. Assessing comes
@@ -153,7 +189,9 @@ function Label({ text, hint }: { text: string; hint?: string }) {
     <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
       {text}
       {hint ? (
-        <span className="block font-normal normal-case tracking-normal">{hint}</span>
+        <span className="block font-normal normal-case tracking-normal">
+          {hint}
+        </span>
       ) : null}
     </span>
   );

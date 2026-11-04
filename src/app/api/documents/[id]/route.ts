@@ -1,9 +1,15 @@
-import { NextResponse } from "next/server";
-import { can } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { ContentAltered, DocumentQuarantined, readDocument, recordDownload } from "@/services/documents";
+import { NextResponse } from 'next/server';
 
-export const dynamic = "force-dynamic";
+import { can } from '@/lib/rbac';
+import { getActiveSession } from '@/lib/session';
+import {
+  ContentAltered,
+  DocumentQuarantined,
+  readDocument,
+  recordDownload
+} from '@/services/documents';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Hand back one stored file.
@@ -15,11 +21,12 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const active = await getActiveSession();
-  if (!active) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!active)
+    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
   let document;
   try {
@@ -29,48 +36,62 @@ export async function GET(
       // Refused rather than served. A file that no longer matches its hash is
       // exactly what this platform exists to notice.
       return NextResponse.json(
-        { error: "This file does not match the hash recorded when it was uploaded." },
-        { status: 409 },
+        {
+          error:
+            'This file does not match the hash recorded when it was uploaded.'
+        },
+        { status: 409 }
       );
     }
     if (error instanceof DocumentQuarantined) {
       // Held, not deleted: the virus scanner flagged it after it was stored,
       // and the privacy administrators have a task to decide what it is.
       return NextResponse.json(
-        { error: "The virus scanner flagged this file. It is held and cannot be downloaded." },
-        { status: 423 },
+        {
+          error:
+            'The virus scanner flagged this file. It is held and cannot be downloaded.'
+        },
+        { status: 423 }
       );
     }
     throw error;
   }
-  if (!document) return NextResponse.json({ error: "No such document" }, { status: 404 });
+  if (!document)
+    return NextResponse.json({ error: 'No such document' }, { status: 404 });
 
   if (
     !can(
       active.membership.grants,
-      "record.read",
-      document.entityId ?? undefined,
+      'record.read',
+      document.entityId ?? undefined
     )
   ) {
-    return NextResponse.json({ error: "Not part of your access" }, { status: 403 });
+    return NextResponse.json(
+      { error: 'Not part of your access' },
+      { status: 403 }
+    );
   }
 
   await recordDownload({
     organisationId: active.membership.organisationId,
     document,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
 
   return new NextResponse(new Uint8Array(document.content), {
     status: 200,
     headers: {
-      "content-type": document.contentType,
+      'content-type': document.contentType,
       // Attachment, always. A PDF rendered inline from a governance record is
       // content somebody else supplied being displayed by our origin.
-      "content-disposition": `attachment; filename="${document.filename.replace(/"/g, "")}"`,
-      "content-length": String(document.byteSize),
-      "cache-control": "private, no-store",
-      "x-content-type-options": "nosniff",
-    },
+      'content-disposition': `attachment; filename="${document.filename.replace(/"/g, '')}"`,
+      'content-length': String(document.byteSize),
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff'
+    }
   });
 }

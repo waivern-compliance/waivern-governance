@@ -1,8 +1,9 @@
-import { AssessmentForm } from "@/components/AssessmentForm";
-import { legalRefMap } from "@/lib/legal-refs";
-import { loadAssessment } from "@/services/assessments";
-import { redeemContributorLink } from "@/services/contributor-links";
-import { contributorFinishAction, contributorSaveAction } from "./actions";
+import { AssessmentForm } from '@/components/AssessmentForm';
+import { legalRefMap } from '@/lib/legal-refs';
+import { loadAssessment } from '@/services/assessments';
+import { redeemContributorLink } from '@/services/contributor-links';
+
+import { contributorFinishAction, contributorSaveAction } from './actions';
 
 /**
  * The no-account route.
@@ -12,7 +13,7 @@ import { contributorFinishAction, contributorSaveAction } from "./actions";
  * section that token covers.
  */
 export default async function ContributePage({
-  params,
+  params
 }: {
   params: Promise<{ token: string }>;
 }) {
@@ -24,10 +25,12 @@ export default async function ContributePage({
     // that a token exists but expired confirms the token was real.
     return (
       <Shell>
-        <h1 className="text-xl font-semibold tracking-tight">This link is no longer valid</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          This link is no longer valid
+        </h1>
         <p className="text-sm text-ink-soft">
-          It may have expired, been withdrawn, or the assessment may already have
-          been submitted. Ask whoever sent it to you for a new one.
+          It may have expired, been withdrawn, or the assessment may already
+          have been submitted. Ask whoever sent it to you for a new one.
         </p>
       </Shell>
     );
@@ -35,19 +38,23 @@ export default async function ContributePage({
 
   const loaded = await loadAssessment(
     redeemed.link.assessmentId,
-    redeemed.link.organisationId,
+    redeemed.link.organisationId
   );
   if (!loaded) {
     return (
       <Shell>
-        <h1 className="text-xl font-semibold tracking-tight">This link is no longer valid</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          This link is no longer valid
+        </h1>
       </Shell>
     );
   }
 
   const refs = await legalRefMap();
   const section = redeemed.link.sectionKey
-    ? loaded.definition.schema.sections.find((s) => s.key === redeemed.link.sectionKey)
+    ? loaded.definition.schema.sections.find(
+        (s) => s.key === redeemed.link.sectionKey
+      )
     : null;
 
   return (
@@ -56,13 +63,15 @@ export default async function ContributePage({
         <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
           {loaded.templateName}
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight">{loaded.assessment.title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {loaded.assessment.title}
+        </h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          You have been asked to complete{" "}
-          {section ? <strong>{section.title}</strong> : "this assessment"}. Your
-          answers are recorded against <span className="font-mono">{redeemed.link.email}</span>.
-          You do not need an account, and you can come back to this link until it
-          expires.
+          You have been asked to complete{' '}
+          {section ? <strong>{section.title}</strong> : 'this assessment'}. Your
+          answers are recorded against{' '}
+          <span className="font-mono">{redeemed.link.email}</span>. You do not
+          need an account, and you can come back to this link until it expires.
         </p>
       </header>
 
@@ -80,5 +89,7 @@ export default async function ContributePage({
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">{children}</main>;
+  return (
+    <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">{children}</main>
+  );
 }

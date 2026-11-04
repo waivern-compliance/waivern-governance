@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import type { EditResult } from "@/lib/edit-result";
-import { useRefusableAction } from "@/lib/use-refusable-action";
+import type { ReactNode } from 'react';
+
+import type { EditResult } from '@/lib/edit-result';
+import { useRefusableAction } from '@/lib/use-refusable-action';
 
 /**
  * A form that edits something already saved.
@@ -18,21 +19,31 @@ import { useRefusableAction } from "@/lib/use-refusable-action";
 export function EditForm({
   action,
   className,
-  children,
+  children
 }: {
   action: (previous: EditResult, formData: FormData) => Promise<EditResult>;
   className?: string;
   children: ReactNode;
 }) {
-  const { result, pending, formProps } = useRefusableAction<EditResult>(action, {
-    resetOnSuccess: false,
-  });
+  const { result, pending, formProps } = useRefusableAction<EditResult>(
+    action,
+    {
+      resetOnSuccess: false
+    }
+  );
 
   return (
-    <form {...formProps} aria-busy={pending} className={className}>
+    <form
+      {...formProps}
+      aria-busy={pending}
+      className={className}
+    >
       {children}
       {result && !result.ok ? (
-        <p role="alert" className="basis-full text-sm text-red-800 sm:col-span-full">
+        <p
+          role="alert"
+          className="basis-full text-sm text-red-800 sm:col-span-full"
+        >
           {result.message}
         </p>
       ) : null}

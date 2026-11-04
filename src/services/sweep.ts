@@ -1,5 +1,6 @@
-import { and, asc, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
   approvals,
@@ -15,30 +16,40 @@ import {
   schedules,
   slaPolicies,
   tasks,
-  templateVersions,
   templates,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { addMonths } from "@/lib/dates";
-import { queueNotification, raiseTask } from "./workflow";
-import { deliverPending } from "./webhooks";
-import { deliverNotifications } from "./member-email";
-import { countriesDueForReview } from "./countries";
-import { forgetExpiredConversations } from "./assistant";
-import { notificationDeadline } from "@/lib/breach/statutory";
-import { breachesNeedingAttention } from "./breaches";
-import { objectionCounts, objectionReviewThreshold, requestsNeedingAttention } from "./data-subject-requests";
-import { pruneIntakeAttempts } from "./dsr-intake";
-import { complaintsNeedingAttention } from "./complaints";
-import { propertiesDueForRescan } from "./storage-inventory";
-import { activitiesDueTpsScreening } from "./marketing";
-import { finishRunningScans } from "./consent-analyser";
-import { objectionReviewDue } from "@/lib/dsr/statutory";
-import { EXPIRING_WITHIN_LABEL, dpasNeedingAttention } from "./third-party";
-import { appetitesDueForReview } from "./risk-policy";
-import { scopeLabel } from "@/lib/risk/appetite";
-import { ScannerUnavailable, scanBuffer, scannerConfig, type ScannerConfig } from "@/lib/documents/scan";
-import { log } from "@/lib/log";
+  templateVersions
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { notificationDeadline } from '@/lib/breach/statutory';
+import { addMonths } from '@/lib/dates';
+import {
+  scanBuffer,
+  scannerConfig,
+  ScannerUnavailable,
+  type ScannerConfig
+} from '@/lib/documents/scan';
+import { objectionReviewDue } from '@/lib/dsr/statutory';
+import { log } from '@/lib/log';
+import { scopeLabel } from '@/lib/risk/appetite';
+
+import { forgetExpiredConversations } from './assistant';
+import { breachesNeedingAttention } from './breaches';
+import { complaintsNeedingAttention } from './complaints';
+import { finishRunningScans } from './consent-analyser';
+import { countriesDueForReview } from './countries';
+import {
+  objectionCounts,
+  objectionReviewThreshold,
+  requestsNeedingAttention
+} from './data-subject-requests';
+import { pruneIntakeAttempts } from './dsr-intake';
+import { activitiesDueTpsScreening } from './marketing';
+import { deliverNotifications } from './member-email';
+import { appetitesDueForReview } from './risk-policy';
+import { propertiesDueForRescan } from './storage-inventory';
+import { dpasNeedingAttention, EXPIRING_WITHIN_LABEL } from './third-party';
+import { deliverPending } from './webhooks';
+import { queueNotification, raiseTask } from './workflow';
 
 /**
  * Everything that happens because time passed.
@@ -56,9 +67,9 @@ import { log } from "@/lib/log";
  */
 
 const SYSTEM = {
-  actorKind: "system" as const,
+  actorKind: 'system' as const,
   actorUserId: null,
-  actorLabel: "scheduler",
+  actorLabel: 'scheduler'
 };
 
 export type SweepResult = {
@@ -93,18 +104,30 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
   const due = await db
     .select()
     .from(schedules)
-    .where(and(eq(schedules.organisationId, organisationId), eq(schedules.isActive, true)));
+    .where(
+      and(
+        eq(schedules.organisationId, organisationId),
+        eq(schedules.isActive, true)
+      )
+    );
 
   let raised = 0;
   for (const s of due) {
-    const raiseFrom = new Date(s.nextDueAt.getTime() - s.leadDays * 24 * 3600 * 1000);
+    const raiseFrom = new Date(
+      s.nextDueAt.getTime() - s.leadDays * 24 * 3600 * 1000
+    );
     if (raiseFrom.getTime() > Date.now()) continue;
 
     await db.transaction(async (tx) => {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: s.entityId,
-        type: s.action === "reassess" ? "reassess" : s.action === "verify" ? "verify_mitigation" : "review_assessment",
+        type:
+          s.action === 'reassess'
+            ? 'reassess'
+            : s.action === 'verify'
+              ? 'verify_mitigation'
+              : 'review_assessment',
         title: s.title,
         description: `Recurring ${s.action}, due ${s.nextDueAt.toISOString().slice(0, 10)}.`,
         subjectType: s.subjectType,
@@ -114,7 +137,7 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
         // Keyed on the occurrence, not the schedule, so each cycle raises
         // exactly one task however often the sweep runs.
         idempotencyKey: `schedule:${s.id}:${s.nextDueAt.toISOString().slice(0, 10)}`,
-        actor: SYSTEM,
+        actor: SYSTEM
       });
       if (task) raised += 1;
 
@@ -127,19 +150,19 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
        * at when the schedule was created — membership changes over a year, and
        * the record of who actually decided does not.
        */
-      if (s.action === "reassess" && s.subjectType === "assessment") {
+      if (s.action === 'reassess' && s.subjectType === 'assessment') {
         const decided = await tx
           .select({
             userId: approvals.decidedByUserId,
             name: approvals.name,
-            role: approvals.requiredRole,
+            role: approvals.requiredRole
           })
           .from(approvals)
           .where(
             and(
               eq(approvals.assessmentId, s.subjectId),
-              eq(approvals.status, "approved"),
-            ),
+              eq(approvals.status, 'approved')
+            )
           );
 
         const seen = new Set<string>();
@@ -152,8 +175,8 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
           const notice = await raiseTask(tx, {
             organisationId,
             entityId: s.entityId,
-            type: "review_assessment",
-            title: `Reapproval due: ${s.title.replace(/^Reassess /, "")}`,
+            type: 'review_assessment',
+            title: `Reapproval due: ${s.title.replace(/^Reassess /, '')}`,
             description:
               `You approved this at the "${gate.name}" stage. It is being reassessed and ` +
               `will need deciding again.`,
@@ -162,7 +185,7 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
             assigneeUserId: gate.userId,
             dueAt: s.nextDueAt,
             idempotencyKey: `reapproval:${s.id}:${s.nextDueAt.toISOString().slice(0, 10)}:${gate.userId}`,
-            actor: SYSTEM,
+            actor: SYSTEM
           });
           if (notice) raised += 1;
         }
@@ -172,7 +195,10 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
       // this occurrence is handled and the next one is what matters.
       await tx
         .update(schedules)
-        .set({ lastRunAt: new Date(), nextDueAt: addMonths(s.nextDueAt, s.intervalMonths) })
+        .set({
+          lastRunAt: new Date(),
+          nextDueAt: addMonths(s.nextDueAt, s.intervalMonths)
+        })
         .where(eq(schedules.id, s.id));
     });
   }
@@ -186,7 +212,9 @@ async function materialiseSchedules(organisationId: string): Promise<number> {
  * the system overturning a named person's decision without them, which is
  * exactly the thing this platform must not do — so the lapse becomes a prompt.
  */
-async function reviewLapsedAcceptances(organisationId: string): Promise<number> {
+async function reviewLapsedAcceptances(
+  organisationId: string
+): Promise<number> {
   const lapsed = await db
     .select({ acceptance: riskAcceptances, risk: risks })
     .from(riskAcceptances)
@@ -196,8 +224,8 @@ async function reviewLapsedAcceptances(organisationId: string): Promise<number> 
         eq(risks.organisationId, organisationId),
         isNull(riskAcceptances.supersededAt),
         isNull(riskAcceptances.revokedAt),
-        lte(riskAcceptances.expiresAt, new Date()),
-      ),
+        lte(riskAcceptances.expiresAt, new Date())
+      )
     );
 
   let raised = 0;
@@ -206,16 +234,16 @@ async function reviewLapsedAcceptances(organisationId: string): Promise<number> 
       const task = await raiseTask(tx, {
         organisationId,
         entityId: risk.entityId,
-        type: "review_acceptance",
+        type: 'review_acceptance',
         title: `Acceptance lapsed: ${risk.reference} ${risk.title}`,
         description:
           `Accepted by ${acceptance.acceptedByLabel} until ` +
           `${acceptance.expiresAt.toISOString().slice(0, 10)}. The risk remains recorded ` +
           `as accepted until somebody decides otherwise.`,
-        subjectType: "risk",
+        subjectType: 'risk',
         subjectId: risk.id,
         idempotencyKey: `acceptance-review:${acceptance.id}`,
-        actor: SYSTEM,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -224,7 +252,9 @@ async function reviewLapsedAcceptances(organisationId: string): Promise<number> 
 }
 
 /** Nudge mitigations that are due and not yet done. */
-async function remindOverdueMitigations(organisationId: string): Promise<number> {
+async function remindOverdueMitigations(
+  organisationId: string
+): Promise<number> {
   const overdue = await db
     .select({ mitigation: mitigations, risk: risks })
     .from(mitigations)
@@ -232,9 +262,9 @@ async function remindOverdueMitigations(organisationId: string): Promise<number>
     .where(
       and(
         eq(risks.organisationId, organisationId),
-        inArray(mitigations.status, ["planned", "in_progress"]),
-        lte(mitigations.dueAt, new Date()),
-      ),
+        inArray(mitigations.status, ['planned', 'in_progress']),
+        lte(mitigations.dueAt, new Date())
+      )
     );
 
   let raised = 0;
@@ -243,14 +273,14 @@ async function remindOverdueMitigations(organisationId: string): Promise<number>
       const task = await raiseTask(tx, {
         organisationId,
         entityId: risk.entityId,
-        type: "mitigation_due",
+        type: 'mitigation_due',
         title: `Overdue: ${mitigation.description}`,
         description: `On ${risk.reference} ${risk.title}.`,
-        subjectType: "mitigation",
+        subjectType: 'mitigation',
         subjectId: mitigation.id,
         assigneeUserId: mitigation.ownerId,
         idempotencyKey: `mitigation-overdue:${mitigation.id}:${mitigation.dueAt?.toISOString().slice(0, 10)}`,
-        actor: SYSTEM,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -273,17 +303,19 @@ async function recordBreaches(organisationId: string): Promise<number> {
     .where(
       and(
         eq(tasks.organisationId, organisationId),
-        inArray(tasks.status, ["open", "in_progress"]),
+        inArray(tasks.status, ['open', 'in_progress']),
         isNull(tasks.breachedAt),
-        lte(tasks.dueAt, new Date()),
-      ),
+        lte(tasks.dueAt, new Date())
+      )
     );
 
   const policies = await db
     .select()
     .from(slaPolicies)
     .where(eq(slaPolicies.organisationId, organisationId));
-  const escalateTo = new Map(policies.map((p) => [p.taskType, p.escalateToRole]));
+  const escalateTo = new Map(
+    policies.map((p) => [p.taskType, p.escalateToRole])
+  );
 
   let count = 0;
   for (const task of breached) {
@@ -297,25 +329,29 @@ async function recordBreaches(organisationId: string): Promise<number> {
       await appendAuditEvent(tx, {
         ...SYSTEM,
         organisationId,
-        action: "task.sla_breached",
-        subjectType: "task",
+        action: 'task.sla_breached',
+        subjectType: 'task',
         subjectId: task.id,
         entityId: task.entityId,
         after: {
           title: task.title,
           dueAt: task.dueAt?.toISOString() ?? null,
-          escalatedTo: escalateTo.get(task.type) ?? null,
-        },
+          escalatedTo: escalateTo.get(task.type) ?? null
+        }
       });
 
       await queueNotification(tx, {
         organisationId,
-        recipient: escalateTo.get(task.type) ?? task.assigneeEmail ?? task.assigneeRole ?? "unassigned",
-        kind: "task.sla_breached",
+        recipient:
+          escalateTo.get(task.type) ??
+          task.assigneeEmail ??
+          task.assigneeRole ??
+          'unassigned',
+        kind: 'task.sla_breached',
         subject: `Overdue: ${task.title}`,
         body: `Due ${task.dueAt?.toISOString().slice(0, 10)}, still ${task.status}.`,
         taskId: task.id,
-        idempotencyKey: `notify:breach:${task.id}`,
+        idempotencyKey: `notify:breach:${task.id}`
       });
       count += 1;
     });
@@ -338,17 +374,24 @@ async function recordBreaches(organisationId: string): Promise<number> {
 async function raiseCountryReviews(organisationId: string): Promise<number> {
   const due = (await countriesDueForReview()).filter(
     // A shared row is due for everybody; an override is due only for its owner.
-    (c) => c.organisationId === null || c.organisationId === organisationId,
+    (c) => c.organisationId === null || c.organisationId === organisationId
   );
   if (due.length === 0) return 0;
 
   const [entity] = await db
     .select()
     .from(entities)
-    .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+    .where(
+      and(
+        eq(entities.organisationId, organisationId),
+        eq(entities.isDefault, true)
+      )
+    );
   if (!entity) return 0;
 
-  const unverified = due.filter((c) => c.reviewedBy === "seed - not verified").length;
+  const unverified = due.filter(
+    (c) => c.reviewedBy === 'seed - not verified'
+  ).length;
   const oldest = due[0];
 
   // Keyed on the month, so a neglected library nags once a month rather than
@@ -360,18 +403,18 @@ async function raiseCountryReviews(organisationId: string): Promise<number> {
     const task = await raiseTask(tx, {
       organisationId,
       entityId: entity.id,
-      type: "review_assessment",
+      type: 'review_assessment',
       title: `${due.length} countries need their transfer information checked`,
       description:
         (unverified > 0
           ? `${unverified} have never been checked by a person. `
           : `Oldest is ${oldest.name}, last checked ${oldest.reviewedAt.toISOString().slice(0, 10)}. `) +
-        "Transfer assessments cite this library.",
-      subjectType: "country_risk",
+        'Transfer assessments cite this library.',
+      subjectType: 'country_risk',
       subjectId: oldest.id,
-      assigneeRole: "privacy_admin",
+      assigneeRole: 'privacy_admin',
       idempotencyKey: `country-library-review:${period}`,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
     if (task) raised = due.length;
   });
@@ -397,7 +440,12 @@ async function raiseDpaReviews(organisationId: string): Promise<number> {
   const [entity] = await db
     .select()
     .from(entities)
-    .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+    .where(
+      and(
+        eq(entities.organisationId, organisationId),
+        eq(entities.isDefault, true)
+      )
+    );
   if (!entity) return 0;
 
   const now = new Date();
@@ -420,19 +468,19 @@ async function raiseDpaReviews(organisationId: string): Promise<number> {
     const task = await raiseTask(tx, {
       organisationId,
       entityId: entity.id,
-      type: "review_assessment",
+      type: 'review_assessment',
       title: `${due.length} processor agreement(s) need attention`,
       description:
-        `${parts.join(", ")}. Earliest is ${first.supplier}` +
+        `${parts.join(', ')}. Earliest is ${first.supplier}` +
         (first.dpa.expiresAt
           ? `, ending ${first.dpa.expiresAt.toISOString().slice(0, 10)}.`
-          : ", which has no signature recorded.") +
-        " Processing under a lapsed agreement is processing without a contract.",
-      subjectType: "dpa",
+          : ', which has no signature recorded.') +
+        ' Processing under a lapsed agreement is processing without a contract.',
+      subjectType: 'dpa',
       subjectId: first.dpa.id,
-      assigneeRole: "privacy_admin",
+      assigneeRole: 'privacy_admin',
       idempotencyKey: `dpa-review:${period}`,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
     if (task) raised = due.length;
   });
@@ -457,35 +505,38 @@ async function raiseBreachDeadlines(organisationId: string): Promise<number> {
 
   let raised = 0;
   for (const { breach, clock, regime } of pressing) {
-    const overdue = clock.state === "overdue";
-    const pecr = regime === "pecr_5a";
+    const overdue = clock.state === 'overdue';
+    const pecr = regime === 'pecr_5a';
     await db.transaction(async (tx) => {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: breach.entityId,
-        type: "breach_deadline",
+        type: 'breach_deadline',
         title:
           (overdue
             ? `${breach.reference}: past seventy-two hours`
-            : `${breach.reference}: seventy-two hours running out`) + (pecr ? " (PECR reg 5A)" : ""),
+            : `${breach.reference}: seventy-two hours running out`) +
+          (pecr ? ' (PECR reg 5A)' : ''),
         description:
           `${clock.words}. ` +
           (pecr
             ? overdue
-              ? "PECR reg 5A still requires the Information Commission to be told, with the reasons for the delay."
-              : "Notify the Information Commission under PECR reg 5A. There is no risk test: every breach in providing the service is notified."
+              ? 'PECR reg 5A still requires the Information Commission to be told, with the reasons for the delay.'
+              : 'Notify the Information Commission under PECR reg 5A. There is no risk test: every breach in providing the service is notified.'
             : overdue
-              ? "Article 33(1) still requires notification, accompanied by the reasons for the delay."
-              : "Notify the supervisory authority, or record why Article 33 does not require it."),
-        subjectType: "breach",
+              ? 'Article 33(1) still requires notification, accompanied by the reasons for the delay.'
+              : 'Notify the supervisory authority, or record why Article 33 does not require it.'),
+        subjectType: 'breach',
         subjectId: breach.id,
-        assigneeRole: "privacy_admin",
+        assigneeRole: 'privacy_admin',
         // The statutory deadline, not a service level counted from now.
         // Without this the task inherits 72 hours from its own creation and
         // shows "in 4d" for something due this afternoon.
         dueAt: notificationDeadline(breach.discoveredAt),
-        idempotencyKey: pecr ? `breach-deadline-5a:${breach.id}:${clock.state}` : `breach-deadline:${breach.id}:${clock.state}`,
-        actor: SYSTEM,
+        idempotencyKey: pecr
+          ? `breach-deadline-5a:${breach.id}:${clock.state}`
+          : `breach-deadline:${breach.id}:${clock.state}`,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -507,31 +558,33 @@ async function raiseRequestDeadlines(organisationId: string): Promise<number> {
 
   let raised = 0;
   for (const { request, extended, clock } of pressing) {
-    if (!("dueAt" in clock)) continue;
-    const overdue = clock.state === "overdue";
+    if (!('dueAt' in clock)) continue;
+    const overdue = clock.state === 'overdue';
     await db.transaction(async (tx) => {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: request.entityId,
-        type: "dsr_deadline",
+        type: 'dsr_deadline',
         title: overdue
           ? `${request.reference}: past the deadline to respond`
           : `${request.reference}: deadline to respond is close`,
         description:
           `${clock.words} ` +
           (overdue
-            ? "The response is still owed. Send it, and record why it was late."
+            ? 'The response is still owed. Send it, and record why it was late.'
             : extended
-              ? "The time has already been extended; there is no further extension."
-              : "Respond, or extend by up to two months and tell the person why, before the deadline."),
-        subjectType: "data_subject_request",
+              ? 'The time has already been extended; there is no further extension.'
+              : 'Respond, or extend by up to two months and tell the person why, before the deadline.'),
+        subjectType: 'data_subject_request',
         subjectId: request.id,
         // The owner is who knows the request; with none, the privacy team.
-        ...(request.ownerId ? { assigneeUserId: request.ownerId } : { assigneeRole: "privacy_admin" as const }),
+        ...(request.ownerId
+          ? { assigneeUserId: request.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
         // The statutory deadline, not a service level counted from now.
         dueAt: clock.dueAt,
-        idempotencyKey: `dsr-deadline:${request.id}:${clock.state}:${extended ? "extended" : "original"}`,
-        actor: SYSTEM,
+        idempotencyKey: `dsr-deadline:${request.id}:${clock.state}:${extended ? 'extended' : 'original'}`,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -541,23 +594,23 @@ async function raiseRequestDeadlines(organisationId: string): Promise<number> {
 
 const COMPLAINT_DIAL = {
   acknowledgement: {
-    soon: "acknowledgement due",
-    over: "acknowledgement past the 30 days",
-    next: "Acknowledge it, as DPA 2018 s.164A(3) requires.",
-    late: "It is still owed. Acknowledge it, and record why it was late.",
+    soon: 'acknowledgement due',
+    over: 'acknowledgement past the 30 days',
+    next: 'Acknowledge it, as DPA 2018 s.164A(3) requires.',
+    late: 'It is still owed. Acknowledge it, and record why it was late.'
   },
   outcome: {
-    soon: "outcome target close",
-    over: "past your target for the outcome",
-    next: "Tell the complainant the outcome, or tell them how it stands and when to expect it.",
-    late: "The Act requires the outcome without undue delay. Send it, or update them and record why it is taking longer.",
+    soon: 'outcome target close',
+    over: 'past your target for the outcome',
+    next: 'Tell the complainant the outcome, or tell them how it stands and when to expect it.',
+    late: 'The Act requires the outcome without undue delay. Send it, or update them and record why it is taking longer.'
   },
   update: {
-    soon: "progress update due",
-    over: "progress update overdue",
-    next: "Tell the complainant how it stands (s.164A(5)(b)).",
-    late: "Tell the complainant how it stands (s.164A(5)(b)), and record the update.",
-  },
+    soon: 'progress update due',
+    over: 'progress update overdue',
+    next: 'Tell the complainant how it stands (s.164A(5)(b)).',
+    late: 'Tell the complainant how it stands (s.164A(5)(b)), and record the update.'
+  }
 } as const;
 
 /**
@@ -568,7 +621,9 @@ const COMPLAINT_DIAL = {
  * raised twice. Only the acknowledgement is the Act's; the others are the
  * organisation's own targets, and the task says so.
  */
-async function raiseComplaintDeadlines(organisationId: string): Promise<number> {
+async function raiseComplaintDeadlines(
+  organisationId: string
+): Promise<number> {
   const pressing = await complaintsNeedingAttention(organisationId);
   if (pressing.length === 0) return 0;
 
@@ -576,20 +631,22 @@ async function raiseComplaintDeadlines(organisationId: string): Promise<number> 
   for (const { complaint, pressing: dials } of pressing) {
     for (const dial of dials) {
       const words = COMPLAINT_DIAL[dial.which];
-      const overdue = dial.state === "overdue";
+      const overdue = dial.state === 'overdue';
       await db.transaction(async (tx) => {
         const task = await raiseTask(tx, {
           organisationId,
           entityId: complaint.entityId,
-          type: "complaint_deadline",
+          type: 'complaint_deadline',
           title: `${complaint.reference}: ${overdue ? words.over : words.soon}`,
           description: `${dial.words} ${overdue ? words.late : words.next}`,
-          subjectType: "data_protection_complaint",
+          subjectType: 'data_protection_complaint',
           subjectId: complaint.id,
-          ...(complaint.ownerId ? { assigneeUserId: complaint.ownerId } : { assigneeRole: "privacy_admin" as const }),
+          ...(complaint.ownerId
+            ? { assigneeUserId: complaint.ownerId }
+            : { assigneeRole: 'privacy_admin' as const }),
           dueAt: dial.dueAt,
           idempotencyKey: `complaint-deadline:${complaint.id}:${dial.which}:${dial.dueAt.toISOString().slice(0, 10)}:${dial.state}`,
-          actor: SYSTEM,
+          actor: SYSTEM
         });
         if (task) raised += 1;
       });
@@ -614,18 +671,22 @@ async function raiseRescans(organisationId: string): Promise<number> {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: property.entityId,
-        type: "pecr_rescan",
-        title: `${property.reference}: ${property.name} is ${state === "overdue" ? "overdue" : "due"} a cookie scan (${day})`,
+        type: 'pecr_rescan',
+        title: `${property.reference}: ${property.name} is ${state === 'overdue' ? 'overdue' : 'due'} a cookie scan (${day})`,
         description:
           `Scan ${property.url} with the Waivern Consent Analyser and upload the report, so the cookie inventory ` +
-          `reflects what the site sets today. Due every ${property.rescanIntervalMonths === 1 ? "month" : `${property.rescanIntervalMonths} months`}; ` +
-          (property.lastScannedAt ? `last scanned ${property.lastScannedAt.toISOString().slice(0, 10)}.` : "never scanned."),
-        subjectType: "digital_property",
+          `reflects what the site sets today. Due every ${property.rescanIntervalMonths === 1 ? 'month' : `${property.rescanIntervalMonths} months`}; ` +
+          (property.lastScannedAt
+            ? `last scanned ${property.lastScannedAt.toISOString().slice(0, 10)}.`
+            : 'never scanned.'),
+        subjectType: 'digital_property',
         subjectId: property.id,
-        ...(property.ownerId ? { assigneeUserId: property.ownerId } : { assigneeRole: "privacy_admin" as const }),
+        ...(property.ownerId
+          ? { assigneeUserId: property.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
         dueAt,
         idempotencyKey: `pecr-rescan:${property.id}:${day}`,
-        actor: SYSTEM,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -643,25 +704,29 @@ async function raiseTpsScreenings(organisationId: string): Promise<number> {
   let raised = 0;
   for (const { activity, dueAt, overdue } of due) {
     // One reminder per screening that runs out, and one for never having screened.
-    const key = activity.tpsScreenedAt ? dueAt.toISOString().slice(0, 10) : "never";
+    const key = activity.tpsScreenedAt
+      ? dueAt.toISOString().slice(0, 10)
+      : 'never';
     await db.transaction(async (tx) => {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: activity.entityId,
-        type: "marketing_tps_screening",
+        type: 'marketing_tps_screening',
         title: activity.tpsScreenedAt
-          ? `${activity.reference}: ${activity.name} ${overdue ? "is overdue" : "is due"} TPS screening (${key})`
+          ? `${activity.reference}: ${activity.name} ${overdue ? 'is overdue' : 'is due'} TPS screening (${key})`
           : `${activity.reference}: ${activity.name} has never been screened against the TPS`,
         description:
-          "Screen the call list against the Telephone and Corporate Telephone Preference Services and record the date. " +
-          "PECR regulation 21 bars calls to registered numbers unless the person has told you they do not object; a " +
-          "screening holds for 28 days.",
-        subjectType: "marketing_activity",
+          'Screen the call list against the Telephone and Corporate Telephone Preference Services and record the date. ' +
+          'PECR regulation 21 bars calls to registered numbers unless the person has told you they do not object; a ' +
+          'screening holds for 28 days.',
+        subjectType: 'marketing_activity',
         subjectId: activity.id,
-        ...(activity.ownerId ? { assigneeUserId: activity.ownerId } : { assigneeRole: "privacy_admin" as const }),
+        ...(activity.ownerId
+          ? { assigneeUserId: activity.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
         dueAt,
         idempotencyKey: `marketing-tps:${activity.id}:${key}`,
-        actor: SYSTEM,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -686,7 +751,9 @@ async function raiseObjectionReviews(organisationId: string): Promise<number> {
   const threshold = await objectionReviewThreshold(organisationId);
   if (threshold === 0) return 0;
   const counts = await objectionCounts(organisationId);
-  const due = [...counts].filter(([, c]) => objectionReviewDue(c.total, threshold));
+  const due = [...counts].filter(([, c]) =>
+    objectionReviewDue(c.total, threshold)
+  );
   if (due.length === 0) return 0;
 
   let raised = 0;
@@ -694,21 +761,35 @@ async function raiseObjectionReviews(organisationId: string): Promise<number> {
     const [activity] = await db
       .select()
       .from(processingActivities)
-      .where(and(eq(processingActivities.id, activityId), eq(processingActivities.organisationId, organisationId)));
+      .where(
+        and(
+          eq(processingActivities.id, activityId),
+          eq(processingActivities.organisationId, organisationId)
+        )
+      );
     if (!activity) continue;
     const [lia] = await db
       .select({ assessment: assessments })
       .from(assessments)
-      .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+      .innerJoin(
+        templateVersions,
+        eq(templateVersions.id, assessments.templateVersionId)
+      )
       .innerJoin(templates, eq(templates.id, templateVersions.templateId))
       .where(
         and(
           eq(assessments.organisationId, organisationId),
-          eq(assessments.subjectType, "processing_activity"),
+          eq(assessments.subjectType, 'processing_activity'),
           eq(assessments.subjectId, activityId),
-          eq(templates.kind, "lia"),
-          inArray(assessments.status, ["draft", "in_progress", "in_review", "returned", "approved"]),
-        ),
+          eq(templates.kind, 'lia'),
+          inArray(assessments.status, [
+            'draft',
+            'in_progress',
+            'in_review',
+            'returned',
+            'approved'
+          ])
+        )
       )
       .orderBy(sql`${assessments.createdAt} desc`)
       .limit(1);
@@ -718,26 +799,28 @@ async function raiseObjectionReviews(organisationId: string): Promise<number> {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: activity.entityId,
-        type: "reassess",
+        type: 'reassess',
         ...(lia
           ? {
               title: `Review the LIA for ${activity.reference} ${activity.name}: people keep objecting`,
               description: `${tally} Revisit the balancing test in ${lia.assessment.reference} with that in mind.`,
-              subjectType: "assessment" as const,
+              subjectType: 'assessment' as const,
               subjectId: lia.assessment.id,
               ...(lia.assessment.ownerId
                 ? { assigneeUserId: lia.assessment.ownerId }
-                : { assigneeRole: "privacy_admin" as const }),
+                : { assigneeRole: 'privacy_admin' as const })
             }
           : {
               title: `${activity.reference} ${activity.name} has no LIA, and people keep objecting`,
               description: `${tally} Carry out a legitimate interests assessment, or check the lawful basis recorded for it.`,
-              subjectType: "processing_activity" as const,
+              subjectType: 'processing_activity' as const,
               subjectId: activity.id,
-              ...(activity.ownerId ? { assigneeUserId: activity.ownerId } : { assigneeRole: "privacy_admin" as const }),
+              ...(activity.ownerId
+                ? { assigneeUserId: activity.ownerId }
+                : { assigneeRole: 'privacy_admin' as const })
             }),
         idempotencyKey: `objection-review:${activityId}:${Math.floor(count.total / threshold)}`,
-        actor: SYSTEM,
+        actor: SYSTEM
       });
       if (task) raised += 1;
     });
@@ -763,10 +846,10 @@ async function raiseLapsedReviews(organisationId: string): Promise<number> {
     .where(
       and(
         eq(assessments.organisationId, organisationId),
-        eq(assessments.status, "approved"),
+        eq(assessments.status, 'approved'),
         isNull(assessments.supersedesId),
-        lte(assessments.reviewDueAt, new Date()),
-      ),
+        lte(assessments.reviewDueAt, new Date())
+      )
     )
     .orderBy(asc(assessments.reviewDueAt));
   if (lapsed.length === 0) return 0;
@@ -779,7 +862,7 @@ async function raiseLapsedReviews(organisationId: string): Promise<number> {
     const task = await raiseTask(tx, {
       organisationId,
       entityId: oldest.entityId,
-      type: "reassess",
+      type: 'reassess',
       title:
         lapsed.length === 1
           ? `${oldest.reference} is past its review date`
@@ -787,11 +870,11 @@ async function raiseLapsedReviews(organisationId: string): Promise<number> {
       description:
         `Oldest is ${oldest.reference}, due ${oldest.reviewDueAt!.toISOString().slice(0, 10)}. ` +
         `An approved assessment past its review date is one the organisation is still relying on.`,
-      subjectType: "assessment",
+      subjectType: 'assessment',
       subjectId: oldest.id,
-      assigneeRole: "privacy_admin",
+      assigneeRole: 'privacy_admin',
       idempotencyKey: `lapsed-reviews:${period}`,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
     if (task) raised = lapsed.length;
   });
@@ -819,9 +902,9 @@ async function raiseAiReviews(organisationId: string): Promise<number> {
     .where(
       and(
         eq(aiUseCases.organisationId, organisationId),
-        ne(aiUseCases.lifecycleStage, "retired"),
-        lte(aiUseCases.nextReviewAt, new Date()),
-      ),
+        ne(aiUseCases.lifecycleStage, 'retired'),
+        lte(aiUseCases.nextReviewAt, new Date())
+      )
     )
     .orderBy(asc(aiUseCases.nextReviewAt));
   if (due.length === 0) return 0;
@@ -834,19 +917,19 @@ async function raiseAiReviews(organisationId: string): Promise<number> {
     const task = await raiseTask(tx, {
       organisationId,
       entityId: oldest.entityId,
-      type: "reassess",
+      type: 'reassess',
       title:
         due.length === 1
           ? `${oldest.reference} ${oldest.name} is due for review`
           : `${due.length} AI systems are past their review date`,
       description:
         `Oldest is ${oldest.reference}, due ${oldest.nextReviewAt!.toISOString().slice(0, 10)}. ` +
-        "Check whether the system, its data or how it is used has changed, and reassess its risks if so.",
-      subjectType: "ai_use_case",
+        'Check whether the system, its data or how it is used has changed, and reassess its risks if so.',
+      subjectType: 'ai_use_case',
       subjectId: oldest.id,
-      assigneeRole: "ai_governance",
+      assigneeRole: 'ai_governance',
       idempotencyKey: `ai-reviews:${period}`,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
     if (task) raised = due.length;
   });
@@ -870,7 +953,12 @@ async function raiseAppetiteReviews(organisationId: string): Promise<number> {
   const [entity] = await db
     .select()
     .from(entities)
-    .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+    .where(
+      and(
+        eq(entities.organisationId, organisationId),
+        eq(entities.isDefault, true)
+      )
+    );
   if (!entity) return 0;
 
   const period = new Date().toISOString().slice(0, 7);
@@ -880,19 +968,19 @@ async function raiseAppetiteReviews(organisationId: string): Promise<number> {
     const task = await raiseTask(tx, {
       organisationId,
       entityId: entity.id,
-      type: "review_acceptance",
+      type: 'review_acceptance',
       title:
         due.length === 1
           ? `Risk appetite for ${scopeLabel(oldest.category)} is due for review`
           : `${due.length} risk appetite statements are due for review`,
       description:
         `Oldest is ${scopeLabel(oldest.category)}, due ${oldest.reviewDueAt!.toISOString().slice(0, 10)}. ` +
-        "Every risk in the category is still judged against it. Confirm it or propose a replacement for sign-off.",
-      subjectType: "risk_appetite",
+        'Every risk in the category is still judged against it. Confirm it or propose a replacement for sign-off.',
+      subjectType: 'risk_appetite',
       subjectId: oldest.id,
-      assigneeRole: "privacy_admin",
+      assigneeRole: 'privacy_admin',
       idempotencyKey: `appetite-reviews:${period}`,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
     if (task) raised = due.length;
   });
@@ -916,7 +1004,7 @@ const SCAN_BATCH = 5;
  */
 async function scanStoredDocuments(
   organisationId: string,
-  config: ScannerConfig | null = scannerConfig(),
+  config: ScannerConfig | null = scannerConfig()
 ): Promise<{ scanned: number; quarantined: number }> {
   const done = { scanned: 0, quarantined: 0 };
   if (!config) return done;
@@ -930,12 +1018,17 @@ async function scanStoredDocuments(
         subjectId: documents.subjectId,
         filename: documents.filename,
         sha256: documents.sha256,
-        content: documents.content,
+        content: documents.content
       })
       .from(documents)
-      .where(and(eq(documents.organisationId, organisationId), isNull(documents.scannedAt)))
+      .where(
+        and(
+          eq(documents.organisationId, organisationId),
+          isNull(documents.scannedAt)
+        )
+      )
       .orderBy(asc(documents.uploadedAt))
-      .limit(SCAN_BATCH),
+      .limit(SCAN_BATCH)
   );
 
   for (const doc of due) {
@@ -944,19 +1037,21 @@ async function scanStoredDocuments(
       verdict = await scanBuffer(doc.content, config);
     } catch (error) {
       if (error instanceof ScannerUnavailable) {
-        log("warn", "sweep.scan_deferred", { remaining: due.length - done.scanned });
+        log('warn', 'sweep.scan_deferred', {
+          remaining: due.length - done.scanned
+        });
         break;
       }
       throw error;
     }
 
     const scannedAt = new Date();
-    if (verdict.outcome === "clean") {
+    if (verdict.outcome === 'clean') {
       await withOrganisation(organisationId, () =>
         db
           .update(documents)
           .set({ scannedAt, scannerVersion: verdict.scanner })
-          .where(eq(documents.id, doc.id)),
+          .where(eq(documents.id, doc.id))
       );
       done.scanned += 1;
       continue;
@@ -968,7 +1063,12 @@ async function scanStoredDocuments(
         const [entity] = await db
           .select({ id: entities.id })
           .from(entities)
-          .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+          .where(
+            and(
+              eq(entities.organisationId, organisationId),
+              eq(entities.isDefault, true)
+            )
+          );
         entityId = entity?.id ?? null;
       }
 
@@ -979,14 +1079,14 @@ async function scanStoredDocuments(
             scannedAt,
             scannerVersion: verdict.scanner,
             quarantinedAt: scannedAt,
-            quarantineSignature: verdict.signature,
+            quarantineSignature: verdict.signature
           })
           .where(eq(documents.id, doc.id));
         await appendAuditEvent(tx, {
           ...SYSTEM,
           organisationId,
           entityId: entityId ?? undefined,
-          action: "document.quarantined",
+          action: 'document.quarantined',
           subjectType: doc.subjectType,
           subjectId: doc.subjectId,
           after: {
@@ -994,24 +1094,24 @@ async function scanStoredDocuments(
             filename: doc.filename,
             sha256: doc.sha256,
             signature: verdict.signature,
-            scanner: verdict.scanner,
-          },
+            scanner: verdict.scanner
+          }
         });
         if (entityId) {
           await raiseTask(tx, {
             organisationId,
             entityId,
-            type: "review_assessment",
+            type: 'review_assessment',
             title: `A stored file was flagged by the virus scanner: ${doc.filename}`,
             description:
               `The scanner (${verdict.scanner}) found ${verdict.signature}. ` +
-              "The file is held and cannot be downloaded. Check it with whoever supplied it, " +
-              "then remove it, or replace it with a clean copy.",
+              'The file is held and cannot be downloaded. Check it with whoever supplied it, ' +
+              'then remove it, or replace it with a clean copy.',
             subjectType: doc.subjectType,
             subjectId: doc.subjectId,
-            assigneeRole: "privacy_admin",
+            assigneeRole: 'privacy_admin',
             idempotencyKey: `document-quarantine:${doc.id}`,
-            actor: SYSTEM,
+            actor: SYSTEM
           });
         }
       });
@@ -1022,8 +1122,13 @@ async function scanStoredDocuments(
   return done;
 }
 
-export async function sweepOrganisation(organisationId: string): Promise<SweepResult> {
-  const [org] = await db.select().from(organisations).where(eq(organisations.id, organisationId));
+export async function sweepOrganisation(
+  organisationId: string
+): Promise<SweepResult> {
+  const [org] = await db
+    .select()
+    .from(organisations)
+    .where(eq(organisations.id, organisationId));
   const result: SweepResult = {
     organisation: org?.name ?? organisationId,
     schedulesMaterialised: await materialiseSchedules(organisationId),
@@ -1052,7 +1157,7 @@ export async function sweepOrganisation(organisationId: string): Promise<SweepRe
     documentsQuarantined: 0,
     webhooksDelivered: 0,
     webhooksFailed: 0,
-    notificationsEmailed: 0,
+    notificationsEmailed: 0
   };
 
   // Only where this deployment runs a scanner; otherwise nothing is read.
@@ -1066,7 +1171,9 @@ export async function sweepOrganisation(organisationId: string): Promise<SweepRe
   result.webhooksDelivered = delivery.delivered;
   result.webhooksFailed = delivery.failed;
   // Then email, for the people who asked for it, where it is switched on.
-  result.notificationsEmailed = (await deliverNotifications(organisationId)).emailed;
+  result.notificationsEmailed = (
+    await deliverNotifications(organisationId)
+  ).emailed;
   return result;
 }
 
@@ -1083,7 +1190,12 @@ export async function pendingNotifications(organisationId: string) {
     return db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.organisationId, organisationId), isNull(notifications.sentAt)))
+      .where(
+        and(
+          eq(notifications.organisationId, organisationId),
+          isNull(notifications.sentAt)
+        )
+      )
       .orderBy(notifications.createdAt);
   });
 }

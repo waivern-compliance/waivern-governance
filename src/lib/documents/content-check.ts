@@ -14,10 +14,11 @@
  */
 
 const startsWith = (bytes: Buffer, signature: number[], at = 0) =>
-  bytes.length >= at + signature.length && signature.every((b, i) => bytes[at + i] === b);
+  bytes.length >= at + signature.length &&
+  signature.every((b, i) => bytes[at + i] === b);
 
 /** "%PDF-", which readers accept anywhere in the first kilobyte. */
-const isPdf = (bytes: Buffer) => bytes.subarray(0, 1024).includes("%PDF-");
+const isPdf = (bytes: Buffer) => bytes.subarray(0, 1024).includes('%PDF-');
 
 /**
  * An Office Open XML package: a zip whose parts name the application.
@@ -25,12 +26,13 @@ const isPdf = (bytes: Buffer) => bytes.subarray(0, 1024).includes("%PDF-");
  * Part names sit uncompressed in the zip's directory, so checking for them
  * needs no unzipping. A plain zip renamed `.docx` fails here.
  */
-const isOoxml = (bytes: Buffer, part: "word/" | "xl/") =>
+const isOoxml = (bytes: Buffer, part: 'word/' | 'xl/') =>
   startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) &&
-  bytes.includes("[Content_Types].xml") &&
+  bytes.includes('[Content_Types].xml') &&
   bytes.includes(part);
 
-const isPng = (bytes: Buffer) => startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const isPng = (bytes: Buffer) =>
+  startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const isJpeg = (bytes: Buffer) => startsWith(bytes, [0xff, 0xd8, 0xff]);
 
@@ -41,7 +43,7 @@ const isJpeg = (bytes: Buffer) => startsWith(bytes, [0xff, 0xd8, 0xff]);
 function isUtf8Text(bytes: Buffer): boolean {
   if (bytes.includes(0)) return false;
   try {
-    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     return true;
   } catch {
     return false;
@@ -49,20 +51,26 @@ function isUtf8Text(bytes: Buffer): boolean {
 }
 
 const CHECKS: Record<string, (bytes: Buffer) => boolean> = {
-  "application/pdf": isPdf,
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (b) => isOoxml(b, "word/"),
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (b) => isOoxml(b, "xl/"),
-  "text/plain": isUtf8Text,
-  "text/csv": isUtf8Text,
-  "image/png": isPng,
-  "image/jpeg": isJpeg,
+  'application/pdf': isPdf,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': (
+    b
+  ) => isOoxml(b, 'word/'),
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': (b) =>
+    isOoxml(b, 'xl/'),
+  'text/plain': isUtf8Text,
+  'text/csv': isUtf8Text,
+  'image/png': isPng,
+  'image/jpeg': isJpeg
 };
 
 /**
  * True when the bytes match the declared type. A type with no check is not on
  * the allowlist, so it is false rather than waved through.
  */
-export function contentMatchesType(contentType: string, bytes: Buffer): boolean {
+export function contentMatchesType(
+  contentType: string,
+  bytes: Buffer
+): boolean {
   const check = CHECKS[contentType];
   return check ? check(bytes) : false;
 }

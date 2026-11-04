@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db, withOrganisation } from "@/db/client";
+import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiIncidentEvents,
   aiIncidents,
@@ -9,13 +10,14 @@ import {
   referenceCounters,
   risks,
   tasks,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import type { RiskTier } from "@/lib/risk/scale";
-import type { Actor } from "./templates";
-import { raiseTask } from "./workflow";
-import { assertMemberOf } from "./tenancy-guards";
+  users
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import type { RiskTier } from '@/lib/risk/scale';
+
+import type { Actor } from './templates';
+import { assertMemberOf } from './tenancy-guards';
+import { raiseTask } from './workflow';
 
 /**
  * Reports about AI systems, and what was done about each.
@@ -26,50 +28,60 @@ import { assertMemberOf } from "./tenancy-guards";
  * law and the Playbook ask for.
  */
 
-export type IncidentKind = "incident" | "harm" | "challenge" | "concern";
-export type IncidentSource = "staff" | "public" | "monitoring" | "supplier" | "other";
-export type Harm = "none_known" | "potential" | "actual";
-export type IncidentStatus = "reported" | "triaged" | "investigating" | "resolved" | "closed";
+export type IncidentKind = 'incident' | 'harm' | 'challenge' | 'concern';
+export type IncidentSource =
+  | 'staff'
+  | 'public'
+  | 'monitoring'
+  | 'supplier'
+  | 'other';
+export type Harm = 'none_known' | 'potential' | 'actual';
+export type IncidentStatus =
+  | 'reported'
+  | 'triaged'
+  | 'investigating'
+  | 'resolved'
+  | 'closed';
 
 export const KIND_LABEL: Record<IncidentKind, string> = {
-  incident: "Incident - it failed or misbehaved",
-  harm: "Harm - someone was or may have been harmed",
-  challenge: "Challenge - someone is contesting an outcome",
-  concern: "Concern - raised about the system",
+  incident: 'Incident - it failed or misbehaved',
+  harm: 'Harm - someone was or may have been harmed',
+  challenge: 'Challenge - someone is contesting an outcome',
+  concern: 'Concern - raised about the system'
 };
 
 export const SOURCE_LABEL: Record<IncidentSource, string> = {
-  staff: "Staff",
-  public: "A member of the public",
+  staff: 'Staff',
+  public: 'A member of the public',
   monitoring: "The system's monitoring",
-  supplier: "A supplier",
-  other: "Somewhere else",
+  supplier: 'A supplier',
+  other: 'Somewhere else'
 };
 
 export const HARM_LABEL: Record<Harm, string> = {
-  none_known: "None known",
-  potential: "Possible",
-  actual: "Actual",
+  none_known: 'None known',
+  potential: 'Possible',
+  actual: 'Actual'
 };
 
 export const STATUS_LABEL: Record<IncidentStatus, string> = {
-  reported: "Reported",
-  triaged: "Triaged",
-  investigating: "Investigating",
-  resolved: "Resolved",
-  closed: "Closed",
+  reported: 'Reported',
+  triaged: 'Triaged',
+  investigating: 'Investigating',
+  resolved: 'Resolved',
+  closed: 'Closed'
 };
 
 /** Where a report can go next. Closed is final; a resolution can be reopened. */
 const NEXT: Record<IncidentStatus, IncidentStatus[]> = {
-  reported: ["triaged"],
-  triaged: ["investigating", "resolved"],
-  investigating: ["resolved"],
-  resolved: ["closed", "investigating"],
-  closed: [],
+  reported: ['triaged'],
+  triaged: ['investigating', 'resolved'],
+  investigating: ['resolved'],
+  resolved: ['closed', 'investigating'],
+  closed: []
 };
 
-export const OPEN: IncidentStatus[] = ["reported", "triaged", "investigating"];
+export const OPEN: IncidentStatus[] = ['reported', 'triaged', 'investigating'];
 
 export class IncidentRefused extends Error {}
 
@@ -81,7 +93,7 @@ async function nextReference(organisationId: string, year: number) {
       do update set next_value = ${referenceCounters}.next_value + 1
     returning next_value
   `);
-  return `AIINC-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, "0")}`;
+  return `AIINC-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 /**
@@ -108,8 +120,8 @@ export async function reportIncident(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const summary = input.summary.trim();
-    if (!summary) throw new IncidentRefused("Say what happened");
-    const reportedBy = input.reportedByLabel.trim() || "Not given";
+    if (!summary) throw new IncidentRefused('Say what happened');
+    const reportedBy = input.reportedByLabel.trim() || 'Not given';
 
     let entityId = input.entityId ?? null;
     let assignee: string | null = null;
@@ -119,9 +131,12 @@ export async function reportIncident(input: {
         .select()
         .from(aiUseCases)
         .where(
-          and(eq(aiUseCases.id, input.useCaseId), eq(aiUseCases.organisationId, input.organisationId)),
+          and(
+            eq(aiUseCases.id, input.useCaseId),
+            eq(aiUseCases.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such AI use case");
+      if (!row) throw new Error('No such AI use case');
       useCase = row;
       entityId = row.entityId;
       assignee = row.governanceOfficerId ?? row.ownerId;
@@ -130,12 +145,20 @@ export async function reportIncident(input: {
       const [fallback] = await db
         .select()
         .from(entities)
-        .where(and(eq(entities.organisationId, input.organisationId), eq(entities.isDefault, true)));
-      if (!fallback) throw new Error("No default entity");
+        .where(
+          and(
+            eq(entities.organisationId, input.organisationId),
+            eq(entities.isDefault, true)
+          )
+        );
+      if (!fallback) throw new Error('No default entity');
       entityId = fallback.id;
     }
 
-    const reference = await nextReference(input.organisationId, new Date().getUTCFullYear());
+    const reference = await nextReference(
+      input.organisationId,
+      new Date().getUTCFullYear()
+    );
 
     return db.transaction(async (tx) => {
       const [incident] = await tx
@@ -154,46 +177,48 @@ export async function reportIncident(input: {
           confidential: input.confidential,
           assignedToUserId: assignee,
           occurredAt: input.occurredAt ?? null,
-          recordedByUserId: input.actor.actorUserId ?? null,
+          recordedByUserId: input.actor.actorUserId ?? null
         })
         .returning();
 
       await tx.insert(aiIncidentEvents).values({
         incidentId: incident.id,
         fromStatus: null,
-        toStatus: "reported",
-        note: "Reported.",
+        toStatus: 'reported',
+        note: 'Reported.',
         byUserId: input.actor.actorUserId ?? null,
         // Who recorded it, which for a confidential concern may be the person
         // who raised it — so the timeline follows the same rule as the report.
-        byLabel: input.confidential ? "Recorded confidentially" : input.actor.actorLabel,
+        byLabel: input.confidential
+          ? 'Recorded confidentially'
+          : input.actor.actorLabel
       });
 
       await raiseTask(tx, {
         organisationId: input.organisationId,
         entityId: entityId!,
-        type: "triage_incident",
+        type: 'triage_incident',
         title: `${reference}: ${summary.slice(0, 80)}`,
         description:
-          `${KIND_LABEL[input.kind].split(" - ")[0]}${useCase ? ` about ${useCase.reference} ${useCase.name}` : ""}. ` +
-          (input.harm === "actual" ? "Harm is reported as actual. " : "") +
-          "Decide what it needs, and who handles it.",
-        subjectType: "ai_incident",
+          `${KIND_LABEL[input.kind].split(' - ')[0]}${useCase ? ` about ${useCase.reference} ${useCase.name}` : ''}. ` +
+          (input.harm === 'actual' ? 'Harm is reported as actual. ' : '') +
+          'Decide what it needs, and who handles it.',
+        subjectType: 'ai_incident',
         subjectId: incident.id,
         assigneeUserId: assignee,
-        assigneeRole: assignee ? undefined : "ai_governance",
+        assigneeRole: assignee ? undefined : 'ai_governance',
         idempotencyKey: `incident-triage:${incident.id}`,
-        actor: input.actor,
+        actor: input.actor
       });
 
       await appendAuditEvent(tx, {
         ...input.actor,
         // A confidential concern's audit entry does not name who recorded it
         // either: the audit log is readable by more people than the concern is.
-        ...(input.confidential ? { actorLabel: "confidential report" } : {}),
+        ...(input.confidential ? { actorLabel: 'confidential report' } : {}),
         organisationId: input.organisationId,
-        action: "ai_incident.reported",
-        subjectType: "ai_incident",
+        action: 'ai_incident.reported',
+        subjectType: 'ai_incident',
         subjectId: incident.id,
         entityId: entityId!,
         after: {
@@ -202,8 +227,8 @@ export async function reportIncident(input: {
           source: input.source,
           harm: input.harm,
           useCase: useCase?.reference ?? null,
-          confidential: input.confidential,
-        },
+          confidential: input.confidential
+        }
       });
       return incident;
     });
@@ -214,8 +239,13 @@ async function loadForUpdate(incidentId: string, organisationId: string) {
   const [incident] = await db
     .select()
     .from(aiIncidents)
-    .where(and(eq(aiIncidents.id, incidentId), eq(aiIncidents.organisationId, organisationId)));
-  if (!incident) throw new Error("No such incident");
+    .where(
+      and(
+        eq(aiIncidents.id, incidentId),
+        eq(aiIncidents.organisationId, organisationId)
+      )
+    );
+  if (!incident) throw new Error('No such incident');
   return incident;
 }
 
@@ -235,67 +265,81 @@ export async function triageIncident(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const note = input.note.trim();
-    if (!note) throw new IncidentRefused("Say what you decided and why");
-    const incident = await loadForUpdate(input.incidentId, input.organisationId);
-    if (incident.status !== "reported") throw new IncidentRefused("This has already been triaged");
+    if (!note) throw new IncidentRefused('Say what you decided and why');
+    const incident = await loadForUpdate(
+      input.incidentId,
+      input.organisationId
+    );
+    if (incident.status !== 'reported')
+      throw new IncidentRefused('This has already been triaged');
 
     if (input.linkedRiskId) {
       const [risk] = await db
         .select({ id: risks.id })
         .from(risks)
-        .where(and(eq(risks.id, input.linkedRiskId), eq(risks.organisationId, input.organisationId)));
-      if (!risk) throw new IncidentRefused("No such risk");
+        .where(
+          and(
+            eq(risks.id, input.linkedRiskId),
+            eq(risks.organisationId, input.organisationId)
+          )
+        );
+      if (!risk) throw new IncidentRefused('No such risk');
     }
-    if (input.assignedToUserId) await assertMemberOf(input.organisationId, input.assignedToUserId);
+    if (input.assignedToUserId)
+      await assertMemberOf(input.organisationId, input.assignedToUserId);
 
     return db.transaction(async (tx) => {
       const now = new Date();
       const [after] = await tx
         .update(aiIncidents)
         .set({
-          status: "triaged",
+          status: 'triaged',
           severity: input.severity,
           harm: input.harm,
           assignedToUserId: input.assignedToUserId,
           linkedRiskId: input.linkedRiskId ?? incident.linkedRiskId,
-          updatedAt: now,
+          updatedAt: now
         })
         .where(eq(aiIncidents.id, incident.id))
         .returning();
 
       await tx.insert(aiIncidentEvents).values({
         incidentId: incident.id,
-        fromStatus: "reported",
-        toStatus: "triaged",
+        fromStatus: 'reported',
+        toStatus: 'triaged',
         note,
         byUserId: input.actor.actorUserId ?? null,
-        byLabel: input.actor.actorLabel,
+        byLabel: input.actor.actorLabel
       });
 
       await tx
         .update(tasks)
-        .set({ status: "done", completedAt: now, completedByLabel: input.actor.actorLabel })
+        .set({
+          status: 'done',
+          completedAt: now,
+          completedByLabel: input.actor.actorLabel
+        })
         .where(
           and(
             eq(tasks.organisationId, input.organisationId),
-            eq(tasks.idempotencyKey, `incident-triage:${incident.id}`),
-          ),
+            eq(tasks.idempotencyKey, `incident-triage:${incident.id}`)
+          )
         );
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_incident.triaged",
-        subjectType: "ai_incident",
+        action: 'ai_incident.triaged',
+        subjectType: 'ai_incident',
         subjectId: incident.id,
         entityId: incident.entityId,
         before: { status: incident.status, harm: incident.harm },
         after: {
-          status: "triaged",
+          status: 'triaged',
           severity: input.severity,
           harm: input.harm,
-          linkedRisk: after.linkedRiskId,
-        },
+          linkedRisk: after.linkedRiskId
+        }
       });
       return after;
     });
@@ -316,19 +360,22 @@ export async function advanceIncident(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const note = input.note.trim();
-    if (!note) throw new IncidentRefused("Say what was done");
-    const incident = await loadForUpdate(input.incidentId, input.organisationId);
+    if (!note) throw new IncidentRefused('Say what was done');
+    const incident = await loadForUpdate(
+      input.incidentId,
+      input.organisationId
+    );
     const current = incident.status as IncidentStatus;
     if (!NEXT[current].includes(input.to)) {
       throw new IncidentRefused(
-        current === "reported"
-          ? "Triage it first"
-          : `It cannot go from ${STATUS_LABEL[current].toLowerCase()} to ${STATUS_LABEL[input.to].toLowerCase()}`,
+        current === 'reported'
+          ? 'Triage it first'
+          : `It cannot go from ${STATUS_LABEL[current].toLowerCase()} to ${STATUS_LABEL[input.to].toLowerCase()}`
       );
     }
     const outcome = input.outcome?.trim() || incident.outcome;
-    if (input.to === "resolved" && !outcome?.trim()) {
-      throw new IncidentRefused("Say how it was resolved");
+    if (input.to === 'resolved' && !outcome?.trim()) {
+      throw new IncidentRefused('Say how it was resolved');
     }
 
     return db.transaction(async (tx) => {
@@ -338,9 +385,14 @@ export async function advanceIncident(input: {
         .set({
           status: input.to,
           outcome,
-          resolvedAt: input.to === "resolved" ? now : input.to === "investigating" ? null : incident.resolvedAt,
-          closedAt: input.to === "closed" ? now : null,
-          updatedAt: now,
+          resolvedAt:
+            input.to === 'resolved'
+              ? now
+              : input.to === 'investigating'
+                ? null
+                : incident.resolvedAt,
+          closedAt: input.to === 'closed' ? now : null,
+          updatedAt: now
         })
         .where(eq(aiIncidents.id, incident.id))
         .returning();
@@ -351,18 +403,21 @@ export async function advanceIncident(input: {
         toStatus: input.to,
         note,
         byUserId: input.actor.actorUserId ?? null,
-        byLabel: input.actor.actorLabel,
+        byLabel: input.actor.actorLabel
       });
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
         action: `ai_incident.${input.to}`,
-        subjectType: "ai_incident",
+        subjectType: 'ai_incident',
         subjectId: incident.id,
         entityId: incident.entityId,
         before: { status: current },
-        after: { status: input.to, ...(input.to === "resolved" ? { outcome } : {}) },
+        after: {
+          status: input.to,
+          ...(input.to === 'resolved' ? { outcome } : {})
+        }
       });
       return after;
     });
@@ -372,15 +427,19 @@ export async function advanceIncident(input: {
 export async function listIncidents(
   organisationId: string,
   entityIds: string[] | null,
-  opts: { useCaseId?: string; openOnly?: boolean } = {},
+  opts: { useCaseId?: string; openOnly?: boolean } = {}
 ) {
   return withOrganisation(organisationId, async () => {
-    const assignees = alias(users, "assignee");
+    const assignees = alias(users, 'assignee');
     return db
       .select({
         incident: aiIncidents,
-        useCase: { id: aiUseCases.id, reference: aiUseCases.reference, name: aiUseCases.name },
-        assigneeEmail: assignees.email,
+        useCase: {
+          id: aiUseCases.id,
+          reference: aiUseCases.reference,
+          name: aiUseCases.name
+        },
+        assigneeEmail: assignees.email
       })
       .from(aiIncidents)
       .leftJoin(aiUseCases, eq(aiUseCases.id, aiIncidents.aiUseCaseId))
@@ -388,10 +447,14 @@ export async function listIncidents(
       .where(
         and(
           eq(aiIncidents.organisationId, organisationId),
-          entityIds === null ? undefined : inArray(aiIncidents.entityId, entityIds),
-          opts.useCaseId ? eq(aiIncidents.aiUseCaseId, opts.useCaseId) : undefined,
-          opts.openOnly ? inArray(aiIncidents.status, OPEN) : undefined,
-        ),
+          entityIds === null
+            ? undefined
+            : inArray(aiIncidents.entityId, entityIds),
+          opts.useCaseId
+            ? eq(aiIncidents.aiUseCaseId, opts.useCaseId)
+            : undefined,
+          opts.openOnly ? inArray(aiIncidents.status, OPEN) : undefined
+        )
       )
       .orderBy(desc(aiIncidents.reportedAt));
   });
@@ -409,32 +472,47 @@ export async function loadIncident(incidentId: string, organisationId: string) {
         .orderBy(aiIncidentEvents.at),
       row.incident.linkedRiskId
         ? db
-            .select({ id: risks.id, reference: risks.reference, title: risks.title })
+            .select({
+              id: risks.id,
+              reference: risks.reference,
+              title: risks.title
+            })
             .from(risks)
             .where(eq(risks.id, row.incident.linkedRiskId))
             .then((r) => r[0] ?? null)
-        : Promise.resolve(null),
+        : Promise.resolve(null)
     ]);
     return { ...row, events, linkedRisk };
   });
 }
 
 async function listIncidentsById(incidentId: string, organisationId: string) {
-  const assignees = alias(users, "assignee");
+  const assignees = alias(users, 'assignee');
   return db
     .select({
       incident: aiIncidents,
-      useCase: { id: aiUseCases.id, reference: aiUseCases.reference, name: aiUseCases.name },
-      assigneeEmail: assignees.email,
+      useCase: {
+        id: aiUseCases.id,
+        reference: aiUseCases.reference,
+        name: aiUseCases.name
+      },
+      assigneeEmail: assignees.email
     })
     .from(aiIncidents)
     .leftJoin(aiUseCases, eq(aiUseCases.id, aiIncidents.aiUseCaseId))
     .leftJoin(assignees, eq(assignees.id, aiIncidents.assignedToUserId))
-    .where(and(eq(aiIncidents.id, incidentId), eq(aiIncidents.organisationId, organisationId)));
+    .where(
+      and(
+        eq(aiIncidents.id, incidentId),
+        eq(aiIncidents.organisationId, organisationId)
+      )
+    );
 }
 
 /** Systems with a report of actual harm still open, for the register. One query. */
-export async function systemsWithUnresolvedHarm(organisationId: string): Promise<Set<string>> {
+export async function systemsWithUnresolvedHarm(
+  organisationId: string
+): Promise<Set<string>> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({ id: aiIncidents.aiUseCaseId })
@@ -442,11 +520,13 @@ export async function systemsWithUnresolvedHarm(organisationId: string): Promise
       .where(
         and(
           eq(aiIncidents.organisationId, organisationId),
-          eq(aiIncidents.harm, "actual"),
-          notInArray(aiIncidents.status, ["resolved", "closed"]),
-        ),
+          eq(aiIncidents.harm, 'actual'),
+          notInArray(aiIncidents.status, ['resolved', 'closed'])
+        )
       );
-    return new Set(rows.map((r) => r.id).filter((id): id is string => id !== null));
+    return new Set(
+      rows.map((r) => r.id).filter((id): id is string => id !== null)
+    );
   });
 }
 
@@ -459,8 +539,10 @@ export async function systemsWithUnresolvedHarm(organisationId: string): Promise
  */
 export function reporterVisible(
   incident: { confidential: boolean; assignedToUserId: string | null },
-  viewer: { userId: string; mayReadConfidential: boolean },
+  viewer: { userId: string; mayReadConfidential: boolean }
 ): boolean {
   if (!incident.confidential) return true;
-  return viewer.mayReadConfidential || incident.assignedToUserId === viewer.userId;
+  return (
+    viewer.mayReadConfidential || incident.assignedToUserId === viewer.userId
+  );
 }

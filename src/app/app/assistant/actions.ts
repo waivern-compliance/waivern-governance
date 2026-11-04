@@ -1,10 +1,10 @@
-"use server";
+'use server';
 
-import { type ChatState } from "@/lib/assistant/chat-state";
-import { requireCapability } from "@/lib/session";
-import { searchHelp } from "@/lib/help/search";
-import { HELP_TOPICS } from "@/lib/help/topics";
-import { converse, type Surface } from "@/services/assistant";
+import { type ChatState } from '@/lib/assistant/chat-state';
+import { searchHelp } from '@/lib/help/search';
+import { HELP_TOPICS } from '@/lib/help/topics';
+import { requireCapability } from '@/lib/session';
+import { converse, type Surface } from '@/services/assistant';
 
 /**
  * Ground a help answer in the shipped documentation.
@@ -16,22 +16,25 @@ import { converse, type Surface } from "@/services/assistant";
 function helpContext(question: string): string {
   const hits = searchHelp(HELP_TOPICS, question).slice(0, 3);
   if (hits.length === 0) {
-    return "No documentation matched this question. Say so rather than answering from general knowledge.";
+    return 'No documentation matched this question. Say so rather than answering from general knowledge.';
   }
   return [
-    "Answer only from the documentation below, and name the topic you used.",
-    "If it does not cover the question, say so.",
-    "",
+    'Answer only from the documentation below, and name the topic you used.',
+    'If it does not cover the question, say so.',
+    '',
     ...hits.map(({ topic }) =>
       [
         `## ${topic.title} (topic id: ${topic.id})`,
         topic.summary,
-        ...topic.sections.flatMap((s) => [`### ${s.heading}`, ...s.body, ...(s.points ?? [])]),
-      ].join("\n"),
-    ),
-  ].join("\n");
+        ...topic.sections.flatMap((s) => [
+          `### ${s.heading}`,
+          ...s.body,
+          ...(s.points ?? [])
+        ])
+      ].join('\n')
+    )
+  ].join('\n');
 }
-
 
 /**
  * Ask the organisation's model a question.
@@ -49,21 +52,24 @@ export async function askAction(
     contextText: string;
   },
   previous: ChatState,
-  formData: FormData,
+  formData: FormData
 ): Promise<ChatState> {
-  const question = String(formData.get("question") ?? "").trim();
+  const question = String(formData.get('question') ?? '').trim();
   if (!question) return previous;
 
   const active = await requireCapability(
-    "record.read",
-    context.entityId ? { entityId: context.entityId } : undefined,
+    'record.read',
+    context.entityId ? { entityId: context.entityId } : undefined
   );
 
-  const asked = [...previous.turns, { role: "user" as const, content: question }];
+  const asked = [
+    ...previous.turns,
+    { role: 'user' as const, content: question }
+  ];
 
   // Help retrieves per question; other surfaces send what the page assembled.
   const contextText =
-    context.surface === "help" ? helpContext(question) : context.contextText;
+    context.surface === 'help' ? helpContext(question) : context.contextText;
 
   const result = await converse({
     organisationId: active.membership.organisationId,
@@ -74,19 +80,28 @@ export async function askAction(
     context: contextText,
     question,
     conversationId: previous.conversationId ?? undefined,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
 
-  if ("error" in result) {
+  if ('error' in result) {
     // The question stays on screen. Losing what somebody typed because the
     // model was unreachable would be the worst part of the failure.
-    return { ...previous, turns: asked, error: result.error, minimisation: null };
+    return {
+      ...previous,
+      turns: asked,
+      error: result.error,
+      minimisation: null
+    };
   }
 
   return {
     conversationId: result.conversationId,
-    turns: [...asked, { role: "assistant", content: result.reply }],
+    turns: [...asked, { role: 'assistant', content: result.reply }],
     minimisation: result.minimisation,
-    error: null,
+    error: null
   };
 }

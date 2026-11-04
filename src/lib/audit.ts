@@ -1,19 +1,21 @@
-import { asc, eq, sql } from "drizzle-orm";
-import { db, type Db } from "@/db/client";
-import { auditChainHeads, auditEvents } from "@/db/schema";
-import { canonicalise, sha256Hex } from "./canonical";
+import { asc, eq, sql } from 'drizzle-orm';
+
+import { db, type Db } from '@/db/client';
+import { auditChainHeads, auditEvents } from '@/db/schema';
+
+import { canonicalise, sha256Hex } from './canonical';
 
 /** Predecessor hash of the first event in an organisation's chain. */
-export const GENESIS_HASH = "0".repeat(64);
+export const GENESIS_HASH = '0'.repeat(64);
 
 export type ActorKind =
-  | "user"
-  | "contributor_link"
-  | "system"
+  | 'user'
+  | 'contributor_link'
+  | 'system'
   /** Authored a suggestion. Never the actor on a decision. */
-  | "assistant"
-  | "integration"
-  | "public_form";
+  | 'assistant'
+  | 'integration'
+  | 'public_form';
 
 export type AuditInput = {
   organisationId: string;
@@ -24,7 +26,7 @@ export type AuditInput = {
   actorLabel: string;
   /** Namespaced past-tense verb, e.g. `assessment.submitted`. */
   action: string;
-  subjectType: (typeof auditEvents.$inferInsert)["subjectType"];
+  subjectType: (typeof auditEvents.$inferInsert)['subjectType'];
   subjectId: string;
   entityId?: string | null;
   before?: Record<string, unknown> | null;
@@ -34,12 +36,12 @@ export type AuditInput = {
 
 /** The exact fields, in the exact order, that the hash covers. */
 function hashPayload(
-  e: Omit<AuditInput, "metadata"> & {
+  e: Omit<AuditInput, 'metadata'> & {
     seq: number;
     at: Date;
     prevHash: string;
     metadata: Record<string, unknown>;
-  },
+  }
 ) {
   return canonicalise([
     e.organisationId,
@@ -55,11 +57,11 @@ function hashPayload(
     e.before ?? null,
     e.after ?? null,
     e.metadata,
-    e.prevHash,
+    e.prevHash
   ]);
 }
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * Append one event to an organisation's chain.
@@ -74,7 +76,10 @@ export async function appendAuditEvent(tx: Tx, input: AuditInput) {
   // which both creates the chain head on first use and serialises concurrent
   // appends behind it. Two writers cannot read the same predecessor, so the
   // chain cannot fork or skip a sequence number.
-  const headRows = await tx.execute<{ seq: number | string; head_hash: string }>(sql`
+  const headRows = await tx.execute<{
+    seq: number | string;
+    head_hash: string;
+  }>(sql`
     insert into ${auditChainHeads} (organisation_id, seq, head_hash)
     values (${input.organisationId}, 0, ${GENESIS_HASH})
     on conflict (organisation_id)
@@ -83,7 +88,7 @@ export async function appendAuditEvent(tx: Tx, input: AuditInput) {
   `);
 
   const head = headRows[0];
-  if (!head) throw new Error("Could not lock the audit chain head");
+  if (!head) throw new Error('Could not lock the audit chain head');
 
   const seq = Number(head.seq) + 1;
   const at = new Date();
@@ -91,7 +96,7 @@ export async function appendAuditEvent(tx: Tx, input: AuditInput) {
   const prevHash = head.head_hash;
 
   const hash = await sha256Hex(
-    hashPayload({ ...input, seq, at, prevHash, metadata }),
+    hashPayload({ ...input, seq, at, prevHash, metadata })
   );
 
   const [row] = await tx
@@ -111,7 +116,7 @@ export async function appendAuditEvent(tx: Tx, input: AuditInput) {
       after: input.after ?? null,
       metadata,
       prevHash,
-      hash,
+      hash
     })
     .returning();
 
@@ -134,7 +139,7 @@ export type ChainVerification =
       ok: false;
       events: number;
       failedAtSeq: number;
-      reason: "hash_mismatch" | "broken_link" | "sequence_gap";
+      reason: 'hash_mismatch' | 'broken_link' | 'sequence_gap';
     };
 
 /**
@@ -144,7 +149,7 @@ export type ChainVerification =
  * point: the client does not have to trust our word that the log is intact.
  */
 export async function verifyAuditChain(
-  organisationId: string,
+  organisationId: string
 ): Promise<ChainVerification> {
   const events = await db
     .select()
@@ -157,10 +162,20 @@ export async function verifyAuditChain(
 
   for (const e of events) {
     if (e.seq !== expectedSeq) {
-      return { ok: false, events: events.length, failedAtSeq: e.seq, reason: "sequence_gap" };
+      return {
+        ok: false,
+        events: events.length,
+        failedAtSeq: e.seq,
+        reason: 'sequence_gap'
+      };
     }
     if (e.prevHash !== expectedPrev) {
-      return { ok: false, events: events.length, failedAtSeq: e.seq, reason: "broken_link" };
+      return {
+        ok: false,
+        events: events.length,
+        failedAtSeq: e.seq,
+        reason: 'broken_link'
+      };
     }
 
     const recomputed = await sha256Hex(
@@ -178,12 +193,17 @@ export async function verifyAuditChain(
         before: e.before,
         after: e.after,
         metadata: e.metadata,
-        prevHash: e.prevHash,
-      }),
+        prevHash: e.prevHash
+      })
     );
 
     if (recomputed !== e.hash) {
-      return { ok: false, events: events.length, failedAtSeq: e.seq, reason: "hash_mismatch" };
+      return {
+        ok: false,
+        events: events.length,
+        failedAtSeq: e.seq,
+        reason: 'hash_mismatch'
+      };
     }
 
     expectedPrev = e.hash;

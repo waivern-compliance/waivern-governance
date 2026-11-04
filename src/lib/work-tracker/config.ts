@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Where governance work is tracked, when it is tracked somewhere else.
@@ -10,7 +10,7 @@ import { z } from "zod";
  * which is how a seam turns back into two integrations.
  */
 
-export const WORK_TRACKERS = ["jira", "servicenow"] as const;
+export const WORK_TRACKERS = ['jira', 'servicenow'] as const;
 export type WorkTracker = (typeof WORK_TRACKERS)[number];
 
 /**
@@ -45,7 +45,7 @@ export const workTrackerSettings = z.object({
    * boundary lets one comparison serve both, and keeps the mapping editable
    * by whoever owns the workflow rather than by whoever owns the code.
    */
-  doneStatuses: z.array(z.string().min(1)).min(1),
+  doneStatuses: z.array(z.string().min(1)).min(1)
 });
 export type WorkTrackerSettings = z.infer<typeof workTrackerSettings>;
 
@@ -58,7 +58,7 @@ export type WorkTrackerSettings = z.infer<typeof workTrackerSettings>;
  */
 export function targetFor(
   settings: WorkTrackerSettings,
-  entityId: string | null,
+  entityId: string | null
 ): Target {
   if (!entityId) return settings.target;
   return settings.targetByEntity?.[entityId] ?? settings.target;
@@ -72,10 +72,13 @@ export function targetFor(
  * normalised by every caller. Compared case-insensitively, since a workflow
  * renamed from "Done" to "done" is not a status change.
  */
-export function isDone(settings: WorkTrackerSettings, rawStatus: unknown): boolean {
+export function isDone(
+  settings: WorkTrackerSettings,
+  rawStatus: unknown
+): boolean {
   if (rawStatus === null || rawStatus === undefined) return false;
   const value = String(rawStatus).trim().toLowerCase();
-  if (value === "") return false;
+  if (value === '') return false;
   return settings.doneStatuses.some((s) => s.trim().toLowerCase() === value);
 }
 
@@ -90,15 +93,18 @@ export type ExternalItem = {
 };
 
 /** Defaults that make a new connection form less of a blank page. */
-export const SUGGESTED: Record<WorkTracker, { target: Target; doneStatuses: string[] }> = {
+export const SUGGESTED: Record<
+  WorkTracker,
+  { target: Target; doneStatuses: string[] }
+> = {
   jira: {
-    target: { project: "", issueType: "Task" },
-    doneStatuses: ["Done", "Closed", "Resolved"],
+    target: { project: '', issueType: 'Task' },
+    doneStatuses: ['Done', 'Closed', 'Resolved']
   },
   servicenow: {
     // 3 is Closed Complete on a stock task table; instances customise it,
     // which is exactly why this is configuration.
-    target: { table: "sc_task", assignmentGroup: "" },
-    doneStatuses: ["3", "Closed Complete"],
-  },
+    target: { table: 'sc_task', assignmentGroup: '' },
+    doneStatuses: ['3', 'Closed Complete']
+  }
 };

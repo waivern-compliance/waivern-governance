@@ -1,28 +1,30 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, desc, eq, isNull } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   documents,
   dpas,
   extractionFindings,
   extractionLinks,
-  extractions,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { log } from "@/lib/log";
-import { ask } from "@/lib/assistant/providers";
-import { textFrom, textFromHtml } from "@/lib/documents/text";
-import { FetchRefused, fetchPage } from "@/lib/net/fetch-page";
+  extractions
+} from '@/db/schema';
+import { ask } from '@/lib/assistant/providers';
+import { appendAuditEvent } from '@/lib/audit';
+import { textFrom, textFromHtml } from '@/lib/documents/text';
+import { log } from '@/lib/log';
+import { fetchPage, FetchRefused } from '@/lib/net/fetch-page';
 import {
+  buildTurn,
   EXTRACTION_PROMPT_VERSION,
   MECHANISMS,
-  SYSTEM,
-  buildTurn,
   readResponse,
   sourceFor,
-  type Source,
-} from "@/lib/thirdparty/extraction";
-import { providerFor } from "./assistant";
-import type { Actor } from "./templates";
+  SYSTEM,
+  type Source
+} from '@/lib/thirdparty/extraction';
+
+import { providerFor } from './assistant';
+import type { Actor } from './templates';
 
 /**
  * Asking the organisation's own model to read an agreement.
@@ -64,7 +66,7 @@ const MAX_SOURCE_CHARACTERS = 120_000;
 /** A source as recorded on the run: the label, and what it actually was. */
 type StoredSource = {
   label: string;
-  kind: "document" | "web_page";
+  kind: 'document' | 'web_page';
   name: string;
   documentId?: string;
   url?: string;
@@ -76,15 +78,17 @@ type StoredSource = {
 export class ExtractionUnavailable extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ExtractionUnavailable";
+    this.name = 'ExtractionUnavailable';
   }
 }
 
 /** Whether the button should be offered at all. */
-export async function extractionAvailable(organisationId: string): Promise<boolean> {
+export async function extractionAvailable(
+  organisationId: string
+): Promise<boolean> {
   return withOrganisation(organisationId, async () => {
     const configured = await providerFor(organisationId);
-    return Boolean(configured?.surfaces.includes("extraction"));
+    return Boolean(configured?.surfaces.includes('extraction'));
   });
 }
 
@@ -95,7 +99,7 @@ async function loadDpa(dpaId: string, organisationId: string): Promise<Loaded> {
     .select()
     .from(dpas)
     .where(and(eq(dpas.id, dpaId), eq(dpas.organisationId, organisationId)));
-  if (!dpa) throw new ExtractionUnavailable("That agreement no longer exists.");
+  if (!dpa) throw new ExtractionUnavailable('That agreement no longer exists.');
   return { organisationId, dpa };
 }
 
@@ -117,13 +121,13 @@ export async function runExtraction(input: {
   const configured = await providerFor(input.organisationId);
   if (!configured) {
     throw new ExtractionUnavailable(
-      "No model is configured. An administrator sets one up under Admin → Assistant.",
+      'No model is configured. An administrator sets one up under Admin → Assistant.'
     );
   }
-  if (!configured.surfaces.includes("extraction")) {
+  if (!configured.surfaces.includes('extraction')) {
     throw new ExtractionUnavailable(
-      "Reading agreements is switched off for this organisation. An administrator " +
-        "can enable it under Admin → Assistant.",
+      'Reading agreements is switched off for this organisation. An administrator ' +
+        'can enable it under Admin → Assistant.'
     );
   }
 
@@ -135,17 +139,17 @@ export async function runExtraction(input: {
       filename: documents.filename,
       contentType: documents.contentType,
       sha256: documents.sha256,
-      content: documents.content,
+      content: documents.content
     })
     .from(documents)
     .where(
       and(
         eq(documents.organisationId, input.organisationId),
-        eq(documents.subjectType, "dpa"),
+        eq(documents.subjectType, 'dpa'),
         eq(documents.subjectId, dpa.id),
         // A file the virus scanner flagged is not read, by a model or anybody else.
-        isNull(documents.quarantinedAt),
-      ),
+        isNull(documents.quarantinedAt)
+      )
     );
 
   const supplierDocs = await db
@@ -154,17 +158,17 @@ export async function runExtraction(input: {
       filename: documents.filename,
       contentType: documents.contentType,
       sha256: documents.sha256,
-      content: documents.content,
+      content: documents.content
     })
     .from(documents)
     .where(
       and(
         eq(documents.organisationId, input.organisationId),
-        eq(documents.subjectType, "supplier"),
+        eq(documents.subjectType, 'supplier'),
         eq(documents.subjectId, dpa.supplierId),
         // A file the virus scanner flagged is not read, by a model or anybody else.
-        isNull(documents.quarantinedAt),
-      ),
+        isNull(documents.quarantinedAt)
+      )
     );
 
   const sources: Source[] = [];
@@ -181,7 +185,8 @@ export async function runExtraction(input: {
     if (budget <= 0) {
       unreadable.push({
         name: file.filename,
-        reason: "Not read - the earlier files already filled the amount that can be sent at once.",
+        reason:
+          'Not read - the earlier files already filled the amount that can be sent at once.'
       });
       continue;
     }
@@ -189,22 +194,22 @@ export async function runExtraction(input: {
     budget -= text.length;
 
     const label = `S${sources.length + 1}`;
-    sources.push({ label, kind: "document", name: file.filename, text });
+    sources.push({ label, kind: 'document', name: file.filename, text });
     stored.push({
       label,
-      kind: "document",
+      kind: 'document',
       name: file.filename,
       documentId: file.id,
       sha256: file.sha256,
-      characters: text.length,
+      characters: text.length
     });
   }
 
   if (sources.length === 0) {
     throw new ExtractionUnavailable(
       unreadable.length > 0
-        ? `Nothing could be read. ${unreadable.map((u) => `${u.name} - ${u.reason}`).join(" ")}`
-        : "There are no files attached to this agreement or to the third party.",
+        ? `Nothing could be read. ${unreadable.map((u) => `${u.name} - ${u.reason}`).join(' ')}`
+        : 'There are no files attached to this agreement or to the third party.'
     );
   }
 
@@ -226,16 +231,20 @@ async function persist(input: {
   const started = Date.now();
   const answer = await ask(input.configured.config, {
     system: SYSTEM,
-    turns: [{ role: "user", content: turn }],
+    turns: [{ role: 'user', content: turn }],
     maxTokens: MAX_TOKENS,
-    timeoutMs: TIMEOUT_MS,
+    timeoutMs: TIMEOUT_MS
   });
   const ms = Date.now() - started;
 
   const read = answer.ok ? readResponse(answer.text, input.sources) : null;
   const found = read?.data ?? null;
-  const characters = input.sources.reduce((total, source) => total + source.text.length, 0);
-  const clipped = answer.ok && /max_tokens|length/i.test(answer.stopReason ?? "");
+  const characters = input.sources.reduce(
+    (total, source) => total + source.text.length,
+    0
+  );
+  const clipped =
+    answer.ok && /max_tokens|length/i.test(answer.stopReason ?? '');
   const diagnostics = {
     ms,
     promptChars: turn.length,
@@ -244,25 +253,25 @@ async function persist(input: {
     maxTokens: MAX_TOKENS,
     parsed: Boolean(found),
     droppedCitations: read?.dropped ?? 0,
-    clipped,
+    clipped
   };
   const failure = answer.ok
     ? found
       ? null
       : clipped
-        ? "The model ran out of room before finishing its answer, and not enough " +
-          "of it survived to read. There is probably more in these files than one " +
-          "pass can report - move the files that do not bear on transfers and " +
-          "sub-processors off this agreement and read them separately."
+        ? 'The model ran out of room before finishing its answer, and not enough ' +
+          'of it survived to read. There is probably more in these files than one ' +
+          'pass can report - move the files that do not bear on transfers and ' +
+          'sub-processors off this agreement and read them separately.'
         : // Carries its own diagnosis: without the stop reason and the size of
           // the reply, "not in a shape that could be read" covers a refusal, a
           // wrapper of prose and a clipped document, which need different fixes.
           `The model answered, but not in a shape that could be read ` +
-          `(stopped: ${answer.stopReason ?? "not stated"}; ${answer.text.length} characters). Try again.`
+          `(stopped: ${answer.stopReason ?? 'not stated'}; ${answer.text.length} characters). Try again.`
     : answer.timedOut
       ? `The model did not finish within ${TIMEOUT_MS / 1000} seconds. ` +
         `It was given ${Math.round(characters / 1000)},000 characters across ` +
-        `${input.sources.length} file${input.sources.length === 1 ? "" : "s"}. ` +
+        `${input.sources.length} file${input.sources.length === 1 ? '' : 's'}. ` +
         `Try again, or move the files that do not bear on transfers and ` +
         `sub-processors off this agreement so there is less to read.`
       : answer.reason;
@@ -273,7 +282,7 @@ async function persist(input: {
       .values({
         organisationId: input.organisationId,
         entityId: input.entityId,
-        subjectType: "dpa",
+        subjectType: 'dpa',
         subjectId: input.dpa.id,
         model: input.configured.config.model,
         promptVersion: EXTRACTION_PROMPT_VERSION,
@@ -281,18 +290,19 @@ async function persist(input: {
         unreadable: input.unreadable,
         redactions: answer.redactions,
         diagnostics,
-        notes: clipped && found
-        ? [
-            "The model's answer was cut off, so this may be incomplete - " +
-              "check the agreement for anything missing.",
-            found.notes,
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : (found?.notes ?? null),
+        notes:
+          clipped && found
+            ? [
+                "The model's answer was cut off, so this may be incomplete - " +
+                  'check the agreement for anything missing.',
+                found.notes
+              ]
+                .filter(Boolean)
+                .join(' ')
+            : (found?.notes ?? null),
         failure,
         requestedBy: input.actor.actorUserId ?? null,
-        requestedByLabel: input.actor.actorLabel,
+        requestedByLabel: input.actor.actorLabel
       })
       .returning({ id: extractions.id });
 
@@ -304,17 +314,17 @@ async function persist(input: {
       findings.push({
         extractionId: run.id,
         organisationId: input.organisationId,
-        kind: "transfer_mechanism",
+        kind: 'transfer_mechanism',
         value: MECHANISMS[transfer.mechanism],
         detail: transfer.detail ?? null,
-        country: transfer.countries.join(", ") || null,
+        country: transfer.countries.join(', ') || null,
         quote: transfer.quote,
         sourceLabel: source.label,
         sourceKind: source.kind,
         sourceDocumentId: from?.documentId ?? null,
         sourceUrl: from?.url ?? null,
         sourceSha256: from?.sha256 ?? null,
-        sourceFetchedAt: from?.fetchedAt ? new Date(from.fetchedAt) : null,
+        sourceFetchedAt: from?.fetchedAt ? new Date(from.fetchedAt) : null
       });
     }
 
@@ -324,7 +334,7 @@ async function persist(input: {
       findings.push({
         extractionId: run.id,
         organisationId: input.organisationId,
-        kind: "sub_processor",
+        kind: 'sub_processor',
         value: processor.name,
         detail: processor.service ?? null,
         country: processor.country ?? null,
@@ -334,11 +344,12 @@ async function persist(input: {
         sourceDocumentId: from?.documentId ?? null,
         sourceUrl: from?.url ?? null,
         sourceSha256: from?.sha256 ?? null,
-        sourceFetchedAt: from?.fetchedAt ? new Date(from.fetchedAt) : null,
+        sourceFetchedAt: from?.fetchedAt ? new Date(from.fetchedAt) : null
       });
     }
 
-    if (findings.length > 0) await tx.insert(extractionFindings).values(findings);
+    if (findings.length > 0)
+      await tx.insert(extractionFindings).values(findings);
 
     const links = (found?.links ?? [])
       // A malformed or private address is dropped here rather than offered as
@@ -352,8 +363,8 @@ async function persist(input: {
           organisationId: input.organisationId,
           url: link.url.trim(),
           why: link.why ?? null,
-          sourceLabel: link.source ?? null,
-        })),
+          sourceLabel: link.source ?? null
+        }))
       );
     }
 
@@ -368,22 +379,24 @@ async function persist(input: {
       ...input.actor,
       organisationId: input.organisationId,
       entityId: input.entityId ?? undefined,
-      action: "extraction.run",
-      subjectType: "extraction",
+      action: 'extraction.run',
+      subjectType: 'extraction',
       subjectId: run.id,
       after: {
         dpa: input.dpa.id,
         model: input.configured.config.model,
         promptVersion: EXTRACTION_PROMPT_VERSION,
         sources: input.stored.map((s) => `${s.label}:${s.name}`),
-        transfers: findings.filter((f) => f.kind === "transfer_mechanism").length,
-        subProcessors: findings.filter((f) => f.kind === "sub_processor").length,
+        transfers: findings.filter((f) => f.kind === 'transfer_mechanism')
+          .length,
+        subProcessors: findings.filter((f) => f.kind === 'sub_processor')
+          .length,
         unreadable: input.unreadable.length,
-        failure,
-      },
+        failure
+      }
     });
 
-    log(failure ? "warn" : "info", "extraction.run", {
+    log(failure ? 'warn' : 'info', 'extraction.run', {
       ...diagnostics,
       extraction: run.id,
       dpa: input.dpa.id,
@@ -391,19 +404,19 @@ async function persist(input: {
       promptVersion: EXTRACTION_PROMPT_VERSION,
       sources: input.stored.length,
       unreadable: input.unreadable.length,
-      transfers: findings.filter((f) => f.kind === "transfer_mechanism").length,
-      subProcessors: findings.filter((f) => f.kind === "sub_processor").length,
+      transfers: findings.filter((f) => f.kind === 'transfer_mechanism').length,
+      subProcessors: findings.filter((f) => f.kind === 'sub_processor').length,
       links: links.length,
-      failure,
+      failure
     });
 
     return {
       extractionId: run.id,
-      transfers: findings.filter((f) => f.kind === "transfer_mechanism").length,
-      subProcessors: findings.filter((f) => f.kind === "sub_processor").length,
+      transfers: findings.filter((f) => f.kind === 'transfer_mechanism').length,
+      subProcessors: findings.filter((f) => f.kind === 'sub_processor').length,
       links: links.length,
       unreadable: input.unreadable,
-      failure,
+      failure
     };
   });
 }
@@ -424,8 +437,10 @@ export async function followLink(input: {
   actor: Actor;
 }): Promise<RunResult> {
   const configured = await providerFor(input.organisationId);
-  if (!configured?.surfaces.includes("extraction")) {
-    throw new ExtractionUnavailable("Reading agreements is switched off for this organisation.");
+  if (!configured?.surfaces.includes('extraction')) {
+    throw new ExtractionUnavailable(
+      'Reading agreements is switched off for this organisation.'
+    );
   }
 
   const [link] = await db
@@ -434,16 +449,17 @@ export async function followLink(input: {
     .where(
       and(
         eq(extractionLinks.id, input.linkId),
-        eq(extractionLinks.organisationId, input.organisationId),
-      ),
+        eq(extractionLinks.organisationId, input.organisationId)
+      )
     );
-  if (!link) throw new ExtractionUnavailable("That link no longer exists.");
+  if (!link) throw new ExtractionUnavailable('That link no longer exists.');
 
   const [parent] = await db
     .select()
     .from(extractions)
     .where(eq(extractions.id, link.extractionId));
-  if (!parent) throw new ExtractionUnavailable("That extraction no longer exists.");
+  if (!parent)
+    throw new ExtractionUnavailable('That extraction no longer exists.');
 
   const { dpa } = await loadDpa(parent.subjectId, input.organisationId);
 
@@ -452,54 +468,56 @@ export async function followLink(input: {
     page = await fetchPage(link.url);
   } catch (error) {
     const reason =
-      error instanceof FetchRefused ? error.message : "That address could not be reached.";
+      error instanceof FetchRefused
+        ? error.message
+        : 'That address could not be reached.';
     await db.transaction(async (tx) => {
       await tx
         .update(extractionLinks)
         .set({
-          status: "failed",
+          status: 'failed',
           failure: reason,
           decidedBy: input.actor.actorUserId ?? null,
-          fetchedAt: new Date(),
+          fetchedAt: new Date()
         })
         .where(eq(extractionLinks.id, link.id));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId ?? undefined,
-        action: "extraction.link.failed",
-        subjectType: "extraction",
+        action: 'extraction.link.failed',
+        subjectType: 'extraction',
         subjectId: link.extractionId,
-        after: { url: link.url, reason },
+        after: { url: link.url, reason }
       });
     });
     throw new ExtractionUnavailable(reason);
   }
 
   const text = textFromHtml(page.body).slice(0, MAX_SOURCE_CHARACTERS);
-  const label = "S1";
-  const sources: Source[] = [{ label, kind: "web_page", name: page.url, text }];
+  const label = 'S1';
+  const sources: Source[] = [{ label, kind: 'web_page', name: page.url, text }];
   const stored: StoredSource[] = [
     {
       label,
-      kind: "web_page",
+      kind: 'web_page',
       name: page.url,
       url: page.url,
       sha256: page.sha256,
       fetchedAt: page.fetchedAt.toISOString(),
-      characters: text.length,
-    },
+      characters: text.length
+    }
   ];
 
   await db
     .update(extractionLinks)
     .set({
-      status: "fetched",
+      status: 'fetched',
       fetchedAt: page.fetchedAt,
       fetchedSha256: page.sha256,
       fetchedCharacters: text.length,
       failure: null,
-      decidedBy: input.actor.actorUserId ?? null,
+      decidedBy: input.actor.actorUserId ?? null
     })
     .where(eq(extractionLinks.id, link.id));
 
@@ -512,7 +530,7 @@ export async function followLink(input: {
     stored,
     unreadable: [],
     configured,
-    parentLinkId: link.id,
+    parentLinkId: link.id
   });
 }
 
@@ -524,12 +542,12 @@ export async function declineLink(input: {
   return withOrganisation(input.organisationId, async () => {
     await db
       .update(extractionLinks)
-      .set({ status: "declined", decidedBy: input.actor.actorUserId ?? null })
+      .set({ status: 'declined', decidedBy: input.actor.actorUserId ?? null })
       .where(
         and(
           eq(extractionLinks.id, input.linkId),
-          eq(extractionLinks.organisationId, input.organisationId),
-        ),
+          eq(extractionLinks.organisationId, input.organisationId)
+        )
       );
   });
 }
@@ -556,11 +574,12 @@ export async function decideFinding(input: {
         .where(
           and(
             eq(extractionFindings.id, input.findingId),
-            eq(extractionFindings.organisationId, input.organisationId),
-          ),
+            eq(extractionFindings.organisationId, input.organisationId)
+          )
         );
-      if (!finding) throw new ExtractionUnavailable("That proposal no longer exists.");
-      if (finding.status !== "proposed") return finding;
+      if (!finding)
+        throw new ExtractionUnavailable('That proposal no longer exists.');
+      if (finding.status !== 'proposed') return finding;
 
       const [run] = await tx
         .select()
@@ -570,9 +589,9 @@ export async function decideFinding(input: {
       await tx
         .update(extractionFindings)
         .set({
-          status: input.accept ? "accepted" : "rejected",
+          status: input.accept ? 'accepted' : 'rejected',
           decidedBy: input.actor.actorUserId ?? null,
-          decidedAt: new Date(),
+          decidedAt: new Date()
         })
         .where(eq(extractionFindings.id, finding.id));
 
@@ -580,18 +599,24 @@ export async function decideFinding(input: {
       let after: Record<string, unknown> | undefined;
 
       if (input.accept && run) {
-        const [dpa] = await tx.select().from(dpas).where(eq(dpas.id, run.subjectId));
+        const [dpa] = await tx
+          .select()
+          .from(dpas)
+          .where(eq(dpas.id, run.subjectId));
         if (dpa) {
-          if (finding.kind === "sub_processor") {
+          if (finding.kind === 'sub_processor') {
             const existing = dpa.subProcessors ?? [];
             // Matched case-insensitively: "Datadog Inc." arriving twice from two
             // sources should not become two entries in the register.
             const already = existing.some(
-              (name) => name.trim().toLowerCase() === finding.value.trim().toLowerCase(),
+              (name) =>
+                name.trim().toLowerCase() === finding.value.trim().toLowerCase()
             );
             if (!already) {
               before = { subProcessors: existing };
-              const next = [...existing, finding.value].sort((a, b) => a.localeCompare(b));
+              const next = [...existing, finding.value].sort((a, b) =>
+                a.localeCompare(b)
+              );
               after = { subProcessors: next };
               await tx
                 .update(dpas)
@@ -616,8 +641,10 @@ export async function decideFinding(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId ?? undefined,
-        action: input.accept ? "extraction.finding.accepted" : "extraction.finding.rejected",
-        subjectType: "extraction_finding",
+        action: input.accept
+          ? 'extraction.finding.accepted'
+          : 'extraction.finding.rejected',
+        subjectType: 'extraction_finding',
         subjectId: finding.id,
         before,
         after: {
@@ -628,8 +655,8 @@ export async function decideFinding(input: {
           // can be traced to a source without the extraction still being to hand.
           source: finding.sourceUrl ?? finding.sourceDocumentId,
           sourceSha256: finding.sourceSha256,
-          quote: finding.quote,
-        },
+          quote: finding.quote
+        }
       });
 
       return finding;
@@ -646,9 +673,9 @@ export async function latestExtraction(organisationId: string, dpaId: string) {
       .where(
         and(
           eq(extractions.organisationId, organisationId),
-          eq(extractions.subjectType, "dpa"),
-          eq(extractions.subjectId, dpaId),
-        ),
+          eq(extractions.subjectType, 'dpa'),
+          eq(extractions.subjectId, dpaId)
+        )
       )
       .orderBy(desc(extractions.createdAt))
       .limit(1);
@@ -664,7 +691,7 @@ export async function latestExtraction(organisationId: string, dpaId: string) {
         .select()
         .from(extractionLinks)
         .where(eq(extractionLinks.extractionId, run.id))
-        .orderBy(extractionLinks.createdAt),
+        .orderBy(extractionLinks.createdAt)
     ]);
 
     return { run, findings, links };
@@ -684,15 +711,15 @@ export async function extractionHistory(organisationId: string, dpaId: string) {
         model: extractions.model,
         requestedByLabel: extractions.requestedByLabel,
         failure: extractions.failure,
-        sources: extractions.sources,
+        sources: extractions.sources
       })
       .from(extractions)
       .where(
         and(
           eq(extractions.organisationId, organisationId),
-          eq(extractions.subjectType, "dpa"),
-          eq(extractions.subjectId, dpaId),
-        ),
+          eq(extractions.subjectType, 'dpa'),
+          eq(extractions.subjectId, dpaId)
+        )
       )
       .orderBy(desc(extractions.createdAt))
       .limit(20);

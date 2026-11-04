@@ -1,20 +1,24 @@
-import Link from "next/link";
-import { HelpLink } from "@/components/help/HelpLink";
-import { redirect } from "next/navigation";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
-import { historyFrom, trendFor, type TrendPoint } from "@/services/trends";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { can } from '@/lib/rbac';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { historyFrom, trendFor, type TrendPoint } from '@/services/trends';
 
 const MONTHS = 12;
 const shortMonth = (key: string) =>
-  new Date(`${key}-01T00:00:00Z`).toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  new Date(`${key}-01T00:00:00Z`).toLocaleString('en-GB', {
+    month: 'short',
+    timeZone: 'UTC'
+  });
 
 export default async function TrendsPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="Trend reporting"
@@ -26,14 +30,17 @@ export default async function TrendsPage() {
   const { points } = await trendFor(
     active.membership.organisationId,
     visibleEntityIds(active),
-    MONTHS,
+    MONTHS
   );
   const begins = historyFrom(points);
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Trends</h1>
@@ -62,7 +69,9 @@ export default async function TrendsPage() {
             title="Risks open"
             note="Raised by the end of each month and not yet closed."
             points={points}
-            series={[{ key: "risksOpen", label: "Open at month end", tone: "primary" }]}
+            series={[
+              { key: 'risksOpen', label: 'Open at month end', tone: 'primary' }
+            ]}
             kind="line"
           />
 
@@ -71,8 +80,8 @@ export default async function TrendsPage() {
             note="Flow through the register. Closing more than you raise is the register shrinking."
             points={points}
             series={[
-              { key: "risksOpened", label: "Raised", tone: "primary" },
-              { key: "risksClosed", label: "Closed", tone: "good" },
+              { key: 'risksOpened', label: 'Raised', tone: 'primary' },
+              { key: 'risksClosed', label: 'Closed', tone: 'good' }
             ]}
             kind="bars"
           />
@@ -82,8 +91,12 @@ export default async function TrendsPage() {
             note="Started, and decided. A widening gap is work accumulating in the pipeline."
             points={points}
             series={[
-              { key: "assessmentsStarted", label: "Started", tone: "secondary" },
-              { key: "assessmentsApproved", label: "Decided", tone: "primary" },
+              {
+                key: 'assessmentsStarted',
+                label: 'Started',
+                tone: 'secondary'
+              },
+              { key: 'assessmentsApproved', label: 'Decided', tone: 'primary' }
             ]}
             kind="bars"
           />
@@ -92,7 +105,9 @@ export default async function TrendsPage() {
             title="Days to decide"
             note="Median from submission to decision, for assessments decided that month."
             points={points}
-            series={[{ key: "daysToDecide", label: "Median days", tone: "primary" }]}
+            series={[
+              { key: 'daysToDecide', label: 'Median days', tone: 'primary' }
+            ]}
             kind="line"
           />
 
@@ -101,8 +116,8 @@ export default async function TrendsPage() {
             note="Tasks completed, and those that breached their service level."
             points={points}
             series={[
-              { key: "tasksCompleted", label: "Completed", tone: "secondary" },
-              { key: "tasksBreached", label: "Breached", tone: "critical" },
+              { key: 'tasksCompleted', label: 'Completed', tone: 'secondary' },
+              { key: 'tasksBreached', label: 'Breached', tone: 'critical' }
             ]}
             kind="bars"
           />
@@ -114,8 +129,8 @@ export default async function TrendsPage() {
   );
 }
 
-type SeriesKey = keyof Omit<TrendPoint, "period">;
-type Tone = "primary" | "secondary" | "good" | "critical";
+type SeriesKey = keyof Omit<TrendPoint, 'period'>;
+type Tone = 'primary' | 'secondary' | 'good' | 'critical';
 type Series = { key: SeriesKey; label: string; tone: Tone };
 
 /**
@@ -127,10 +142,10 @@ type Series = { key: SeriesKey; label: string; tone: Tone };
  * who cannot separate two of these still gets the figures.
  */
 const FILL: Record<Tone, string> = {
-  primary: "var(--viz-after)",
-  secondary: "var(--viz-before)",
-  good: "var(--viz-good)",
-  critical: "var(--viz-critical)",
+  primary: 'var(--viz-after)',
+  secondary: 'var(--viz-before)',
+  good: 'var(--viz-good)',
+  critical: 'var(--viz-critical)'
 };
 
 /**
@@ -145,15 +160,17 @@ function Chart({
   note,
   points,
   series,
-  kind,
+  kind
 }: {
   title: string;
   note: string;
   points: TrendPoint[];
   series: Series[];
-  kind: "line" | "bars";
+  kind: 'line' | 'bars';
 }) {
-  const values = points.flatMap((p) => series.map((s) => Number(p[s.key] ?? 0)));
+  const values = points.flatMap((p) =>
+    series.map((s) => Number(p[s.key] ?? 0))
+  );
   const max = Math.max(1, ...values);
   const W = 720;
   const H = 160;
@@ -173,7 +190,10 @@ function Chart({
       {series.length > 1 ? (
         <ul className="flex flex-wrap gap-3 text-xs text-ink-soft">
           {series.map((s) => (
-            <li key={s.key} className="flex items-center gap-1.5">
+            <li
+              key={s.key}
+              className="flex items-center gap-1.5"
+            >
               <span
                 aria-hidden
                 className="inline-block h-2 w-2 rounded-sm"
@@ -215,7 +235,7 @@ function Chart({
             </g>
           ))}
 
-          {kind === "bars"
+          {kind === 'bars'
             ? points.map((p, i) => {
                 const slot = plotW / points.length;
                 const barW = Math.max(2, (slot * 0.62) / series.length);
@@ -239,7 +259,10 @@ function Chart({
               })
             : series.map((s) => {
                 const drawn = points
-                  .map((p, i) => ({ i, v: p[s.key] === null ? null : Number(p[s.key] ?? 0) }))
+                  .map((p, i) => ({
+                    i,
+                    v: p[s.key] === null ? null : Number(p[s.key] ?? 0)
+                  }))
                   .filter((d): d is { i: number; v: number } => d.v !== null);
                 return (
                   <g key={s.key}>
@@ -248,10 +271,16 @@ function Chart({
                       stroke={FILL[s.tone]}
                       strokeWidth={2}
                       strokeLinejoin="round"
-                      points={drawn.map((d) => `${x(d.i)},${y(d.v)}`).join(" ")}
+                      points={drawn.map((d) => `${x(d.i)},${y(d.v)}`).join(' ')}
                     />
                     {drawn.map((d) => (
-                      <circle key={d.i} cx={x(d.i)} cy={y(d.v)} r={3} fill={FILL[s.tone]}>
+                      <circle
+                        key={d.i}
+                        cx={x(d.i)}
+                        cy={y(d.v)}
+                        r={3}
+                        fill={FILL[s.tone]}
+                      >
                         <title>{`${points[d.i].period} · ${s.label}: ${d.v}`}</title>
                       </circle>
                     ))}
@@ -279,16 +308,16 @@ function Chart({
 /** The same figures, readable without seeing the charts. */
 function Table({ points }: { points: TrendPoint[] }) {
   const cols: { key: SeriesKey; label: string }[] = [
-    { key: "risksOpen", label: "Open" },
-    { key: "risksOpened", label: "Raised" },
-    { key: "risksClosed", label: "Closed" },
-    { key: "assessmentsStarted", label: "Started" },
-    { key: "assessmentsApproved", label: "Decided" },
-    { key: "daysToDecide", label: "Days" },
-    { key: "tasksCompleted", label: "Tasks done" },
-    { key: "tasksBreached", label: "Breached" },
-    { key: "acceptancesGranted", label: "Accepted" },
-    { key: "acceptancesExpired", label: "Lapsed" },
+    { key: 'risksOpen', label: 'Open' },
+    { key: 'risksOpened', label: 'Raised' },
+    { key: 'risksClosed', label: 'Closed' },
+    { key: 'assessmentsStarted', label: 'Started' },
+    { key: 'assessmentsApproved', label: 'Decided' },
+    { key: 'daysToDecide', label: 'Days' },
+    { key: 'tasksCompleted', label: 'Tasks done' },
+    { key: 'tasksBreached', label: 'Breached' },
+    { key: 'acceptancesGranted', label: 'Accepted' },
+    { key: 'acceptancesExpired', label: 'Lapsed' }
   ];
   return (
     <section className="space-y-2">
@@ -297,7 +326,10 @@ function Table({ points }: { points: TrendPoint[] }) {
         <table className="w-full min-w-[40rem] text-sm">
           <thead>
             <tr className="border-b border-line text-left">
-              <th scope="col" className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-ink-soft">
+              <th
+                scope="col"
+                className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-ink-soft"
+              >
                 Month
               </th>
               {cols.map((c) => (
@@ -313,13 +345,26 @@ function Table({ points }: { points: TrendPoint[] }) {
           </thead>
           <tbody>
             {points.map((p) => (
-              <tr key={p.period} className="border-b border-line last:border-b-0">
-                <th scope="row" className="px-3 py-1.5 text-left font-mono text-xs font-normal">
+              <tr
+                key={p.period}
+                className="border-b border-line last:border-b-0"
+              >
+                <th
+                  scope="row"
+                  className="px-3 py-1.5 text-left font-mono text-xs font-normal"
+                >
                   {p.period}
                 </th>
                 {cols.map((c) => (
-                  <td key={c.key} className="px-3 py-1.5 text-right tabular-nums">
-                    {p[c.key] === null ? <span className="text-ink-soft">-</span> : String(p[c.key])}
+                  <td
+                    key={c.key}
+                    className="px-3 py-1.5 text-right tabular-nums"
+                  >
+                    {p[c.key] === null ? (
+                      <span className="text-ink-soft">-</span>
+                    ) : (
+                      String(p[c.key])
+                    )}
                   </td>
                 ))}
               </tr>

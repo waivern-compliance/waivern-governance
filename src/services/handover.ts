@@ -1,5 +1,6 @@
-import { and, count, eq, ne, or } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, count, eq, ne, or } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
   assessments,
@@ -8,10 +9,11 @@ import {
   processingActivities,
   suppliers,
   tasks,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import type { Actor } from "./templates";
+  users
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+
+import type { Actor } from './templates';
 
 /**
  * What one person is holding, and how to hand it to somebody else.
@@ -39,71 +41,92 @@ export type Holding = {
 export class HandoverRefused extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "HandoverRefused";
+    this.name = 'HandoverRefused';
   }
 }
 
-const first = async (query: Promise<Array<{ n: number }>>) => (await query)[0]?.n ?? 0;
+const first = async (query: Promise<Array<{ n: number }>>) =>
+  (await query)[0]?.n ?? 0;
 
-export async function holdingsOf(organisationId: string, userId: string): Promise<Holding> {
+export async function holdingsOf(
+  organisationId: string,
+  userId: string
+): Promise<Holding> {
   return withOrganisation(organisationId, async () => {
     const n = { n: count() };
-    const [openTasks, owned, activities, supplierCount, ai, breachCount] = await Promise.all([
-      first(
-        db
-          .select(n)
-          .from(tasks)
-          .where(
-            and(
-              eq(tasks.organisationId, organisationId),
-              eq(tasks.assigneeUserId, userId),
-              ne(tasks.status, "done"),
-            ),
-          ),
-      ),
-      first(
-        db
-          .select(n)
-          .from(assessments)
-          .where(
-            and(eq(assessments.organisationId, organisationId), eq(assessments.ownerId, userId)),
-          ),
-      ),
-      first(
-        db
-          .select(n)
-          .from(processingActivities)
-          .where(
-            and(
-              eq(processingActivities.organisationId, organisationId),
-              eq(processingActivities.ownerId, userId),
-            ),
-          ),
-      ),
-      first(
-        db
-          .select(n)
-          .from(suppliers)
-          .where(and(eq(suppliers.organisationId, organisationId), eq(suppliers.ownerId, userId))),
-      ),
-      first(
-        db
-          .select(n)
-          .from(aiUseCases)
-          .where(
-            and(
-              eq(aiUseCases.organisationId, organisationId),
-              or(eq(aiUseCases.ownerId, userId), eq(aiUseCases.governanceOfficerId, userId)),
-            ),
-          ),
-      ),
-      first(
-        db
-          .select(n)
-          .from(breaches)
-          .where(and(eq(breaches.organisationId, organisationId), eq(breaches.ownerId, userId))),
-      ),
-    ]);
+    const [openTasks, owned, activities, supplierCount, ai, breachCount] =
+      await Promise.all([
+        first(
+          db
+            .select(n)
+            .from(tasks)
+            .where(
+              and(
+                eq(tasks.organisationId, organisationId),
+                eq(tasks.assigneeUserId, userId),
+                ne(tasks.status, 'done')
+              )
+            )
+        ),
+        first(
+          db
+            .select(n)
+            .from(assessments)
+            .where(
+              and(
+                eq(assessments.organisationId, organisationId),
+                eq(assessments.ownerId, userId)
+              )
+            )
+        ),
+        first(
+          db
+            .select(n)
+            .from(processingActivities)
+            .where(
+              and(
+                eq(processingActivities.organisationId, organisationId),
+                eq(processingActivities.ownerId, userId)
+              )
+            )
+        ),
+        first(
+          db
+            .select(n)
+            .from(suppliers)
+            .where(
+              and(
+                eq(suppliers.organisationId, organisationId),
+                eq(suppliers.ownerId, userId)
+              )
+            )
+        ),
+        first(
+          db
+            .select(n)
+            .from(aiUseCases)
+            .where(
+              and(
+                eq(aiUseCases.organisationId, organisationId),
+                or(
+                  eq(aiUseCases.ownerId, userId),
+                  eq(aiUseCases.governanceOfficerId, userId)
+                )
+              )
+            )
+        ),
+        first(
+          db
+            .select(n)
+            .from(breaches)
+            .where(
+              and(
+                eq(breaches.organisationId, organisationId),
+                eq(breaches.ownerId, userId)
+              )
+            )
+        )
+      ]);
 
     const holding = {
       openTasks,
@@ -112,7 +135,7 @@ export async function holdingsOf(organisationId: string, userId: string): Promis
       suppliers: supplierCount,
       aiSystems: ai,
       breaches: breachCount,
-      total: 0,
+      total: 0
     };
     holding.total =
       openTasks + owned + activities + supplierCount + ai + breachCount;
@@ -134,7 +157,7 @@ export async function candidatesFor(organisationId: string, exclude?: string) {
     const scope = [
       eq(memberships.organisationId, organisationId),
       eq(memberships.isActive, true),
-      ...(exclude ? [ne(memberships.userId, exclude)] : []),
+      ...(exclude ? [ne(memberships.userId, exclude)] : [])
     ];
 
     return db
@@ -162,23 +185,32 @@ export async function handOver(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     if (input.fromUserId === input.toUserId) {
-      throw new HandoverRefused("Choose somebody other than the person handing over.");
+      throw new HandoverRefused(
+        'Choose somebody other than the person handing over.'
+      );
     }
 
     const [recipient] = await db
-      .select({ id: memberships.id, email: users.email, active: memberships.isActive })
+      .select({
+        id: memberships.id,
+        email: users.email,
+        active: memberships.isActive
+      })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
       .where(
         and(
           eq(memberships.organisationId, input.organisationId),
-          eq(memberships.userId, input.toUserId),
-        ),
+          eq(memberships.userId, input.toUserId)
+        )
       );
-    if (!recipient) throw new HandoverRefused("That person is not a member of this organisation.");
+    if (!recipient)
+      throw new HandoverRefused(
+        'That person is not a member of this organisation.'
+      );
     if (!recipient.active) {
       throw new HandoverRefused(
-        "That person's access is suspended, so handing work to them would strand it again.",
+        "That person's access is suspended, so handing work to them would strand it again."
       );
     }
 
@@ -198,8 +230,8 @@ export async function handOver(input: {
           and(
             eq(tasks.organisationId, input.organisationId),
             eq(tasks.assigneeUserId, input.fromUserId),
-            ne(tasks.status, "done"),
-          ),
+            ne(tasks.status, 'done')
+          )
         );
       await tx
         .update(assessments)
@@ -207,8 +239,8 @@ export async function handOver(input: {
         .where(
           and(
             eq(assessments.organisationId, input.organisationId),
-            eq(assessments.ownerId, input.fromUserId),
-          ),
+            eq(assessments.ownerId, input.fromUserId)
+          )
         );
       await tx
         .update(processingActivities)
@@ -216,8 +248,8 @@ export async function handOver(input: {
         .where(
           and(
             eq(processingActivities.organisationId, input.organisationId),
-            eq(processingActivities.ownerId, input.fromUserId),
-          ),
+            eq(processingActivities.ownerId, input.fromUserId)
+          )
         );
       await tx
         .update(suppliers)
@@ -225,8 +257,8 @@ export async function handOver(input: {
         .where(
           and(
             eq(suppliers.organisationId, input.organisationId),
-            eq(suppliers.ownerId, input.fromUserId),
-          ),
+            eq(suppliers.ownerId, input.fromUserId)
+          )
         );
       await tx
         .update(aiUseCases)
@@ -234,8 +266,8 @@ export async function handOver(input: {
         .where(
           and(
             eq(aiUseCases.organisationId, input.organisationId),
-            eq(aiUseCases.ownerId, input.fromUserId),
-          ),
+            eq(aiUseCases.ownerId, input.fromUserId)
+          )
         );
       // The governance officer role goes with the rest of their work. Left
       // behind, it points at somebody who has gone, and the register would show
@@ -246,8 +278,8 @@ export async function handOver(input: {
         .where(
           and(
             eq(aiUseCases.organisationId, input.organisationId),
-            eq(aiUseCases.governanceOfficerId, input.fromUserId),
-          ),
+            eq(aiUseCases.governanceOfficerId, input.fromUserId)
+          )
         );
       await tx
         .update(breaches)
@@ -255,18 +287,18 @@ export async function handOver(input: {
         .where(
           and(
             eq(breaches.organisationId, input.organisationId),
-            eq(breaches.ownerId, input.fromUserId),
-          ),
+            eq(breaches.ownerId, input.fromUserId)
+          )
         );
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "membership.handover",
-        subjectType: "user",
+        action: 'membership.handover',
+        subjectType: 'user',
         subjectId: input.fromUserId,
         before: { heldBy: leaver?.email ?? input.fromUserId, ...before },
-        after: { nowHeldBy: recipient.email },
+        after: { nowHeldBy: recipient.email }
       });
     });
 

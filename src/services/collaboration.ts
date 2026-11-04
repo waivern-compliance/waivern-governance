@@ -1,11 +1,13 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { comments, memberships, users } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { pathFor } from "@/lib/records";
-import { queueNotification } from "./workflow";
-import type { Actor } from "./templates";
-import { assertEntityIn, assertRecordIn } from "./tenancy-guards";
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import { comments, memberships, users } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { pathFor } from '@/lib/records';
+
+import type { Actor } from './templates';
+import { assertEntityIn, assertRecordIn } from './tenancy-guards';
+import { queueNotification } from './workflow';
 
 /**
  * Discussion beside a record.
@@ -44,7 +46,7 @@ export type CommentRow = {
  */
 export function findMentions(
   body: string,
-  members: readonly Member[],
+  members: readonly Member[]
 ): { userIds: string[]; unresolved: string[] } {
   const pattern = /@([A-Za-z0-9._%+-]+(?:@[A-Za-z0-9.-]+\.[A-Za-z]{2,})?)/g;
   const userIds = new Set<string>();
@@ -53,14 +55,16 @@ export function findMentions(
   for (const [, token] of body.matchAll(pattern)) {
     const lowered = token.toLowerCase();
 
-    if (lowered.includes("@")) {
+    if (lowered.includes('@')) {
       const hit = members.find((m) => m.email.toLowerCase() === lowered);
       if (hit) userIds.add(hit.id);
       else unresolved.push(token);
       continue;
     }
 
-    const matches = members.filter((m) => m.email.toLowerCase().split("@")[0] === lowered);
+    const matches = members.filter(
+      (m) => m.email.toLowerCase().split('@')[0] === lowered
+    );
     if (matches.length === 1) userIds.add(matches[0].id);
     else unresolved.push(token);
   }
@@ -68,7 +72,9 @@ export function findMentions(
   return { userIds: [...userIds], unresolved };
 }
 
-export async function organisationMembers(organisationId: string): Promise<Member[]> {
+export async function organisationMembers(
+  organisationId: string
+): Promise<Member[]> {
   return withOrganisation(organisationId, async () => {
     return db
       .select({ id: users.id, email: users.email })
@@ -81,8 +87,8 @@ export async function organisationMembers(organisationId: string): Promise<Membe
 
 export async function commentsFor(
   organisationId: string,
-  subjectType: Comment["subjectType"],
-  subjectId: string,
+  subjectType: Comment['subjectType'],
+  subjectId: string
 ): Promise<CommentRow[]> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
@@ -92,8 +98,8 @@ export async function commentsFor(
         and(
           eq(comments.organisationId, organisationId),
           eq(comments.subjectType, subjectType),
-          eq(comments.subjectId, subjectId),
-        ),
+          eq(comments.subjectId, subjectId)
+        )
       )
       .orderBy(asc(comments.createdAt));
 
@@ -106,7 +112,7 @@ export async function commentsFor(
       comment,
       mentioned: (comment.mentions ?? [])
         .map((id) => byId.get(id))
-        .filter((m): m is Member => Boolean(m)),
+        .filter((m): m is Member => Boolean(m))
     }));
   });
 }
@@ -114,7 +120,7 @@ export async function commentsFor(
 export async function postComment(input: {
   organisationId: string;
   entityId: string | null;
-  subjectType: Comment["subjectType"];
+  subjectType: Comment['subjectType'];
   subjectId: string;
   /** How the record is known to a person — a reference, or a name. */
   subjectLabel: string;
@@ -123,10 +129,15 @@ export async function postComment(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const body = input.body.trim();
-    if (!body) throw new Error("A comment needs something in it");
+    if (!body) throw new Error('A comment needs something in it');
     // A comment on another organisation's record would surface in its discussion.
-    await assertRecordIn(input.organisationId, input.subjectType, input.subjectId);
-    if (input.entityId) await assertEntityIn(input.organisationId, input.entityId);
+    await assertRecordIn(
+      input.organisationId,
+      input.subjectType,
+      input.subjectId
+    );
+    if (input.entityId)
+      await assertEntityIn(input.organisationId, input.entityId);
 
     const members = await organisationMembers(input.organisationId);
     const { userIds } = findMentions(body, members);
@@ -145,7 +156,7 @@ export async function postComment(input: {
           authorLabel: input.actor.actorLabel,
           subjectLabel: input.subjectLabel,
           body,
-          mentions: userIds,
+          mentions: userIds
         })
         .returning();
 
@@ -156,15 +167,15 @@ export async function postComment(input: {
         await queueNotification(tx, {
           organisationId: input.organisationId,
           recipient: member.email,
-          kind: "mention",
+          kind: 'mention',
           subject: `${input.actor.actorLabel} mentioned you on ${input.subjectLabel}`,
           // The body carries the comment, so somebody reading it in mail knows
           // whether it needs them before deciding to open anything.
-          body: `${body}\n\n${pathFor(input.subjectType, input.subjectId) ?? ""}`,
+          body: `${body}\n\n${pathFor(input.subjectType, input.subjectId) ?? ''}`,
           // Keyed per comment and person: the sweep may run many times before
           // delivery, and being told twice about one remark is how people learn
           // to filter the notifications that matter.
-          idempotencyKey: `mention:${row.id}:${id}`,
+          idempotencyKey: `mention:${row.id}:${id}`
         });
       }
 
@@ -172,13 +183,13 @@ export async function postComment(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId ?? undefined,
-        action: "comment.posted",
-        subjectType: "comment",
+        action: 'comment.posted',
+        subjectType: 'comment',
         subjectId: row.id,
         after: {
           on: `${input.subjectType}:${input.subjectId}`,
-          mentioned: toNotify.length,
-        },
+          mentioned: toNotify.length
+        }
       });
 
       return row;
@@ -204,11 +215,14 @@ export async function withdrawComment(input: {
         .select()
         .from(comments)
         .where(
-          and(eq(comments.id, input.commentId), eq(comments.organisationId, input.organisationId)),
+          and(
+            eq(comments.id, input.commentId),
+            eq(comments.organisationId, input.organisationId)
+          )
         );
-      if (!existing) throw new Error("No such comment");
+      if (!existing) throw new Error('No such comment');
       if (existing.authorId !== input.actor.actorUserId) {
-        throw new Error("Only the person who wrote a comment can withdraw it");
+        throw new Error('Only the person who wrote a comment can withdraw it');
       }
       if (existing.deletedAt) return existing;
 
@@ -222,10 +236,10 @@ export async function withdrawComment(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: existing.entityId ?? undefined,
-        action: "comment.withdrawn",
-        subjectType: "comment",
+        action: 'comment.withdrawn',
+        subjectType: 'comment',
         subjectId: input.commentId,
-        before: { on: `${existing.subjectType}:${existing.subjectId}` },
+        before: { on: `${existing.subjectType}:${existing.subjectId}` }
       });
 
       return row;
@@ -240,7 +254,11 @@ export async function withdrawComment(input: {
  * named reached nobody. This is the surface that makes it land, and it needs
  * no mail server to work.
  */
-export async function mentionsFor(organisationId: string, userId: string, limit = 20) {
+export async function mentionsFor(
+  organisationId: string,
+  userId: string,
+  limit = 20
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select()
@@ -250,15 +268,15 @@ export async function mentionsFor(organisationId: string, userId: string, limit 
           eq(comments.organisationId, organisationId),
           isNull(comments.deletedAt),
           // jsonb containment, so the index-friendly form rather than unnesting.
-          sql`${comments.mentions} @> ${JSON.stringify([userId])}::jsonb`,
-        ),
+          sql`${comments.mentions} @> ${JSON.stringify([userId])}::jsonb`
+        )
       )
       .orderBy(desc(comments.createdAt))
       .limit(limit);
 
     return rows.map((comment) => ({
       comment,
-      href: pathFor(comment.subjectType, comment.subjectId),
+      href: pathFor(comment.subjectType, comment.subjectId)
     }));
   });
 }

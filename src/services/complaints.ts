@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   dataProtectionComplaintEvents,
   dataProtectionComplaints,
@@ -7,23 +8,31 @@ import {
   entities,
   organisations,
   referenceCounters,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { complaintCounts, type ComplaintCounts } from "@/lib/complaints/metrics";
+  users
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import {
+  complaintCounts,
+  type ComplaintCounts
+} from '@/lib/complaints/metrics';
 import {
   COMPLAINT_SUBJECT_KEYS,
   complaintClock,
   pressingDials,
   type ComplaintClock,
-  type ComplaintOutcome,
-} from "@/lib/complaints/statutory";
-import type { Jurisdiction } from "@/lib/dsr/statutory";
-import { BadQuery } from "@/lib/integration/query";
-import { CHANNELS, defaultJurisdiction, type ControllerRole } from "./data-subject-requests";
-import { monthsEnding } from "./trends";
-import type { Actor } from "./templates";
-import { assertEntityIn, assertMemberOf } from "./tenancy-guards";
+  type ComplaintOutcome
+} from '@/lib/complaints/statutory';
+import type { Jurisdiction } from '@/lib/dsr/statutory';
+import { BadQuery } from '@/lib/integration/query';
+
+import {
+  CHANNELS,
+  defaultJurisdiction,
+  type ControllerRole
+} from './data-subject-requests';
+import type { Actor } from './templates';
+import { assertEntityIn, assertMemberOf } from './tenancy-guards';
+import { monthsEnding } from './trends';
 
 /**
  * The register of complaints from data subjects to the controller (DPA 2018 s.164A).
@@ -46,11 +55,14 @@ export { CHANNELS };
 export class ComplaintRefused extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ComplaintRefused";
+    this.name = 'ComplaintRefused';
   }
 }
 
-export type ComplaintTargets = { outcomeTargetDays: number; updateIntervalDays: number };
+export type ComplaintTargets = {
+  outcomeTargetDays: number;
+  updateIntervalDays: number;
+};
 
 export type LoadedComplaint = {
   complaint: Complaint;
@@ -61,11 +73,18 @@ export type LoadedComplaint = {
 };
 
 function lastUpdateOf(events: readonly ComplaintEvent[]): Date | null {
-  const updates = events.filter((e) => e.kind === "progress_update").map((e) => e.occurredAt.getTime());
+  const updates = events
+    .filter((e) => e.kind === 'progress_update')
+    .map((e) => e.occurredAt.getTime());
   return updates.length ? new Date(Math.max(...updates)) : null;
 }
 
-function clockOf(complaint: Complaint, events: readonly ComplaintEvent[], targets: ComplaintTargets, now = new Date()) {
+function clockOf(
+  complaint: Complaint,
+  events: readonly ComplaintEvent[],
+  targets: ComplaintTargets,
+  now = new Date()
+) {
   return complaintClock({
     jurisdiction: complaint.jurisdiction,
     controllerRole: complaint.controllerRole,
@@ -73,10 +92,12 @@ function clockOf(complaint: Complaint, events: readonly ComplaintEvent[], target
     acknowledgedAt: complaint.acknowledgedAt,
     lastUpdateAt: lastUpdateOf(events),
     outcomeAt: complaint.outcomeAt,
-    ended: complaint.status === "withdrawn" || (complaint.closedAt !== null && complaint.outcomeAt === null),
+    ended:
+      complaint.status === 'withdrawn' ||
+      (complaint.closedAt !== null && complaint.outcomeAt === null),
     outcomeTargetDays: targets.outcomeTargetDays,
     updateIntervalDays: targets.updateIntervalDays,
-    now,
+    now
   });
 }
 
@@ -88,19 +109,22 @@ async function nextReference(organisationId: string, year: number) {
       do update set next_value = ${referenceCounters}.next_value + 1
     returning next_value
   `);
-  return `CMP-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, "0")}`;
+  return `CMP-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 function validSubject(subject: string): string {
   if (!(COMPLAINT_SUBJECT_KEYS as string[]).includes(subject)) {
-    throw new ComplaintRefused("Say what the complaint is about. If nothing fits, choose “something else”.");
+    throw new ComplaintRefused(
+      'Say what the complaint is about. If nothing fits, choose “something else”.'
+    );
   }
   return subject;
 }
 
 function validLink(link: string | null | undefined): string | null {
   const trimmed = link?.trim() || null;
-  if (trimmed && !/^https?:\/\//.test(trimmed)) throw new ComplaintRefused("A link should start with https://.");
+  if (trimmed && !/^https?:\/\//.test(trimmed))
+    throw new ComplaintRefused('A link should start with https://.');
   return trimmed;
 }
 
@@ -111,24 +135,44 @@ function validLink(link: string | null | undefined): string | null {
  * controller, so a link across entities would be a mistake, and one across
  * organisations would expose another organisation's request.
  */
-async function assertRequestFor(tx: Tx, organisationId: string, entityId: string, requestId: string) {
+async function assertRequestFor(
+  tx: Tx,
+  organisationId: string,
+  entityId: string,
+  requestId: string
+) {
   const [request] = await tx
-    .select({ id: dataSubjectRequests.id, entityId: dataSubjectRequests.entityId })
+    .select({
+      id: dataSubjectRequests.id,
+      entityId: dataSubjectRequests.entityId
+    })
     .from(dataSubjectRequests)
-    .where(and(eq(dataSubjectRequests.id, requestId), eq(dataSubjectRequests.organisationId, organisationId)));
-  if (!request) throw new ComplaintRefused("That request is not on this organisation's register.");
+    .where(
+      and(
+        eq(dataSubjectRequests.id, requestId),
+        eq(dataSubjectRequests.organisationId, organisationId)
+      )
+    );
+  if (!request)
+    throw new ComplaintRefused(
+      "That request is not on this organisation's register."
+    );
   if (request.entityId !== entityId) {
-    throw new ComplaintRefused("That request was made to a different entity. A complaint is linked to a request made to the same one.");
+    throw new ComplaintRefused(
+      'That request was made to a different entity. A complaint is linked to a request made to the same one.'
+    );
   }
 }
 
 /** The organisation's own standard for "without undue delay", and how often to update the complainant. */
-export async function complaintTargets(organisationId: string): Promise<ComplaintTargets> {
+export async function complaintTargets(
+  organisationId: string
+): Promise<ComplaintTargets> {
   return withOrganisation(organisationId, async () => {
     const [org] = await db
       .select({
         outcomeTargetDays: organisations.complaintOutcomeTargetDays,
-        updateIntervalDays: organisations.complaintUpdateIntervalDays,
+        updateIntervalDays: organisations.complaintUpdateIntervalDays
       })
       .from(organisations)
       .where(eq(organisations.id, organisationId));
@@ -151,7 +195,9 @@ export async function setComplaintTargets(input: {
 }) {
   for (const n of [input.outcomeTargetDays, input.updateIntervalDays]) {
     if (!Number.isInteger(n) || n < 0 || n > 365) {
-      throw new ComplaintRefused("A target is a whole number of days, from 0 (off) to 365.");
+      throw new ComplaintRefused(
+        'A target is a whole number of days, from 0 (off) to 365.'
+      );
     }
   }
   return withOrganisation(input.organisationId, async () => {
@@ -159,27 +205,36 @@ export async function setComplaintTargets(input: {
       const [before] = await tx
         .select({
           outcomeTargetDays: organisations.complaintOutcomeTargetDays,
-          updateIntervalDays: organisations.complaintUpdateIntervalDays,
+          updateIntervalDays: organisations.complaintUpdateIntervalDays
         })
         .from(organisations)
         .where(eq(organisations.id, input.organisationId));
-      if (!before) throw new Error("No such organisation");
-      const after = { outcomeTargetDays: input.outcomeTargetDays, updateIntervalDays: input.updateIntervalDays };
-      if (before.outcomeTargetDays === after.outcomeTargetDays && before.updateIntervalDays === after.updateIntervalDays) {
+      if (!before) throw new Error('No such organisation');
+      const after = {
+        outcomeTargetDays: input.outcomeTargetDays,
+        updateIntervalDays: input.updateIntervalDays
+      };
+      if (
+        before.outcomeTargetDays === after.outcomeTargetDays &&
+        before.updateIntervalDays === after.updateIntervalDays
+      ) {
         return;
       }
       await tx
         .update(organisations)
-        .set({ complaintOutcomeTargetDays: after.outcomeTargetDays, complaintUpdateIntervalDays: after.updateIntervalDays })
+        .set({
+          complaintOutcomeTargetDays: after.outcomeTargetDays,
+          complaintUpdateIntervalDays: after.updateIntervalDays
+        })
         .where(eq(organisations.id, input.organisationId));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "organisation.complaint_targets_set",
-        subjectType: "organisation",
+        action: 'organisation.complaint_targets_set',
+        subjectType: 'organisation',
         subjectId: input.organisationId,
         before,
-        after,
+        after
       });
     });
   });
@@ -208,21 +263,37 @@ export async function recordComplaint(input: {
 }) {
   const subject = validSubject(input.subject);
   if (!input.complainantName.trim()) {
-    throw new ComplaintRefused("Record who is complaining. A complaint with no complainant cannot be answered.");
+    throw new ComplaintRefused(
+      'Record who is complaining. A complaint with no complainant cannot be answered.'
+    );
   }
-  if (!input.description.trim()) throw new ComplaintRefused("Record what the complaint is, in their terms.");
+  if (!input.description.trim())
+    throw new ComplaintRefused('Record what the complaint is, in their terms.');
   if (input.receivedAt.getTime() > Date.now() + 60_000) {
-    throw new ComplaintRefused("A complaint cannot arrive in the future. Record when it actually arrived.");
+    throw new ComplaintRefused(
+      'A complaint cannot arrive in the future. Record when it actually arrived.'
+    );
   }
 
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
-    if (input.ownerId) await assertMemberOf(input.organisationId, input.ownerId);
-    const jurisdiction = input.jurisdiction ?? (await defaultJurisdiction(input.organisationId));
-    const reference = await nextReference(input.organisationId, new Date().getUTCFullYear());
+    if (input.ownerId)
+      await assertMemberOf(input.organisationId, input.ownerId);
+    const jurisdiction =
+      input.jurisdiction ?? (await defaultJurisdiction(input.organisationId));
+    const reference = await nextReference(
+      input.organisationId,
+      new Date().getUTCFullYear()
+    );
 
     return db.transaction(async (tx) => {
-      if (input.requestId) await assertRequestFor(tx, input.organisationId, input.entityId, input.requestId);
+      if (input.requestId)
+        await assertRequestFor(
+          tx,
+          input.organisationId,
+          input.entityId,
+          input.requestId
+        );
       const [row] = await tx
         .insert(dataProtectionComplaints)
         .values({
@@ -230,7 +301,7 @@ export async function recordComplaint(input: {
           entityId: input.entityId,
           reference,
           jurisdiction,
-          controllerRole: input.controllerRole ?? "controller",
+          controllerRole: input.controllerRole ?? 'controller',
           channel: input.channel,
           receivedAt: input.receivedAt,
           subject,
@@ -240,7 +311,7 @@ export async function recordComplaint(input: {
           representative: input.representative?.trim() || null,
           requestId: input.requestId ?? null,
           ownerId: input.ownerId ?? null,
-          intakeLinkId: input.intakeLinkId ?? null,
+          intakeLinkId: input.intakeLinkId ?? null
         })
         .returning();
 
@@ -250,8 +321,8 @@ export async function recordComplaint(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId,
-        action: "complaint.recorded",
-        subjectType: "data_protection_complaint",
+        action: 'complaint.recorded',
+        subjectType: 'data_protection_complaint',
         subjectId: row.id,
         after: {
           reference,
@@ -260,21 +331,30 @@ export async function recordComplaint(input: {
           receivedAt: input.receivedAt.toISOString(),
           jurisdiction,
           role: row.controllerRole,
-          requestId: row.requestId,
-        },
+          requestId: row.requestId
+        }
       });
       return row;
     });
   });
 }
 
-async function lockedComplaint(tx: Tx, complaintId: string, organisationId: string) {
+async function lockedComplaint(
+  tx: Tx,
+  complaintId: string,
+  organisationId: string
+) {
   const [complaint] = await tx
     .select()
     .from(dataProtectionComplaints)
-    .where(and(eq(dataProtectionComplaints.id, complaintId), eq(dataProtectionComplaints.organisationId, organisationId)))
-    .for("update");
-  if (!complaint) throw new Error("No such complaint");
+    .where(
+      and(
+        eq(dataProtectionComplaints.id, complaintId),
+        eq(dataProtectionComplaints.organisationId, organisationId)
+      )
+    )
+    .for('update');
+  if (!complaint) throw new Error('No such complaint');
   return complaint;
 }
 
@@ -296,20 +376,36 @@ export async function updateComplaint(input: {
   actor: Actor;
 }) {
   const changes = { ...input.changes };
-  if (changes.subject !== undefined) changes.subject = validSubject(changes.subject);
-  if (changes.complainantName !== undefined && !changes.complainantName.trim()) {
-    throw new ComplaintRefused("Record who is complaining. A complaint with no complainant cannot be answered.");
+  if (changes.subject !== undefined)
+    changes.subject = validSubject(changes.subject);
+  if (
+    changes.complainantName !== undefined &&
+    !changes.complainantName.trim()
+  ) {
+    throw new ComplaintRefused(
+      'Record who is complaining. A complaint with no complainant cannot be answered.'
+    );
   }
   if (changes.description !== undefined && !changes.description.trim()) {
-    throw new ComplaintRefused("Record what the complaint is, in their terms.");
+    throw new ComplaintRefused('Record what the complaint is, in their terms.');
   }
 
   return withOrganisation(input.organisationId, async () => {
-    if (changes.ownerId) await assertMemberOf(input.organisationId, changes.ownerId);
+    if (changes.ownerId)
+      await assertMemberOf(input.organisationId, changes.ownerId);
     return db.transaction(async (tx) => {
-      const before = await lockedComplaint(tx, input.complaintId, input.organisationId);
+      const before = await lockedComplaint(
+        tx,
+        input.complaintId,
+        input.organisationId
+      );
       if (changes.requestId && changes.requestId !== before.requestId) {
-        await assertRequestFor(tx, input.organisationId, before.entityId, changes.requestId);
+        await assertRequestFor(
+          tx,
+          input.organisationId,
+          before.entityId,
+          changes.requestId
+        );
       }
       const [after] = await tx
         .update(dataProtectionComplaints)
@@ -321,15 +417,17 @@ export async function updateComplaint(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: before.entityId,
-        action: "complaint.updated",
-        subjectType: "data_protection_complaint",
+        action: 'complaint.updated',
+        subjectType: 'data_protection_complaint',
         subjectId: input.complaintId,
         before: { changed: Object.keys(changes) },
         after: {
           reference: after.reference,
           ...(changes.subject ? { subject: changes.subject } : {}),
-          ...(changes.requestId !== undefined ? { requestId: changes.requestId } : {}),
-        },
+          ...(changes.requestId !== undefined
+            ? { requestId: changes.requestId }
+            : {})
+        }
       });
       return after;
     });
@@ -347,7 +445,7 @@ export async function updateComplaint(input: {
 export async function recordComplaintEvent(input: {
   complaintId: string;
   organisationId: string;
-  kind: "acknowledged" | "enquiry" | "progress_update" | "regulator_contact";
+  kind: 'acknowledged' | 'enquiry' | 'progress_update' | 'regulator_contact';
   note: string;
   channel?: string | null;
   /** When it happened. Defaults to now. */
@@ -358,54 +456,87 @@ export async function recordComplaintEvent(input: {
 }) {
   const at = input.at ?? new Date();
   const note = input.note.trim();
-  if (at.getTime() > Date.now() + 60_000) throw new ComplaintRefused("That is in the future. Record when it actually happened.");
-  if (!note && input.kind !== "acknowledged") {
+  if (at.getTime() > Date.now() + 60_000)
     throw new ComplaintRefused(
-      input.kind === "enquiry"
-        ? "Say what was looked into, and with whom."
-        : input.kind === "progress_update"
-          ? "Say what the complainant was told."
-          : "Say what the Commission asked, or what was sent to it.",
+      'That is in the future. Record when it actually happened.'
+    );
+  if (!note && input.kind !== 'acknowledged') {
+    throw new ComplaintRefused(
+      input.kind === 'enquiry'
+        ? 'Say what was looked into, and with whom.'
+        : input.kind === 'progress_update'
+          ? 'Say what the complainant was told.'
+          : 'Say what the Commission asked, or what was sent to it.'
     );
   }
-  if ((input.kind === "acknowledged" || input.kind === "progress_update") && !input.channel) {
-    throw new ComplaintRefused("Say how the complainant was contacted.");
+  if (
+    (input.kind === 'acknowledged' || input.kind === 'progress_update') &&
+    !input.channel
+  ) {
+    throw new ComplaintRefused('Say how the complainant was contacted.');
   }
 
   return withOrganisation(input.organisationId, async () => {
     const targets = await complaintTargets(input.organisationId);
     return db.transaction(async (tx) => {
-      const complaint = await lockedComplaint(tx, input.complaintId, input.organisationId);
-      if (complaint.closedAt || complaint.status === "withdrawn") throw new ComplaintRefused("This complaint has ended.");
-      if (at < complaint.receivedAt) throw new ComplaintRefused("That is before the complaint arrived.");
+      const complaint = await lockedComplaint(
+        tx,
+        input.complaintId,
+        input.organisationId
+      );
+      if (complaint.closedAt || complaint.status === 'withdrawn')
+        throw new ComplaintRefused('This complaint has ended.');
+      if (at < complaint.receivedAt)
+        throw new ComplaintRefused('That is before the complaint arrived.');
 
       const changes: Partial<typeof dataProtectionComplaints.$inferInsert> = {};
       let late = false;
       const lateReason = input.lateReason?.trim() || null;
-      if (input.kind === "acknowledged") {
-        if (complaint.acknowledgedAt) throw new ComplaintRefused("It has already been acknowledged.");
-        if (complaint.outcomeAt) throw new ComplaintRefused("The outcome has already been sent, which acknowledged it.");
+      if (input.kind === 'acknowledged') {
+        if (complaint.acknowledgedAt)
+          throw new ComplaintRefused('It has already been acknowledged.');
+        if (complaint.outcomeAt)
+          throw new ComplaintRefused(
+            'The outcome has already been sent, which acknowledged it.'
+          );
         const events = await tx
           .select()
           .from(dataProtectionComplaintEvents)
-          .where(eq(dataProtectionComplaintEvents.complaintId, input.complaintId));
-        const clock = clockOf({ ...complaint, acknowledgedAt: at }, events, targets, at);
-        late = clock.acknowledgement.state === "late";
+          .where(
+            eq(dataProtectionComplaintEvents.complaintId, input.complaintId)
+          );
+        const clock = clockOf(
+          { ...complaint, acknowledgedAt: at },
+          events,
+          targets,
+          at
+        );
+        late = clock.acknowledgement.state === 'late';
         if (late && !lateReason) {
-          throw new ComplaintRefused("This is after the 30 days in s.164A(3). Record why it was late.");
+          throw new ComplaintRefused(
+            'This is after the 30 days in s.164A(3). Record why it was late.'
+          );
         }
         Object.assign(changes, {
           acknowledgedAt: at,
           acknowledgementChannel: input.channel,
           acknowledgementLateReason: lateReason,
-          ...(complaint.status === "received" ? { status: "acknowledged" as const } : {}),
+          ...(complaint.status === 'received'
+            ? { status: 'acknowledged' as const }
+            : {})
         });
       } else {
-        if (complaint.outcomeAt && input.kind !== "regulator_contact") {
-          throw new ComplaintRefused("The outcome has been sent. Close the complaint, or record contact from the Commission.");
+        if (complaint.outcomeAt && input.kind !== 'regulator_contact') {
+          throw new ComplaintRefused(
+            'The outcome has been sent. Close the complaint, or record contact from the Commission.'
+          );
         }
-        if (input.kind === "enquiry" && (complaint.status === "received" || complaint.status === "acknowledged")) {
-          changes.status = "investigating";
+        if (
+          input.kind === 'enquiry' &&
+          (complaint.status === 'received' ||
+            complaint.status === 'acknowledged')
+        ) {
+          changes.status = 'investigating';
         }
       }
 
@@ -415,11 +546,11 @@ export async function recordComplaintEvent(input: {
           organisationId: input.organisationId,
           complaintId: input.complaintId,
           kind: input.kind,
-          note: note || "Acknowledged receipt.",
+          note: note || 'Acknowledged receipt.',
           channel: input.channel ?? null,
           occurredAt: at,
           recordedBy: input.actor.actorUserId,
-          recordedByLabel: input.actor.actorLabel,
+          recordedByLabel: input.actor.actorLabel
         })
         .returning();
       if (Object.keys(changes).length > 0) {
@@ -433,8 +564,11 @@ export async function recordComplaintEvent(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: complaint.entityId,
-        action: input.kind === "acknowledged" ? "complaint.acknowledged" : "complaint.event_recorded",
-        subjectType: "data_protection_complaint",
+        action:
+          input.kind === 'acknowledged'
+            ? 'complaint.acknowledged'
+            : 'complaint.event_recorded',
+        subjectType: 'data_protection_complaint',
         subjectId: input.complaintId,
         after: {
           reference: complaint.reference,
@@ -442,8 +576,8 @@ export async function recordComplaintEvent(input: {
           eventId: event.id,
           occurredAt: at.toISOString(),
           channel: input.channel ?? null,
-          ...(input.kind === "acknowledged" ? { late, lateReason } : {}),
-        },
+          ...(input.kind === 'acknowledged' ? { late, lateReason } : {})
+        }
       });
       return event;
     });
@@ -473,34 +607,60 @@ export async function recordComplaintOutcome(input: {
 }) {
   const at = input.at ?? new Date();
   const summary = input.summary.trim();
-  if (!summary) throw new ComplaintRefused("Say what the complainant was told, in a sentence or two.");
-  if (at.getTime() > Date.now() + 60_000) throw new ComplaintRefused("That is in the future. Record when it was sent.");
+  if (!summary)
+    throw new ComplaintRefused(
+      'Say what the complainant was told, in a sentence or two.'
+    );
+  if (at.getTime() > Date.now() + 60_000)
+    throw new ComplaintRefused(
+      'That is in the future. Record when it was sent.'
+    );
   const link = validLink(input.link);
 
   return withOrganisation(input.organisationId, async () => {
     const targets = await complaintTargets(input.organisationId);
     return db.transaction(async (tx) => {
-      const complaint = await lockedComplaint(tx, input.complaintId, input.organisationId);
-      if (complaint.outcomeAt) throw new ComplaintRefused("An outcome has already been recorded.");
-      if (complaint.closedAt || complaint.status === "withdrawn") throw new ComplaintRefused("This complaint has ended.");
-      if (at < complaint.receivedAt) throw new ComplaintRefused("That is before the complaint arrived.");
-      if (input.outcome === "passed_to_controller" && complaint.controllerRole === "controller") {
-        throw new ComplaintRefused("As the controller, the complaint is yours to answer. Passing it on is for a processor or a joint controller.");
+      const complaint = await lockedComplaint(
+        tx,
+        input.complaintId,
+        input.organisationId
+      );
+      if (complaint.outcomeAt)
+        throw new ComplaintRefused('An outcome has already been recorded.');
+      if (complaint.closedAt || complaint.status === 'withdrawn')
+        throw new ComplaintRefused('This complaint has ended.');
+      if (at < complaint.receivedAt)
+        throw new ComplaintRefused('That is before the complaint arrived.');
+      if (
+        input.outcome === 'passed_to_controller' &&
+        complaint.controllerRole === 'controller'
+      ) {
+        throw new ComplaintRefused(
+          'As the controller, the complaint is yours to answer. Passing it on is for a processor or a joint controller.'
+        );
       }
 
       const events = await tx
         .select()
         .from(dataProtectionComplaintEvents)
-        .where(eq(dataProtectionComplaintEvents.complaintId, input.complaintId));
-      const clock = clockOf({ ...complaint, outcomeAt: at }, events, targets, at);
-      const ackLate = !complaint.acknowledgedAt && clock.acknowledgement.state === "late";
-      const late = clock.outcome.state === "late";
+        .where(
+          eq(dataProtectionComplaintEvents.complaintId, input.complaintId)
+        );
+      const clock = clockOf(
+        { ...complaint, outcomeAt: at },
+        events,
+        targets,
+        at
+      );
+      const ackLate =
+        !complaint.acknowledgedAt && clock.acknowledgement.state === 'late';
+      const late = clock.outcome.state === 'late';
       const lateReason = input.lateReason?.trim() || null;
       if ((late || ackLate) && !lateReason) {
         throw new ComplaintRefused(
           ackLate
-            ? "Nothing acknowledged this complaint within the 30 days in s.164A(3). Record why."
-            : "This is after your own target for the outcome. Record why it took longer, so the record shows the delay was not undue.",
+            ? 'Nothing acknowledged this complaint within the 30 days in s.164A(3). Record why.'
+            : 'This is after your own target for the outcome. Record why it took longer, so the record shows the delay was not undue.'
         );
       }
 
@@ -517,29 +677,33 @@ export async function recordComplaintOutcome(input: {
           outcomeLateReason: late ? lateReason : null,
           ...(complaint.acknowledgedAt
             ? {}
-            : { acknowledgedAt: at, acknowledgementChannel: input.channel, acknowledgementLateReason: ackLate ? lateReason : null }),
-          status: "outcome_sent",
-          updatedAt: new Date(),
+            : {
+                acknowledgedAt: at,
+                acknowledgementChannel: input.channel,
+                acknowledgementLateReason: ackLate ? lateReason : null
+              }),
+          status: 'outcome_sent',
+          updatedAt: new Date()
         })
         .where(eq(dataProtectionComplaints.id, input.complaintId))
         .returning();
       await tx.insert(dataProtectionComplaintEvents).values({
         organisationId: input.organisationId,
         complaintId: input.complaintId,
-        kind: "outcome_sent",
+        kind: 'outcome_sent',
         note: summary,
         channel: input.channel,
         occurredAt: at,
         recordedBy: input.actor.actorUserId,
-        recordedByLabel: input.actor.actorLabel,
+        recordedByLabel: input.actor.actorLabel
       });
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: complaint.entityId,
-        action: "complaint.outcome_sent",
-        subjectType: "data_protection_complaint",
+        action: 'complaint.outcome_sent',
+        subjectType: 'data_protection_complaint',
         subjectId: input.complaintId,
         after: {
           reference: complaint.reference,
@@ -549,8 +713,8 @@ export async function recordComplaintOutcome(input: {
           late,
           acknowledgedLate: ackLate,
           lateReason,
-          toldOfRegulatorRight: input.toldOfRegulatorRight ?? null,
-        },
+          toldOfRegulatorRight: input.toldOfRegulatorRight ?? null
+        }
       });
       return after;
     });
@@ -570,29 +734,36 @@ export async function closeComplaint(input: {
   actor: Actor;
 }) {
   const rationale = input.rationale.trim();
-  if (!rationale) throw new ComplaintRefused("Say why it is being closed.");
+  if (!rationale) throw new ComplaintRefused('Say why it is being closed.');
 
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
-      const complaint = await lockedComplaint(tx, input.complaintId, input.organisationId);
-      if (complaint.closedAt || complaint.status === "withdrawn") throw new ComplaintRefused("This complaint has already ended.");
+      const complaint = await lockedComplaint(
+        tx,
+        input.complaintId,
+        input.organisationId
+      );
+      if (complaint.closedAt || complaint.status === 'withdrawn')
+        throw new ComplaintRefused('This complaint has already ended.');
       if (!complaint.outcomeAt && !input.withdrawn) {
         throw new ComplaintRefused(
-          "The complainant has not been told the outcome. Record it first, or close it as withdrawn if they withdrew it.",
+          'The complainant has not been told the outcome. Record it first, or close it as withdrawn if they withdrew it.'
         );
       }
       if (input.withdrawn && complaint.outcomeAt) {
-        throw new ComplaintRefused("The outcome has been sent, so it cannot be withdrawn. Close it instead.");
+        throw new ComplaintRefused(
+          'The outcome has been sent, so it cannot be withdrawn. Close it instead.'
+        );
       }
 
       const now = new Date();
       const [after] = await tx
         .update(dataProtectionComplaints)
         .set({
-          status: input.withdrawn ? "withdrawn" : "closed",
+          status: input.withdrawn ? 'withdrawn' : 'closed',
           closedAt: now,
           closureRationale: rationale,
-          updatedAt: now,
+          updatedAt: now
         })
         .where(eq(dataProtectionComplaints.id, input.complaintId))
         .returning();
@@ -600,11 +771,11 @@ export async function closeComplaint(input: {
         await tx.insert(dataProtectionComplaintEvents).values({
           organisationId: input.organisationId,
           complaintId: input.complaintId,
-          kind: "withdrawn",
+          kind: 'withdrawn',
           note: rationale,
           occurredAt: now,
           recordedBy: input.actor.actorUserId,
-          recordedByLabel: input.actor.actorLabel,
+          recordedByLabel: input.actor.actorLabel
         });
       }
 
@@ -612,10 +783,14 @@ export async function closeComplaint(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: complaint.entityId,
-        action: input.withdrawn ? "complaint.withdrawn" : "complaint.closed",
-        subjectType: "data_protection_complaint",
+        action: input.withdrawn ? 'complaint.withdrawn' : 'complaint.closed',
+        subjectType: 'data_protection_complaint',
         subjectId: input.complaintId,
-        after: { reference: complaint.reference, rationale, outcome: complaint.outcome },
+        after: {
+          reference: complaint.reference,
+          rationale,
+          outcome: complaint.outcome
+        }
       });
       return after;
     });
@@ -625,41 +800,75 @@ export async function closeComplaint(input: {
 async function eventsFor(complaintIds: string[]): Promise<LoadedEvent[]> {
   if (complaintIds.length === 0) return [];
   return db
-    .select({ event: dataProtectionComplaintEvents, recordedByEmail: users.email })
+    .select({
+      event: dataProtectionComplaintEvents,
+      recordedByEmail: users.email
+    })
     .from(dataProtectionComplaintEvents)
     .leftJoin(users, eq(users.id, dataProtectionComplaintEvents.recordedBy))
     .where(inArray(dataProtectionComplaintEvents.complaintId, complaintIds))
-    .orderBy(asc(dataProtectionComplaintEvents.occurredAt), asc(dataProtectionComplaintEvents.recordedAt))
-    .then((rows) => rows.map((r) => ({ ...r.event, recordedByEmail: r.recordedByEmail })));
+    .orderBy(
+      asc(dataProtectionComplaintEvents.occurredAt),
+      asc(dataProtectionComplaintEvents.recordedAt)
+    )
+    .then((rows) =>
+      rows.map((r) => ({ ...r.event, recordedByEmail: r.recordedByEmail }))
+    );
 }
 
 function groupEvents(events: LoadedEvent[]) {
   const byComplaint = new Map<string, LoadedEvent[]>();
-  for (const e of events) byComplaint.set(e.complaintId, [...(byComplaint.get(e.complaintId) ?? []), e]);
+  for (const e of events)
+    byComplaint.set(e.complaintId, [
+      ...(byComplaint.get(e.complaintId) ?? []),
+      e
+    ]);
   return byComplaint;
 }
 
 export async function loadComplaint(
   complaintId: string,
-  organisationId: string,
-): Promise<(LoadedComplaint & { request: { id: string; reference: string; status: string } | null }) | null> {
+  organisationId: string
+): Promise<
+  | (LoadedComplaint & {
+      request: { id: string; reference: string; status: string } | null;
+    })
+  | null
+> {
   return withOrganisation(organisationId, async () => {
     const [row] = await db
-      .select({ complaint: dataProtectionComplaints, entityName: entities.name, ownerEmail: users.email })
+      .select({
+        complaint: dataProtectionComplaints,
+        entityName: entities.name,
+        ownerEmail: users.email
+      })
       .from(dataProtectionComplaints)
       .innerJoin(entities, eq(entities.id, dataProtectionComplaints.entityId))
       .leftJoin(users, eq(users.id, dataProtectionComplaints.ownerId))
       .where(
-        and(eq(dataProtectionComplaints.id, complaintId), eq(dataProtectionComplaints.organisationId, organisationId)),
+        and(
+          eq(dataProtectionComplaints.id, complaintId),
+          eq(dataProtectionComplaints.organisationId, organisationId)
+        )
       );
     if (!row) return null;
-    const [events, targets] = await Promise.all([eventsFor([complaintId]), complaintTargets(organisationId)]);
+    const [events, targets] = await Promise.all([
+      eventsFor([complaintId]),
+      complaintTargets(organisationId)
+    ]);
     const [request] = row.complaint.requestId
       ? await db
-          .select({ id: dataSubjectRequests.id, reference: dataSubjectRequests.reference, status: dataSubjectRequests.status })
+          .select({
+            id: dataSubjectRequests.id,
+            reference: dataSubjectRequests.reference,
+            status: dataSubjectRequests.status
+          })
           .from(dataSubjectRequests)
           .where(
-            and(eq(dataSubjectRequests.id, row.complaint.requestId), eq(dataSubjectRequests.organisationId, organisationId)),
+            and(
+              eq(dataSubjectRequests.id, row.complaint.requestId),
+              eq(dataSubjectRequests.organisationId, organisationId)
+            )
           )
       : [];
     return {
@@ -668,15 +877,22 @@ export async function loadComplaint(
       ownerEmail: row.ownerEmail,
       events,
       clock: clockOf(row.complaint, events, targets),
-      request: request ?? null,
+      request: request ?? null
     };
   });
 }
 
-export async function complaintRegister(organisationId: string, entityIds: string[] | null) {
+export async function complaintRegister(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
-      .select({ complaint: dataProtectionComplaints, entityName: entities.name, ownerEmail: users.email })
+      .select({
+        complaint: dataProtectionComplaints,
+        entityName: entities.name,
+        ownerEmail: users.email
+      })
       .from(dataProtectionComplaints)
       .innerJoin(entities, eq(entities.id, dataProtectionComplaints.entityId))
       .leftJoin(users, eq(users.id, dataProtectionComplaints.ownerId))
@@ -685,55 +901,77 @@ export async function complaintRegister(organisationId: string, entityIds: strin
           ? eq(dataProtectionComplaints.organisationId, organisationId)
           : and(
               eq(dataProtectionComplaints.organisationId, organisationId),
-              inArray(dataProtectionComplaints.entityId, entityIds),
-            ),
+              inArray(dataProtectionComplaints.entityId, entityIds)
+            )
       )
       .orderBy(desc(dataProtectionComplaints.receivedAt));
 
     const [events, targets] = await Promise.all([
       eventsFor(rows.map((r) => r.complaint.id)),
-      complaintTargets(organisationId),
+      complaintTargets(organisationId)
     ]);
     const byComplaint = groupEvents(events);
     const now = new Date();
     const loaded: LoadedComplaint[] = rows.map((r) => {
       const ev = byComplaint.get(r.complaint.id) ?? [];
-      return { ...r, events: ev, clock: clockOf(r.complaint, ev, targets, now) };
+      return {
+        ...r,
+        events: ev,
+        clock: clockOf(r.complaint, ev, targets, now)
+      };
     });
     // Open means still owed an outcome: once it is sent, only closing the file remains.
-    const open = loaded.filter((c) => !c.complaint.outcomeAt && !c.complaint.closedAt && c.complaint.status !== "withdrawn");
+    const open = loaded.filter(
+      (c) =>
+        !c.complaint.outcomeAt &&
+        !c.complaint.closedAt &&
+        c.complaint.status !== 'withdrawn'
+    );
 
     return {
       total: loaded.length,
       open: open.length,
-      toAcknowledge: open.filter((c) => c.clock.acknowledgement.state === "running" || c.clock.acknowledgement.state === "due_soon").length,
-      acknowledgeSoon: open.filter((c) => c.clock.acknowledgement.state === "due_soon").length,
-      acknowledgementOverdue: open.filter((c) => c.clock.acknowledgement.state === "overdue").length,
-      outcomeOverdue: open.filter((c) => c.clock.outcome.state === "overdue").length,
-      updateOverdue: open.filter((c) => c.clock.update.state === "overdue").length,
-      rows: loaded,
+      toAcknowledge: open.filter(
+        (c) =>
+          c.clock.acknowledgement.state === 'running' ||
+          c.clock.acknowledgement.state === 'due_soon'
+      ).length,
+      acknowledgeSoon: open.filter(
+        (c) => c.clock.acknowledgement.state === 'due_soon'
+      ).length,
+      acknowledgementOverdue: open.filter(
+        (c) => c.clock.acknowledgement.state === 'overdue'
+      ).length,
+      outcomeOverdue: open.filter((c) => c.clock.outcome.state === 'overdue')
+        .length,
+      updateOverdue: open.filter((c) => c.clock.update.state === 'overdue')
+        .length,
+      rows: loaded
     };
   });
 }
 
 /** The complaints about one request, for the request's own page. */
-export async function complaintsAboutRequest(requestId: string, organisationId: string) {
+export async function complaintsAboutRequest(
+  requestId: string,
+  organisationId: string
+) {
   return withOrganisation(organisationId, async () =>
     db
       .select({
         id: dataProtectionComplaints.id,
         reference: dataProtectionComplaints.reference,
         status: dataProtectionComplaints.status,
-        receivedAt: dataProtectionComplaints.receivedAt,
+        receivedAt: dataProtectionComplaints.receivedAt
       })
       .from(dataProtectionComplaints)
       .where(
         and(
           eq(dataProtectionComplaints.requestId, requestId),
-          eq(dataProtectionComplaints.organisationId, organisationId),
-        ),
+          eq(dataProtectionComplaints.organisationId, organisationId)
+        )
       )
-      .orderBy(asc(dataProtectionComplaints.receivedAt)),
+      .orderBy(asc(dataProtectionComplaints.receivedAt))
   );
 }
 
@@ -751,21 +989,23 @@ export async function complaintsNeedingAttention(organisationId: string) {
           eq(dataProtectionComplaints.organisationId, organisationId),
           isNull(dataProtectionComplaints.outcomeAt),
           isNull(dataProtectionComplaints.closedAt),
-          ne(dataProtectionComplaints.status, "withdrawn"),
-        ),
+          ne(dataProtectionComplaints.status, 'withdrawn')
+        )
       );
     if (open.length === 0) return [];
 
     const [events, targets] = await Promise.all([
       eventsFor(open.map((c) => c.id)),
-      complaintTargets(organisationId),
+      complaintTargets(organisationId)
     ]);
     const byComplaint = groupEvents(events);
     const now = new Date();
     return open
       .map((complaint) => ({
         complaint,
-        pressing: pressingDials(clockOf(complaint, byComplaint.get(complaint.id) ?? [], targets, now)),
+        pressing: pressingDials(
+          clockOf(complaint, byComplaint.get(complaint.id) ?? [], targets, now)
+        )
       }))
       .filter((c) => c.pressing.length > 0);
   });
@@ -780,12 +1020,14 @@ export async function complaintMetrics(
   organisationId: string,
   entityIds: string[] | null,
   months = 12,
-  now = new Date(),
+  now = new Date()
 ): Promise<ComplaintCounts & { months: number; from: Date; to: Date }> {
   const periods = monthsEnding(now, months);
   const from = periods[0].start;
   const register = await complaintRegister(organisationId, entityIds);
-  const inWindow = register.rows.filter((r) => r.complaint.receivedAt >= from && r.complaint.receivedAt <= now);
+  const inWindow = register.rows.filter(
+    (r) => r.complaint.receivedAt >= from && r.complaint.receivedAt <= now
+  );
   return {
     months,
     from,
@@ -799,10 +1041,10 @@ export async function complaintMetrics(
         outcome: r.complaint.outcome,
         outcomeAt: r.complaint.outcomeAt,
         outcomeState: r.clock.outcome.state,
-        status: r.complaint.status,
+        status: r.complaint.status
       })),
-      periods,
-    ),
+      periods
+    )
   };
 }
 
@@ -813,7 +1055,11 @@ export async function complaintMetrics(
  * nothing is refused for the same reason: a summary of nothing reads exactly
  * like a clean record.
  */
-export async function complaintsSummary(input: { organisationId: string; entities?: string[]; months?: number }) {
+export async function complaintsSummary(input: {
+  organisationId: string;
+  entities?: string[];
+  months?: number;
+}) {
   const months = input.months ?? 12;
   return withOrganisation(input.organisationId, async () => {
     const [org] = await db
@@ -822,38 +1068,55 @@ export async function complaintsSummary(input: { organisationId: string; entitie
         slug: organisations.slug,
         jurisdiction: organisations.dataProtectionJurisdiction,
         outcomeTargetDays: organisations.complaintOutcomeTargetDays,
-        updateIntervalDays: organisations.complaintUpdateIntervalDays,
+        updateIntervalDays: organisations.complaintUpdateIntervalDays
       })
       .from(organisations)
       .where(eq(organisations.id, input.organisationId));
-    if (!org) throw new Error("No such organisation");
+    if (!org) throw new Error('No such organisation');
 
     let entityIds: string[] | null = null;
     if (input.entities?.length) {
-      const all = await db.select().from(entities).where(eq(entities.organisationId, input.organisationId));
+      const all = await db
+        .select()
+        .from(entities)
+        .where(eq(entities.organisationId, input.organisationId));
       const named = (e: (typeof all)[number]) =>
-        input.entities!.includes(e.name) || (e.legalEntityRef !== null && input.entities!.includes(e.legalEntityRef));
-      const unknown = input.entities.filter((n) => !all.some((e) => e.name === n || e.legalEntityRef === n));
-      if (unknown.length) throw new BadQuery(`No entity named ${unknown.map((n) => `\`${n}\``).join(", ")}`);
+        input.entities!.includes(e.name) ||
+        (e.legalEntityRef !== null &&
+          input.entities!.includes(e.legalEntityRef));
+      const unknown = input.entities.filter(
+        (n) => !all.some((e) => e.name === n || e.legalEntityRef === n)
+      );
+      if (unknown.length)
+        throw new BadQuery(
+          `No entity named ${unknown.map((n) => `\`${n}\``).join(', ')}`
+        );
       entityIds = all.filter(named).map((e) => e.id);
     }
 
     const m = await complaintMetrics(input.organisationId, entityIds, months);
     return {
-      summaryVersion: "1.0",
+      summaryVersion: '1.0',
       generatedAt: new Date().toISOString(),
-      organisation: { name: org.name, slug: org.slug, defaultJurisdiction: org.jurisdiction },
-      targets: { outcomeTargetDays: org.outcomeTargetDays, updateIntervalDays: org.updateIntervalDays },
+      organisation: {
+        name: org.name,
+        slug: org.slug,
+        defaultJurisdiction: org.jurisdiction
+      },
+      targets: {
+        outcomeTargetDays: org.outcomeTargetDays,
+        updateIntervalDays: org.updateIntervalDays
+      },
       scope: {
         entities: input.entities?.length ? input.entities : null,
         months,
         from: m.from.toISOString(),
-        to: m.to.toISOString(),
+        to: m.to.toISOString()
       },
       totals: m.totals,
       outcomes: m.outcomes,
       bySubject: m.bySubject,
-      byMonth: m.byMonth,
+      byMonth: m.byMonth
     };
   });
 }

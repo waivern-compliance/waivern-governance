@@ -33,17 +33,19 @@ const PRIVATE_HOST = /@[^@/]*\.railway\.internal[:/]/i;
 
 export function insideRailway(env: Env = process.env): boolean {
   return Boolean(
-    env.RAILWAY_ENVIRONMENT_NAME ?? env.RAILWAY_SERVICE_NAME ?? env.RAILWAY_PROJECT_ID,
+    env.RAILWAY_ENVIRONMENT_NAME ??
+      env.RAILWAY_SERVICE_NAME ??
+      env.RAILWAY_PROJECT_ID
   );
 }
 
 /** The reason this string cannot be used, or null if it can. */
 export function whyUnusable(
   connectionString: string,
-  env: Env = process.env,
+  env: Env = process.env
 ): string | null {
   if (PLACEHOLDER.test(connectionString)) {
-    const shown = connectionString.replace(/:\/\/([^:]+):[^@]*@/, "://$1:***@");
+    const shown = connectionString.replace(/:\/\/([^:]+):[^@]*@/, '://$1:***@');
     return (
       `DATABASE_URL still contains a placeholder, so it was probably copied from ` +
       `documentation rather than from the database itself.\n\n  ${shown}\n\n` +
@@ -54,24 +56,24 @@ export function whyUnusable(
 
   if (EMPTY_PASSWORD.test(connectionString)) {
     return (
-      "DATABASE_URL has an empty password - there is nothing between the " +
-      "colon and the @.\n\n" +
-      "  postgresql://postgres:@host:5432/railway\n" +
-      "                       ^ the password belongs here\n\n" +
-      "A dashboard that masks the value copies the mask, not the secret. In " +
-      "Railway, open the Postgres service → Variables → DATABASE_PUBLIC_URL " +
-      "and use the copy button, which yields the whole string."
+      'DATABASE_URL has an empty password - there is nothing between the ' +
+      'colon and the @.\n\n' +
+      '  postgresql://postgres:@host:5432/railway\n' +
+      '                       ^ the password belongs here\n\n' +
+      'A dashboard that masks the value copies the mask, not the secret. In ' +
+      'Railway, open the Postgres service → Variables → DATABASE_PUBLIC_URL ' +
+      'and use the copy button, which yields the whole string.'
     );
   }
 
   if (PRIVATE_HOST.test(connectionString) && !insideRailway(env)) {
     return (
-      "DATABASE_URL points at a private Railway hostname (.railway.internal), " +
-      "which only resolves inside Railway. This process is not running there.\n\n" +
-      "  To run a one-off command against the deployed database:\n" +
-      "    railway ssh -- pnpm <script>\n\n" +
-      "  That runs inside the service, where the private address works and " +
-      "DATABASE_URL is already set - so there is nothing to copy or paste."
+      'DATABASE_URL points at a private Railway hostname (.railway.internal), ' +
+      'which only resolves inside Railway. This process is not running there.\n\n' +
+      '  To run a one-off command against the deployed database:\n' +
+      '    railway ssh -- pnpm <script>\n\n' +
+      '  That runs inside the service, where the private address works and ' +
+      'DATABASE_URL is already set - so there is nothing to copy or paste.'
     );
   }
 
@@ -81,7 +83,7 @@ export function whyUnusable(
 /** Throw unless the string can be used from here. */
 export function assertUsable(
   connectionString: string,
-  env: Env = process.env,
+  env: Env = process.env
 ): void {
   const why = whyUnusable(connectionString, env);
   if (why) throw new Error(why);

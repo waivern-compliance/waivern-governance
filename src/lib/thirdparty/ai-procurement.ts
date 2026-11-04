@@ -16,20 +16,20 @@
  * a copy that has since drifted.
  */
 
-export type AiInvolvement = "none" | "in_delivery" | "ai_product";
+export type AiInvolvement = 'none' | 'in_delivery' | 'ai_product';
 
 export const AI_INVOLVEMENT_LABEL: Record<AiInvolvement, string> = {
-  none: "Does not use AI in what it provides",
-  in_delivery: "Uses AI in delivering the service",
-  ai_product: "Supplies an AI product, model or service",
+  none: 'Does not use AI in what it provides',
+  in_delivery: 'Uses AI in delivering the service',
+  ai_product: 'Supplies an AI product, model or service'
 };
 
 export function isAiInvolvement(value: unknown): value is AiInvolvement {
-  return typeof value === "string" && value in AI_INVOLVEMENT_LABEL;
+  return typeof value === 'string' && value in AI_INVOLVEMENT_LABEL;
 }
 
 export function involvesAi(value: AiInvolvement | null | undefined): boolean {
-  return value === "in_delivery" || value === "ai_product";
+  return value === 'in_delivery' || value === 'ai_product';
 }
 
 /**
@@ -38,50 +38,85 @@ export function involvesAi(value: AiInvolvement | null | undefined): boolean {
  * the use enough that their absence is not a gap in itself.
  */
 export const AI_CONTRACT_TERMS = [
-  { value: "ai_use_disclosed", expected: true,
-    label: "The supplier tells us where AI is used in delivering the service, and before it starts using more" },
-  { value: "no_training_on_our_data", expected: true,
-    label: "Our data, and data about the people we serve, is not used to train or improve their models without our agreement" },
-  { value: "model_change_notice", expected: true,
-    label: "Notice before a material change to the model, its provider or how it is trained" },
-  { value: "incident_notification", expected: true,
-    label: "Incidents, failures and vulnerabilities in what they supply are reported to us promptly" },
-  { value: "data_return_deletion", expected: true,
-    label: "Our data, and anything derived from it, is returned or deleted when the contract ends" },
-  { value: "audit_and_testing_access", expected: false,
-    label: "Access to documentation, test results and audit, enough for us to test it ourselves" },
-  { value: "transparency_support", expected: false,
-    label: "The information an Algorithmic Transparency Recording Standard record needs" },
-  { value: "warranty_indemnity", expected: false,
-    label: "Warranties and indemnities covering the AI's failure and intellectual property" },
+  {
+    value: 'ai_use_disclosed',
+    expected: true,
+    label:
+      'The supplier tells us where AI is used in delivering the service, and before it starts using more'
+  },
+  {
+    value: 'no_training_on_our_data',
+    expected: true,
+    label:
+      'Our data, and data about the people we serve, is not used to train or improve their models without our agreement'
+  },
+  {
+    value: 'model_change_notice',
+    expected: true,
+    label:
+      'Notice before a material change to the model, its provider or how it is trained'
+  },
+  {
+    value: 'incident_notification',
+    expected: true,
+    label:
+      'Incidents, failures and vulnerabilities in what they supply are reported to us promptly'
+  },
+  {
+    value: 'data_return_deletion',
+    expected: true,
+    label:
+      'Our data, and anything derived from it, is returned or deleted when the contract ends'
+  },
+  {
+    value: 'audit_and_testing_access',
+    expected: false,
+    label:
+      'Access to documentation, test results and audit, enough for us to test it ourselves'
+  },
+  {
+    value: 'transparency_support',
+    expected: false,
+    label:
+      'The information an Algorithmic Transparency Recording Standard record needs'
+  },
+  {
+    value: 'warranty_indemnity',
+    expected: false,
+    label:
+      "Warranties and indemnities covering the AI's failure and intellectual property"
+  }
 ] as const;
 
-export type AiContractTerm = (typeof AI_CONTRACT_TERMS)[number]["value"];
+export type AiContractTerm = (typeof AI_CONTRACT_TERMS)[number]['value'];
 
-export const EXPECTED_TERMS: AiContractTerm[] = AI_CONTRACT_TERMS.filter((t) => t.expected).map(
-  (t) => t.value,
-);
+export const EXPECTED_TERMS: AiContractTerm[] = AI_CONTRACT_TERMS.filter(
+  (t) => t.expected
+).map((t) => t.value);
 
 export type AiSupplierGap =
-  | "ai_involvement_unrecorded"
-  | "ai_not_assessed"
-  | "ai_assessment_not_approved"
-  | "ai_trains_on_our_data"
-  | "ai_training_unknown"
-  | "ai_terms_missing"
-  | "ai_do_not_proceed";
+  | 'ai_involvement_unrecorded'
+  | 'ai_not_assessed'
+  | 'ai_assessment_not_approved'
+  | 'ai_trains_on_our_data'
+  | 'ai_training_unknown'
+  | 'ai_terms_missing'
+  | 'ai_do_not_proceed';
 
 export const AI_GAP_WORDS: Record<AiSupplierGap, string> = {
-  ai_involvement_unrecorded: "Supplies an AI system; AI use not recorded",
-  ai_not_assessed: "AI supply never assessed",
-  ai_assessment_not_approved: "AI supplier assessment not finished",
-  ai_trains_on_our_data: "Trains on our data without agreement",
-  ai_training_unknown: "Not known whether it trains on our data",
-  ai_terms_missing: "Contract lacks expected AI terms",
-  ai_do_not_proceed: "AI assessment recommends not proceeding",
+  ai_involvement_unrecorded: 'Supplies an AI system; AI use not recorded',
+  ai_not_assessed: 'AI supply never assessed',
+  ai_assessment_not_approved: 'AI supplier assessment not finished',
+  ai_trains_on_our_data: 'Trains on our data without agreement',
+  ai_training_unknown: 'Not known whether it trains on our data',
+  ai_terms_missing: 'Contract lacks expected AI terms',
+  ai_do_not_proceed: 'AI assessment recommends not proceeding'
 };
 
-export const SERIOUS_AI_GAPS: AiSupplierGap[] = ["ai_trains_on_our_data", "ai_do_not_proceed"];
+export const SERIOUS_AI_GAPS: AiSupplierGap[] = [
+  'ai_trains_on_our_data',
+  'ai_do_not_proceed'
+];
 
 /**
  * Questions only an AI supplier assessment asks, used to tell one apart from
@@ -94,25 +129,37 @@ export const SERIOUS_AI_GAPS: AiSupplierGap[] = ["ai_trains_on_our_data", "ai_do
  * template keeps these keys and is still recognised; a template without them
  * is not an AI assessment, whatever it is called.
  */
-export const AI_SUPPLIER_KEYS = ["ai_involvement", "trains_on_our_data"] as const;
+export const AI_SUPPLIER_KEYS = [
+  'ai_involvement',
+  'trains_on_our_data'
+] as const;
 
 export function isAiSupplierDefinition(definition: {
   schema: { sections: Array<{ questions: Array<{ key: string }> }> };
 }): boolean {
-  const keys = new Set(definition.schema.sections.flatMap((s) => s.questions.map((q) => q.key)));
+  const keys = new Set(
+    definition.schema.sections.flatMap((s) => s.questions.map((q) => q.key))
+  );
   return AI_SUPPLIER_KEYS.every((k) => keys.has(k));
 }
 
-export type AiRecommendation = "proceed" | "proceed_with_conditions" | "do_not_proceed";
+export type AiRecommendation =
+  | 'proceed'
+  | 'proceed_with_conditions'
+  | 'do_not_proceed';
 
 export function isRecommendation(value: unknown): value is AiRecommendation {
-  return value === "proceed" || value === "proceed_with_conditions" || value === "do_not_proceed";
+  return (
+    value === 'proceed' ||
+    value === 'proceed_with_conditions' ||
+    value === 'do_not_proceed'
+  );
 }
 
 export const RECOMMENDATION_LABEL: Record<AiRecommendation, string> = {
-  proceed: "Proceed",
-  proceed_with_conditions: "Proceed, with conditions",
-  do_not_proceed: "Do not proceed",
+  proceed: 'Proceed',
+  proceed_with_conditions: 'Proceed, with conditions',
+  do_not_proceed: 'Do not proceed'
 };
 
 /**
@@ -123,22 +170,22 @@ export const RECOMMENDATION_LABEL: Record<AiRecommendation, string> = {
  * recommended with conditions whose contract lacks the terms is both.
  */
 export type AiStanding =
-  | "not_applicable"
-  | "not_assessed"
-  | "in_review"
-  | "proceed"
-  | "proceed_with_conditions"
-  | "do_not_proceed"
-  | "approved_no_recommendation";
+  | 'not_applicable'
+  | 'not_assessed'
+  | 'in_review'
+  | 'proceed'
+  | 'proceed_with_conditions'
+  | 'do_not_proceed'
+  | 'approved_no_recommendation';
 
 export const AI_STANDING_LABEL: Record<AiStanding, string> = {
-  not_applicable: "No AI involved",
-  not_assessed: "Not assessed",
-  in_review: "Assessment in progress",
-  proceed: "Proceed",
-  proceed_with_conditions: "Proceed, with conditions",
-  do_not_proceed: "Do not proceed",
-  approved_no_recommendation: "Assessed; no recommendation recorded",
+  not_applicable: 'No AI involved',
+  not_assessed: 'Not assessed',
+  in_review: 'Assessment in progress',
+  proceed: 'Proceed',
+  proceed_with_conditions: 'Proceed, with conditions',
+  do_not_proceed: 'Do not proceed',
+  approved_no_recommendation: 'Assessed; no recommendation recorded'
 };
 
 /** What the latest AI supplier assessment says, in the terms the gaps need. */
@@ -164,33 +211,41 @@ export function aiSupplierGaps(
   involvement: AiInvolvement | null,
   assessed: AiSupplierAssessed | null,
   /** How many AI systems on the register name this supplier. */
-  systemsSupplied: number,
+  systemsSupplied: number
 ): { gaps: AiSupplierGap[]; missingTerms: AiContractTerm[] } {
   const gaps: AiSupplierGap[] = [];
   const missingTerms: AiContractTerm[] = [];
 
-  if (systemsSupplied > 0 && !involvesAi(involvement)) gaps.push("ai_involvement_unrecorded");
-  if (!involvesAi(involvement) && systemsSupplied === 0) return { gaps, missingTerms };
+  if (systemsSupplied > 0 && !involvesAi(involvement))
+    gaps.push('ai_involvement_unrecorded');
+  if (!involvesAi(involvement) && systemsSupplied === 0)
+    return { gaps, missingTerms };
 
   if (!assessed) {
-    gaps.push("ai_not_assessed");
+    gaps.push('ai_not_assessed');
     return { gaps, missingTerms };
   }
   // Answers in an unfinished assessment are not yet anybody's judgement; the
   // only gap worth reporting is that it is unfinished.
   if (!assessed.approved) {
-    gaps.push("ai_assessment_not_approved");
+    gaps.push('ai_assessment_not_approved');
     return { gaps, missingTerms };
   }
 
-  if (assessed.trainsOnOurData === "yes_without_agreement") gaps.push("ai_trains_on_our_data");
-  else if (assessed.trainsOnOurData === "unknown" || !assessed.trainsOnOurData) {
-    gaps.push("ai_training_unknown");
+  if (assessed.trainsOnOurData === 'yes_without_agreement')
+    gaps.push('ai_trains_on_our_data');
+  else if (
+    assessed.trainsOnOurData === 'unknown' ||
+    !assessed.trainsOnOurData
+  ) {
+    gaps.push('ai_training_unknown');
   }
 
-  for (const t of EXPECTED_TERMS) if (!assessed.contractTerms.includes(t)) missingTerms.push(t);
-  if (missingTerms.length > 0) gaps.push("ai_terms_missing");
-  if (assessed.recommendation === "do_not_proceed") gaps.push("ai_do_not_proceed");
+  for (const t of EXPECTED_TERMS)
+    if (!assessed.contractTerms.includes(t)) missingTerms.push(t);
+  if (missingTerms.length > 0) gaps.push('ai_terms_missing');
+  if (assessed.recommendation === 'do_not_proceed')
+    gaps.push('ai_do_not_proceed');
 
   return { gaps, missingTerms };
 }
@@ -198,12 +253,13 @@ export function aiSupplierGaps(
 export function aiStanding(
   involvement: AiInvolvement | null,
   assessed: AiSupplierAssessed | null,
-  systemsSupplied: number,
+  systemsSupplied: number
 ): AiStanding {
-  if (!involvesAi(involvement) && systemsSupplied === 0) return "not_applicable";
-  if (!assessed) return "not_assessed";
-  if (!assessed.approved) return "in_review";
+  if (!involvesAi(involvement) && systemsSupplied === 0)
+    return 'not_applicable';
+  if (!assessed) return 'not_assessed';
+  if (!assessed.approved) return 'in_review';
   return isRecommendation(assessed.recommendation)
     ? assessed.recommendation
-    : "approved_no_recommendation";
+    : 'approved_no_recommendation';
 }

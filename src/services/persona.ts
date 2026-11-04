@@ -1,10 +1,11 @@
-"use server";
+'use server';
 
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { memberships } from "@/db/schema";
-import { PERSONAS, type Persona } from "@/lib/persona";
-import { requireSession } from "@/lib/session";
+import { and, eq } from 'drizzle-orm';
+
+import { db } from '@/db/client';
+import { memberships } from '@/db/schema';
+import { PERSONAS, type Persona } from '@/lib/persona';
+import { requireSession } from '@/lib/session';
 
 /**
  * Change how the platform presents itself to you.
@@ -15,7 +16,7 @@ import { requireSession } from "@/lib/session";
  * protection. Somebody who spans two roles in real life switches as they work.
  */
 export async function setOwnPersona(persona: Persona) {
-  if (!PERSONAS.includes(persona)) throw new Error("No such persona");
+  if (!PERSONAS.includes(persona)) throw new Error('No such persona');
   const active = await requireSession();
 
   await db
@@ -24,7 +25,7 @@ export async function setOwnPersona(persona: Persona) {
     .where(
       and(
         eq(memberships.organisationId, active.membership.organisationId),
-        eq(memberships.userId, active.userId),
-      ),
+        eq(memberships.userId, active.userId)
+      )
     );
 }

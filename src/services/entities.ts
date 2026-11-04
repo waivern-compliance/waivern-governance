@@ -1,12 +1,18 @@
-import { and, asc, eq, ne } from "drizzle-orm";
-import { db, withOrganisation, type Db } from "@/db/client";
-import { entities, organisations } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { isDataProtectionLaw, ukLawApplies, type DataProtectionLaw } from "@/lib/dpa2018/applies";
-import { isRegime, type Regime } from "@/lib/dpa2018/part3";
-import { cleanDpo, dpoMissing, type Dpo } from "@/lib/dpa2018/public-authority";
-import { NotInOrganisation, assertMemberOf } from "./tenancy-guards";
-import type { Actor } from "./templates";
+import { and, asc, eq, ne } from 'drizzle-orm';
+
+import { db, withOrganisation, type Db } from '@/db/client';
+import { entities, organisations } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import {
+  isDataProtectionLaw,
+  ukLawApplies,
+  type DataProtectionLaw
+} from '@/lib/dpa2018/applies';
+import { isRegime, type Regime } from '@/lib/dpa2018/part3';
+import { cleanDpo, dpoMissing, type Dpo } from '@/lib/dpa2018/public-authority';
+
+import type { Actor } from './templates';
+import { assertMemberOf, NotInOrganisation } from './tenancy-guards';
 
 /**
  * An organisation's legal entities: adding one, renaming one, and choosing the
@@ -26,19 +32,21 @@ export class EntityRefused extends Error {}
 const NAME_LIMIT = 120;
 const REF_LIMIT = 60;
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 function cleanName(value: string): string {
-  const name = value.trim().replace(/\s+/g, " ");
+  const name = value.trim().replace(/\s+/g, ' ');
   if (name.length < 2) throw new EntityRefused("Give the legal entity's name.");
-  if (name.length > NAME_LIMIT) throw new EntityRefused("That name is too long.");
+  if (name.length > NAME_LIMIT)
+    throw new EntityRefused('That name is too long.');
   return name;
 }
 
 function cleanRef(value: string | null | undefined): string | null {
-  const ref = (value ?? "").trim();
+  const ref = (value ?? '').trim();
   if (!ref) return null;
-  if (ref.length > REF_LIMIT) throw new EntityRefused("That reference is too long.");
+  if (ref.length > REF_LIMIT)
+    throw new EntityRefused('That reference is too long.');
   return ref;
 }
 
@@ -47,21 +55,39 @@ function cleanRef(value: string | null | undefined): string | null {
  * no two entities may share either — including one entity's name being
  * another's reference.
  */
-async function assertDistinct(tx: Tx, organisationId: string, name: string, ref: string | null, except?: string) {
+async function assertDistinct(
+  tx: Tx,
+  organisationId: string,
+  name: string,
+  ref: string | null,
+  except?: string
+) {
   const others = await tx
     .select({ name: entities.name, ref: entities.legalEntityRef })
     .from(entities)
     .where(
       except
-        ? and(eq(entities.organisationId, organisationId), ne(entities.id, except))
-        : eq(entities.organisationId, organisationId),
+        ? and(
+            eq(entities.organisationId, organisationId),
+            ne(entities.id, except)
+          )
+        : eq(entities.organisationId, organisationId)
     );
-  const taken = new Set(others.flatMap((o) => [o.name, o.ref]).filter(Boolean).map((v) => v!.toLowerCase()));
+  const taken = new Set(
+    others
+      .flatMap((o) => [o.name, o.ref])
+      .filter(Boolean)
+      .map((v) => v!.toLowerCase())
+  );
   if (taken.has(name.toLowerCase())) {
-    throw new EntityRefused(`Another legal entity is already called or referenced “${name}”.`);
+    throw new EntityRefused(
+      `Another legal entity is already called or referenced “${name}”.`
+    );
   }
   if (ref && taken.has(ref.toLowerCase())) {
-    throw new EntityRefused(`Another legal entity is already called or referenced “${ref}”.`);
+    throw new EntityRefused(
+      `Another legal entity is already called or referenced “${ref}”.`
+    );
   }
 }
 
@@ -71,7 +97,7 @@ export async function entitiesOf(organisationId: string) {
       .select()
       .from(entities)
       .where(eq(entities.organisationId, organisationId))
-      .orderBy(asc(entities.name)),
+      .orderBy(asc(entities.name))
   );
 }
 
@@ -93,14 +119,14 @@ export async function addEntity(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.created",
-        subjectType: "entity",
+        action: 'entity.created',
+        subjectType: 'entity',
         subjectId: created.id,
         entityId: created.id,
-        after: { name, legalEntityRef },
+        after: { name, legalEntityRef }
       });
       return created;
-    }),
+    })
   );
 }
 
@@ -108,8 +134,14 @@ async function entityIn(tx: Tx, organisationId: string, entityId: string) {
   const [row] = await tx
     .select()
     .from(entities)
-    .where(and(eq(entities.id, entityId), eq(entities.organisationId, organisationId)));
-  if (!row) throw new NotInOrganisation("No such legal entity in this organisation.");
+    .where(
+      and(
+        eq(entities.id, entityId),
+        eq(entities.organisationId, organisationId)
+      )
+    );
+  if (!row)
+    throw new NotInOrganisation('No such legal entity in this organisation.');
   return row;
 }
 
@@ -130,8 +162,15 @@ export async function renameEntity(input: {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
-      if (before.name === name && before.legalEntityRef === legalEntityRef) return before;
-      await assertDistinct(tx, input.organisationId, name, legalEntityRef, before.id);
+      if (before.name === name && before.legalEntityRef === legalEntityRef)
+        return before;
+      await assertDistinct(
+        tx,
+        input.organisationId,
+        name,
+        legalEntityRef,
+        before.id
+      );
       const [after] = await tx
         .update(entities)
         .set({ name, legalEntityRef, updatedAt: new Date() })
@@ -140,20 +179,24 @@ export async function renameEntity(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.renamed",
-        subjectType: "entity",
+        action: 'entity.renamed',
+        subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
         before: { name: before.name, legalEntityRef: before.legalEntityRef },
-        after: { name, legalEntityRef },
+        after: { name, legalEntityRef }
       });
       return after;
-    }),
+    })
   );
 }
 
 /** Where a record arrives with no entity named, it lands in the default. There is one. */
-export async function makeDefaultEntity(input: { organisationId: string; entityId: string; actor: Actor }) {
+export async function makeDefaultEntity(input: {
+  organisationId: string;
+  entityId: string;
+  actor: Actor;
+}) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const chosen = await entityIn(tx, input.organisationId, input.entityId);
@@ -161,11 +204,21 @@ export async function makeDefaultEntity(input: { organisationId: string; entityI
       const [previous] = await tx
         .select({ id: entities.id, name: entities.name })
         .from(entities)
-        .where(and(eq(entities.organisationId, input.organisationId), eq(entities.isDefault, true)));
+        .where(
+          and(
+            eq(entities.organisationId, input.organisationId),
+            eq(entities.isDefault, true)
+          )
+        );
       await tx
         .update(entities)
         .set({ isDefault: false, updatedAt: new Date() })
-        .where(and(eq(entities.organisationId, input.organisationId), eq(entities.isDefault, true)));
+        .where(
+          and(
+            eq(entities.organisationId, input.organisationId),
+            eq(entities.isDefault, true)
+          )
+        );
       const [after] = await tx
         .update(entities)
         .set({ isDefault: true, updatedAt: new Date() })
@@ -174,15 +227,15 @@ export async function makeDefaultEntity(input: { organisationId: string; entityI
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.made_default",
-        subjectType: "entity",
+        action: 'entity.made_default',
+        subjectType: 'entity',
         subjectId: chosen.id,
         entityId: chosen.id,
         before: { default: previous?.name ?? null },
-        after: { default: chosen.name },
+        after: { default: chosen.name }
       });
       return after;
-    }),
+    })
   );
 }
 
@@ -201,7 +254,8 @@ export async function setPublicCommsProvider(input: {
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.publicCommsProvider === input.provider) return before;
-      if (input.provider) ukLawOnly(before, "A public communications provider under PECR");
+      if (input.provider)
+        ukLawOnly(before, 'A public communications provider under PECR');
       const [after] = await tx
         .update(entities)
         .set({ publicCommsProvider: input.provider, updatedAt: new Date() })
@@ -210,22 +264,27 @@ export async function setPublicCommsProvider(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.provider_flag_changed",
-        subjectType: "entity",
+        action: 'entity.provider_flag_changed',
+        subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
         before: { publicCommsProvider: before.publicCommsProvider },
-        after: { publicCommsProvider: input.provider },
+        after: { publicCommsProvider: input.provider }
       });
       return after;
-    }),
+    })
   );
 }
 
 /** The UK-law settings are refused on an entity subject to EU law only. */
-function ukLawOnly(entity: { name: string; dataProtectionLaw: DataProtectionLaw }, what: string) {
+function ukLawOnly(
+  entity: { name: string; dataProtectionLaw: DataProtectionLaw },
+  what: string
+) {
   if (!ukLawApplies(entity.dataProtectionLaw)) {
-    throw new Error(`${what} is a UK law setting, and ${entity.name} is recorded as subject to EU law only. Change that first.`);
+    throw new Error(
+      `${what} is a UK law setting, and ${entity.name} is recorded as subject to EU law only. Change that first.`
+    );
   }
 }
 
@@ -241,19 +300,22 @@ export async function setDataProtectionLaw(input: {
   law: DataProtectionLaw;
   actor: Actor;
 }) {
-  if (!isDataProtectionLaw(input.law)) throw new Error("Choose UK law, EU law, or both.");
+  if (!isDataProtectionLaw(input.law))
+    throw new Error('Choose UK law, EU law, or both.');
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.dataProtectionLaw === input.law) return before;
       if (!ukLawApplies(input.law)) {
         const on = [
-          before.publicAuthority ? "public authority" : null,
-          before.competentAuthority ? "competent authority" : null,
-          before.publicCommsProvider ? "public communications provider" : null,
+          before.publicAuthority ? 'public authority' : null,
+          before.competentAuthority ? 'competent authority' : null,
+          before.publicCommsProvider ? 'public communications provider' : null
         ].filter(Boolean);
         if (on.length > 0) {
-          throw new Error(`${before.name} is marked as a ${on.join(" and ")}, which only UK law knows. Turn that off first.`);
+          throw new Error(
+            `${before.name} is marked as a ${on.join(' and ')}, which only UK law knows. Turn that off first.`
+          );
         }
       }
       const [after] = await tx
@@ -264,20 +326,22 @@ export async function setDataProtectionLaw(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.data_protection_law_changed",
-        subjectType: "entity",
+        action: 'entity.data_protection_law_changed',
+        subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
         before: { dataProtectionLaw: before.dataProtectionLaw },
-        after: { dataProtectionLaw: input.law },
+        after: { dataProtectionLaw: input.law }
       });
       return after;
-    }),
+    })
   );
 }
 
 /** Whether any entity of the organisation is subject to UK law, for what is offered organisation-wide. */
-export async function anyEntityUnderUkLaw(organisationId: string): Promise<boolean> {
+export async function anyEntityUnderUkLaw(
+  organisationId: string
+): Promise<boolean> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({ law: entities.dataProtectionLaw })
@@ -303,7 +367,11 @@ export async function setPublicAuthority(input: {
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.publicAuthority === input.publicAuthority) return before;
-      if (input.publicAuthority) ukLawOnly(before, "A public authority within the Data Protection Act 2018 s.7");
+      if (input.publicAuthority)
+        ukLawOnly(
+          before,
+          'A public authority within the Data Protection Act 2018 s.7'
+        );
       const [after] = await tx
         .update(entities)
         .set({ publicAuthority: input.publicAuthority, updatedAt: new Date() })
@@ -312,15 +380,15 @@ export async function setPublicAuthority(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.public_authority_changed",
-        subjectType: "entity",
+        action: 'entity.public_authority_changed',
+        subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
         before: { publicAuthority: before.publicAuthority },
-        after: { publicAuthority: input.publicAuthority },
+        after: { publicAuthority: input.publicAuthority }
       });
       return after;
-    }),
+    })
   );
 }
 
@@ -338,30 +406,48 @@ export async function setCompetentAuthority(input: {
   defaultRegime?: Regime;
   actor: Actor;
 }) {
-  const defaultRegime: Regime = input.competentAuthority ? (input.defaultRegime ?? "uk_gdpr") : "uk_gdpr";
-  if (!isRegime(defaultRegime)) throw new Error("Choose the regime new records start under.");
+  const defaultRegime: Regime = input.competentAuthority
+    ? (input.defaultRegime ?? 'uk_gdpr')
+    : 'uk_gdpr';
+  if (!isRegime(defaultRegime))
+    throw new Error('Choose the regime new records start under.');
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
-      if (before.competentAuthority === input.competentAuthority && before.defaultRegime === defaultRegime) return before;
-      if (input.competentAuthority) ukLawOnly(before, "A competent authority under Part 3 of the Data Protection Act 2018");
+      if (
+        before.competentAuthority === input.competentAuthority &&
+        before.defaultRegime === defaultRegime
+      )
+        return before;
+      if (input.competentAuthority)
+        ukLawOnly(
+          before,
+          'A competent authority under Part 3 of the Data Protection Act 2018'
+        );
       const [after] = await tx
         .update(entities)
-        .set({ competentAuthority: input.competentAuthority, defaultRegime, updatedAt: new Date() })
+        .set({
+          competentAuthority: input.competentAuthority,
+          defaultRegime,
+          updatedAt: new Date()
+        })
         .where(eq(entities.id, before.id))
         .returning();
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "entity.competent_authority_changed",
-        subjectType: "entity",
+        action: 'entity.competent_authority_changed',
+        subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
-        before: { competentAuthority: before.competentAuthority, defaultRegime: before.defaultRegime },
-        after: { competentAuthority: input.competentAuthority, defaultRegime },
+        before: {
+          competentAuthority: before.competentAuthority,
+          defaultRegime: before.defaultRegime
+        },
+        after: { competentAuthority: input.competentAuthority, defaultRegime }
       });
       return after;
-    }),
+    })
   );
 }
 
@@ -379,35 +465,45 @@ export async function setDpo(input: {
   const dpo = cleanDpo(input.dpo);
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
-      if (dpo?.userId) await assertMemberOf(input.organisationId, dpo.userId, tx);
+      if (dpo?.userId)
+        await assertMemberOf(input.organisationId, dpo.userId, tx);
       if (input.entityId) {
         const before = await entityIn(tx, input.organisationId, input.entityId);
-        await tx.update(entities).set({ dpo, updatedAt: new Date() }).where(eq(entities.id, before.id));
+        await tx
+          .update(entities)
+          .set({ dpo, updatedAt: new Date() })
+          .where(eq(entities.id, before.id));
         await appendAuditEvent(tx, {
           ...input.actor,
           organisationId: input.organisationId,
-          action: "entity.dpo_changed",
-          subjectType: "entity",
+          action: 'entity.dpo_changed',
+          subjectType: 'entity',
           subjectId: before.id,
           entityId: before.id,
           before: { dpo: before.dpo },
-          after: { dpo },
+          after: { dpo }
         });
         return dpo;
       }
-      const [before] = await tx.select().from(organisations).where(eq(organisations.id, input.organisationId));
-      await tx.update(organisations).set({ dpo }).where(eq(organisations.id, input.organisationId));
+      const [before] = await tx
+        .select()
+        .from(organisations)
+        .where(eq(organisations.id, input.organisationId));
+      await tx
+        .update(organisations)
+        .set({ dpo })
+        .where(eq(organisations.id, input.organisationId));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "organisation.dpo_changed",
-        subjectType: "organisation",
+        action: 'organisation.dpo_changed',
+        subjectType: 'organisation',
         subjectId: input.organisationId,
         before: { dpo: before?.dpo ?? null },
-        after: { dpo },
+        after: { dpo }
       });
       return dpo;
-    }),
+    })
   );
 }
 
@@ -417,8 +513,15 @@ export async function setDpo(input: {
  */
 export async function dpoPosition(organisationId: string) {
   return withOrganisation(organisationId, async () => {
-    const [org] = await db.select({ dpo: organisations.dpo }).from(organisations).where(eq(organisations.id, organisationId));
-    const rows = await db.select().from(entities).where(eq(entities.organisationId, organisationId)).orderBy(asc(entities.name));
+    const [org] = await db
+      .select({ dpo: organisations.dpo })
+      .from(organisations)
+      .where(eq(organisations.id, organisationId));
+    const rows = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.organisationId, organisationId))
+      .orderBy(asc(entities.name));
     const organisationDpo: Dpo | null = org?.dpo ?? null;
     return {
       organisationDpo,
@@ -429,8 +532,15 @@ export async function dpoPosition(organisationId: string) {
         competentAuthority: e.competentAuthority,
         ownDpo: e.dpo ?? null,
         effectiveDpo: e.dpo ?? organisationDpo,
-        missing: dpoMissing({ publicAuthority: e.publicAuthority, competentAuthority: e.competentAuthority, dpo: e.dpo ?? null }, organisationDpo),
-      })),
+        missing: dpoMissing(
+          {
+            publicAuthority: e.publicAuthority,
+            competentAuthority: e.competentAuthority,
+            dpo: e.dpo ?? null
+          },
+          organisationDpo
+        )
+      }))
     };
   });
 }

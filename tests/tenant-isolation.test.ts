@@ -15,12 +15,13 @@
  * that every exported service function is accounted for, so one cannot be
  * added without somebody deciding how it is isolated.
  */
-import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { after, before, describe, it } from "node:test";
-import { eq, sql } from "drizzle-orm";
-import { db, sql as pg } from "@/db/client";
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { after, before, describe, it } from 'node:test';
+import { eq, sql } from 'drizzle-orm';
+
+import { db, sql as pg } from '@/db/client';
 import {
   aiConversations,
   auditEvents,
@@ -28,290 +29,559 @@ import {
   memberships,
   organisations,
   roleAssignments,
-  users,
-} from "@/db/schema";
-import * as access from "@/services/access";
-import * as aiAssurance from "@/services/ai-assurance";
-import * as aiIncidents from "@/services/ai-incidents";
-import * as aiIntake from "@/services/ai-intake";
-import * as aiLifecycle from "@/services/ai-lifecycle";
-import * as aiRegister from "@/services/ai-register";
-import * as aiRiskProfile from "@/services/ai-risk-profile";
-import * as dsr from "@/services/data-subject-requests";
-import * as complaintsSvc from "@/services/complaints";
-import * as inventory from "@/services/storage-inventory";
-import * as marketingSvc from "@/services/marketing";
-import * as policyDocs from "@/services/policy-documents";
-import * as sharingSvc from "@/services/sharing-agreements";
-import * as analyserSvc from "@/services/consent-analyser";
-import * as dsrIntake from "@/services/dsr-intake";
-import * as routing from "@/services/approval-routing";
-import * as assessmentsSvc from "@/services/assessments";
-import * as assistant from "@/services/assistant";
-import * as atrs from "@/services/atrs";
-import * as breachesSvc from "@/services/breaches";
-import * as collaboration from "@/services/collaboration";
-import * as connections from "@/services/connections";
-import * as contributorLinks from "@/services/contributor-links";
-import * as documentsSvc from "@/services/documents";
-import * as extraction from "@/services/extraction";
-import * as handover from "@/services/handover";
-import * as ingest from "@/services/ingest";
-import * as riskPolicy from "@/services/risk-policy";
-import * as risksSvc from "@/services/risks";
-import * as ropa from "@/services/ropa";
-import * as adm from "@/services/automated-decisions";
-import * as templatesSvc from "@/services/templates";
-import * as thirdParty from "@/services/third-party";
-import * as training from "@/services/training";
-import * as workflow from "@/services/workflow";
-import * as appetite from "@/services/appetite-in-force";
-import * as countries from "@/services/countries";
-import * as exportSvc from "@/services/export";
-import * as exportsSvc from "@/services/exports";
-import * as graph from "@/services/graph";
-import * as guidance from "@/services/guidance";
-import * as metrics from "@/services/metrics";
-import * as sweep from "@/services/sweep";
-import * as trends from "@/services/trends";
-import * as webhooks from "@/services/webhooks";
-import * as domains from "@/services/domains";
-import * as entitiesSvc from "@/services/entities";
+  users
+} from '@/db/schema';
+import * as access from '@/services/access';
+import * as aiAssurance from '@/services/ai-assurance';
+import * as aiIncidents from '@/services/ai-incidents';
+import * as aiIntake from '@/services/ai-intake';
+import * as aiLifecycle from '@/services/ai-lifecycle';
+import * as aiRegister from '@/services/ai-register';
+import * as aiRiskProfile from '@/services/ai-risk-profile';
+import * as appetite from '@/services/appetite-in-force';
+import * as routing from '@/services/approval-routing';
+import * as assessmentsSvc from '@/services/assessments';
+import * as assistant from '@/services/assistant';
+import * as atrs from '@/services/atrs';
+import * as adm from '@/services/automated-decisions';
+import * as breachesSvc from '@/services/breaches';
+import * as collaboration from '@/services/collaboration';
+import * as complaintsSvc from '@/services/complaints';
+import * as connections from '@/services/connections';
+import * as analyserSvc from '@/services/consent-analyser';
+import * as contributorLinks from '@/services/contributor-links';
+import * as countries from '@/services/countries';
+import * as dsr from '@/services/data-subject-requests';
+import * as documentsSvc from '@/services/documents';
+import * as domains from '@/services/domains';
+import * as dsrIntake from '@/services/dsr-intake';
+import * as entitiesSvc from '@/services/entities';
+import * as exportSvc from '@/services/export';
+import * as exportsSvc from '@/services/exports';
+import * as extraction from '@/services/extraction';
+import * as graph from '@/services/graph';
+import * as guidance from '@/services/guidance';
+import * as handover from '@/services/handover';
+import * as ingest from '@/services/ingest';
+import * as marketingSvc from '@/services/marketing';
+import * as metrics from '@/services/metrics';
+import * as policyDocs from '@/services/policy-documents';
+import * as riskPolicy from '@/services/risk-policy';
+import * as risksSvc from '@/services/risks';
+import * as ropa from '@/services/ropa';
+import * as sharingSvc from '@/services/sharing-agreements';
+import * as inventory from '@/services/storage-inventory';
+import * as sweep from '@/services/sweep';
+import * as templatesSvc from '@/services/templates';
+import * as thirdParty from '@/services/third-party';
+import * as training from '@/services/training';
+import * as trends from '@/services/trends';
+import * as webhooks from '@/services/webhooks';
+import * as workflow from '@/services/workflow';
 
-const SYSTEM = { actorKind: "system" as const, actorUserId: null, actorLabel: "isolation test" };
+const SYSTEM = {
+  actorKind: 'system' as const,
+  actorUserId: null,
+  actorLabel: 'isolation test'
+};
 const DAY = 86_400_000;
-const PDF = Buffer.from("%PDF-1.7\nisolation test\n");
+const PDF = Buffer.from('%PDF-1.7\nisolation test\n');
 
 const DPIA_ANSWERS = {
-  activity_name: "Audience personalisation",
-  nature: "Collect viewing history and rank recommendations.",
-  purpose: "Improve relevance.",
-  lawful_basis: "public_task",
-  data_categories: ["viewing_history"],
+  activity_name: 'Audience personalisation',
+  nature: 'Collect viewing history and rank recommendations.',
+  purpose: 'Improve relevance.',
+  lawful_basis: 'public_task',
+  data_categories: ['viewing_history'],
   special_category: false,
-  subject_groups: "Signed-in audience.",
+  subject_groups: 'Signed-in audience.',
   children_likely: false,
-  dpo_consulted: "no_dpo",
+  dpo_consulted: 'no_dpo',
   criminal_offence: false,
   volume: 100000,
-  retention: "Thirteen months.",
-  necessity: "Required for ranking.",
-  alternatives: "Editorial-only ranking rejected.",
-  transparency: "Privacy notice.",
-  rights_support: "Self-service controls.",
-  controller_role: "controller",
-  sources_and_flows: "Viewing events from the player, held in the UK.",
-  views_sought: "Audience panel consulted.",
+  retention: 'Thirteen months.',
+  necessity: 'Required for ranking.',
+  alternatives: 'Editorial-only ranking rejected.',
+  transparency: 'Privacy notice.',
+  rights_support: 'Self-service controls.',
+  controller_role: 'controller',
+  sources_and_flows: 'Viewing events from the player, held in the UK.',
+  views_sought: 'Audience panel consulted.',
   uses_ai: false,
   transfers_abroad: false,
-  risk_description: "Inference of interests.",
-  measures: "Exclude sensitive topics.",
+  risk_description: 'Inference of interests.',
+  measures: 'Exclude sensitive topics.',
   residual_accepted: false,
-  likelihood: "remote",
-  impact: "minimal",
+  likelihood: 'remote',
+  impact: 'minimal'
 };
 
 type Org = Awaited<ReturnType<typeof organisation>>;
 
-async function person(orgId: string, label: string, role: "owner" | "approver" | "privacy_admin") {
+async function person(
+  orgId: string,
+  label: string,
+  role: 'owner' | 'approver' | 'privacy_admin'
+) {
   const [u] = await db
     .insert(users)
-    .values({ email: `${label}-${crypto.randomUUID().slice(0, 8)}@example.test` })
+    .values({
+      email: `${label}-${crypto.randomUUID().slice(0, 8)}@example.test`
+    })
     .returning();
-  const [m] = await db.insert(memberships).values({ organisationId: orgId, userId: u.id }).returning();
+  const [m] = await db
+    .insert(memberships)
+    .values({ organisationId: orgId, userId: u.id })
+    .returning();
   const [grant] = await db
     .insert(roleAssignments)
-    .values({ membershipId: m.id, role, scope: "organisation" })
+    .values({ membershipId: m.id, role, scope: 'organisation' })
     .returning();
   return {
     user: u,
     membership: m,
     grant,
-    actor: { actorKind: "user" as const, actorUserId: u.id, actorLabel: u.email },
+    actor: {
+      actorKind: 'user' as const,
+      actorUserId: u.id,
+      actorLabel: u.email
+    }
   };
 }
 
 async function organisation(label: string) {
   const [org] = await db
     .insert(organisations)
-    .values({ name: `Iso ${label}`, slug: `iso-${label}-${crypto.randomUUID().slice(0, 8)}` })
+    .values({
+      name: `Iso ${label}`,
+      slug: `iso-${label}-${crypto.randomUUID().slice(0, 8)}`
+    })
     .returning();
   const [entity] = await db
     .insert(entities)
-    .values({ organisationId: org.id, name: "Main", isDefault: true })
+    .values({ organisationId: org.id, name: 'Main', isDefault: true })
     .returning();
-  const owner = await person(org.id, `${label}-owner`, "owner");
-  const approver = await person(org.id, `${label}-approver`, "approver");
+  const owner = await person(org.id, `${label}-owner`, 'owner');
+  const approver = await person(org.id, `${label}-approver`, 'approver');
   return { org, entity, owner, approver };
 }
 
 /** Organisation B, with something in every register. */
 async function populated() {
-  const o = await organisation("b");
+  const o = await organisation('b');
   const id = o.org.id;
-  await templatesSvc.installShippedTemplates({ organisationId: id, actor: SYSTEM });
+  await templatesSvc.installShippedTemplates({
+    organisationId: id,
+    actor: SYSTEM
+  });
   await routing.installShippedWorkflows({ organisationId: id, actor: SYSTEM });
 
-  const library = await templatesSvc.availableTemplates(id, "dpia");
+  const library = await templatesSvc.availableTemplates(id, 'dpia');
   const dpiaVersion = library[0].version.id;
   const template = library[0].template.id;
   const workflows = await routing.workflowsFor(id);
   const stage = workflows[0].stages[0];
 
   const risk = await risksSvc.createRisk({
-    organisationId: id, entityId: o.entity.id, title: "B's risk", description: "Secret to B.",
-    category: "security", likelihood: 3, impact: 3, actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    title: "B's risk",
+    description: 'Secret to B.',
+    category: 'security',
+    likelihood: 3,
+    impact: 3,
+    actor: SYSTEM
   });
   const mitigation = await risksSvc.addMitigation({
-    riskId: risk.id, organisationId: id, description: "B's control", actor: SYSTEM,
+    riskId: risk.id,
+    organisationId: id,
+    description: "B's control",
+    actor: SYSTEM
   });
-  await risksSvc.setResidual({ riskId: risk.id, organisationId: id, likelihood: 1, impact: 1, actor: SYSTEM });
+  await risksSvc.setResidual({
+    riskId: risk.id,
+    organisationId: id,
+    likelihood: 1,
+    impact: 1,
+    actor: SYSTEM
+  });
   const acceptance = await risksSvc.acceptRisk({
-    riskId: risk.id, organisationId: id, rationale: "Low.", expiresAt: new Date(Date.now() + 90 * DAY),
-    actor: o.approver.actor,
+    riskId: risk.id,
+    organisationId: id,
+    rationale: 'Low.',
+    expiresAt: new Date(Date.now() + 90 * DAY),
+    actor: o.approver.actor
   });
   const appetite = await riskPolicy.proposeAppetite({
-    organisationId: id, scope: "security", level: "cautious", toleratedTier: "medium",
-    statement: "B's appetite.", actor: o.owner.actor,
+    organisationId: id,
+    scope: 'security',
+    level: 'cautious',
+    toleratedTier: 'medium',
+    statement: "B's appetite.",
+    actor: o.owner.actor
   });
 
-  const supplier = await thirdParty.createSupplier({ organisationId: id, name: "B Supplier", actor: SYSTEM });
+  const supplier = await thirdParty.createSupplier({
+    organisationId: id,
+    name: 'B Supplier',
+    actor: SYSTEM
+  });
   const dpa = await thirdParty.recordDpa({
-    organisationId: id, supplierId: supplier.id, title: "B's agreement", signedAt: new Date(),
-    actor: SYSTEM,
+    organisationId: id,
+    supplierId: supplier.id,
+    title: "B's agreement",
+    signedAt: new Date(),
+    actor: SYSTEM
   });
   const activity = await ropa.createActivity({
-    organisationId: id, entityId: o.entity.id, name: "B's processing", actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    name: "B's processing",
+    actor: SYSTEM
   });
   const breach = await breachesSvc.recordBreach({
-    organisationId: id, entityId: o.entity.id, title: "B's breach", description: "Secret.",
-    discoveredAt: new Date(), actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    title: "B's breach",
+    description: 'Secret.',
+    discoveredAt: new Date(),
+    actor: SYSTEM
   });
   const subjectRequest = await dsr.recordRequest({
-    organisationId: id, entityId: o.entity.id, rights: ["access"], channel: "email",
-    receivedAt: new Date(), description: "B's requester's secret request.", requesterName: "B's requester",
-    actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    rights: ['access'],
+    channel: 'email',
+    receivedAt: new Date(),
+    description: "B's requester's secret request.",
+    requesterName: "B's requester",
+    actor: SYSTEM
   });
   const intakeLink = await dsrIntake.issueIntakeLink({
-    organisationId: id, entityId: o.entity.id, label: "B's form", actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    label: "B's form",
+    actor: SYSTEM
   });
   const requestScope = await dsr.addScopeEntry({
-    requestId: subjectRequest.id, organisationId: id, kind: "recipient", label: "B's recipient", actor: SYSTEM,
+    requestId: subjectRequest.id,
+    organisationId: id,
+    kind: 'recipient',
+    label: "B's recipient",
+    actor: SYSTEM
   });
   const webProperty = await inventory.createProperty({
-    organisationId: id, entityId: o.entity.id, name: "B's site", url: "https://b.example.com", actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    name: "B's site",
+    url: 'https://b.example.com',
+    actor: SYSTEM
   });
   const storageItem = await inventory.addItem({
-    propertyId: webProperty.id, organisationId: id, name: "b_secret_cookie", domain: "b.example.com", actor: SYSTEM,
+    propertyId: webProperty.id,
+    organisationId: id,
+    name: 'b_secret_cookie',
+    domain: 'b.example.com',
+    actor: SYSTEM
   });
   await inventory.ingestAnalyserReport({
-    propertyId: webProperty.id, organisationId: id, source: "upload", actor: SYSTEM,
+    propertyId: webProperty.id,
+    organisationId: id,
+    source: 'upload',
+    actor: SYSTEM,
     report: {
-      schema_version: "2.0", run_id: "b-run", summary: {}, metadata: { target_url: "https://b.example.com" },
-      checklist: [{ item_id: "G.1", evidence: [{ name: "b_scanned_cookie", domain: "b.example.com" }] }],
-    },
+      schema_version: '2.0',
+      run_id: 'b-run',
+      summary: {},
+      metadata: { target_url: 'https://b.example.com' },
+      checklist: [
+        {
+          item_id: 'G.1',
+          evidence: [{ name: 'b_scanned_cookie', domain: 'b.example.com' }]
+        }
+      ]
+    }
   });
-  const storageProposal = (await inventory.loadProperty(webProperty.id, id))!.proposals[0];
-  const consentScan = (await inventory.loadProperty(webProperty.id, id))!.scans[0];
+  const storageProposal = (await inventory.loadProperty(webProperty.id, id))!
+    .proposals[0];
+  const consentScan = (await inventory.loadProperty(webProperty.id, id))!
+    .scans[0];
   const marketingActivity = await marketingSvc.createMarketingActivity({
-    organisationId: id, entityId: o.entity.id, name: "B's secret call list", channel: "live_call", processingActivityId: activity.id, actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    name: "B's secret call list",
+    channel: 'live_call',
+    processingActivityId: activity.id,
+    actor: SYSTEM
   });
   await marketingSvc.recordMarketingDecision({
-    activityId: marketingActivity.id, organisationId: id, basis: "screened_calls", rationale: "B's reasons", actor: SYSTEM,
+    activityId: marketingActivity.id,
+    organisationId: id,
+    basis: 'screened_calls',
+    rationale: "B's reasons",
+    actor: SYSTEM
   });
-  const partner = await thirdParty.createSupplier({ organisationId: id, name: "B's partner council", actor: SYSTEM });
-  await thirdParty.updateSupplier({ supplierId: partner.id, organisationId: id, changes: { role: "controller" }, actor: SYSTEM });
-  const sharing = await sharingSvc.createSharingAgreement({ organisationId: id, entityId: o.entity.id, title: "B's sharing agreement", actor: SYSTEM });
-  const sharingParty = await sharingSvc.addSharingParty({ agreementId: sharing.id, organisationId: id, supplierId: partner.id, actor: SYSTEM });
+  const partner = await thirdParty.createSupplier({
+    organisationId: id,
+    name: "B's partner council",
+    actor: SYSTEM
+  });
+  await thirdParty.updateSupplier({
+    supplierId: partner.id,
+    organisationId: id,
+    changes: { role: 'controller' },
+    actor: SYSTEM
+  });
+  const sharing = await sharingSvc.createSharingAgreement({
+    organisationId: id,
+    entityId: o.entity.id,
+    title: "B's sharing agreement",
+    actor: SYSTEM
+  });
+  const sharingParty = await sharingSvc.addSharingParty({
+    agreementId: sharing.id,
+    organisationId: id,
+    supplierId: partner.id,
+    actor: SYSTEM
+  });
   const policyDoc = await policyDocs.createPolicyDocument({
-    organisationId: id, entityId: o.entity.id, title: "B's policy document", conditions: ["para6", "para18"], actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    title: "B's policy document",
+    conditions: ['para6', 'para18'],
+    actor: SYSTEM
   });
   const complaint = await complaintsSvc.recordComplaint({
-    organisationId: id, entityId: o.entity.id, channel: "email", receivedAt: new Date(), subject: "request_handling",
-    description: "B's complainant's secret grievance.", complainantName: "B's complainant", requestId: subjectRequest.id,
-    actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    channel: 'email',
+    receivedAt: new Date(),
+    subject: 'request_handling',
+    description: "B's complainant's secret grievance.",
+    complainantName: "B's complainant",
+    requestId: subjectRequest.id,
+    actor: SYSTEM
   });
 
   const useCase = await aiRegister.createUseCase({
-    organisationId: id, entityId: o.entity.id, name: "B's model", purpose: "Secret purpose.",
-    systemType: "generative", provenance: "third_party_api", supplierId: supplier.id, actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    name: "B's model",
+    purpose: 'Secret purpose.',
+    systemType: 'generative',
+    provenance: 'third_party_api',
+    supplierId: supplier.id,
+    actor: SYSTEM
   });
-  await adm.linkUseCaseToActivity({ organisationId: id, useCaseId: useCase.id, activityId: activity.id, actor: SYSTEM });
-  await adm.setAutomatedDecisions({ organisationId: id, side: "processing_activity", id: activity.id, record: { automatedDecisions: true }, actor: SYSTEM });
+  await adm.linkUseCaseToActivity({
+    organisationId: id,
+    useCaseId: useCase.id,
+    activityId: activity.id,
+    actor: SYSTEM
+  });
+  await adm.setAutomatedDecisions({
+    organisationId: id,
+    side: 'processing_activity',
+    id: activity.id,
+    record: { automatedDecisions: true },
+    actor: SYSTEM
+  });
   const change = await aiLifecycle.recordChange({
-    useCaseId: useCase.id, organisationId: id, kind: "data", summary: "B's change", actor: SYSTEM,
+    useCaseId: useCase.id,
+    organisationId: id,
+    kind: 'data',
+    summary: "B's change",
+    actor: SYSTEM
   });
   const assurance = await aiAssurance.recordAssurance({
-    useCaseId: useCase.id, organisationId: id, kind: "evaluation", title: "B's evaluation",
-    performedAt: new Date(Date.now() - DAY), performedBy: "B team", independent: false,
-    metrics: [], result: "passed", actor: SYSTEM,
+    useCaseId: useCase.id,
+    organisationId: id,
+    kind: 'evaluation',
+    title: "B's evaluation",
+    performedAt: new Date(Date.now() - DAY),
+    performedBy: 'B team',
+    independent: false,
+    metrics: [],
+    result: 'passed',
+    actor: SYSTEM
   });
   const incident = await aiIncidents.reportIncident({
-    organisationId: id, useCaseId: useCase.id, kind: "challenge", source: "public",
-    summary: "B's incident", harm: "actual", confidential: false, reportedByLabel: "someone",
-    actor: SYSTEM,
+    organisationId: id,
+    useCaseId: useCase.id,
+    kind: 'challenge',
+    source: 'public',
+    summary: "B's incident",
+    harm: 'actual',
+    confidential: false,
+    reportedByLabel: 'someone',
+    actor: SYSTEM
   });
-  const atrsRecord = await atrs.startRecord({ useCaseId: useCase.id, organisationId: id, actor: o.owner.actor });
+  const atrsRecord = await atrs.startRecord({
+    useCaseId: useCase.id,
+    organisationId: id,
+    actor: o.owner.actor
+  });
   const request = await aiIntake.submitRequest({
-    organisationId: id, title: "B's idea", problem: "p", whyAi: "w", benefits: "b",
-    environmentalImpact: "e", publicFacing: false, significantDecisions: false,
-    requestedByLabel: "b@example.test", actor: SYSTEM,
+    organisationId: id,
+    title: "B's idea",
+    problem: 'p',
+    whyAi: 'w',
+    benefits: 'b',
+    environmentalImpact: 'e',
+    publicFacing: false,
+    significantDecisions: false,
+    requestedByLabel: 'b@example.test',
+    actor: SYSTEM
   });
   const trainingRecord = await training.recordTraining({
-    organisationId: id, userId: o.owner.user.id, courseKey: "ai_fundamentals",
-    completedAt: new Date(Date.now() - DAY), actor: o.owner.actor,
+    organisationId: id,
+    userId: o.owner.user.id,
+    courseKey: 'ai_fundamentals',
+    completedAt: new Date(Date.now() - DAY),
+    actor: o.owner.actor
   });
 
   const assessment = await assessmentsSvc.createAssessment({
-    organisationId: id, entityId: o.entity.id, templateVersionId: dpiaVersion, title: "B's DPIA",
-    actor: SYSTEM,
+    organisationId: id,
+    entityId: o.entity.id,
+    templateVersionId: dpiaVersion,
+    title: "B's DPIA",
+    actor: SYSTEM
   });
   await assessmentsSvc.saveAnswers({
-    assessmentId: assessment.id, organisationId: id, answers: DPIA_ANSWERS as never, actor: SYSTEM,
+    assessmentId: assessment.id,
+    organisationId: id,
+    answers: DPIA_ANSWERS as never,
+    actor: SYSTEM
   });
-  await workflow.submitForApproval({ assessmentId: assessment.id, organisationId: id, actor: SYSTEM });
+  await workflow.submitForApproval({
+    assessmentId: assessment.id,
+    organisationId: id,
+    actor: SYSTEM
+  });
   const [approval] = await workflow.approvalsFor(assessment.id);
   const link = await contributorLinks.issueContributorLink({
-    organisationId: id, assessmentId: assessment.id, email: "helper@example.test", actor: SYSTEM,
+    organisationId: id,
+    assessmentId: assessment.id,
+    email: 'helper@example.test',
+    actor: SYSTEM
   });
 
   const comment = await collaboration.postComment({
-    organisationId: id, entityId: o.entity.id, subjectType: "risk", subjectId: risk.id,
-    subjectLabel: risk.reference, body: "B's comment", actor: o.owner.actor,
+    organisationId: id,
+    entityId: o.entity.id,
+    subjectType: 'risk',
+    subjectId: risk.id,
+    subjectLabel: risk.reference,
+    body: "B's comment",
+    actor: o.owner.actor
   });
   const document = await documentsSvc.attachDocument({
-    organisationId: id, entityId: null, subjectType: "supplier", subjectId: supplier.id,
-    filename: "b.pdf", contentType: "application/pdf", content: PDF, actor: SYSTEM,
+    organisationId: id,
+    entityId: null,
+    subjectType: 'supplier',
+    subjectId: supplier.id,
+    filename: 'b.pdf',
+    contentType: 'application/pdf',
+    content: PDF,
+    actor: SYSTEM
   });
   const scanner = await connections.createConnection({
-    organisationId: id, kind: "har_analyser", name: "B scanner", defaultEntityId: o.entity.id,
-    actor: SYSTEM,
+    organisationId: id,
+    kind: 'har_analyser',
+    name: 'B scanner',
+    defaultEntityId: o.entity.id,
+    actor: SYSTEM
   });
   await ingest.ingestScan(
-    { id: scanner.id, organisationId: id, kind: "har_analyser", name: "B scanner", defaultEntityId: o.entity.id },
-    { scanRef: "s1", summary: {}, findings: [
-      { externalRef: "f1", category: "cookie", severity: "high", title: "B's finding", advisory: {} },
-    ] },
+    {
+      id: scanner.id,
+      organisationId: id,
+      kind: 'har_analyser',
+      name: 'B scanner',
+      defaultEntityId: o.entity.id
+    },
+    {
+      scanRef: 's1',
+      summary: {},
+      findings: [
+        {
+          externalRef: 'f1',
+          category: 'cookie',
+          severity: 'high',
+          title: "B's finding",
+          advisory: {}
+        }
+      ]
+    }
   );
   const [finding] = await ingest.openFindings(id, null);
   const [task] = await workflow.openTasks(id, { entityIds: null });
-  const draft = await templatesSvc.createDraftFrom({ organisationId: id, templateId: template, actor: SYSTEM });
+  const draft = await templatesSvc.createDraftFrom({
+    organisationId: id,
+    templateId: template,
+    actor: SYSTEM
+  });
   const domainClaim = await domains.claimDomain({
-    organisationId: id, domain: `b-${crypto.randomUUID().slice(0, 8)}.example.gov.uk`, actor: SYSTEM,
+    organisationId: id,
+    domain: `b-${crypto.randomUUID().slice(0, 8)}.example.gov.uk`,
+    actor: SYSTEM
   });
   const [conversation] = await db
     .insert(aiConversations)
     .values({
-      organisationId: id, surface: "assessment", userLabel: o.owner.user.email,
-      retainUntil: new Date(Date.now() + 30 * DAY),
+      organisationId: id,
+      surface: 'assessment',
+      userLabel: o.owner.user.email,
+      retainUntil: new Date(Date.now() + 30 * DAY)
     })
     .returning();
 
   return {
-    ...o, template, dpiaVersion, workflow: workflows[0], stage, risk, mitigation, acceptance, appetite,
-    supplier, dpa, activity, breach, subjectRequest, requestScope, complaint, webProperty, storageItem, storageProposal, consentScan, marketingActivity, policyDoc, partner, sharing, sharingParty, intakeLink, useCase, change, assurance, incident, atrsRecord, request,
-    trainingRecord, assessment, approval, link, comment, document, scanner, finding: finding.finding,
-    conversation, task, draft, domainClaim,
+    ...o,
+    template,
+    dpiaVersion,
+    workflow: workflows[0],
+    stage,
+    risk,
+    mitigation,
+    acceptance,
+    appetite,
+    supplier,
+    dpa,
+    activity,
+    breach,
+    subjectRequest,
+    requestScope,
+    complaint,
+    webProperty,
+    storageItem,
+    storageProposal,
+    consentScan,
+    marketingActivity,
+    policyDoc,
+    partner,
+    sharing,
+    sharingParty,
+    intakeLink,
+    useCase,
+    change,
+    assurance,
+    incident,
+    atrsRecord,
+    request,
+    trainingRecord,
+    assessment,
+    approval,
+    link,
+    comment,
+    document,
+    scanner,
+    finding: finding.finding,
+    conversation,
+    task,
+    draft,
+    domainClaim
   };
 }
 
@@ -336,48 +606,127 @@ let mine: {
 
 before(async () => {
   B = await populated();
-  A = await organisation("a");
-  await templatesSvc.installShippedTemplates({ organisationId: A.org.id, actor: SYSTEM });
-  const [dpia] = await templatesSvc.availableTemplates(A.org.id, "dpia");
+  A = await organisation('a');
+  await templatesSvc.installShippedTemplates({
+    organisationId: A.org.id,
+    actor: SYSTEM
+  });
+  const [dpia] = await templatesSvc.availableTemplates(A.org.id, 'dpia');
   const risk = await risksSvc.createRisk({
-    organisationId: A.org.id, entityId: A.entity.id, title: "A's risk", description: "Mine.",
-    likelihood: 2, impact: 2, actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    title: "A's risk",
+    description: 'Mine.',
+    likelihood: 2,
+    impact: 2,
+    actor: SYSTEM
   });
   const breach = await breachesSvc.recordBreach({
-    organisationId: A.org.id, entityId: A.entity.id, title: "A's breach", description: "Mine.",
-    discoveredAt: new Date(), actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    title: "A's breach",
+    description: 'Mine.',
+    discoveredAt: new Date(),
+    actor: SYSTEM
   });
   const subjectRequest = await dsr.recordRequest({
-    organisationId: A.org.id, entityId: A.entity.id, rights: ["access"], channel: "email",
-    receivedAt: new Date(), description: "Mine.", requesterName: "A's requester", actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    rights: ['access'],
+    channel: 'email',
+    receivedAt: new Date(),
+    description: 'Mine.',
+    requesterName: "A's requester",
+    actor: SYSTEM
   });
   const webProperty = await inventory.createProperty({
-    organisationId: A.org.id, entityId: A.entity.id, name: "A's site", url: "https://a.example.com", actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    name: "A's site",
+    url: 'https://a.example.com',
+    actor: SYSTEM
   });
   const marketingActivity = await marketingSvc.createMarketingActivity({
-    organisationId: A.org.id, entityId: A.entity.id, name: "A's newsletter", channel: "email", actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    name: "A's newsletter",
+    channel: 'email',
+    actor: SYSTEM
   });
   const complaint = await complaintsSvc.recordComplaint({
-    organisationId: A.org.id, entityId: A.entity.id, channel: "email", receivedAt: new Date(), subject: "other",
-    description: "Mine.", complainantName: "A's complainant", actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    channel: 'email',
+    receivedAt: new Date(),
+    subject: 'other',
+    description: 'Mine.',
+    complainantName: "A's complainant",
+    actor: SYSTEM
   });
   const useCase = await aiRegister.createUseCase({
-    organisationId: A.org.id, entityId: A.entity.id, name: "A's model", purpose: "Mine.",
-    systemType: "predictive", provenance: "built_in_house", actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    name: "A's model",
+    purpose: 'Mine.',
+    systemType: 'predictive',
+    provenance: 'built_in_house',
+    actor: SYSTEM
   });
   const incident = await aiIncidents.reportIncident({
-    organisationId: A.org.id, useCaseId: useCase.id, kind: "challenge", source: "public",
-    summary: "A's incident", harm: "potential", confidential: false, reportedByLabel: "someone",
-    actor: SYSTEM,
+    organisationId: A.org.id,
+    useCaseId: useCase.id,
+    kind: 'challenge',
+    source: 'public',
+    summary: "A's incident",
+    harm: 'potential',
+    confidential: false,
+    reportedByLabel: 'someone',
+    actor: SYSTEM
   });
   const document = await documentsSvc.attachDocument({
-    organisationId: A.org.id, entityId: null, subjectType: "risk", subjectId: risk.id,
-    filename: "a.pdf", contentType: "application/pdf", content: PDF, actor: SYSTEM,
+    organisationId: A.org.id,
+    entityId: null,
+    subjectType: 'risk',
+    subjectId: risk.id,
+    filename: 'a.pdf',
+    contentType: 'application/pdf',
+    content: PDF,
+    actor: SYSTEM
   });
-  const activity = await ropa.createActivity({ organisationId: A.org.id, entityId: A.entity.id, name: "A's processing", actor: SYSTEM });
-  const policyDoc = await policyDocs.createPolicyDocument({ organisationId: A.org.id, entityId: A.entity.id, title: "A's policy document", conditions: ["para6"], actor: SYSTEM });
-  const sharing = await sharingSvc.createSharingAgreement({ organisationId: A.org.id, entityId: A.entity.id, title: "A's agreement", actor: SYSTEM });
-  mine = { sharing, policyDoc, risk, breach, subjectRequest, complaint, webProperty, marketingActivity, activity, useCase, incident, document, dpiaVersion: dpia.version.id };
+  const activity = await ropa.createActivity({
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    name: "A's processing",
+    actor: SYSTEM
+  });
+  const policyDoc = await policyDocs.createPolicyDocument({
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    title: "A's policy document",
+    conditions: ['para6'],
+    actor: SYSTEM
+  });
+  const sharing = await sharingSvc.createSharingAgreement({
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    title: "A's agreement",
+    actor: SYSTEM
+  });
+  mine = {
+    sharing,
+    policyDoc,
+    risk,
+    breach,
+    subjectRequest,
+    complaint,
+    webProperty,
+    marketingActivity,
+    activity,
+    useCase,
+    incident,
+    document,
+    dpiaVersion: dpia.version.id
+  };
 });
 after(() => pg.end());
 
@@ -413,7 +762,7 @@ async function bSnapshot() {
   const out: Record<string, unknown> = {};
   for (const { table_name } of tables) {
     const rows = await db.execute(
-      sql`select * from ${sql.identifier(table_name)} where organisation_id = ${B.org.id} order by 1`,
+      sql`select * from ${sql.identifier(table_name)} where organisation_id = ${B.org.id} order by 1`
     );
     out[table_name] = rows;
   }
@@ -443,66 +792,156 @@ async function bSnapshot() {
   return Object.fromEntries(
     Object.entries(out).map(([k, v]) => [
       k,
-      JSON.stringify((v as unknown[]).map((r) => JSON.stringify(r)).sort().map((r) => JSON.parse(r))),
-    ]),
+      JSON.stringify(
+        (v as unknown[])
+          .map((r) => JSON.stringify(r))
+          .sort()
+          .map((r) => JSON.parse(r))
+      )
+    ])
   );
 }
 
 /** Which of B's tables differ, and the first changed row of each, for a readable failure. */
-function changed(before: Record<string, string>, after: Record<string, string>) {
+function changed(
+  before: Record<string, string>,
+  after: Record<string, string>
+) {
   return Object.keys(before)
     .filter((t) => before[t] !== after[t])
     .map((t) => {
       const b = JSON.parse(before[t]) as Array<Record<string, unknown>>;
       const a = JSON.parse(after[t]) as Array<Record<string, unknown>>;
-      const row = a.find((r) => !b.some((x) => JSON.stringify(x) === JSON.stringify(r)));
-      return `${t}: ${b.length} -> ${a.length} rows${row ? `, e.g. ${JSON.stringify(row).slice(0, 300)}` : ""}`;
+      const row = a.find(
+        (r) => !b.some((x) => JSON.stringify(x) === JSON.stringify(r))
+      );
+      return `${t}: ${b.length} -> ${a.length} rows${row ? `, e.g. ${JSON.stringify(row).slice(0, 300)}` : ''}`;
     });
 }
-
 
 const as = () => A.owner.actor;
 
 describe("reading another organisation's records", () => {
   const reads: Array<[string, () => Promise<unknown>]> = [
-    ["assuranceFor", () => aiAssurance.assuranceFor(B.useCase.id, A.org.id)],
-    ["loadIncident", () => aiIncidents.loadIncident(B.incident.id, A.org.id)],
-    ["gateContext", () => aiLifecycle.gateContext(B.useCase.id, A.org.id)],
-    ["historyFor", () => aiLifecycle.historyFor(B.useCase.id, A.org.id)],
-    ["loadUseCase", () => aiRegister.loadUseCase(B.useCase.id, A.org.id)],
-    ["linkedActivitiesOf", () => adm.linkedActivitiesOf(A.org.id, { id: B.useCase.id, automatedDecisions: null, admSpecialCategory: null, admSpecialCondition: null, admSafeguards: {} })],
-    ["linkedUseCasesOf", () => adm.linkedUseCasesOf(A.org.id, { id: B.activity.id, automatedDecisions: null, admSpecialCategory: null, admSpecialCondition: null, admSafeguards: {} })],
-    ["loadAssessment", () => assessmentsSvc.loadAssessment(B.assessment.id, A.org.id)],
-    ["conversationMessages", () => assistant.conversationMessages(B.conversation.id, A.org.id)],
-    ["prefillFor", () => atrs.prefillFor(B.useCase.id, A.org.id)],
-    ["loadRecord", () => atrs.loadRecord(B.atrsRecord.id, A.org.id)],
-    ["recordsFor", () => atrs.recordsFor(B.useCase.id, A.org.id)],
-    ["loadBreach", () => breachesSvc.loadBreach(B.breach.id, A.org.id)],
-    ["dsr.loadRequest", () => dsr.loadRequest(B.subjectRequest.id, A.org.id)],
-    ["complaintsSvc.loadComplaint", () => complaintsSvc.loadComplaint(B.complaint.id, A.org.id)],
-    ["inventory.loadProperty", () => inventory.loadProperty(B.webProperty.id, A.org.id)],
-    ["analyserSvc.checkPropertyScan", () => analyserSvc.checkPropertyScan({ scanId: B.consentScan.id, organisationId: A.org.id })],
-    ["inventory.inventoryEntity", () => inventory.inventoryEntity({ property: B.webProperty.id }, A.org.id)],
-    ["marketingSvc.loadMarketingActivity", () => marketingSvc.loadMarketingActivity(B.marketingActivity.id, A.org.id)],
-    ["marketingSvc.marketingEntity", () => marketingSvc.marketingEntity(B.marketingActivity.id, A.org.id)],
-    ["documentsFor", () => documentsSvc.documentsFor(A.org.id, "supplier", B.supplier.id)],
-    ["readDocument", () => documentsSvc.readDocument(B.document.id, A.org.id)],
-    ["latestExtraction", () => extraction.latestExtraction(A.org.id, B.dpa.id)],
-    ["loadRisk", () => risksSvc.loadRisk(B.risk.id, A.org.id)],
-    ["loadActivity", () => ropa.loadActivity(B.activity.id, A.org.id)],
-    ["loadTemplate", () => templatesSvc.loadTemplate(B.template, A.org.id)],
-    ["loadSupplier", () => thirdParty.loadSupplier(B.supplier.id, A.org.id)],
-    ["coverage of B's person", () => training.coverage(A.org.id, B.owner.user.id)],
-    ["mentionsFor B's person", () => collaboration.mentionsFor(A.org.id, B.owner.user.id)],
-    ["loadRequest", () => aiIntake.loadRequest(B.request.id, A.org.id)],
-    ["commentsFor", () => collaboration.commentsFor(A.org.id, "risk", B.risk.id)],
-    ["extractionHistory", () => extraction.extractionHistory(A.org.id, B.dpa.id)],
-    ["risksForAssessment", () => risksSvc.risksForAssessment(B.assessment.id, A.org.id)],
-    ["historyOf B's person", () => training.historyOf(A.org.id, B.owner.user.id)],
-    ["loadPolicyDocument", () => policyDocs.loadPolicyDocument(B.policyDoc.id, A.org.id)],
-    ["loadSharingAgreement", () => sharingSvc.loadSharingAgreement(B.sharing.id, A.org.id)],
-    ["agreementsFor B's activity", () => sharingSvc.agreementsFor(A.org.id, { activityId: B.activity.id })],
-    ["agreementsFor B's partner", () => sharingSvc.agreementsFor(A.org.id, { supplierId: B.partner.id })],
+    ['assuranceFor', () => aiAssurance.assuranceFor(B.useCase.id, A.org.id)],
+    ['loadIncident', () => aiIncidents.loadIncident(B.incident.id, A.org.id)],
+    ['gateContext', () => aiLifecycle.gateContext(B.useCase.id, A.org.id)],
+    ['historyFor', () => aiLifecycle.historyFor(B.useCase.id, A.org.id)],
+    ['loadUseCase', () => aiRegister.loadUseCase(B.useCase.id, A.org.id)],
+    [
+      'linkedActivitiesOf',
+      () =>
+        adm.linkedActivitiesOf(A.org.id, {
+          id: B.useCase.id,
+          automatedDecisions: null,
+          admSpecialCategory: null,
+          admSpecialCondition: null,
+          admSafeguards: {}
+        })
+    ],
+    [
+      'linkedUseCasesOf',
+      () =>
+        adm.linkedUseCasesOf(A.org.id, {
+          id: B.activity.id,
+          automatedDecisions: null,
+          admSpecialCategory: null,
+          admSpecialCondition: null,
+          admSafeguards: {}
+        })
+    ],
+    [
+      'loadAssessment',
+      () => assessmentsSvc.loadAssessment(B.assessment.id, A.org.id)
+    ],
+    [
+      'conversationMessages',
+      () => assistant.conversationMessages(B.conversation.id, A.org.id)
+    ],
+    ['prefillFor', () => atrs.prefillFor(B.useCase.id, A.org.id)],
+    ['loadRecord', () => atrs.loadRecord(B.atrsRecord.id, A.org.id)],
+    ['recordsFor', () => atrs.recordsFor(B.useCase.id, A.org.id)],
+    ['loadBreach', () => breachesSvc.loadBreach(B.breach.id, A.org.id)],
+    ['dsr.loadRequest', () => dsr.loadRequest(B.subjectRequest.id, A.org.id)],
+    [
+      'complaintsSvc.loadComplaint',
+      () => complaintsSvc.loadComplaint(B.complaint.id, A.org.id)
+    ],
+    [
+      'inventory.loadProperty',
+      () => inventory.loadProperty(B.webProperty.id, A.org.id)
+    ],
+    [
+      'analyserSvc.checkPropertyScan',
+      () =>
+        analyserSvc.checkPropertyScan({
+          scanId: B.consentScan.id,
+          organisationId: A.org.id
+        })
+    ],
+    [
+      'inventory.inventoryEntity',
+      () => inventory.inventoryEntity({ property: B.webProperty.id }, A.org.id)
+    ],
+    [
+      'marketingSvc.loadMarketingActivity',
+      () => marketingSvc.loadMarketingActivity(B.marketingActivity.id, A.org.id)
+    ],
+    [
+      'marketingSvc.marketingEntity',
+      () => marketingSvc.marketingEntity(B.marketingActivity.id, A.org.id)
+    ],
+    [
+      'documentsFor',
+      () => documentsSvc.documentsFor(A.org.id, 'supplier', B.supplier.id)
+    ],
+    ['readDocument', () => documentsSvc.readDocument(B.document.id, A.org.id)],
+    ['latestExtraction', () => extraction.latestExtraction(A.org.id, B.dpa.id)],
+    ['loadRisk', () => risksSvc.loadRisk(B.risk.id, A.org.id)],
+    ['loadActivity', () => ropa.loadActivity(B.activity.id, A.org.id)],
+    ['loadTemplate', () => templatesSvc.loadTemplate(B.template, A.org.id)],
+    ['loadSupplier', () => thirdParty.loadSupplier(B.supplier.id, A.org.id)],
+    [
+      "coverage of B's person",
+      () => training.coverage(A.org.id, B.owner.user.id)
+    ],
+    [
+      "mentionsFor B's person",
+      () => collaboration.mentionsFor(A.org.id, B.owner.user.id)
+    ],
+    ['loadRequest', () => aiIntake.loadRequest(B.request.id, A.org.id)],
+    [
+      'commentsFor',
+      () => collaboration.commentsFor(A.org.id, 'risk', B.risk.id)
+    ],
+    [
+      'extractionHistory',
+      () => extraction.extractionHistory(A.org.id, B.dpa.id)
+    ],
+    [
+      'risksForAssessment',
+      () => risksSvc.risksForAssessment(B.assessment.id, A.org.id)
+    ],
+    [
+      "historyOf B's person",
+      () => training.historyOf(A.org.id, B.owner.user.id)
+    ],
+    [
+      'loadPolicyDocument',
+      () => policyDocs.loadPolicyDocument(B.policyDoc.id, A.org.id)
+    ],
+    [
+      'loadSharingAgreement',
+      () => sharingSvc.loadSharingAgreement(B.sharing.id, A.org.id)
+    ],
+    [
+      "agreementsFor B's activity",
+      () => sharingSvc.agreementsFor(A.org.id, { activityId: B.activity.id })
+    ],
+    [
+      "agreementsFor B's partner",
+      () => sharingSvc.agreementsFor(A.org.id, { supplierId: B.partner.id })
+    ]
   ];
   for (const [name, read] of reads) {
     it(`gives nothing: ${name}`, async () => {
@@ -510,10 +949,16 @@ describe("reading another organisation's records", () => {
     });
   }
 
-  it("gives nothing: riskProfileFor", async () => {
+  it('gives nothing: riskProfileFor', async () => {
     try {
-      const profile = await aiRiskProfile.riskProfileFor(B.useCase.id, A.org.id);
-      assert.ok(!JSON.stringify(profile).includes(B.risk.id), "riskProfileFor exposed B's risk");
+      const profile = await aiRiskProfile.riskProfileFor(
+        B.useCase.id,
+        A.org.id
+      );
+      assert.ok(
+        !JSON.stringify(profile).includes(B.risk.id),
+        "riskProfileFor exposed B's risk"
+      );
     } catch {
       // refused
     }
@@ -521,115 +966,1097 @@ describe("reading another organisation's records", () => {
 
   it("gives nothing: holdingsOf B's person", async () => {
     const h = await handover.holdingsOf(A.org.id, B.owner.user.id);
-    assert.ok(Object.values(h).every((v) => !v || v === 0 || (Array.isArray(v) && v.length === 0)));
+    assert.ok(
+      Object.values(h).every(
+        (v) => !v || v === 0 || (Array.isArray(v) && v.length === 0)
+      )
+    );
   });
 });
 
 describe("changing another organisation's records", () => {
   const writes: Array<[string, () => Promise<unknown>]> = [
-    ["revokeRole", () => access.revokeRole({ organisationId: A.org.id, roleAssignmentId: B.approver.grant.id, actor: as() })],
-    ["setMembershipActive", () => access.setMembershipActive({ organisationId: A.org.id, membershipId: B.approver.membership.id, isActive: false, actor: as() })],
-    ["setPersona", () => access.setPersona({ organisationId: A.org.id, membershipId: B.owner.membership.id, persona: "engineering", actor: as() })],
-    ["recordAssurance", () => aiAssurance.recordAssurance({ useCaseId: B.useCase.id, organisationId: A.org.id, kind: "evaluation", title: "x", performedAt: new Date(Date.now() - DAY), performedBy: "x", independent: false, metrics: [], result: "failed", actor: as() })],
-    ["triageIncident", () => aiIncidents.triageIncident({ incidentId: B.incident.id, organisationId: A.org.id, severity: "low", harm: "none_known", assignedToUserId: null, note: "x", actor: as() })],
-    ["advanceIncident", () => aiIncidents.advanceIncident({ incidentId: B.incident.id, organisationId: A.org.id, to: "investigating", note: "x", actor: as() })],
-    ["scoreRequest", () => aiIntake.scoreRequest({ requestId: B.request.id, organisationId: A.org.id, value: 1, feasibility: 1, actor: as() })],
-    ["decideRequest", () => aiIntake.decideRequest({ requestId: B.request.id, organisationId: A.org.id, decision: "declined", reason: "x", actor: as() })],
-    ["recordChange", () => aiLifecycle.recordChange({ useCaseId: B.useCase.id, organisationId: A.org.id, kind: "data", summary: "x", actor: as() })],
-    ["updateUseCase", () => aiRegister.updateUseCase({ useCaseId: B.useCase.id, organisationId: A.org.id, changes: { responsibleTeam: "taken" }, actor: as() })],
-    ["updateStage", () => routing.updateStage({ organisationId: A.org.id, stageId: B.stage.id, name: "taken", requiredRole: "owner", slaHours: null, actor: as() })],
-    ["addStage", () => routing.addStage({ organisationId: A.org.id, workflowDefinitionId: B.workflow.id, name: "taken", requiredRole: "owner", condition: { op: "always" }, actor: as() })],
-    ["saveAnswers", () => assessmentsSvc.saveAnswers({ assessmentId: B.assessment.id, organisationId: A.org.id, answers: { purpose: "taken" } as never, actor: as() })],
-    ["submitAssessment", () => assessmentsSvc.submitAssessment({ assessmentId: B.assessment.id, organisationId: A.org.id, actor: as() })],
-    ["returnAssessment", () => assessmentsSvc.returnAssessment({ assessmentId: B.assessment.id, organisationId: A.org.id, reason: "x", actor: as() })],
-    ["saveDraft (ATRS)", () => atrs.saveDraft({ recordId: B.atrsRecord.id, organisationId: A.org.id, fields: {}, actor: as() })],
-    ["approveRecord", () => atrs.approveRecord({ recordId: B.atrsRecord.id, organisationId: A.org.id, actor: as() })],
-    ["markPublished", () => atrs.markPublished({ recordId: B.atrsRecord.id, organisationId: A.org.id, publicationUrl: "https://example.test", actor: as() })],
-    ["discardDraft", () => atrs.discardDraft({ recordId: B.atrsRecord.id, organisationId: A.org.id, actor: as() })],
-    ["exportRecord", () => atrs.exportRecord({ recordId: B.atrsRecord.id, organisationId: A.org.id, format: "json", actor: as() })],
-    ["updateBreach", () => breachesSvc.updateBreach({ breachId: B.breach.id, organisationId: A.org.id, changes: { title: "taken" }, actor: as() })],
-    ["recordDecision", () => breachesSvc.recordDecision({ organisationId: A.org.id, breachId: B.breach.id, kind: "insurer", outcome: "not_required", rationale: "x", actor: as() })],
-    ["closeBreach", () => breachesSvc.closeBreach({ breachId: B.breach.id, organisationId: A.org.id, rationale: "x", actor: as() })],
-    ["updateRequest", () => dsr.updateRequest({ requestId: B.subjectRequest.id, organisationId: A.org.id, changes: { description: "taken" }, actor: as() })],
-    ["recordIdentity", () => dsr.recordIdentity({ requestId: B.subjectRequest.id, organisationId: A.org.id, step: "requested", actor: as() })],
-    ["recordRequestDecision", () => dsr.recordRequestDecision({ organisationId: A.org.id, requestId: B.subjectRequest.id, kind: "other", rationale: "x", actor: as() })],
-    ["respondToRequest", () => dsr.respondToRequest({ requestId: B.subjectRequest.id, organisationId: A.org.id, outcome: "complied", channel: "email", summary: "x", actor: as() })],
-    ["seedRequestScope", () => dsr.seedRequestScope({ requestId: B.subjectRequest.id, organisationId: A.org.id, actor: as() })],
-    ["addScopeEntry", () => dsr.addScopeEntry({ requestId: B.subjectRequest.id, organisationId: A.org.id, kind: "other", label: "taken", actor: as() })],
-    ["recordScopeResult", () => dsr.recordScopeResult({ scopeId: B.requestScope.id, organisationId: A.org.id, status: "not_held", actor: as() })],
-    ["recordRecipientNotice", () => dsr.recordRecipientNotice({ scopeId: B.requestScope.id, organisationId: A.org.id, notice: "notified", actor: as() })],
-    ["revokeIntakeLink", () => dsrIntake.revokeIntakeLink({ linkId: B.intakeLink.id, organisationId: A.org.id, actor: as() })],
-    ["setIntakeLinkComplaints", () => dsrIntake.setIntakeLinkComplaints({ linkId: B.intakeLink.id, organisationId: A.org.id, takesComplaints: false, actor: as() })],
-    ["passToController", () => dsr.passToController({ requestId: B.subjectRequest.id, organisationId: A.org.id, controllerName: "taken", actor: as() })],
-    ["updateProperty", () => inventory.updateProperty({ propertyId: B.webProperty.id, organisationId: A.org.id, changes: { name: "taken" }, actor: as() })],
-    ["addItem", () => inventory.addItem({ propertyId: B.webProperty.id, organisationId: A.org.id, name: "taken", actor: as() })],
-    ["updateItem", () => inventory.updateItem({ itemId: B.storageItem.id, organisationId: A.org.id, changes: { purpose: "taken" }, actor: as() })],
-    ["recordStorageDecision", () => inventory.recordStorageDecision({ itemId: B.storageItem.id, organisationId: A.org.id, basis: "consent", rationale: "x", actor: as() })],
-    ["ingestAnalyserReport", () => inventory.ingestAnalyserReport({ propertyId: B.webProperty.id, organisationId: A.org.id, report: { schema_version: "2.0", checklist: [], summary: {}, metadata: {} }, source: "upload", actor: as() })],
-    ["startPropertyScan", () => analyserSvc.startPropertyScan({ propertyId: B.webProperty.id, organisationId: A.org.id, actor: as() })],
-    ["decideProposal", () => inventory.decideProposal({ proposalId: B.storageProposal.id, organisationId: A.org.id, accept: true, actor: as() })],
-    ["updateMarketingActivity", () => marketingSvc.updateMarketingActivity({ activityId: B.marketingActivity.id, organisationId: A.org.id, changes: { name: "taken" }, actor: as() })],
-    ["recordTpsScreening", () => marketingSvc.recordTpsScreening({ activityId: B.marketingActivity.id, organisationId: A.org.id, screenedAt: new Date(), actor: as() })],
-    ["recordMarketingDecision", () => marketingSvc.recordMarketingDecision({ activityId: B.marketingActivity.id, organisationId: A.org.id, basis: "none", rationale: "x", actor: as() })],
-    ["updateComplaint", () => complaintsSvc.updateComplaint({ complaintId: B.complaint.id, organisationId: A.org.id, changes: { description: "taken" }, actor: as() })],
-    ["recordComplaintEvent", () => complaintsSvc.recordComplaintEvent({ complaintId: B.complaint.id, organisationId: A.org.id, kind: "acknowledged", note: "", channel: "email", actor: as() })],
-    ["recordComplaintOutcome", () => complaintsSvc.recordComplaintOutcome({ complaintId: B.complaint.id, organisationId: A.org.id, outcome: "upheld", channel: "email", summary: "x", actor: as() })],
-    ["closeComplaint", () => complaintsSvc.closeComplaint({ complaintId: B.complaint.id, organisationId: A.org.id, rationale: "x", withdrawn: true, actor: as() })],
-    ["closeRequest", () => dsr.closeRequest({ requestId: B.subjectRequest.id, organisationId: A.org.id, rationale: "x", withdrawn: true, actor: as() })],
-    ["linkAssessment (B's breach)", () => breachesSvc.linkAssessment({ breachId: B.breach.id, organisationId: A.org.id, assessmentId: null, actor: as() })],
-    ["withdrawComment", () => collaboration.withdrawComment({ commentId: B.comment.id, organisationId: A.org.id, actor: as() })],
-    ["rotateSecret", () => connections.rotateSecret({ connectionId: B.scanner.id, organisationId: A.org.id, actor: as() })],
-    ["completeContributorLink", () => contributorLinks.completeContributorLink({ linkId: B.link.id, organisationId: A.org.id, actor: as() })],
-    ["revokeContributorLink", () => contributorLinks.revokeContributorLink({ linkId: B.link.id, organisationId: A.org.id, actor: as() })],
-    ["removeDocument", () => documentsSvc.removeDocument({ id: B.document.id, organisationId: A.org.id, actor: as() })],
-    ["moveDocument (B's)", () => documentsSvc.moveDocument({ id: B.document.id, organisationId: A.org.id, subjectType: "risk", subjectId: mine.risk.id, actor: as() })],
-    ["convertFindingToRisk", () => ingest.convertFindingToRisk({ findingId: B.finding.id, organisationId: A.org.id, title: "x", description: "x", likelihood: 1, impact: 1, actor: as() })],
-    ["dismissFinding", () => ingest.dismissFinding({ findingId: B.finding.id, organisationId: A.org.id, reason: "x", actor: as() })],
-    ["decideAppetite", () => riskPolicy.decideAppetite({ appetiteId: B.appetite.id, organisationId: A.org.id, decision: "rejected", rejectionReason: "x", actor: as() })],
-    ["setResidual", () => risksSvc.setResidual({ riskId: B.risk.id, organisationId: A.org.id, likelihood: 5, impact: 5, actor: as() })],
-    ["addMitigation", () => risksSvc.addMitigation({ riskId: B.risk.id, organisationId: A.org.id, description: "x", actor: as() })],
-    ["updateMitigation", () => risksSvc.updateMitigation({ mitigationId: B.mitigation.id, organisationId: A.org.id, status: "abandoned", actor: as() })],
-    ["acceptRisk", () => risksSvc.acceptRisk({ riskId: B.risk.id, organisationId: A.org.id, rationale: "x", expiresAt: new Date(Date.now() + DAY), actor: A.approver.actor })],
-    ["revokeAcceptance", () => risksSvc.revokeAcceptance({ acceptanceId: B.acceptance.id, organisationId: A.org.id, reason: "x", actor: as() })],
-    ["closeRisk", () => risksSvc.closeRisk({ riskId: B.risk.id, organisationId: A.org.id, reason: "x", actor: as() })],
-    ["updateActivity", () => ropa.updateActivity({ activityId: B.activity.id, organisationId: A.org.id, changes: { name: "taken" }, actor: as() })],
-    ["setFurtherProcessing", () => ropa.setFurtherProcessing({ activityId: B.activity.id, organisationId: A.org.id, record: { furtherProcessing: false }, actor: as() })],
-    ["setAutomatedDecisions", () => adm.setAutomatedDecisions({ organisationId: A.org.id, side: "processing_activity", id: B.activity.id, record: { automatedDecisions: false }, actor: as() })],
-    ["copyAutomatedDecisions", () => adm.copyAutomatedDecisions({ organisationId: A.org.id, useCaseId: B.useCase.id, activityId: B.activity.id, to: "ai_use_case", actor: as() })],
-    ["unlinkUseCaseFromActivity", () => adm.unlinkUseCaseFromActivity({ organisationId: A.org.id, useCaseId: B.useCase.id, activityId: B.activity.id, actor: as() })],
-    ["createDraftFrom", () => templatesSvc.createDraftFrom({ organisationId: A.org.id, templateId: B.template, actor: as() })],
-    ["publishVersion", () => templatesSvc.publishVersion({ organisationId: A.org.id, versionId: B.dpiaVersion, actor: as() })],
-    ["updateSupplier", () => thirdParty.updateSupplier({ supplierId: B.supplier.id, organisationId: A.org.id, changes: { name: "taken" }, actor: as() })],
-    ["updateDpa", () => thirdParty.updateDpa({ organisationId: A.org.id, dpaId: B.dpa.id, title: "taken", actor: as() })],
-    ["archiveDpa", () => thirdParty.archiveDpa({ organisationId: A.org.id, dpaId: B.dpa.id, reason: "x", actor: as() })],
-    ["restoreDpa", () => thirdParty.restoreDpa({ organisationId: A.org.id, dpaId: B.dpa.id, actor: as() })],
-    ["decideApproval", () => workflow.decideApproval({ approvalId: B.approval.id, organisationId: A.org.id, decision: "approved", rationale: "x", callerRoles: ["owner"], actor: as() })],
-    ["openApprovals", () => workflow.openApprovals({ assessmentId: B.assessment.id, organisationId: A.org.id, actor: as() })],
-    ["submitForApproval", () => workflow.submitForApproval({ assessmentId: B.assessment.id, organisationId: A.org.id, actor: as() })],
-    ["changeStage", () => aiLifecycle.changeStage({ useCaseId: B.useCase.id, organisationId: A.org.id, to: "retired", summary: "x", mayWaive: true, actor: as() })],
-    ["completeTask", () => workflow.completeTask({ taskId: B.task.id, organisationId: A.org.id, actor: as() })],
-    ["updateDraft", () => templatesSvc.updateDraft({ organisationId: A.org.id, versionId: B.draft.id, definition: B.draft.definition, actor: as() })],
-    ["resetWorkflow (A's own kind only)", () => routing.resetWorkflow({ organisationId: A.org.id, templateKind: "dpia", actor: as() })],
-    ["verifyDomain", () => domains.verifyDomain({ organisationId: A.org.id, claimId: B.domainClaim.id, actor: as(), lookup: async () => [[`govern-verification=${B.domainClaim.token}`]] })],
-    ["removeDomain", () => domains.removeDomain({ organisationId: A.org.id, claimId: B.domainClaim.id, actor: as() })],
-    ["renameEntity", () => entitiesSvc.renameEntity({ organisationId: A.org.id, entityId: B.entity.id, name: "taken", actor: as() })],
-    ["makeDefaultEntity", () => entitiesSvc.makeDefaultEntity({ organisationId: A.org.id, entityId: B.entity.id, actor: as() })],
-    ["setPublicCommsProvider", () => entitiesSvc.setPublicCommsProvider({ organisationId: A.org.id, entityId: B.entity.id, provider: true, actor: as() })],
-    ["setCompetentAuthority", () => entitiesSvc.setCompetentAuthority({ organisationId: A.org.id, entityId: B.entity.id, competentAuthority: true, actor: as() })],
-    ["setPublicAuthority", () => entitiesSvc.setPublicAuthority({ organisationId: A.org.id, entityId: B.entity.id, publicAuthority: true, actor: as() })],
-    ["setDataProtectionLaw", () => entitiesSvc.setDataProtectionLaw({ organisationId: A.org.id, entityId: B.entity.id, law: "eu", actor: as() })],
-    ["updateSharingAgreement", () => sharingSvc.updateSharingAgreement({ id: B.sharing.id, organisationId: A.org.id, changes: { title: "taken", purpose: null, direction: "both", gatewayKind: null, gateway: null, dataShared: null, lawfulBases: [], schedule1Condition: null, art10Condition: null, ownerId: null, signedAt: null, reviewDueAt: null, activityIds: [] }, actor: as() })],
-    ["addSharingParty", () => sharingSvc.addSharingParty({ agreementId: B.sharing.id, organisationId: A.org.id, supplierId: B.partner.id, actor: as() })],
-    ["updateSharingParty", () => sharingSvc.updateSharingParty({ partyId: B.sharingParty.id, organisationId: A.org.id, basis: { lawfulBases: ["public_task"], schedule1Condition: null, art10Condition: null }, note: "taken", actor: as() })],
-    ["removeSharingParty", () => sharingSvc.removeSharingParty({ partyId: B.sharingParty.id, organisationId: A.org.id, actor: as() })],
-    ["recordSharingReview", () => sharingSvc.recordSharingReview({ id: B.sharing.id, organisationId: A.org.id, nextReviewDueAt: new Date(Date.now() + 365 * DAY), actor: as() })],
-    ["endSharingAgreement", () => sharingSvc.endSharingAgreement({ id: B.sharing.id, organisationId: A.org.id, reason: "taken", actor: as() })],
-    ["updatePolicyDocument", () => policyDocs.updatePolicyDocument({ id: B.policyDoc.id, organisationId: A.org.id, changes: { title: "taken", version: null, conditions: [], ownerId: null, entityId: null }, actor: as() })],
-    ["recordPolicyReview", () => policyDocs.recordPolicyReview({ id: B.policyDoc.id, organisationId: A.org.id, actor: as() })],
-    ["withdrawPolicyDocument", () => policyDocs.withdrawPolicyDocument({ id: B.policyDoc.id, organisationId: A.org.id, actor: as() })],
-    ["deletePolicyDocument", () => policyDocs.deletePolicyDocument({ id: B.policyDoc.id, organisationId: A.org.id, actor: as(), now: new Date(Date.now() + 400 * DAY) })],
-    ["setDpo (B's entity)", () => entitiesSvc.setDpo({ organisationId: A.org.id, entityId: B.entity.id, dpo: { name: "Taken", contact: "x@example.com" }, actor: as() })],
-    ["handOver (from B's person)", () => handover.handOver({ organisationId: A.org.id, fromUserId: B.owner.user.id, toUserId: A.owner.user.id, actor: as() })],
+    [
+      'revokeRole',
+      () =>
+        access.revokeRole({
+          organisationId: A.org.id,
+          roleAssignmentId: B.approver.grant.id,
+          actor: as()
+        })
+    ],
+    [
+      'setMembershipActive',
+      () =>
+        access.setMembershipActive({
+          organisationId: A.org.id,
+          membershipId: B.approver.membership.id,
+          isActive: false,
+          actor: as()
+        })
+    ],
+    [
+      'setPersona',
+      () =>
+        access.setPersona({
+          organisationId: A.org.id,
+          membershipId: B.owner.membership.id,
+          persona: 'engineering',
+          actor: as()
+        })
+    ],
+    [
+      'recordAssurance',
+      () =>
+        aiAssurance.recordAssurance({
+          useCaseId: B.useCase.id,
+          organisationId: A.org.id,
+          kind: 'evaluation',
+          title: 'x',
+          performedAt: new Date(Date.now() - DAY),
+          performedBy: 'x',
+          independent: false,
+          metrics: [],
+          result: 'failed',
+          actor: as()
+        })
+    ],
+    [
+      'triageIncident',
+      () =>
+        aiIncidents.triageIncident({
+          incidentId: B.incident.id,
+          organisationId: A.org.id,
+          severity: 'low',
+          harm: 'none_known',
+          assignedToUserId: null,
+          note: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'advanceIncident',
+      () =>
+        aiIncidents.advanceIncident({
+          incidentId: B.incident.id,
+          organisationId: A.org.id,
+          to: 'investigating',
+          note: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'scoreRequest',
+      () =>
+        aiIntake.scoreRequest({
+          requestId: B.request.id,
+          organisationId: A.org.id,
+          value: 1,
+          feasibility: 1,
+          actor: as()
+        })
+    ],
+    [
+      'decideRequest',
+      () =>
+        aiIntake.decideRequest({
+          requestId: B.request.id,
+          organisationId: A.org.id,
+          decision: 'declined',
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'recordChange',
+      () =>
+        aiLifecycle.recordChange({
+          useCaseId: B.useCase.id,
+          organisationId: A.org.id,
+          kind: 'data',
+          summary: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'updateUseCase',
+      () =>
+        aiRegister.updateUseCase({
+          useCaseId: B.useCase.id,
+          organisationId: A.org.id,
+          changes: { responsibleTeam: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'updateStage',
+      () =>
+        routing.updateStage({
+          organisationId: A.org.id,
+          stageId: B.stage.id,
+          name: 'taken',
+          requiredRole: 'owner',
+          slaHours: null,
+          actor: as()
+        })
+    ],
+    [
+      'addStage',
+      () =>
+        routing.addStage({
+          organisationId: A.org.id,
+          workflowDefinitionId: B.workflow.id,
+          name: 'taken',
+          requiredRole: 'owner',
+          condition: { op: 'always' },
+          actor: as()
+        })
+    ],
+    [
+      'saveAnswers',
+      () =>
+        assessmentsSvc.saveAnswers({
+          assessmentId: B.assessment.id,
+          organisationId: A.org.id,
+          answers: { purpose: 'taken' } as never,
+          actor: as()
+        })
+    ],
+    [
+      'submitAssessment',
+      () =>
+        assessmentsSvc.submitAssessment({
+          assessmentId: B.assessment.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'returnAssessment',
+      () =>
+        assessmentsSvc.returnAssessment({
+          assessmentId: B.assessment.id,
+          organisationId: A.org.id,
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'saveDraft (ATRS)',
+      () =>
+        atrs.saveDraft({
+          recordId: B.atrsRecord.id,
+          organisationId: A.org.id,
+          fields: {},
+          actor: as()
+        })
+    ],
+    [
+      'approveRecord',
+      () =>
+        atrs.approveRecord({
+          recordId: B.atrsRecord.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'markPublished',
+      () =>
+        atrs.markPublished({
+          recordId: B.atrsRecord.id,
+          organisationId: A.org.id,
+          publicationUrl: 'https://example.test',
+          actor: as()
+        })
+    ],
+    [
+      'discardDraft',
+      () =>
+        atrs.discardDraft({
+          recordId: B.atrsRecord.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'exportRecord',
+      () =>
+        atrs.exportRecord({
+          recordId: B.atrsRecord.id,
+          organisationId: A.org.id,
+          format: 'json',
+          actor: as()
+        })
+    ],
+    [
+      'updateBreach',
+      () =>
+        breachesSvc.updateBreach({
+          breachId: B.breach.id,
+          organisationId: A.org.id,
+          changes: { title: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'recordDecision',
+      () =>
+        breachesSvc.recordDecision({
+          organisationId: A.org.id,
+          breachId: B.breach.id,
+          kind: 'insurer',
+          outcome: 'not_required',
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'closeBreach',
+      () =>
+        breachesSvc.closeBreach({
+          breachId: B.breach.id,
+          organisationId: A.org.id,
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'updateRequest',
+      () =>
+        dsr.updateRequest({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          changes: { description: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'recordIdentity',
+      () =>
+        dsr.recordIdentity({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          step: 'requested',
+          actor: as()
+        })
+    ],
+    [
+      'recordRequestDecision',
+      () =>
+        dsr.recordRequestDecision({
+          organisationId: A.org.id,
+          requestId: B.subjectRequest.id,
+          kind: 'other',
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'respondToRequest',
+      () =>
+        dsr.respondToRequest({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          outcome: 'complied',
+          channel: 'email',
+          summary: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'seedRequestScope',
+      () =>
+        dsr.seedRequestScope({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'addScopeEntry',
+      () =>
+        dsr.addScopeEntry({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          kind: 'other',
+          label: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'recordScopeResult',
+      () =>
+        dsr.recordScopeResult({
+          scopeId: B.requestScope.id,
+          organisationId: A.org.id,
+          status: 'not_held',
+          actor: as()
+        })
+    ],
+    [
+      'recordRecipientNotice',
+      () =>
+        dsr.recordRecipientNotice({
+          scopeId: B.requestScope.id,
+          organisationId: A.org.id,
+          notice: 'notified',
+          actor: as()
+        })
+    ],
+    [
+      'revokeIntakeLink',
+      () =>
+        dsrIntake.revokeIntakeLink({
+          linkId: B.intakeLink.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'setIntakeLinkComplaints',
+      () =>
+        dsrIntake.setIntakeLinkComplaints({
+          linkId: B.intakeLink.id,
+          organisationId: A.org.id,
+          takesComplaints: false,
+          actor: as()
+        })
+    ],
+    [
+      'passToController',
+      () =>
+        dsr.passToController({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          controllerName: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'updateProperty',
+      () =>
+        inventory.updateProperty({
+          propertyId: B.webProperty.id,
+          organisationId: A.org.id,
+          changes: { name: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'addItem',
+      () =>
+        inventory.addItem({
+          propertyId: B.webProperty.id,
+          organisationId: A.org.id,
+          name: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'updateItem',
+      () =>
+        inventory.updateItem({
+          itemId: B.storageItem.id,
+          organisationId: A.org.id,
+          changes: { purpose: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'recordStorageDecision',
+      () =>
+        inventory.recordStorageDecision({
+          itemId: B.storageItem.id,
+          organisationId: A.org.id,
+          basis: 'consent',
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'ingestAnalyserReport',
+      () =>
+        inventory.ingestAnalyserReport({
+          propertyId: B.webProperty.id,
+          organisationId: A.org.id,
+          report: {
+            schema_version: '2.0',
+            checklist: [],
+            summary: {},
+            metadata: {}
+          },
+          source: 'upload',
+          actor: as()
+        })
+    ],
+    [
+      'startPropertyScan',
+      () =>
+        analyserSvc.startPropertyScan({
+          propertyId: B.webProperty.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'decideProposal',
+      () =>
+        inventory.decideProposal({
+          proposalId: B.storageProposal.id,
+          organisationId: A.org.id,
+          accept: true,
+          actor: as()
+        })
+    ],
+    [
+      'updateMarketingActivity',
+      () =>
+        marketingSvc.updateMarketingActivity({
+          activityId: B.marketingActivity.id,
+          organisationId: A.org.id,
+          changes: { name: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'recordTpsScreening',
+      () =>
+        marketingSvc.recordTpsScreening({
+          activityId: B.marketingActivity.id,
+          organisationId: A.org.id,
+          screenedAt: new Date(),
+          actor: as()
+        })
+    ],
+    [
+      'recordMarketingDecision',
+      () =>
+        marketingSvc.recordMarketingDecision({
+          activityId: B.marketingActivity.id,
+          organisationId: A.org.id,
+          basis: 'none',
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'updateComplaint',
+      () =>
+        complaintsSvc.updateComplaint({
+          complaintId: B.complaint.id,
+          organisationId: A.org.id,
+          changes: { description: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'recordComplaintEvent',
+      () =>
+        complaintsSvc.recordComplaintEvent({
+          complaintId: B.complaint.id,
+          organisationId: A.org.id,
+          kind: 'acknowledged',
+          note: '',
+          channel: 'email',
+          actor: as()
+        })
+    ],
+    [
+      'recordComplaintOutcome',
+      () =>
+        complaintsSvc.recordComplaintOutcome({
+          complaintId: B.complaint.id,
+          organisationId: A.org.id,
+          outcome: 'upheld',
+          channel: 'email',
+          summary: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'closeComplaint',
+      () =>
+        complaintsSvc.closeComplaint({
+          complaintId: B.complaint.id,
+          organisationId: A.org.id,
+          rationale: 'x',
+          withdrawn: true,
+          actor: as()
+        })
+    ],
+    [
+      'closeRequest',
+      () =>
+        dsr.closeRequest({
+          requestId: B.subjectRequest.id,
+          organisationId: A.org.id,
+          rationale: 'x',
+          withdrawn: true,
+          actor: as()
+        })
+    ],
+    [
+      "linkAssessment (B's breach)",
+      () =>
+        breachesSvc.linkAssessment({
+          breachId: B.breach.id,
+          organisationId: A.org.id,
+          assessmentId: null,
+          actor: as()
+        })
+    ],
+    [
+      'withdrawComment',
+      () =>
+        collaboration.withdrawComment({
+          commentId: B.comment.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'rotateSecret',
+      () =>
+        connections.rotateSecret({
+          connectionId: B.scanner.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'completeContributorLink',
+      () =>
+        contributorLinks.completeContributorLink({
+          linkId: B.link.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'revokeContributorLink',
+      () =>
+        contributorLinks.revokeContributorLink({
+          linkId: B.link.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'removeDocument',
+      () =>
+        documentsSvc.removeDocument({
+          id: B.document.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      "moveDocument (B's)",
+      () =>
+        documentsSvc.moveDocument({
+          id: B.document.id,
+          organisationId: A.org.id,
+          subjectType: 'risk',
+          subjectId: mine.risk.id,
+          actor: as()
+        })
+    ],
+    [
+      'convertFindingToRisk',
+      () =>
+        ingest.convertFindingToRisk({
+          findingId: B.finding.id,
+          organisationId: A.org.id,
+          title: 'x',
+          description: 'x',
+          likelihood: 1,
+          impact: 1,
+          actor: as()
+        })
+    ],
+    [
+      'dismissFinding',
+      () =>
+        ingest.dismissFinding({
+          findingId: B.finding.id,
+          organisationId: A.org.id,
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'decideAppetite',
+      () =>
+        riskPolicy.decideAppetite({
+          appetiteId: B.appetite.id,
+          organisationId: A.org.id,
+          decision: 'rejected',
+          rejectionReason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'setResidual',
+      () =>
+        risksSvc.setResidual({
+          riskId: B.risk.id,
+          organisationId: A.org.id,
+          likelihood: 5,
+          impact: 5,
+          actor: as()
+        })
+    ],
+    [
+      'addMitigation',
+      () =>
+        risksSvc.addMitigation({
+          riskId: B.risk.id,
+          organisationId: A.org.id,
+          description: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'updateMitigation',
+      () =>
+        risksSvc.updateMitigation({
+          mitigationId: B.mitigation.id,
+          organisationId: A.org.id,
+          status: 'abandoned',
+          actor: as()
+        })
+    ],
+    [
+      'acceptRisk',
+      () =>
+        risksSvc.acceptRisk({
+          riskId: B.risk.id,
+          organisationId: A.org.id,
+          rationale: 'x',
+          expiresAt: new Date(Date.now() + DAY),
+          actor: A.approver.actor
+        })
+    ],
+    [
+      'revokeAcceptance',
+      () =>
+        risksSvc.revokeAcceptance({
+          acceptanceId: B.acceptance.id,
+          organisationId: A.org.id,
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'closeRisk',
+      () =>
+        risksSvc.closeRisk({
+          riskId: B.risk.id,
+          organisationId: A.org.id,
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'updateActivity',
+      () =>
+        ropa.updateActivity({
+          activityId: B.activity.id,
+          organisationId: A.org.id,
+          changes: { name: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'setFurtherProcessing',
+      () =>
+        ropa.setFurtherProcessing({
+          activityId: B.activity.id,
+          organisationId: A.org.id,
+          record: { furtherProcessing: false },
+          actor: as()
+        })
+    ],
+    [
+      'setAutomatedDecisions',
+      () =>
+        adm.setAutomatedDecisions({
+          organisationId: A.org.id,
+          side: 'processing_activity',
+          id: B.activity.id,
+          record: { automatedDecisions: false },
+          actor: as()
+        })
+    ],
+    [
+      'copyAutomatedDecisions',
+      () =>
+        adm.copyAutomatedDecisions({
+          organisationId: A.org.id,
+          useCaseId: B.useCase.id,
+          activityId: B.activity.id,
+          to: 'ai_use_case',
+          actor: as()
+        })
+    ],
+    [
+      'unlinkUseCaseFromActivity',
+      () =>
+        adm.unlinkUseCaseFromActivity({
+          organisationId: A.org.id,
+          useCaseId: B.useCase.id,
+          activityId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      'createDraftFrom',
+      () =>
+        templatesSvc.createDraftFrom({
+          organisationId: A.org.id,
+          templateId: B.template,
+          actor: as()
+        })
+    ],
+    [
+      'publishVersion',
+      () =>
+        templatesSvc.publishVersion({
+          organisationId: A.org.id,
+          versionId: B.dpiaVersion,
+          actor: as()
+        })
+    ],
+    [
+      'updateSupplier',
+      () =>
+        thirdParty.updateSupplier({
+          supplierId: B.supplier.id,
+          organisationId: A.org.id,
+          changes: { name: 'taken' },
+          actor: as()
+        })
+    ],
+    [
+      'updateDpa',
+      () =>
+        thirdParty.updateDpa({
+          organisationId: A.org.id,
+          dpaId: B.dpa.id,
+          title: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'archiveDpa',
+      () =>
+        thirdParty.archiveDpa({
+          organisationId: A.org.id,
+          dpaId: B.dpa.id,
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
+      'restoreDpa',
+      () =>
+        thirdParty.restoreDpa({
+          organisationId: A.org.id,
+          dpaId: B.dpa.id,
+          actor: as()
+        })
+    ],
+    [
+      'decideApproval',
+      () =>
+        workflow.decideApproval({
+          approvalId: B.approval.id,
+          organisationId: A.org.id,
+          decision: 'approved',
+          rationale: 'x',
+          callerRoles: ['owner'],
+          actor: as()
+        })
+    ],
+    [
+      'openApprovals',
+      () =>
+        workflow.openApprovals({
+          assessmentId: B.assessment.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'submitForApproval',
+      () =>
+        workflow.submitForApproval({
+          assessmentId: B.assessment.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'changeStage',
+      () =>
+        aiLifecycle.changeStage({
+          useCaseId: B.useCase.id,
+          organisationId: A.org.id,
+          to: 'retired',
+          summary: 'x',
+          mayWaive: true,
+          actor: as()
+        })
+    ],
+    [
+      'completeTask',
+      () =>
+        workflow.completeTask({
+          taskId: B.task.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'updateDraft',
+      () =>
+        templatesSvc.updateDraft({
+          organisationId: A.org.id,
+          versionId: B.draft.id,
+          definition: B.draft.definition,
+          actor: as()
+        })
+    ],
+    [
+      "resetWorkflow (A's own kind only)",
+      () =>
+        routing.resetWorkflow({
+          organisationId: A.org.id,
+          templateKind: 'dpia',
+          actor: as()
+        })
+    ],
+    [
+      'verifyDomain',
+      () =>
+        domains.verifyDomain({
+          organisationId: A.org.id,
+          claimId: B.domainClaim.id,
+          actor: as(),
+          lookup: async () => [[`govern-verification=${B.domainClaim.token}`]]
+        })
+    ],
+    [
+      'removeDomain',
+      () =>
+        domains.removeDomain({
+          organisationId: A.org.id,
+          claimId: B.domainClaim.id,
+          actor: as()
+        })
+    ],
+    [
+      'renameEntity',
+      () =>
+        entitiesSvc.renameEntity({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          name: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'makeDefaultEntity',
+      () =>
+        entitiesSvc.makeDefaultEntity({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          actor: as()
+        })
+    ],
+    [
+      'setPublicCommsProvider',
+      () =>
+        entitiesSvc.setPublicCommsProvider({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          provider: true,
+          actor: as()
+        })
+    ],
+    [
+      'setCompetentAuthority',
+      () =>
+        entitiesSvc.setCompetentAuthority({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          competentAuthority: true,
+          actor: as()
+        })
+    ],
+    [
+      'setPublicAuthority',
+      () =>
+        entitiesSvc.setPublicAuthority({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          publicAuthority: true,
+          actor: as()
+        })
+    ],
+    [
+      'setDataProtectionLaw',
+      () =>
+        entitiesSvc.setDataProtectionLaw({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          law: 'eu',
+          actor: as()
+        })
+    ],
+    [
+      'updateSharingAgreement',
+      () =>
+        sharingSvc.updateSharingAgreement({
+          id: B.sharing.id,
+          organisationId: A.org.id,
+          changes: {
+            title: 'taken',
+            purpose: null,
+            direction: 'both',
+            gatewayKind: null,
+            gateway: null,
+            dataShared: null,
+            lawfulBases: [],
+            schedule1Condition: null,
+            art10Condition: null,
+            ownerId: null,
+            signedAt: null,
+            reviewDueAt: null,
+            activityIds: []
+          },
+          actor: as()
+        })
+    ],
+    [
+      'addSharingParty',
+      () =>
+        sharingSvc.addSharingParty({
+          agreementId: B.sharing.id,
+          organisationId: A.org.id,
+          supplierId: B.partner.id,
+          actor: as()
+        })
+    ],
+    [
+      'updateSharingParty',
+      () =>
+        sharingSvc.updateSharingParty({
+          partyId: B.sharingParty.id,
+          organisationId: A.org.id,
+          basis: {
+            lawfulBases: ['public_task'],
+            schedule1Condition: null,
+            art10Condition: null
+          },
+          note: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'removeSharingParty',
+      () =>
+        sharingSvc.removeSharingParty({
+          partyId: B.sharingParty.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'recordSharingReview',
+      () =>
+        sharingSvc.recordSharingReview({
+          id: B.sharing.id,
+          organisationId: A.org.id,
+          nextReviewDueAt: new Date(Date.now() + 365 * DAY),
+          actor: as()
+        })
+    ],
+    [
+      'endSharingAgreement',
+      () =>
+        sharingSvc.endSharingAgreement({
+          id: B.sharing.id,
+          organisationId: A.org.id,
+          reason: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'updatePolicyDocument',
+      () =>
+        policyDocs.updatePolicyDocument({
+          id: B.policyDoc.id,
+          organisationId: A.org.id,
+          changes: {
+            title: 'taken',
+            version: null,
+            conditions: [],
+            ownerId: null,
+            entityId: null
+          },
+          actor: as()
+        })
+    ],
+    [
+      'recordPolicyReview',
+      () =>
+        policyDocs.recordPolicyReview({
+          id: B.policyDoc.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'withdrawPolicyDocument',
+      () =>
+        policyDocs.withdrawPolicyDocument({
+          id: B.policyDoc.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'deletePolicyDocument',
+      () =>
+        policyDocs.deletePolicyDocument({
+          id: B.policyDoc.id,
+          organisationId: A.org.id,
+          actor: as(),
+          now: new Date(Date.now() + 400 * DAY)
+        })
+    ],
+    [
+      "setDpo (B's entity)",
+      () =>
+        entitiesSvc.setDpo({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          dpo: { name: 'Taken', contact: 'x@example.com' },
+          actor: as()
+        })
+    ],
+    [
+      "handOver (from B's person)",
+      () =>
+        handover.handOver({
+          organisationId: A.org.id,
+          fromUserId: B.owner.user.id,
+          toUserId: A.owner.user.id,
+          actor: as()
+        })
+    ]
   ];
 
   for (const [name, write] of writes) {
@@ -637,182 +2064,1004 @@ describe("changing another organisation's records", () => {
       const before = await bSnapshot();
       const audit = await bAuditCount();
       await write().catch(() => undefined);
-      assert.equal(await bAuditCount(), audit, `${name} wrote to B's audit trail`);
-      assert.deepEqual(changed(before, await bSnapshot()), [], `${name} changed B's records`);
+      assert.equal(
+        await bAuditCount(),
+        audit,
+        `${name} wrote to B's audit trail`
+      );
+      assert.deepEqual(
+        changed(before, await bSnapshot()),
+        [],
+        `${name} changed B's records`
+      );
     });
   }
 });
 
 describe("linking one's own records to another organisation's", () => {
   const links: Array<[string, () => Promise<unknown>]> = [
-    ["an assessment on B's template", () => assessmentsSvc.createAssessment({ organisationId: A.org.id, entityId: A.entity.id, templateVersionId: B.dpiaVersion, title: "x", actor: as() })],
-    ["an assessment of B's AI system", () => assessmentsSvc.createAssessment({ organisationId: A.org.id, entityId: A.entity.id, templateVersionId: mine.dpiaVersion, title: "x", subjectType: "ai_use_case", subjectId: B.useCase.id, actor: as() })],
-    ["an assessment in B's entity", () => assessmentsSvc.createAssessment({ organisationId: A.org.id, entityId: B.entity.id, templateVersionId: mine.dpiaVersion, title: "x", actor: as() })],
-    ["a risk in B's entity", () => risksSvc.createRisk({ organisationId: A.org.id, entityId: B.entity.id, title: "x", description: "x", likelihood: 1, impact: 1, actor: as() })],
-    ["a risk owned by B's person", () => risksSvc.createRisk({ organisationId: A.org.id, entityId: A.entity.id, title: "x", description: "x", likelihood: 1, impact: 1, ownerId: B.owner.user.id, actor: as() })],
-    ["a mitigation owned by B's person", () => risksSvc.addMitigation({ riskId: mine.risk.id, organisationId: A.org.id, description: "x", ownerId: B.owner.user.id, actor: as() })],
-    ["an AI system in B's entity", () => aiRegister.createUseCase({ organisationId: A.org.id, entityId: B.entity.id, name: "x", purpose: "x", systemType: "predictive", provenance: "built_in_house", actor: as() })],
-    ["an AI system supplied by B's supplier", () => aiRegister.createUseCase({ organisationId: A.org.id, entityId: A.entity.id, name: "x", purpose: "x", systemType: "predictive", provenance: "third_party_api", supplierId: B.supplier.id, actor: as() })],
-    ["an AI system owned by B's person", () => aiRegister.updateUseCase({ useCaseId: mine.useCase.id, organisationId: A.org.id, changes: { ownerId: B.owner.user.id }, actor: as() })],
-    ["a breach linked to B's assessment", () => breachesSvc.linkAssessment({ breachId: mine.breach.id, organisationId: A.org.id, assessmentId: B.assessment.id, actor: as() })],
-    ["a data subject request in B's entity", () => dsr.recordRequest({ organisationId: A.org.id, entityId: B.entity.id, rights: ["access"], channel: "email", receivedAt: new Date(), description: "x", requesterName: "x", actor: as() })],
-    ["a request form for B's entity", () => dsrIntake.issueIntakeLink({ organisationId: A.org.id, entityId: B.entity.id, label: "x", actor: as() })],
-    ["an objection about B's processing activity", () => dsr.recordRequestDecision({ organisationId: A.org.id, requestId: mine.subjectRequest.id, kind: "objection", processingBasis: "legitimate_interests", processingActivityId: B.activity.id, rationale: "x", actor: as() })],
-    ["a website in B's entity", () => inventory.createProperty({ organisationId: A.org.id, entityId: B.entity.id, name: "x", url: "https://x.example.com", actor: as() })],
-    ["a website owned by B's person", () => inventory.updateProperty({ propertyId: mine.webProperty.id, organisationId: A.org.id, changes: { ownerId: B.owner.user.id }, actor: as() })],
-    ["a cookie collected by B's supplier", () => inventory.addItem({ propertyId: mine.webProperty.id, organisationId: A.org.id, name: "x", supplierId: B.supplier.id, actor: as() })],
-    ["a marketing activity in B's entity", () => marketingSvc.createMarketingActivity({ organisationId: A.org.id, entityId: B.entity.id, name: "x", channel: "email", actor: as() })],
-    ["a marketing activity under B's processing activity", () => marketingSvc.createMarketingActivity({ organisationId: A.org.id, entityId: A.entity.id, name: "x", channel: "email", processingActivityId: B.activity.id, actor: as() })],
-    ["further processing of B's processing activity", () => ropa.setFurtherProcessing({ activityId: mine.activity.id, organisationId: A.org.id, record: { furtherProcessing: true, originalActivityId: B.activity.id }, actor: as() })],
-    ["a sharing agreement for B's entity", () => sharingSvc.createSharingAgreement({ organisationId: A.org.id, entityId: B.entity.id, title: "x", actor: as() })],
-    ["B's controller as a party to my agreement", () => sharingSvc.addSharingParty({ agreementId: mine.sharing.id, organisationId: A.org.id, supplierId: B.partner.id, actor: as() })],
-    ["my agreement covering B's activity", () => sharingSvc.updateSharingAgreement({ id: mine.sharing.id, organisationId: A.org.id, changes: { ...{ title: "taken", purpose: null, direction: "both", gatewayKind: null, gateway: null, dataShared: null, lawfulBases: [], schedule1Condition: null, art10Condition: null, ownerId: null, signedAt: null, reviewDueAt: null, activityIds: [] }, activityIds: [B.activity.id] }, actor: as() })],
-    ["my agreement owned by B's person", () => sharingSvc.updateSharingAgreement({ id: mine.sharing.id, organisationId: A.org.id, changes: { ...{ title: "taken", purpose: null, direction: "both", gatewayKind: null, gateway: null, dataShared: null, lawfulBases: [], schedule1Condition: null, art10Condition: null, ownerId: null, signedAt: null, reviewDueAt: null, activityIds: [] }, ownerId: B.owner.user.id }, actor: as() })],
-    ["a document on B's sharing agreement", () => documentsSvc.attachDocument({ organisationId: A.org.id, entityId: null, subjectType: "sharing_agreement", subjectId: B.sharing.id, filename: "x.pdf", contentType: "application/pdf", content: PDF, actor: as() })],
-    ["a policy document for B's entity", () => policyDocs.createPolicyDocument({ organisationId: A.org.id, entityId: B.entity.id, title: "x", conditions: [], actor: as() })],
-    ["a policy document owned by B's person", () => policyDocs.createPolicyDocument({ organisationId: A.org.id, entityId: null, title: "x", conditions: [], ownerId: B.owner.user.id, actor: as() })],
-    ["a policy document moved to B's entity", () => policyDocs.updatePolicyDocument({ id: mine.policyDoc.id, organisationId: A.org.id, changes: { title: "x", version: null, conditions: [], ownerId: null, entityId: B.entity.id }, actor: as() })],
-    ["a document on B's policy document", () => documentsSvc.attachDocument({ organisationId: A.org.id, entityId: null, subjectType: "policy_document", subjectId: B.policyDoc.id, filename: "x.pdf", contentType: "application/pdf", content: PDF, actor: as() })],
-    ["a DPO who is B's person", () => entitiesSvc.setDpo({ organisationId: A.org.id, dpo: { name: "B's person", contact: "x@example.com", userId: B.owner.user.id }, actor: as() })],
-    ["an AI system linked to B's processing activity", () => adm.linkUseCaseToActivity({ organisationId: A.org.id, useCaseId: mine.useCase.id, activityId: B.activity.id, actor: as() })],
-    ["a marketing activity linked to B's processing activity", () => marketingSvc.updateMarketingActivity({ activityId: mine.marketingActivity.id, organisationId: A.org.id, changes: { processingActivityId: B.activity.id }, actor: as() })],
-    ["a marketing activity owned by B's person", () => marketingSvc.updateMarketingActivity({ activityId: mine.marketingActivity.id, organisationId: A.org.id, changes: { ownerId: B.owner.user.id }, actor: as() })],
-    ["a complaint in B's entity", () => complaintsSvc.recordComplaint({ organisationId: A.org.id, entityId: B.entity.id, channel: "email", receivedAt: new Date(), subject: "other", description: "x", complainantName: "x", actor: as() })],
-    ["a complaint about B's request", () => complaintsSvc.recordComplaint({ organisationId: A.org.id, entityId: A.entity.id, channel: "email", receivedAt: new Date(), subject: "other", description: "x", complainantName: "x", requestId: B.subjectRequest.id, actor: as() })],
-    ["a complaint linked to B's request", () => complaintsSvc.updateComplaint({ complaintId: mine.complaint.id, organisationId: A.org.id, changes: { requestId: B.subjectRequest.id }, actor: as() })],
-    ["a complaint handled by B's person", () => complaintsSvc.updateComplaint({ complaintId: mine.complaint.id, organisationId: A.org.id, changes: { ownerId: B.owner.user.id }, actor: as() })],
-    ["a data subject request handled by B's person", () => dsr.updateRequest({ requestId: mine.subjectRequest.id, organisationId: A.org.id, changes: { ownerId: B.owner.user.id }, actor: as() })],
-    ["a breach in B's entity", () => breachesSvc.recordBreach({ organisationId: A.org.id, entityId: B.entity.id, title: "x", description: "x", discoveredAt: new Date(), actor: as() })],
-    ["an incident about B's AI system", () => aiIncidents.reportIncident({ organisationId: A.org.id, useCaseId: B.useCase.id, kind: "challenge", source: "public", summary: "x", harm: "potential", confidential: false, reportedByLabel: "x", actor: as() })],
-    ["an incident assigned to B's person", () => aiIncidents.triageIncident({ incidentId: mine.incident.id, organisationId: A.org.id, severity: "low", harm: "potential", assignedToUserId: B.owner.user.id, note: "x", actor: as() })],
-    ["an incident linked to B's risk", () => aiIncidents.triageIncident({ incidentId: mine.incident.id, organisationId: A.org.id, severity: "low", harm: "potential", assignedToUserId: null, linkedRiskId: B.risk.id, note: "x", actor: as() })],
-    ["assurance tied to B's change", () => aiAssurance.recordAssurance({ useCaseId: mine.useCase.id, organisationId: A.org.id, kind: "evaluation", title: "x", performedAt: new Date(Date.now() - DAY), performedBy: "x", independent: false, metrics: [], result: "passed", changeId: B.change.id, actor: as() })],
-    ["a contributor link on B's assessment", () => contributorLinks.issueContributorLink({ organisationId: A.org.id, assessmentId: B.assessment.id, email: "x@example.test", actor: as() })],
-    ["a document on B's supplier", () => documentsSvc.attachDocument({ organisationId: A.org.id, entityId: null, subjectType: "supplier", subjectId: B.supplier.id, filename: "x.pdf", contentType: "application/pdf", content: PDF, actor: as() })],
-    ["a document moved onto B's supplier", () => documentsSvc.moveDocument({ id: mine.document.id, organisationId: A.org.id, subjectType: "supplier", subjectId: B.supplier.id, actor: as() })],
-    ["a comment on B's risk", () => collaboration.postComment({ organisationId: A.org.id, entityId: null, subjectType: "risk", subjectId: B.risk.id, subjectLabel: "x", body: "x", actor: as() })],
-    ["an agreement with B's supplier", () => thirdParty.recordDpa({ organisationId: A.org.id, supplierId: B.supplier.id, title: "x", actor: as() })],
-    ["learning recorded for B's person", () => training.recordTraining({ organisationId: A.org.id, userId: B.owner.user.id, courseKey: "ai_fundamentals", completedAt: new Date(Date.now() - DAY), actor: as() })],
-    ["an invitation into B's entity", () => access.inviteMember({ organisationId: A.org.id, email: `x-${crypto.randomUUID().slice(0, 6)}@example.test`, role: "contributor", entityId: B.entity.id, actor: as() })],
-    ["work handed to B's person", () => handover.handOver({ organisationId: A.org.id, fromUserId: A.owner.user.id, toUserId: B.owner.user.id, actor: as() })],
-    ["a connection defaulting to B's entity", () => connections.createConnection({ organisationId: A.org.id, kind: "other", name: "x", defaultEntityId: B.entity.id, actor: as() })],
-    ["an activity in B's entity", () => ropa.createActivity({ organisationId: A.org.id, entityId: B.entity.id, name: "x", actor: as() })],
-    ["an accepted suggestion about B's conversation", () => assistant.acceptSuggestion({ organisationId: A.org.id, conversationId: B.conversation.id, subjectType: "risk", subjectId: B.risk.id, field: "description", proposed: "x", model: "x", actor: as() })],
-    ["a proposal in B's entity", () => aiIntake.submitRequest({ organisationId: A.org.id, entityId: B.entity.id, title: "x", problem: "x", whyAi: "x", benefits: "x", environmentalImpact: "x", publicFacing: false, significantDecisions: false, requestedByLabel: "x", actor: as() })],
+    [
+      "an assessment on B's template",
+      () =>
+        assessmentsSvc.createAssessment({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          templateVersionId: B.dpiaVersion,
+          title: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "an assessment of B's AI system",
+      () =>
+        assessmentsSvc.createAssessment({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          templateVersionId: mine.dpiaVersion,
+          title: 'x',
+          subjectType: 'ai_use_case',
+          subjectId: B.useCase.id,
+          actor: as()
+        })
+    ],
+    [
+      "an assessment in B's entity",
+      () =>
+        assessmentsSvc.createAssessment({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          templateVersionId: mine.dpiaVersion,
+          title: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "a risk in B's entity",
+      () =>
+        risksSvc.createRisk({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          title: 'x',
+          description: 'x',
+          likelihood: 1,
+          impact: 1,
+          actor: as()
+        })
+    ],
+    [
+      "a risk owned by B's person",
+      () =>
+        risksSvc.createRisk({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          title: 'x',
+          description: 'x',
+          likelihood: 1,
+          impact: 1,
+          ownerId: B.owner.user.id,
+          actor: as()
+        })
+    ],
+    [
+      "a mitigation owned by B's person",
+      () =>
+        risksSvc.addMitigation({
+          riskId: mine.risk.id,
+          organisationId: A.org.id,
+          description: 'x',
+          ownerId: B.owner.user.id,
+          actor: as()
+        })
+    ],
+    [
+      "an AI system in B's entity",
+      () =>
+        aiRegister.createUseCase({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          name: 'x',
+          purpose: 'x',
+          systemType: 'predictive',
+          provenance: 'built_in_house',
+          actor: as()
+        })
+    ],
+    [
+      "an AI system supplied by B's supplier",
+      () =>
+        aiRegister.createUseCase({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          name: 'x',
+          purpose: 'x',
+          systemType: 'predictive',
+          provenance: 'third_party_api',
+          supplierId: B.supplier.id,
+          actor: as()
+        })
+    ],
+    [
+      "an AI system owned by B's person",
+      () =>
+        aiRegister.updateUseCase({
+          useCaseId: mine.useCase.id,
+          organisationId: A.org.id,
+          changes: { ownerId: B.owner.user.id },
+          actor: as()
+        })
+    ],
+    [
+      "a breach linked to B's assessment",
+      () =>
+        breachesSvc.linkAssessment({
+          breachId: mine.breach.id,
+          organisationId: A.org.id,
+          assessmentId: B.assessment.id,
+          actor: as()
+        })
+    ],
+    [
+      "a data subject request in B's entity",
+      () =>
+        dsr.recordRequest({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          rights: ['access'],
+          channel: 'email',
+          receivedAt: new Date(),
+          description: 'x',
+          requesterName: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "a request form for B's entity",
+      () =>
+        dsrIntake.issueIntakeLink({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          label: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "an objection about B's processing activity",
+      () =>
+        dsr.recordRequestDecision({
+          organisationId: A.org.id,
+          requestId: mine.subjectRequest.id,
+          kind: 'objection',
+          processingBasis: 'legitimate_interests',
+          processingActivityId: B.activity.id,
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "a website in B's entity",
+      () =>
+        inventory.createProperty({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          name: 'x',
+          url: 'https://x.example.com',
+          actor: as()
+        })
+    ],
+    [
+      "a website owned by B's person",
+      () =>
+        inventory.updateProperty({
+          propertyId: mine.webProperty.id,
+          organisationId: A.org.id,
+          changes: { ownerId: B.owner.user.id },
+          actor: as()
+        })
+    ],
+    [
+      "a cookie collected by B's supplier",
+      () =>
+        inventory.addItem({
+          propertyId: mine.webProperty.id,
+          organisationId: A.org.id,
+          name: 'x',
+          supplierId: B.supplier.id,
+          actor: as()
+        })
+    ],
+    [
+      "a marketing activity in B's entity",
+      () =>
+        marketingSvc.createMarketingActivity({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          name: 'x',
+          channel: 'email',
+          actor: as()
+        })
+    ],
+    [
+      "a marketing activity under B's processing activity",
+      () =>
+        marketingSvc.createMarketingActivity({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          name: 'x',
+          channel: 'email',
+          processingActivityId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      "further processing of B's processing activity",
+      () =>
+        ropa.setFurtherProcessing({
+          activityId: mine.activity.id,
+          organisationId: A.org.id,
+          record: {
+            furtherProcessing: true,
+            originalActivityId: B.activity.id
+          },
+          actor: as()
+        })
+    ],
+    [
+      "a sharing agreement for B's entity",
+      () =>
+        sharingSvc.createSharingAgreement({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          title: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "B's controller as a party to my agreement",
+      () =>
+        sharingSvc.addSharingParty({
+          agreementId: mine.sharing.id,
+          organisationId: A.org.id,
+          supplierId: B.partner.id,
+          actor: as()
+        })
+    ],
+    [
+      "my agreement covering B's activity",
+      () =>
+        sharingSvc.updateSharingAgreement({
+          id: mine.sharing.id,
+          organisationId: A.org.id,
+          changes: {
+            ...{
+              title: 'taken',
+              purpose: null,
+              direction: 'both',
+              gatewayKind: null,
+              gateway: null,
+              dataShared: null,
+              lawfulBases: [],
+              schedule1Condition: null,
+              art10Condition: null,
+              ownerId: null,
+              signedAt: null,
+              reviewDueAt: null,
+              activityIds: []
+            },
+            activityIds: [B.activity.id]
+          },
+          actor: as()
+        })
+    ],
+    [
+      "my agreement owned by B's person",
+      () =>
+        sharingSvc.updateSharingAgreement({
+          id: mine.sharing.id,
+          organisationId: A.org.id,
+          changes: {
+            ...{
+              title: 'taken',
+              purpose: null,
+              direction: 'both',
+              gatewayKind: null,
+              gateway: null,
+              dataShared: null,
+              lawfulBases: [],
+              schedule1Condition: null,
+              art10Condition: null,
+              ownerId: null,
+              signedAt: null,
+              reviewDueAt: null,
+              activityIds: []
+            },
+            ownerId: B.owner.user.id
+          },
+          actor: as()
+        })
+    ],
+    [
+      "a document on B's sharing agreement",
+      () =>
+        documentsSvc.attachDocument({
+          organisationId: A.org.id,
+          entityId: null,
+          subjectType: 'sharing_agreement',
+          subjectId: B.sharing.id,
+          filename: 'x.pdf',
+          contentType: 'application/pdf',
+          content: PDF,
+          actor: as()
+        })
+    ],
+    [
+      "a policy document for B's entity",
+      () =>
+        policyDocs.createPolicyDocument({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          title: 'x',
+          conditions: [],
+          actor: as()
+        })
+    ],
+    [
+      "a policy document owned by B's person",
+      () =>
+        policyDocs.createPolicyDocument({
+          organisationId: A.org.id,
+          entityId: null,
+          title: 'x',
+          conditions: [],
+          ownerId: B.owner.user.id,
+          actor: as()
+        })
+    ],
+    [
+      "a policy document moved to B's entity",
+      () =>
+        policyDocs.updatePolicyDocument({
+          id: mine.policyDoc.id,
+          organisationId: A.org.id,
+          changes: {
+            title: 'x',
+            version: null,
+            conditions: [],
+            ownerId: null,
+            entityId: B.entity.id
+          },
+          actor: as()
+        })
+    ],
+    [
+      "a document on B's policy document",
+      () =>
+        documentsSvc.attachDocument({
+          organisationId: A.org.id,
+          entityId: null,
+          subjectType: 'policy_document',
+          subjectId: B.policyDoc.id,
+          filename: 'x.pdf',
+          contentType: 'application/pdf',
+          content: PDF,
+          actor: as()
+        })
+    ],
+    [
+      "a DPO who is B's person",
+      () =>
+        entitiesSvc.setDpo({
+          organisationId: A.org.id,
+          dpo: {
+            name: "B's person",
+            contact: 'x@example.com',
+            userId: B.owner.user.id
+          },
+          actor: as()
+        })
+    ],
+    [
+      "an AI system linked to B's processing activity",
+      () =>
+        adm.linkUseCaseToActivity({
+          organisationId: A.org.id,
+          useCaseId: mine.useCase.id,
+          activityId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      "a marketing activity linked to B's processing activity",
+      () =>
+        marketingSvc.updateMarketingActivity({
+          activityId: mine.marketingActivity.id,
+          organisationId: A.org.id,
+          changes: { processingActivityId: B.activity.id },
+          actor: as()
+        })
+    ],
+    [
+      "a marketing activity owned by B's person",
+      () =>
+        marketingSvc.updateMarketingActivity({
+          activityId: mine.marketingActivity.id,
+          organisationId: A.org.id,
+          changes: { ownerId: B.owner.user.id },
+          actor: as()
+        })
+    ],
+    [
+      "a complaint in B's entity",
+      () =>
+        complaintsSvc.recordComplaint({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          channel: 'email',
+          receivedAt: new Date(),
+          subject: 'other',
+          description: 'x',
+          complainantName: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "a complaint about B's request",
+      () =>
+        complaintsSvc.recordComplaint({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          channel: 'email',
+          receivedAt: new Date(),
+          subject: 'other',
+          description: 'x',
+          complainantName: 'x',
+          requestId: B.subjectRequest.id,
+          actor: as()
+        })
+    ],
+    [
+      "a complaint linked to B's request",
+      () =>
+        complaintsSvc.updateComplaint({
+          complaintId: mine.complaint.id,
+          organisationId: A.org.id,
+          changes: { requestId: B.subjectRequest.id },
+          actor: as()
+        })
+    ],
+    [
+      "a complaint handled by B's person",
+      () =>
+        complaintsSvc.updateComplaint({
+          complaintId: mine.complaint.id,
+          organisationId: A.org.id,
+          changes: { ownerId: B.owner.user.id },
+          actor: as()
+        })
+    ],
+    [
+      "a data subject request handled by B's person",
+      () =>
+        dsr.updateRequest({
+          requestId: mine.subjectRequest.id,
+          organisationId: A.org.id,
+          changes: { ownerId: B.owner.user.id },
+          actor: as()
+        })
+    ],
+    [
+      "a breach in B's entity",
+      () =>
+        breachesSvc.recordBreach({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          title: 'x',
+          description: 'x',
+          discoveredAt: new Date(),
+          actor: as()
+        })
+    ],
+    [
+      "an incident about B's AI system",
+      () =>
+        aiIncidents.reportIncident({
+          organisationId: A.org.id,
+          useCaseId: B.useCase.id,
+          kind: 'challenge',
+          source: 'public',
+          summary: 'x',
+          harm: 'potential',
+          confidential: false,
+          reportedByLabel: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "an incident assigned to B's person",
+      () =>
+        aiIncidents.triageIncident({
+          incidentId: mine.incident.id,
+          organisationId: A.org.id,
+          severity: 'low',
+          harm: 'potential',
+          assignedToUserId: B.owner.user.id,
+          note: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "an incident linked to B's risk",
+      () =>
+        aiIncidents.triageIncident({
+          incidentId: mine.incident.id,
+          organisationId: A.org.id,
+          severity: 'low',
+          harm: 'potential',
+          assignedToUserId: null,
+          linkedRiskId: B.risk.id,
+          note: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "assurance tied to B's change",
+      () =>
+        aiAssurance.recordAssurance({
+          useCaseId: mine.useCase.id,
+          organisationId: A.org.id,
+          kind: 'evaluation',
+          title: 'x',
+          performedAt: new Date(Date.now() - DAY),
+          performedBy: 'x',
+          independent: false,
+          metrics: [],
+          result: 'passed',
+          changeId: B.change.id,
+          actor: as()
+        })
+    ],
+    [
+      "a contributor link on B's assessment",
+      () =>
+        contributorLinks.issueContributorLink({
+          organisationId: A.org.id,
+          assessmentId: B.assessment.id,
+          email: 'x@example.test',
+          actor: as()
+        })
+    ],
+    [
+      "a document on B's supplier",
+      () =>
+        documentsSvc.attachDocument({
+          organisationId: A.org.id,
+          entityId: null,
+          subjectType: 'supplier',
+          subjectId: B.supplier.id,
+          filename: 'x.pdf',
+          contentType: 'application/pdf',
+          content: PDF,
+          actor: as()
+        })
+    ],
+    [
+      "a document moved onto B's supplier",
+      () =>
+        documentsSvc.moveDocument({
+          id: mine.document.id,
+          organisationId: A.org.id,
+          subjectType: 'supplier',
+          subjectId: B.supplier.id,
+          actor: as()
+        })
+    ],
+    [
+      "a comment on B's risk",
+      () =>
+        collaboration.postComment({
+          organisationId: A.org.id,
+          entityId: null,
+          subjectType: 'risk',
+          subjectId: B.risk.id,
+          subjectLabel: 'x',
+          body: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "an agreement with B's supplier",
+      () =>
+        thirdParty.recordDpa({
+          organisationId: A.org.id,
+          supplierId: B.supplier.id,
+          title: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "learning recorded for B's person",
+      () =>
+        training.recordTraining({
+          organisationId: A.org.id,
+          userId: B.owner.user.id,
+          courseKey: 'ai_fundamentals',
+          completedAt: new Date(Date.now() - DAY),
+          actor: as()
+        })
+    ],
+    [
+      "an invitation into B's entity",
+      () =>
+        access.inviteMember({
+          organisationId: A.org.id,
+          email: `x-${crypto.randomUUID().slice(0, 6)}@example.test`,
+          role: 'contributor',
+          entityId: B.entity.id,
+          actor: as()
+        })
+    ],
+    [
+      "work handed to B's person",
+      () =>
+        handover.handOver({
+          organisationId: A.org.id,
+          fromUserId: A.owner.user.id,
+          toUserId: B.owner.user.id,
+          actor: as()
+        })
+    ],
+    [
+      "a connection defaulting to B's entity",
+      () =>
+        connections.createConnection({
+          organisationId: A.org.id,
+          kind: 'other',
+          name: 'x',
+          defaultEntityId: B.entity.id,
+          actor: as()
+        })
+    ],
+    [
+      "an activity in B's entity",
+      () =>
+        ropa.createActivity({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          name: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "an accepted suggestion about B's conversation",
+      () =>
+        assistant.acceptSuggestion({
+          organisationId: A.org.id,
+          conversationId: B.conversation.id,
+          subjectType: 'risk',
+          subjectId: B.risk.id,
+          field: 'description',
+          proposed: 'x',
+          model: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "a proposal in B's entity",
+      () =>
+        aiIntake.submitRequest({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          title: 'x',
+          problem: 'x',
+          whyAi: 'x',
+          benefits: 'x',
+          environmentalImpact: 'x',
+          publicFacing: false,
+          significantDecisions: false,
+          requestedByLabel: 'x',
+          actor: as()
+        })
+    ]
   ];
 
   for (const [name, link] of links) {
     it(`is refused: ${name}`, async () => {
       const before = await bSnapshot();
       await assert.rejects(link(), `A could create ${name}`);
-      assert.deepEqual(changed(before, await bSnapshot()), [], `creating ${name} changed B's records`);
+      assert.deepEqual(
+        changed(before, await bSnapshot()),
+        [],
+        `creating ${name} changed B's records`
+      );
     });
   }
 });
 
-describe("lists", () => {
+describe('lists', () => {
   it("never include another organisation's records", async () => {
     const o = A.org.id;
-    const results: Array<[string, unknown]> = await Promise.all([
-      ["access.listMembers", access.listMembers(o)] as const,
-      ["aiIncidents.listIncidents", aiIncidents.listIncidents(o, null)] as const,
-      ["aiIntake.listRequests", aiIntake.listRequests(o, null)] as const,
-      ["aiRegister.listRegister", aiRegister.listRegister(o, null)] as const,
-      ["routing.workflowsFor", routing.workflowsFor(o)] as const,
-      ["assessmentsSvc.listAssessments", assessmentsSvc.listAssessments(o, null)] as const,
-      ["assessmentsSvc.reviewSchedule", assessmentsSvc.reviewSchedule(o, null)] as const,
-      ["breachesSvc.breachRegister", breachesSvc.breachRegister(o, null)] as const,
-      ["breachesSvc.breachesNeedingAttention", breachesSvc.breachesNeedingAttention(o)] as const,
-      ["dsr.requestRegister", dsr.requestRegister(o, null)] as const,
-      ["complaintsSvc.complaintRegister", complaintsSvc.complaintRegister(o, null)] as const,
-      ["inventory.propertyRegister", inventory.propertyRegister(o, null)] as const,
-      ["inventory.propertiesDueForRescan", inventory.propertiesDueForRescan(o, new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000))] as const,
-      ["marketingSvc.marketingRegister", marketingSvc.marketingRegister(o, null)] as const,
-      ["marketingSvc.marketingProcessingActivities", marketingSvc.marketingProcessingActivities(o)] as const,
-      ["marketingSvc.activitiesDueTpsScreening", marketingSvc.activitiesDueTpsScreening(o, new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000))] as const,
-      ["complaintsSvc.complaintsNeedingAttention", complaintsSvc.complaintsNeedingAttention(o)] as const,
-      ["complaintsSvc.complaintMetrics", complaintsSvc.complaintMetrics(o, null)] as const,
-      ["complaintsSvc.complaintsSummary", complaintsSvc.complaintsSummary({ organisationId: o })] as const,
-      ["complaintsSvc.complaintsAboutRequest", complaintsSvc.complaintsAboutRequest(B.subjectRequest.id, o)] as const,
-      ["dsr.requestsNeedingAttention", dsr.requestsNeedingAttention(o)] as const,
-      ["collaboration.organisationMembers", collaboration.organisationMembers(o)] as const,
-      ["connections.listConnections", connections.listConnections(o)] as const,
-      ["ingest.openFindings", ingest.openFindings(o, null)] as const,
-      ["riskPolicy.appetiteHistory", riskPolicy.appetiteHistory(o)] as const,
-      ["risksSvc.listRisks", risksSvc.listRisks(o, null)] as const,
-      ["ropa.listActivities", ropa.listActivities(o, null)] as const,
-      ["templatesSvc.templateLibrary", templatesSvc.templateLibrary(o)] as const,
-      ["templatesSvc.availableTemplates", templatesSvc.availableTemplates(o)] as const,
-      ["thirdParty.listSuppliers", thirdParty.listSuppliers(o)] as const,
-      ["thirdParty.dpasNeedingAttention", thirdParty.dpasNeedingAttention(o)] as const,
-      ["training.coverage", training.coverage(o)] as const,
-      ["workflow.openTasks", workflow.openTasks(o, { entityIds: null, userId: A.owner.user.id })] as const,
-      ["workflow.tasksInBreach", workflow.tasksInBreach(o)] as const,
-      ["thirdParty.aiSupplierAssessments", thirdParty.aiSupplierAssessments(o)] as const,
-      ["access.organisationDetail", access.organisationDetail(o)] as const,
-      ["aiAssurance.assuranceByUseCase", aiAssurance.assuranceByUseCase(o)] as const,
-      ["aiIncidents.systemsWithUnresolvedHarm", aiIncidents.systemsWithUnresolvedHarm(o)] as const,
-      ["aiIntake.awaitingDecision", aiIntake.awaitingDecision(o)] as const,
-      ["aiLifecycle.lastMaterialChanges", aiLifecycle.lastMaterialChanges(o)] as const,
-      ["aiRegister.registerSummary", aiRegister.registerSummary(o, null)] as const,
-      ["aiRiskProfile.aiRiskLog", aiRiskProfile.aiRiskLog(o, null)] as const,
-      ["appetite.appetiteInForce", appetite.appetiteInForce(o)] as const,
-      ["routing.shippedWorkflowsMissing", routing.shippedWorkflowsMissing(o)] as const,
-      ["assistant.recentConversations", assistant.recentConversations(o)] as const,
-      ["assistant.providerSummary", assistant.providerSummary(o)] as const,
-      ["atrs.systemsWithCurrentRecord", atrs.systemsWithCurrentRecord(o)] as const,
-      ["countries.libraryFor", countries.libraryFor(o)] as const,
-      ["countries.libraryHealth", countries.libraryHealth(o)] as const,
-      ["exportSvc.governanceContext", exportSvc.governanceContext({ organisationId: o })] as const,
-      ["exportsSvc.exportRisks", exportsSvc.exportRisks(o, null)] as const,
-      ["exportsSvc.exportAssessments", exportsSvc.exportAssessments(o, null)] as const,
-      ["exportsSvc.exportAiRegister", exportsSvc.exportAiRegister(o, null)] as const,
-      ["exportsSvc.exportCountries", exportsSvc.exportCountries(o)] as const,
-      ["exportsSvc.exportAudit", exportsSvc.exportAudit(o, null)] as const,
-      ["exportsSvc.exportRopa", exportsSvc.exportRopa(o, null)] as const,
-      ["exportsSvc.exportThirdParties", exportsSvc.exportThirdParties(o)] as const,
-      ["exportsSvc.exportTrends", exportsSvc.exportTrends(o, null)] as const,
-      ["exportsSvc.exportBreaches", exportsSvc.exportBreaches(o, null)] as const,
-      ["exportsSvc.exportRequests", exportsSvc.exportRequests(o, null)] as const,
-      ["dsr.requestMetrics", dsr.requestMetrics(o, null)] as const,
-      ["dsr.requestsSummary", dsr.requestsSummary({ organisationId: o })] as const,
-      ["dsrIntake.intakeLinksFor", dsrIntake.intakeLinksFor(o, null)] as const,
-      ["exportsSvc.exportAiRiskLog", exportsSvc.exportAiRiskLog(o, null)] as const,
-      ["graph.aiChains", graph.aiChains(o, null)] as const,
-      ["guidance.guidanceFor", guidance.guidanceFor({ organisationId: o, chosen: null })] as const,
-      ["handover.candidatesFor", handover.candidatesFor(o)] as const,
-      ["metrics.dashboardMetrics", metrics.dashboardMetrics(o, null)] as const,
-      ["riskPolicy.appetitesDueForReview", riskPolicy.appetitesDueForReview(o)] as const,
-      ["risksSvc.expiredAcceptances", risksSvc.expiredAcceptances(o)] as const,
-      ["ropa.registerHealth", ropa.registerHealth(o, null)] as const,
-      ["ropa.childrenDpiaStates", ropa.childrenDpiaStates(o)] as const,
-      ["sweep.pendingNotifications", sweep.pendingNotifications(o)] as const,
-      ["templatesSvc.shippedTemplatesMissing", templatesSvc.shippedTemplatesMissing(o)] as const,
-      ["templatesSvc.shippedTemplatesOutdated", templatesSvc.shippedTemplatesOutdated(o)] as const,
-      ["thirdParty.registerHealth", thirdParty.registerHealth(o)] as const,
-      ["training.trainedOwners", training.trainedOwners(o)] as const,
-      ["trends.trendFor", trends.trendFor(o, null)] as const,
-      ["dsr.objectionCounts", dsr.objectionCounts(o)] as const,
-      ["webhooks.pendingDeliveries", webhooks.pendingDeliveries(o)] as const,
-      ["workflow.tasksDueSoon", workflow.tasksDueSoon(o, 24 * 365)] as const,
-      ["domains.domainsFor", domains.domainsFor(o)] as const,
-      ["entitiesSvc.entitiesOf", entitiesSvc.entitiesOf(o)] as const,
-      ["entitiesSvc.dpoPosition", entitiesSvc.dpoPosition(o)] as const,
-      ["entitiesSvc.anyEntityUnderUkLaw", entitiesSvc.anyEntityUnderUkLaw(o)] as const,
-      ["policyDocs.policyDocumentRegister", policyDocs.policyDocumentRegister(o, null)] as const,
-      ["policyDocs.policyCoverage", policyDocs.policyCoverage(o)] as const,
-      ["sharingSvc.sharingRegister", sharingSvc.sharingRegister(o, null)] as const,
-      ["sharingSvc.sharingCoverage", sharingSvc.sharingCoverage(o)] as const,
-    ].map(async ([n, r]) => [n, await r] as [string, unknown]));
+    const results: Array<[string, unknown]> = await Promise.all(
+      [
+        ['access.listMembers', access.listMembers(o)] as const,
+        [
+          'aiIncidents.listIncidents',
+          aiIncidents.listIncidents(o, null)
+        ] as const,
+        ['aiIntake.listRequests', aiIntake.listRequests(o, null)] as const,
+        ['aiRegister.listRegister', aiRegister.listRegister(o, null)] as const,
+        ['routing.workflowsFor', routing.workflowsFor(o)] as const,
+        [
+          'assessmentsSvc.listAssessments',
+          assessmentsSvc.listAssessments(o, null)
+        ] as const,
+        [
+          'assessmentsSvc.reviewSchedule',
+          assessmentsSvc.reviewSchedule(o, null)
+        ] as const,
+        [
+          'breachesSvc.breachRegister',
+          breachesSvc.breachRegister(o, null)
+        ] as const,
+        [
+          'breachesSvc.breachesNeedingAttention',
+          breachesSvc.breachesNeedingAttention(o)
+        ] as const,
+        ['dsr.requestRegister', dsr.requestRegister(o, null)] as const,
+        [
+          'complaintsSvc.complaintRegister',
+          complaintsSvc.complaintRegister(o, null)
+        ] as const,
+        [
+          'inventory.propertyRegister',
+          inventory.propertyRegister(o, null)
+        ] as const,
+        [
+          'inventory.propertiesDueForRescan',
+          inventory.propertiesDueForRescan(
+            o,
+            new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000)
+          )
+        ] as const,
+        [
+          'marketingSvc.marketingRegister',
+          marketingSvc.marketingRegister(o, null)
+        ] as const,
+        [
+          'marketingSvc.marketingProcessingActivities',
+          marketingSvc.marketingProcessingActivities(o)
+        ] as const,
+        [
+          'marketingSvc.activitiesDueTpsScreening',
+          marketingSvc.activitiesDueTpsScreening(
+            o,
+            new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000)
+          )
+        ] as const,
+        [
+          'complaintsSvc.complaintsNeedingAttention',
+          complaintsSvc.complaintsNeedingAttention(o)
+        ] as const,
+        [
+          'complaintsSvc.complaintMetrics',
+          complaintsSvc.complaintMetrics(o, null)
+        ] as const,
+        [
+          'complaintsSvc.complaintsSummary',
+          complaintsSvc.complaintsSummary({ organisationId: o })
+        ] as const,
+        [
+          'complaintsSvc.complaintsAboutRequest',
+          complaintsSvc.complaintsAboutRequest(B.subjectRequest.id, o)
+        ] as const,
+        [
+          'dsr.requestsNeedingAttention',
+          dsr.requestsNeedingAttention(o)
+        ] as const,
+        [
+          'collaboration.organisationMembers',
+          collaboration.organisationMembers(o)
+        ] as const,
+        [
+          'connections.listConnections',
+          connections.listConnections(o)
+        ] as const,
+        ['ingest.openFindings', ingest.openFindings(o, null)] as const,
+        ['riskPolicy.appetiteHistory', riskPolicy.appetiteHistory(o)] as const,
+        ['risksSvc.listRisks', risksSvc.listRisks(o, null)] as const,
+        ['ropa.listActivities', ropa.listActivities(o, null)] as const,
+        [
+          'templatesSvc.templateLibrary',
+          templatesSvc.templateLibrary(o)
+        ] as const,
+        [
+          'templatesSvc.availableTemplates',
+          templatesSvc.availableTemplates(o)
+        ] as const,
+        ['thirdParty.listSuppliers', thirdParty.listSuppliers(o)] as const,
+        [
+          'thirdParty.dpasNeedingAttention',
+          thirdParty.dpasNeedingAttention(o)
+        ] as const,
+        ['training.coverage', training.coverage(o)] as const,
+        [
+          'workflow.openTasks',
+          workflow.openTasks(o, { entityIds: null, userId: A.owner.user.id })
+        ] as const,
+        ['workflow.tasksInBreach', workflow.tasksInBreach(o)] as const,
+        [
+          'thirdParty.aiSupplierAssessments',
+          thirdParty.aiSupplierAssessments(o)
+        ] as const,
+        ['access.organisationDetail', access.organisationDetail(o)] as const,
+        [
+          'aiAssurance.assuranceByUseCase',
+          aiAssurance.assuranceByUseCase(o)
+        ] as const,
+        [
+          'aiIncidents.systemsWithUnresolvedHarm',
+          aiIncidents.systemsWithUnresolvedHarm(o)
+        ] as const,
+        ['aiIntake.awaitingDecision', aiIntake.awaitingDecision(o)] as const,
+        [
+          'aiLifecycle.lastMaterialChanges',
+          aiLifecycle.lastMaterialChanges(o)
+        ] as const,
+        [
+          'aiRegister.registerSummary',
+          aiRegister.registerSummary(o, null)
+        ] as const,
+        ['aiRiskProfile.aiRiskLog', aiRiskProfile.aiRiskLog(o, null)] as const,
+        ['appetite.appetiteInForce', appetite.appetiteInForce(o)] as const,
+        [
+          'routing.shippedWorkflowsMissing',
+          routing.shippedWorkflowsMissing(o)
+        ] as const,
+        [
+          'assistant.recentConversations',
+          assistant.recentConversations(o)
+        ] as const,
+        ['assistant.providerSummary', assistant.providerSummary(o)] as const,
+        [
+          'atrs.systemsWithCurrentRecord',
+          atrs.systemsWithCurrentRecord(o)
+        ] as const,
+        ['countries.libraryFor', countries.libraryFor(o)] as const,
+        ['countries.libraryHealth', countries.libraryHealth(o)] as const,
+        [
+          'exportSvc.governanceContext',
+          exportSvc.governanceContext({ organisationId: o })
+        ] as const,
+        ['exportsSvc.exportRisks', exportsSvc.exportRisks(o, null)] as const,
+        [
+          'exportsSvc.exportAssessments',
+          exportsSvc.exportAssessments(o, null)
+        ] as const,
+        [
+          'exportsSvc.exportAiRegister',
+          exportsSvc.exportAiRegister(o, null)
+        ] as const,
+        ['exportsSvc.exportCountries', exportsSvc.exportCountries(o)] as const,
+        ['exportsSvc.exportAudit', exportsSvc.exportAudit(o, null)] as const,
+        ['exportsSvc.exportRopa', exportsSvc.exportRopa(o, null)] as const,
+        [
+          'exportsSvc.exportThirdParties',
+          exportsSvc.exportThirdParties(o)
+        ] as const,
+        ['exportsSvc.exportTrends', exportsSvc.exportTrends(o, null)] as const,
+        [
+          'exportsSvc.exportBreaches',
+          exportsSvc.exportBreaches(o, null)
+        ] as const,
+        [
+          'exportsSvc.exportRequests',
+          exportsSvc.exportRequests(o, null)
+        ] as const,
+        ['dsr.requestMetrics', dsr.requestMetrics(o, null)] as const,
+        [
+          'dsr.requestsSummary',
+          dsr.requestsSummary({ organisationId: o })
+        ] as const,
+        [
+          'dsrIntake.intakeLinksFor',
+          dsrIntake.intakeLinksFor(o, null)
+        ] as const,
+        [
+          'exportsSvc.exportAiRiskLog',
+          exportsSvc.exportAiRiskLog(o, null)
+        ] as const,
+        ['graph.aiChains', graph.aiChains(o, null)] as const,
+        [
+          'guidance.guidanceFor',
+          guidance.guidanceFor({ organisationId: o, chosen: null })
+        ] as const,
+        ['handover.candidatesFor', handover.candidatesFor(o)] as const,
+        [
+          'metrics.dashboardMetrics',
+          metrics.dashboardMetrics(o, null)
+        ] as const,
+        [
+          'riskPolicy.appetitesDueForReview',
+          riskPolicy.appetitesDueForReview(o)
+        ] as const,
+        [
+          'risksSvc.expiredAcceptances',
+          risksSvc.expiredAcceptances(o)
+        ] as const,
+        ['ropa.registerHealth', ropa.registerHealth(o, null)] as const,
+        ['ropa.childrenDpiaStates', ropa.childrenDpiaStates(o)] as const,
+        ['sweep.pendingNotifications', sweep.pendingNotifications(o)] as const,
+        [
+          'templatesSvc.shippedTemplatesMissing',
+          templatesSvc.shippedTemplatesMissing(o)
+        ] as const,
+        [
+          'templatesSvc.shippedTemplatesOutdated',
+          templatesSvc.shippedTemplatesOutdated(o)
+        ] as const,
+        ['thirdParty.registerHealth', thirdParty.registerHealth(o)] as const,
+        ['training.trainedOwners', training.trainedOwners(o)] as const,
+        ['trends.trendFor', trends.trendFor(o, null)] as const,
+        ['dsr.objectionCounts', dsr.objectionCounts(o)] as const,
+        ['webhooks.pendingDeliveries', webhooks.pendingDeliveries(o)] as const,
+        ['workflow.tasksDueSoon', workflow.tasksDueSoon(o, 24 * 365)] as const,
+        ['domains.domainsFor', domains.domainsFor(o)] as const,
+        ['entitiesSvc.entitiesOf', entitiesSvc.entitiesOf(o)] as const,
+        ['entitiesSvc.dpoPosition', entitiesSvc.dpoPosition(o)] as const,
+        [
+          'entitiesSvc.anyEntityUnderUkLaw',
+          entitiesSvc.anyEntityUnderUkLaw(o)
+        ] as const,
+        [
+          'policyDocs.policyDocumentRegister',
+          policyDocs.policyDocumentRegister(o, null)
+        ] as const,
+        ['policyDocs.policyCoverage', policyDocs.policyCoverage(o)] as const,
+        [
+          'sharingSvc.sharingRegister',
+          sharingSvc.sharingRegister(o, null)
+        ] as const,
+        ['sharingSvc.sharingCoverage', sharingSvc.sharingCoverage(o)] as const
+      ].map(async ([n, r]) => [n, await r] as [string, unknown])
+    );
     const text = (v: unknown) =>
-      JSON.stringify(v, (_k, x) => (x instanceof Map ? [...x] : x instanceof Set ? [...x] : x)) ?? "";
+      JSON.stringify(v, (_k, x) =>
+        x instanceof Map ? [...x] : x instanceof Set ? [...x] : x
+      ) ?? '';
     const bIds = [
-      B.org.id, B.entity.id, B.owner.user.id, B.approver.user.id, B.risk.id, B.supplier.id, B.dpa.id,
-      B.activity.id, B.breach.id, B.subjectRequest.id, B.complaint.id, B.webProperty.id, B.storageItem.id, B.useCase.id, B.incident.id, B.request.id, B.assessment.id,
-      B.policyDoc.id, B.partner.id, B.sharing.id, B.sharingParty.id, B.template, B.dpiaVersion, B.workflow.id, B.scanner.id, B.finding.id, B.appetite.id,
-      B.domainClaim.id, B.domainClaim.domain, B.intakeLink.id, B.intakeLink.slug,
+      B.org.id,
+      B.entity.id,
+      B.owner.user.id,
+      B.approver.user.id,
+      B.risk.id,
+      B.supplier.id,
+      B.dpa.id,
+      B.activity.id,
+      B.breach.id,
+      B.subjectRequest.id,
+      B.complaint.id,
+      B.webProperty.id,
+      B.storageItem.id,
+      B.useCase.id,
+      B.incident.id,
+      B.request.id,
+      B.assessment.id,
+      B.policyDoc.id,
+      B.partner.id,
+      B.sharing.id,
+      B.sharingParty.id,
+      B.template,
+      B.dpiaVersion,
+      B.workflow.id,
+      B.scanner.id,
+      B.finding.id,
+      B.appetite.id,
+      B.domainClaim.id,
+      B.domainClaim.domain,
+      B.intakeLink.id,
+      B.intakeLink.slug
     ];
-    const leaks = results.flatMap(([name, r]) => bIds.filter((id) => text(r).includes(id)).map((id) => `${name}: ${id}`));
+    const leaks = results.flatMap(([name, r]) =>
+      bIds.filter((id) => text(r).includes(id)).map((id) => `${name}: ${id}`)
+    );
     assert.deepEqual(leaks, [], "lists showed A something of B's");
   });
 });
@@ -823,114 +3072,175 @@ describe("lists", () => {
  */
 const NOT_TENANT_SCOPED: Record<string, string> = {
   // The checks themselves, exercised by every linking test above.
-  "tenancy-guards.assertEntityIn": "is the check",
-  "tenancy-guards.assertMemberOf": "is the check",
-  "tenancy-guards.assertRecordIn": "is the check",
+  'tenancy-guards.assertEntityIn': 'is the check',
+  'tenancy-guards.assertMemberOf': 'is the check',
+  'tenancy-guards.assertRecordIn': 'is the check',
   // Platform jobs and shared reference data.
-  "countries.seedSharedLibrary": "maintains the shared library, which belongs to no organisation",
-  "countries.countriesDueForReview": "the shared library's review dates, which belong to no organisation",
-  "sweep.sweepAll": "platform job that sweeps each organisation in turn through sweepOrganisation",
-  "sweep.sweepOrganisation": "acts only on the organisation it is given; run by the platform job",
-  "webhooks.deliverPending": "platform job; each delivery carries its organisation",
-  "member-email.deliverNotifications": "platform job run by the sweep for the organisation it is given; reads and marks only that organisation's notifications",
-  "member-email.setEmailNotifications": "a person's own choice, held on their user row, which belongs to no organisation",
-  "member-email.emailNotificationsFor": "a person reading their own choice from their user row",
-  "contributor-links.redeemContributorLink": "the token is the authority, and carries its organisation",
+  'countries.seedSharedLibrary':
+    'maintains the shared library, which belongs to no organisation',
+  'countries.countriesDueForReview':
+    "the shared library's review dates, which belong to no organisation",
+  'sweep.sweepAll':
+    'platform job that sweeps each organisation in turn through sweepOrganisation',
+  'sweep.sweepOrganisation':
+    'acts only on the organisation it is given; run by the platform job',
+  'webhooks.deliverPending':
+    'platform job; each delivery carries its organisation',
+  'member-email.deliverNotifications':
+    "platform job run by the sweep for the organisation it is given; reads and marks only that organisation's notifications",
+  'member-email.setEmailNotifications':
+    "a person's own choice, held on their user row, which belongs to no organisation",
+  'member-email.emailNotificationsFor':
+    'a person reading their own choice from their user row',
+  'contributor-links.redeemContributorLink':
+    'the token is the authority, and carries its organisation',
   // The Integration API: the signed connection carries the organisation.
-  "ingest.ingestProcessingActivities": "the authenticated connection carries the organisation",
-  "ingest.ingestVendors": "the authenticated connection carries the organisation",
-  "ingest.ingestAiUseCases": "the authenticated connection carries the organisation",
-  "ingest.ingestDpas": "the authenticated connection carries the organisation",
-  "ingest.ingestEvidence": "the authenticated connection carries the organisation",
-  "ingest.ingestScan": "the authenticated connection carries the organisation",
-  "ai-profile.aiProfileExport": "the authenticated connection carries the organisation",
+  'ingest.ingestProcessingActivities':
+    'the authenticated connection carries the organisation',
+  'ingest.ingestVendors':
+    'the authenticated connection carries the organisation',
+  'ingest.ingestAiUseCases':
+    'the authenticated connection carries the organisation',
+  'ingest.ingestDpas': 'the authenticated connection carries the organisation',
+  'ingest.ingestEvidence':
+    'the authenticated connection carries the organisation',
+  'ingest.ingestScan': 'the authenticated connection carries the organisation',
+  'ai-profile.aiProfileExport':
+    'the authenticated connection carries the organisation',
   // The signed-in person's own settings.
-  "guidance.setOwnGuidance": "acts on the signed-in person's own membership",
-  "persona.setOwnPersona": "acts on the signed-in person's own membership",
+  'guidance.setOwnGuidance': "acts on the signed-in person's own membership",
+  'persona.setOwnPersona': "acts on the signed-in person's own membership",
   // Helpers that take a transaction and an organisation from a caller that has already checked.
-  "webhooks.queueEvent": "called inside a caller's transaction, with that caller's organisation",
-  "workflow.raiseTask": "called inside a caller's transaction, with that caller's organisation",
-  "workflow.queueNotification": "called inside a caller's transaction, with that caller's organisation",
+  'webhooks.queueEvent':
+    "called inside a caller's transaction, with that caller's organisation",
+  'workflow.raiseTask':
+    "called inside a caller's transaction, with that caller's organisation",
+  'workflow.queueNotification':
+    "called inside a caller's transaction, with that caller's organisation",
   // Read by id alone, and only after the caller loaded the record within its organisation.
-  "ai-framework-switch.previewAiFrameworkSwitch": "reads the caller's own organisation",
-  "ai-framework-switch.switchAiFramework": "acts on the caller's own organisation",
-  "ai-profile.featureEvidence": "reads the caller's own organisation",
-  "ai-profile.nistProfile": "reads the caller's own organisation",
-  "ai-profile.setProfileItem": "writes the caller's own organisation's profile; the subcategory is NIST's, not a record",
-  "ai-profile.exportNistProfile": "reads the caller's own organisation",
-  "ai-framework.aiFrameworkOf": "reads the caller's own organisation",
-  "ai-framework.aiFrameworkPackOf": "reads the caller's own organisation",
-  "ai-lifecycle.icoConsultationOutstanding": "called from gateContext after it loads the system within the organisation",
-  "assessments.assessmentHistory": "called by the assessment page after loadAssessment within the organisation",
-  "contributor-links.linksForAssessment": "called by the assessment page after loadAssessment within the organisation",
-  "workflow.approvalsFor": "called by the assessment page after loadAssessment within the organisation",
-  "breaches.severitySuggestion": "given a breach already loaded within the organisation",
-  "documents.recordDownload": "given a document already read within the organisation",
-  "risks.liveAcceptance": "not called by the application",
-  "templates.activeVersion": "not called by the application",
-  "templates.assertSinglePublishedVersion": "not called by the application",
-  "countries.reviewHistory": "not called by the application",
+  'ai-framework-switch.previewAiFrameworkSwitch':
+    "reads the caller's own organisation",
+  'ai-framework-switch.switchAiFramework':
+    "acts on the caller's own organisation",
+  'ai-profile.featureEvidence': "reads the caller's own organisation",
+  'ai-profile.nistProfile': "reads the caller's own organisation",
+  'ai-profile.setProfileItem':
+    "writes the caller's own organisation's profile; the subcategory is NIST's, not a record",
+  'ai-profile.exportNistProfile': "reads the caller's own organisation",
+  'ai-framework.aiFrameworkOf': "reads the caller's own organisation",
+  'ai-framework.aiFrameworkPackOf': "reads the caller's own organisation",
+  'ai-lifecycle.icoConsultationOutstanding':
+    'called from gateContext after it loads the system within the organisation',
+  'assessments.assessmentHistory':
+    'called by the assessment page after loadAssessment within the organisation',
+  'contributor-links.linksForAssessment':
+    'called by the assessment page after loadAssessment within the organisation',
+  'workflow.approvalsFor':
+    'called by the assessment page after loadAssessment within the organisation',
+  'breaches.severitySuggestion':
+    'given a breach already loaded within the organisation',
+  'documents.recordDownload':
+    'given a document already read within the organisation',
+  'risks.liveAcceptance': 'not called by the application',
+  'templates.activeVersion': 'not called by the application',
+  'templates.assertSinglePublishedVersion': 'not called by the application',
+  'countries.reviewHistory': 'not called by the application',
   // Need a configured AI provider: refused for any organisation without one before any record is read.
-  "assistant.converse": "refused without the organisation's own configured provider",
-  "extraction.runExtraction": "refused without the organisation's own configured provider",
-  "extraction.followLink": "refused without the organisation's own configured provider",
-  "extraction.declineLink": "loads the link by id within the organisation",
-  "extraction.decideFinding": "refused without the organisation's own configured provider",
-  "extraction.extractionAvailable": "reads only the organisation's own provider",
-  "assistant.providerFor": "reads only the organisation's own provider",
-  "assistant.testProvider": "reads only the organisation's own provider",
+  'assistant.converse':
+    "refused without the organisation's own configured provider",
+  'extraction.runExtraction':
+    "refused without the organisation's own configured provider",
+  'extraction.followLink':
+    "refused without the organisation's own configured provider",
+  'extraction.declineLink': 'loads the link by id within the organisation',
+  'extraction.decideFinding':
+    "refused without the organisation's own configured provider",
+  'extraction.extractionAvailable':
+    "reads only the organisation's own provider",
+  'assistant.providerFor': "reads only the organisation's own provider",
+  'assistant.testProvider': "reads only the organisation's own provider",
   // Act on the organisation itself, never on another's records.
-  "access.renameOrganisation": "renames the caller's own organisation",
-  "access.inviteMember": "covered by the entity link test; creates a membership in the caller's organisation",
-  "assistant.saveProvider": "configures the caller's own organisation",
-  "assistant.removeProvider": "configures the caller's own organisation",
-  "assistant.forgetExpiredConversations": "deletes only the caller's own organisation's conversations",
-  "countries.reviewCountry": "writes the caller's own organisation's override",
-  "countries.lookup": "reads the shared library and the caller's own overrides",
-  "countries.needingSafeguards": "reads the shared library and the caller's own overrides",
-  "exports.recordExport": "records an export in the caller's own audit trail",
-  "risk-policy.setRiskScale": "configures the caller's own organisation",
-  "data-subject-requests.setDefaultJurisdiction": "configures the caller's own organisation",
-  "data-subject-requests.defaultJurisdiction": "reads the caller's own organisation",
-  "complaints.setComplaintTargets": "configures the caller's own organisation",
-  "complaints.complaintTargets": "reads the caller's own organisation",
-  "consent-analyser.analyserSettings": "reads the caller's own organisation",
-  "consent-analyser.setAnalyserSettings": "configures the caller's own organisation",
-  "consent-analyser.finishRunningScans": "acts only on the organisation it is given; run by the sweep",
-  "dsr-intake.openIntakeLink": "the published address is the authority, and carries its organisation",
-  "dsr-intake.submitIntake": "the published address is the authority, and carries its organisation",
-  "dsr-intake.submitComplaintIntake": "the published address is the authority, and carries its organisation",
-  "dsr-intake.pruneIntakeAttempts": "acts only on the organisation it is given; run by the sweep",
-  "data-subject-requests.setObjectionReviewThreshold": "configures the caller's own organisation",
-  "data-subject-requests.objectionReviewThreshold": "reads the caller's own organisation",
-  "risk-policy.riskCount": "counts the caller's own risks",
-  "risks.riskScaleOf": "reads the caller's own organisation",
-  "templates.createTemplate": "creates a template in the caller's own organisation",
-  "templates.updateShippedTemplates": "updates the caller's own system templates",
-  "domains.claimDomain": "claims a domain for the caller's own organisation",
-  "entities.addEntity": "adds an entity to the caller's own organisation",
+  'access.renameOrganisation': "renames the caller's own organisation",
+  'access.inviteMember':
+    "covered by the entity link test; creates a membership in the caller's organisation",
+  'assistant.saveProvider': "configures the caller's own organisation",
+  'assistant.removeProvider': "configures the caller's own organisation",
+  'assistant.forgetExpiredConversations':
+    "deletes only the caller's own organisation's conversations",
+  'countries.reviewCountry': "writes the caller's own organisation's override",
+  'countries.lookup': "reads the shared library and the caller's own overrides",
+  'countries.needingSafeguards':
+    "reads the shared library and the caller's own overrides",
+  'exports.recordExport': "records an export in the caller's own audit trail",
+  'risk-policy.setRiskScale': "configures the caller's own organisation",
+  'data-subject-requests.setDefaultJurisdiction':
+    "configures the caller's own organisation",
+  'data-subject-requests.defaultJurisdiction':
+    "reads the caller's own organisation",
+  'complaints.setComplaintTargets': "configures the caller's own organisation",
+  'complaints.complaintTargets': "reads the caller's own organisation",
+  'consent-analyser.analyserSettings': "reads the caller's own organisation",
+  'consent-analyser.setAnalyserSettings':
+    "configures the caller's own organisation",
+  'consent-analyser.finishRunningScans':
+    'acts only on the organisation it is given; run by the sweep',
+  'dsr-intake.openIntakeLink':
+    'the published address is the authority, and carries its organisation',
+  'dsr-intake.submitIntake':
+    'the published address is the authority, and carries its organisation',
+  'dsr-intake.submitComplaintIntake':
+    'the published address is the authority, and carries its organisation',
+  'dsr-intake.pruneIntakeAttempts':
+    'acts only on the organisation it is given; run by the sweep',
+  'data-subject-requests.setObjectionReviewThreshold':
+    "configures the caller's own organisation",
+  'data-subject-requests.objectionReviewThreshold':
+    "reads the caller's own organisation",
+  'risk-policy.riskCount': "counts the caller's own risks",
+  'risks.riskScaleOf': "reads the caller's own organisation",
+  'templates.createTemplate':
+    "creates a template in the caller's own organisation",
+  'templates.updateShippedTemplates':
+    "updates the caller's own system templates",
+  'domains.claimDomain': "claims a domain for the caller's own organisation",
+  'entities.addEntity': "adds an entity to the caller's own organisation",
   // Requests for new organisations: the platform's, before any organisation exists.
-  "organisation-requests.requestOrganisation": "belongs to no organisation; the requester's own",
-  "organisation-requests.requestsBy": "the requester's own requests, which belong to no organisation",
-  "organisation-requests.requestQueue": "platform operators only; requests belong to no organisation",
-  "organisation-requests.approveRequest": "platform operators only; creates the organisation, then sets it up inside its own scope",
-  "organisation-requests.declineRequest": "platform operators only; requests belong to no organisation",
-  "domains.joinByVerifiedDomain": "sign-in, before anyone acts for an organisation: joins only the one that verified the domain",
+  'organisation-requests.requestOrganisation':
+    "belongs to no organisation; the requester's own",
+  'organisation-requests.requestsBy':
+    "the requester's own requests, which belong to no organisation",
+  'organisation-requests.requestQueue':
+    'platform operators only; requests belong to no organisation',
+  'organisation-requests.approveRequest':
+    'platform operators only; creates the organisation, then sets it up inside its own scope',
+  'organisation-requests.declineRequest':
+    'platform operators only; requests belong to no organisation',
+  'domains.joinByVerifiedDomain':
+    'sign-in, before anyone acts for an organisation: joins only the one that verified the domain',
   // Feedback on the product: Waivern's, belonging to no organisation and naming nobody.
-  "feedback.submitFeedback": "belongs to no organisation; holds no user or organisation id",
-  "feedback.feedbackInbox": "platform operators only; feedback belongs to no organisation",
-  "feedback.markFeedbackHandled": "platform operators only; feedback belongs to no organisation",
-  "feedback.deleteFeedback": "platform operators only; feedback belongs to no organisation",
+  'feedback.submitFeedback':
+    'belongs to no organisation; holds no user or organisation id',
+  'feedback.feedbackInbox':
+    'platform operators only; feedback belongs to no organisation',
+  'feedback.markFeedbackHandled':
+    'platform operators only; feedback belongs to no organisation',
+  'feedback.deleteFeedback':
+    'platform operators only; feedback belongs to no organisation'
 };
 
-describe("coverage", () => {
-  it("accounts for every exported service function", () => {
-    const here = readFileSync(join(process.cwd(), "tests/tenant-isolation.test.ts"), "utf8");
-    const dir = join(process.cwd(), "src/services");
+describe('coverage', () => {
+  it('accounts for every exported service function', () => {
+    const here = readFileSync(
+      join(process.cwd(), 'tests/tenant-isolation.test.ts'),
+      'utf8'
+    );
+    const dir = join(process.cwd(), 'src/services');
     const missing: string[] = [];
-    for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
-      const service = file.replace(/\.ts$/, "");
-      for (const m of readFileSync(join(dir, file), "utf8").matchAll(/^export async function (\w+)/gm)) {
+    for (const file of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
+      const service = file.replace(/\.ts$/, '');
+      for (const m of readFileSync(join(dir, file), 'utf8').matchAll(
+        /^export async function (\w+)/gm
+      )) {
         const fn = m[1];
         const key = `${service}.${fn}`;
         if (key in NOT_TENANT_SCOPED) continue;
@@ -938,6 +3248,10 @@ describe("coverage", () => {
         missing.push(key);
       }
     }
-    assert.deepEqual(missing, [], "service functions with no isolation decision");
+    assert.deepEqual(
+      missing,
+      [],
+      'service functions with no isolation decision'
+    );
   });
 });

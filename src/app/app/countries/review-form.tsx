@@ -1,8 +1,14 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { ADEQUACY_WORDS, RISK_WORDS, UK_APPROVAL_WORDS } from "@/lib/countries/labels";
-import { reviewAction } from "./actions";
+import { useState, useTransition } from 'react';
+
+import {
+  ADEQUACY_WORDS,
+  RISK_WORDS,
+  UK_APPROVAL_WORDS
+} from '@/lib/countries/labels';
+
+import { reviewAction } from './actions';
 
 /**
  * Record a check of one country.
@@ -14,7 +20,7 @@ import { reviewAction } from "./actions";
  */
 export function ReviewForm({
   code,
-  current,
+  current
 }: {
   code: string;
   current: {
@@ -53,10 +59,30 @@ export function ReviewForm({
       className="space-y-3 rounded border border-line bg-ground p-3"
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <Pick name="ukAdequacy" label="UK approval (Article 45A)" options={UK_APPROVAL_WORDS} value={current.ukAdequacy} />
-        <Pick name="euAdequacy" label="EU adequacy" options={ADEQUACY_WORDS} value={current.euAdequacy} />
-        <Pick name="governmentAccess" label="Government access" options={RISK_WORDS} value={current.governmentAccess} />
-        <Pick name="redress" label="Redress" options={RISK_WORDS} value={current.redress} />
+        <Pick
+          name="ukAdequacy"
+          label="UK approval (Article 45A)"
+          options={UK_APPROVAL_WORDS}
+          value={current.ukAdequacy}
+        />
+        <Pick
+          name="euAdequacy"
+          label="EU adequacy"
+          options={ADEQUACY_WORDS}
+          value={current.euAdequacy}
+        />
+        <Pick
+          name="governmentAccess"
+          label="Government access"
+          options={RISK_WORDS}
+          value={current.governmentAccess}
+        />
+        <Pick
+          name="redress"
+          label="Redress"
+          options={RISK_WORDS}
+          value={current.redress}
+        />
       </div>
       <label className="block space-y-1">
         <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
@@ -91,7 +117,10 @@ export function ReviewForm({
         </button>
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-red-800">
+        <p
+          role="alert"
+          className="text-sm text-red-800"
+        >
           {error}
         </p>
       ) : null}
@@ -103,7 +132,7 @@ function Pick({
   name,
   label,
   options,
-  value,
+  value
 }: {
   name: string;
   label: string;
@@ -112,14 +141,21 @@ function Pick({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+        {label}
+      </span>
       <select
         name={name}
         defaultValue={value}
         className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
       >
         {Object.entries(options).map(([v, text]) => (
-          <option key={v} value={v}>{text}</option>
+          <option
+            key={v}
+            value={v}
+          >
+            {text}
+          </option>
         ))}
       </select>
     </label>

@@ -1,13 +1,14 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import type { AnswerValue } from "@/lib/templates/logic";
-import { saveAnswers } from "@/services/assessments";
+import { revalidatePath } from 'next/cache';
+
+import type { AnswerValue } from '@/lib/templates/logic';
+import { saveAnswers } from '@/services/assessments';
 import {
   completeContributorLink,
   contributorActor,
-  redeemContributorLink,
-} from "@/services/contributor-links";
+  redeemContributorLink
+} from '@/services/contributor-links';
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
@@ -20,10 +21,11 @@ export type ActionResult = { ok: true } | { ok: false; message: string };
  */
 export async function contributorSaveAction(
   token: string,
-  answers: Record<string, AnswerValue>,
+  answers: Record<string, AnswerValue>
 ): Promise<ActionResult> {
   const redeemed = await redeemContributorLink(token);
-  if (!redeemed.ok) return { ok: false, message: "This link is no longer valid." };
+  if (!redeemed.ok)
+    return { ok: false, message: 'This link is no longer valid.' };
 
   try {
     await saveAnswers({
@@ -31,23 +33,29 @@ export async function contributorSaveAction(
       organisationId: redeemed.link.organisationId,
       answers,
       allowedSection: redeemed.link.sectionKey,
-      actor: contributorActor(redeemed.link.email),
+      actor: contributorActor(redeemed.link.email)
     });
     revalidatePath(`/contribute/${token}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Could not save" };
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Could not save'
+    };
   }
 }
 
-export async function contributorFinishAction(token: string): Promise<ActionResult> {
+export async function contributorFinishAction(
+  token: string
+): Promise<ActionResult> {
   const redeemed = await redeemContributorLink(token);
-  if (!redeemed.ok) return { ok: false, message: "This link is no longer valid." };
+  if (!redeemed.ok)
+    return { ok: false, message: 'This link is no longer valid.' };
 
   await completeContributorLink({
     linkId: redeemed.link.linkId,
     organisationId: redeemed.link.organisationId,
-    actor: contributorActor(redeemed.link.email),
+    actor: contributorActor(redeemed.link.email)
   });
   revalidatePath(`/contribute/${token}`);
   return { ok: true };

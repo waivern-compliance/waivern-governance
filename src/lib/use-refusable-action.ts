@@ -1,6 +1,12 @@
-"use client";
+'use client';
 
-import { useActionState, useEffect, useRef, useTransition, type FormEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useTransition,
+  type FormEvent
+} from 'react';
 
 /**
  * A form action that may be refused, without losing what was typed.
@@ -16,11 +22,11 @@ import { useActionState, useEffect, useRef, useTransition, type FormEvent } from
  */
 export function useRefusableAction<R extends { ok: boolean } | null>(
   action: (previous: R, formData: FormData) => Promise<R>,
-  { resetOnSuccess = true }: { resetOnSuccess?: boolean } = {},
+  { resetOnSuccess = true }: { resetOnSuccess?: boolean } = {}
 ) {
   const [result, dispatch, acting] = useActionState<R, FormData>(
     action as (previous: Awaited<R>, formData: FormData) => Promise<R>,
-    null as Awaited<R>,
+    null as Awaited<R>
   );
   const [transitioning, startTransition] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
@@ -33,7 +39,8 @@ export function useRefusableAction<R extends { ok: boolean } | null>(
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     // Which button was pressed, where the form has more than one.
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
     if (submitter?.name) data.set(submitter.name, submitter.value);
     startTransition(() => dispatch(data));
   }
@@ -44,6 +51,6 @@ export function useRefusableAction<R extends { ok: boolean } | null>(
   return {
     result,
     pending: acting || transitioning,
-    formProps: { ref, onSubmit, method: "post" as const },
+    formProps: { ref, onSubmit, method: 'post' as const }
   };
 }

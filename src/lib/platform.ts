@@ -7,14 +7,16 @@
  * approve them, requests for new organisations are not offered at all.
  */
 export function platformAdmins(): string[] {
-  return (process.env.PLATFORM_ADMINS ?? "")
-    .split(",")
+  return (process.env.PLATFORM_ADMINS ?? '')
+    .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
 export function isPlatformAdmin(email: string | null | undefined): boolean {
-  return Boolean(email) && platformAdmins().includes(email!.trim().toLowerCase());
+  return (
+    Boolean(email) && platformAdmins().includes(email!.trim().toLowerCase())
+  );
 }
 
 /** Whether anybody can be asked for a new organisation. */

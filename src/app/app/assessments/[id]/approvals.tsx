@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useState, useTransition } from "react";
-import { decideAction } from "./actions";
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+
+import { decideAction } from './actions';
 
 type Gate = {
   id: string;
@@ -19,11 +20,11 @@ type Gate = {
 };
 
 const DOT: Record<string, string> = {
-  pending: "border-amber-700 bg-amber-50 text-amber-900",
-  approved: "border-emerald-700 bg-emerald-50 text-emerald-900",
-  rejected: "border-red-700 bg-red-50 text-red-900",
-  returned: "border-amber-700 bg-amber-50 text-amber-900",
-  skipped: "border-line bg-surface-2 text-ink-soft",
+  pending: 'border-amber-700 bg-amber-50 text-amber-900',
+  approved: 'border-emerald-700 bg-emerald-50 text-emerald-900',
+  rejected: 'border-red-700 bg-red-50 text-red-900',
+  returned: 'border-amber-700 bg-amber-50 text-amber-900',
+  skipped: 'border-line bg-surface-2 text-ink-soft'
 };
 
 /**
@@ -38,7 +39,7 @@ export function Approvals({
   assessmentId,
   gates,
   decidableId,
-  notYours,
+  notYours
 }: {
   assessmentId: string;
   gates: Gate[];
@@ -58,11 +59,20 @@ export function Approvals({
       </h2>
       <ol className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
         {gates.map((g) => (
-          <li key={g.id} className="space-y-2 px-4 py-3">
+          <li
+            key={g.id}
+            className="space-y-2 px-4 py-3"
+          >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="flex items-baseline gap-2.5">
-                <span className="font-mono text-xs text-ink-soft">{g.position}</span>
-                <span className={g.status === "skipped" ? "text-ink-soft" : "font-medium"}>
+                <span className="font-mono text-xs text-ink-soft">
+                  {g.position}
+                </span>
+                <span
+                  className={
+                    g.status === 'skipped' ? 'text-ink-soft' : 'font-medium'
+                  }
+                >
                   {g.name}
                 </span>
                 <span
@@ -73,8 +83,8 @@ export function Approvals({
               </span>
               <span className="font-mono text-[11px] text-ink-soft">
                 {g.boardName
-                  ? `${g.boardName}, recorded by ${g.requiredRole.replace(/_/g, " ")}`
-                  : g.requiredRole.replace(/_/g, " ")}
+                  ? `${g.boardName}, recorded by ${g.requiredRole.replace(/_/g, ' ')}`
+                  : g.requiredRole.replace(/_/g, ' ')}
               </span>
             </div>
             <p className="text-xs text-ink-soft">{g.reason}</p>
@@ -83,25 +93,30 @@ export function Approvals({
                 {g.rationale}
                 <span className="ml-2 font-mono text-[11px] text-ink-soft">
                   {g.decidedBy} · {g.decidedAt}
-                  {g.boardReference ? ` · ${g.boardReference}` : ""}
+                  {g.boardReference ? ` · ${g.boardReference}` : ''}
                 </span>
               </p>
             ) : null}
 
             {notYours?.gateId === g.id ? (
               <p className="rounded border border-line bg-ground px-3 py-2 text-sm text-ink-soft">
-                Waiting for somebody with the <strong className="text-ink">{notYours.roleLabel}</strong> role
-                here, or an owner, to decide. You hold neither, so you cannot decide this stage.{" "}
+                Waiting for somebody with the{' '}
+                <strong className="text-ink">{notYours.roleLabel}</strong> role
+                here, or an owner, to decide. You hold neither, so you cannot
+                decide this stage.{' '}
                 {notYours.mayGrant ? (
                   <>
-                    You can grant the role on the{" "}
-                    <Link href="/app/admin/people" className="text-brand underline">
+                    You can grant the role on the{' '}
+                    <Link
+                      href="/app/admin/people"
+                      className="text-brand underline"
+                    >
                       People page
                     </Link>
                     .
                   </>
                 ) : (
-                  "An owner can grant you the role on the People page."
+                  'An owner can grant you the role on the People page.'
                 )}
               </p>
             ) : null}
@@ -132,7 +147,7 @@ export function Approvals({
                 ) : null}
                 <label className="block space-y-1">
                   <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
-                    {g.boardName ? "The board's reasoning" : "Your reasoning"}
+                    {g.boardName ? "The board's reasoning" : 'Your reasoning'}
                   </span>
                   <textarea
                     name="rationale"
@@ -143,7 +158,7 @@ export function Approvals({
                   />
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {(["approved", "returned", "rejected"] as const).map((d) => (
+                  {(['approved', 'returned', 'rejected'] as const).map((d) => (
                     <button
                       key={d}
                       type="submit"
@@ -151,12 +166,16 @@ export function Approvals({
                       value={d}
                       disabled={pending}
                       className={`rounded px-3 py-1.5 text-sm disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-                        d === "approved"
-                          ? "bg-brand font-medium text-white hover:opacity-90"
-                          : "border border-line bg-surface hover:border-brand"
+                        d === 'approved'
+                          ? 'bg-brand font-medium text-white hover:opacity-90'
+                          : 'border border-line bg-surface hover:border-brand'
                       }`}
                     >
-                      {d === "approved" ? "Approve" : d === "returned" ? "Return for changes" : "Reject"}
+                      {d === 'approved'
+                        ? 'Approve'
+                        : d === 'returned'
+                          ? 'Return for changes'
+                          : 'Reject'}
                     </button>
                   ))}
                 </div>
@@ -166,7 +185,10 @@ export function Approvals({
         ))}
       </ol>
       {error ? (
-        <p role="alert" className="text-sm text-red-800">
+        <p
+          role="alert"
+          className="text-sm text-red-800"
+        >
           {error}
         </p>
       ) : null}

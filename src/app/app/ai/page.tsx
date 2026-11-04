@@ -1,31 +1,33 @@
-import Link from "next/link";
-import { HelpLink } from "@/components/help/HelpLink";
-import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db, scoped } from "@/db/client";
-import { entities } from "@/db/schema";
-import { GapChips } from "@/components/GapChips";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+
+import { GapChips } from '@/components/GapChips';
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { db, scoped } from '@/db/client';
+import { entities } from '@/db/schema';
+import { can } from '@/lib/rbac';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { awaitingDecision } from '@/services/ai-intake';
 import {
   DEPLOYMENT_PATTERN_LABEL,
   PROVENANCE_LABEL,
+  registerSummary,
   STAGE_LABEL,
   SYSTEM_TYPE_LABEL,
-  registerSummary,
   type LifecycleStage,
   type Provenance,
-  type SystemType,
-} from "@/services/ai-register";
-import { registerUseCase } from "./actions";
-import { awaitingDecision } from "@/services/ai-intake";
+  type SystemType
+} from '@/services/ai-register';
+
+import { registerUseCase } from './actions';
 
 export default async function AiRegisterPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="The AI register"
@@ -37,30 +39,48 @@ export default async function AiRegisterPage() {
   const org = active.membership.organisationId;
   const [summary, orgEntities, proposals] = await Promise.all([
     registerSummary(org, visibleEntityIds(active)),
-    scoped(org, () => db.select().from(entities).where(eq(entities.organisationId, org))),
-    awaitingDecision(org),
+    scoped(org, () =>
+      db.select().from(entities).where(eq(entities.organisationId, org))
+    ),
+    awaitingDecision(org)
   ]);
-  const mayAdd = can(active.membership.grants, "record.write");
+  const mayAdd = can(active.membership.grants, 'record.write');
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4">
           <h1 className="text-2xl font-semibold tracking-tight">AI register</h1>
           <span className="flex gap-4">
-            <Link href="/app/ai/intake" className="text-xs text-ink-soft hover:text-brand">
-              Proposals{proposals > 0 ? ` (${proposals} awaiting a decision)` : ""} →
+            <Link
+              href="/app/ai/intake"
+              className="text-xs text-ink-soft hover:text-brand"
+            >
+              Proposals
+              {proposals > 0 ? ` (${proposals} awaiting a decision)` : ''} →
             </Link>
-            <Link href="/app/ai/incidents" className="text-xs text-ink-soft hover:text-brand">
+            <Link
+              href="/app/ai/incidents"
+              className="text-xs text-ink-soft hover:text-brand"
+            >
               Incidents and concerns →
             </Link>
-            <Link href="/app/ai/graph" className="text-xs text-ink-soft hover:text-brand">
+            <Link
+              href="/app/ai/graph"
+              className="text-xs text-ink-soft hover:text-brand"
+            >
               See the assurance chain →
             </Link>
-            <Link href="/app/ai/profile" className="text-xs text-ink-soft hover:text-brand">
+            <Link
+              href="/app/ai/profile"
+              className="text-xs text-ink-soft hover:text-brand"
+            >
               NIST AI RMF profile →
             </Link>
           </span>
@@ -79,20 +99,28 @@ export default async function AiRegisterPage() {
         <Stat
           label="On the register"
           value={summary.total}
-          note={summary.retired > 0 ? `${summary.retired} retired, not counted` : "active systems"}
+          note={
+            summary.retired > 0
+              ? `${summary.retired} retired, not counted`
+              : 'active systems'
+          }
         />
-        <Stat label="Live" value={summary.live} note="piloting or in production" />
+        <Stat
+          label="Live"
+          value={summary.live}
+          note="piloting or in production"
+        />
         <Stat
           label="Never assessed"
           value={summary.neverAssessed}
           note="no assessment of any kind"
-          tone={summary.neverAssessed > 0 ? "stop" : "plain"}
+          tone={summary.neverAssessed > 0 ? 'stop' : 'plain'}
         />
         <Stat
           label="Running unexamined"
           value={summary.serious}
           note="unassessed, unmonitored or unsupervised"
-          tone={summary.serious > 0 ? "stop" : "plain"}
+          tone={summary.serious > 0 ? 'stop' : 'plain'}
         />
       </section>
 
@@ -101,7 +129,10 @@ export default async function AiRegisterPage() {
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
             Add a system
           </summary>
-          <form action={registerUseCase} className="space-y-3 border-t border-line p-4">
+          <form
+            action={registerUseCase}
+            className="space-y-3 border-t border-line p-4"
+          >
             <label className="block space-y-1">
               <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
                 What is it called?
@@ -125,9 +156,22 @@ export default async function AiRegisterPage() {
               />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Select name="systemType" label="Kind of system" options={SYSTEM_TYPE_LABEL} />
-              <Select name="provenance" label="Where it came from" options={PROVENANCE_LABEL} />
-              <Select name="lifecycleStage" label="Stage" options={STAGE_LABEL} defaultValue="proposed" />
+              <Select
+                name="systemType"
+                label="Kind of system"
+                options={SYSTEM_TYPE_LABEL}
+              />
+              <Select
+                name="provenance"
+                label="Where it came from"
+                options={PROVENANCE_LABEL}
+              />
+              <Select
+                name="lifecycleStage"
+                label="Stage"
+                options={STAGE_LABEL}
+                defaultValue="proposed"
+              />
               <label className="block space-y-1">
                 <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
                   Entity
@@ -138,7 +182,12 @@ export default async function AiRegisterPage() {
                   className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
                 >
                   {orgEntities.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
+                    <option
+                      key={e.id}
+                      value={e.id}
+                    >
+                      {e.name}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -153,9 +202,16 @@ export default async function AiRegisterPage() {
                 className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
               >
                 <option value="">Not yet known</option>
-                {Object.entries(DEPLOYMENT_PATTERN_LABEL).map(([value, text]) => (
-                  <option key={value} value={value}>{text}</option>
-                ))}
+                {Object.entries(DEPLOYMENT_PATTERN_LABEL).map(
+                  ([value, text]) => (
+                    <option
+                      key={value}
+                      value={value}
+                    >
+                      {text}
+                    </option>
+                  )
+                )}
               </select>
             </label>
             <label className="block space-y-1">
@@ -168,7 +224,11 @@ export default async function AiRegisterPage() {
               />
             </label>
             <label className="flex items-start gap-2.5 text-sm">
-              <input type="checkbox" name="ownMe" className="mt-1 accent-brand" />
+              <input
+                type="checkbox"
+                name="ownMe"
+                className="mt-1 accent-brand"
+              />
               <span>
                 I am accountable for this system
                 <span className="block text-xs text-ink-soft">
@@ -197,19 +257,23 @@ export default async function AiRegisterPage() {
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="flex items-baseline gap-3">
-                  <span className="font-mono text-xs text-ink-soft">{useCase.reference}</span>
+                  <span className="font-mono text-xs text-ink-soft">
+                    {useCase.reference}
+                  </span>
                   <span className="font-medium">{useCase.name}</span>
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
-                  {SYSTEM_TYPE_LABEL[useCase.systemType as SystemType]} ·{" "}
+                  {SYSTEM_TYPE_LABEL[useCase.systemType as SystemType]} ·{' '}
                   {STAGE_LABEL[useCase.lifecycleStage as LifecycleStage]}
                 </span>
               </div>
               <p className="text-xs text-ink-soft">
                 {PROVENANCE_LABEL[useCase.provenance as Provenance]}
-                {useCase.vendor ? ` · ${useCase.vendor}` : ""}
-                {ownerEmail ? ` · ${ownerEmail}` : " · no owner"}
-                {assessed ? ` · ${assessed.reference}${assessed.band ? ` (${assessed.band})` : ""}` : ""}
+                {useCase.vendor ? ` · ${useCase.vendor}` : ''}
+                {ownerEmail ? ` · ${ownerEmail}` : ' · no owner'}
+                {assessed
+                  ? ` · ${assessed.reference}${assessed.band ? ` (${assessed.band})` : ''}`
+                  : ''}
               </p>
               <GapChips gaps={gaps} />
             </Link>
@@ -217,8 +281,8 @@ export default async function AiRegisterPage() {
         ))}
         {summary.entries.length === 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
-            Nothing on the register. Start with what you already know is running -
-            an incomplete register beats none.
+            Nothing on the register. Start with what you already know is running
+            - an incomplete register beats none.
           </li>
         ) : null}
       </ul>
@@ -230,19 +294,21 @@ function Stat({
   label,
   value,
   note,
-  tone,
+  tone
 }: {
   label: string;
   value: number;
   note: string;
-  tone?: "plain" | "stop";
+  tone?: 'plain' | 'stop';
 }) {
   return (
     <div className="rounded border border-line bg-surface px-4 py-3.5">
-      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+        {label}
+      </p>
       <p
         className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${
-          tone === "stop" ? "text-red-800" : "text-ink"
+          tone === 'stop' ? 'text-red-800' : 'text-ink'
         }`}
       >
         {value}
@@ -256,7 +322,7 @@ function Select({
   name,
   label,
   options,
-  defaultValue,
+  defaultValue
 }: {
   name: string;
   label: string;
@@ -265,7 +331,9 @@ function Select({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+        {label}
+      </span>
       <select
         name={name}
         required
@@ -273,7 +341,12 @@ function Select({
         className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
       >
         {Object.entries(options).map(([value, text]) => (
-          <option key={value} value={value}>{text}</option>
+          <option
+            key={value}
+            value={value}
+          >
+            {text}
+          </option>
         ))}
       </select>
     </label>

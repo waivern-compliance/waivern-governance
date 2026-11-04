@@ -1,5 +1,5 @@
+import { relations } from 'drizzle-orm';
 import {
-  type AnyPgColumn,
   index,
   integer,
   jsonb,
@@ -7,17 +7,18 @@ import {
   text,
   timestamp,
   uuid,
-} from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
-import { documents } from "./documents";
+  type AnyPgColumn
+} from 'drizzle-orm/pg-core';
+
+import { documents } from './documents';
 import {
   extractionFindingKind,
   extractionLinkStatus,
   extractionSourceKind,
   recordType,
-  suggestionStatus,
-} from "./enums";
-import { entities, organisations, users } from "./tenancy";
+  suggestionStatus
+} from './enums';
+import { entities, organisations, users } from './tenancy';
 
 /**
  * A reading of somebody's agreement by a model, and what it claimed to find.
@@ -32,20 +33,22 @@ import { entities, organisations, users } from "./tenancy";
  * with would leave a trail showing diligence that never happened.
  */
 export const extractions = pgTable(
-  "extraction",
+  'extraction',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    entityId: uuid("entity_id").references(() => entities.id, { onDelete: "restrict" }),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    entityId: uuid('entity_id').references(() => entities.id, {
+      onDelete: 'restrict'
+    }),
 
     /** The agreement or the supplier this was run against. */
-    subjectType: recordType("subject_type").notNull(),
-    subjectId: uuid("subject_id").notNull(),
+    subjectType: recordType('subject_type').notNull(),
+    subjectId: uuid('subject_id').notNull(),
 
-    model: text("model").notNull(),
-    promptVersion: text("prompt_version").notNull(),
+    model: text('model').notNull(),
+    promptVersion: text('prompt_version').notNull(),
 
     /**
      * Every source the model was shown, by the label it was told to cite.
@@ -53,11 +56,11 @@ export const extractions = pgTable(
      * This is what makes a citation checkable: a finding says "S2", and this
      * says S2 was that file with that hash, or that URL fetched at that time.
      */
-    sources: jsonb("sources")
+    sources: jsonb('sources')
       .$type<
         Array<{
           label: string;
-          kind: "document" | "web_page";
+          kind: 'document' | 'web_page';
           name: string;
           documentId?: string;
           url?: string;
@@ -70,13 +73,13 @@ export const extractions = pgTable(
       .default([]),
 
     /** Files that could not be read, and why. Said plainly rather than dropped. */
-    unreadable: jsonb("unreadable")
+    unreadable: jsonb('unreadable')
       .$type<Array<{ name: string; reason: string }>>()
       .notNull()
       .default([]),
 
     /** What minimisation removed before the text left the platform. */
-    redactions: jsonb("redactions")
+    redactions: jsonb('redactions')
       .$type<Array<{ kind: string; count: number }>>()
       .notNull()
       .default([]),
@@ -89,7 +92,7 @@ export const extractions = pgTable(
      * cannot read the hosting platform's log stream — and by the time they
      * ask, the line has usually rotated away.
      */
-    diagnostics: jsonb("diagnostics")
+    diagnostics: jsonb('diagnostics')
       .$type<{
         ms?: number;
         promptChars?: number;
@@ -104,18 +107,22 @@ export const extractions = pgTable(
       .notNull()
       .default({}),
 
-    notes: text("notes"),
+    notes: text('notes'),
     /** Set when the model could not be reached or its answer made no sense. */
-    failure: text("failure"),
+    failure: text('failure'),
 
-    requestedBy: uuid("requested_by").references(() => users.id, { onDelete: "set null" }),
-    requestedByLabel: text("requested_by_label").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    requestedBy: uuid('requested_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    requestedByLabel: text('requested_by_label').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    index("extraction_subject_idx").on(t.subjectType, t.subjectId, t.createdAt),
-    index("extraction_org_idx").on(t.organisationId, t.createdAt),
-  ],
+    index('extraction_subject_idx').on(t.subjectType, t.subjectId, t.createdAt),
+    index('extraction_org_idx').on(t.organisationId, t.createdAt)
+  ]
 );
 
 /**
@@ -127,50 +134,57 @@ export const extractions = pgTable(
  * reviewer can verify and a regulator can be shown.
  */
 export const extractionFindings = pgTable(
-  "extraction_finding",
+  'extraction_finding',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    extractionId: uuid("extraction_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    extractionId: uuid('extraction_id')
       .notNull()
-      .references(() => extractions.id, { onDelete: "cascade" }),
-    organisationId: uuid("organisation_id")
+      .references(() => extractions.id, { onDelete: 'cascade' }),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
 
-    kind: extractionFindingKind("kind").notNull(),
+    kind: extractionFindingKind('kind').notNull(),
     /** The mechanism, or the sub-processor's name as written. */
-    value: text("value").notNull(),
-    detail: text("detail"),
-    country: text("country"),
+    value: text('value').notNull(),
+    detail: text('detail'),
+    country: text('country'),
 
     /** Copied from the source, so a reviewer reads the clause, not a summary. */
-    quote: text("quote").notNull(),
+    quote: text('quote').notNull(),
 
-    sourceLabel: text("source_label").notNull(),
-    sourceKind: extractionSourceKind("source_kind").notNull(),
+    sourceLabel: text('source_label').notNull(),
+    sourceKind: extractionSourceKind('source_kind').notNull(),
     /**
      * The file it came from. Restricted rather than cascaded: deleting a
      * document that a register entry rests on should require dealing with the
      * entry first.
      */
-    sourceDocumentId: uuid("source_document_id").references(() => documents.id, {
-      onDelete: "restrict",
-    }),
-    sourceUrl: text("source_url"),
+    sourceDocumentId: uuid('source_document_id').references(
+      () => documents.id,
+      {
+        onDelete: 'restrict'
+      }
+    ),
+    sourceUrl: text('source_url'),
     /** Of the file, or of the page as fetched — so a later change is visible. */
-    sourceSha256: text("source_sha256"),
-    sourceFetchedAt: timestamp("source_fetched_at", { withTimezone: true }),
+    sourceSha256: text('source_sha256'),
+    sourceFetchedAt: timestamp('source_fetched_at', { withTimezone: true }),
 
-    status: suggestionStatus("status").notNull().default("proposed"),
-    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
-    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    status: suggestionStatus('status').notNull().default('proposed'),
+    decidedBy: uuid('decided_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
 
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    index("extraction_finding_run_idx").on(t.extractionId, t.kind),
-    index("extraction_finding_open_idx").on(t.organisationId, t.status),
-  ],
+    index('extraction_finding_run_idx').on(t.extractionId, t.kind),
+    index('extraction_finding_open_idx').on(t.organisationId, t.status)
+  ]
 );
 
 /**
@@ -182,44 +196,54 @@ export const extractionFindings = pgTable(
  * own with its own hash and retrieval time.
  */
 export const extractionLinks = pgTable(
-  "extraction_link",
+  'extraction_link',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    extractionId: uuid("extraction_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    extractionId: uuid('extraction_id')
       .notNull()
-      .references(() => extractions.id, { onDelete: "cascade" }),
-    organisationId: uuid("organisation_id")
+      .references(() => extractions.id, { onDelete: 'cascade' }),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
 
-    url: text("url").notNull(),
-    why: text("why"),
-    sourceLabel: text("source_label"),
+    url: text('url').notNull(),
+    why: text('why'),
+    sourceLabel: text('source_label'),
 
-    status: extractionLinkStatus("status").notNull().default("proposed"),
+    status: extractionLinkStatus('status').notNull().default('proposed'),
     /** The run that read the fetched page, when one happened. */
-    followedBy: uuid("followed_by").references((): AnyPgColumn => extractions.id, {
-      onDelete: "set null",
-    }),
-    fetchedAt: timestamp("fetched_at", { withTimezone: true }),
-    fetchedSha256: text("fetched_sha256"),
-    fetchedCharacters: integer("fetched_characters"),
-    failure: text("failure"),
+    followedBy: uuid('followed_by').references(
+      (): AnyPgColumn => extractions.id,
+      {
+        onDelete: 'set null'
+      }
+    ),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }),
+    fetchedSha256: text('fetched_sha256'),
+    fetchedCharacters: integer('fetched_characters'),
+    failure: text('failure'),
 
-    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedBy: uuid('decided_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
-  (t) => [index("extraction_link_run_idx").on(t.extractionId, t.status)],
+  (t) => [index('extraction_link_run_idx').on(t.extractionId, t.status)]
 );
 
 export const extractionRelations = relations(extractions, ({ many }) => ({
   findings: many(extractionFindings),
-  links: many(extractionLinks),
+  links: many(extractionLinks)
 }));
 
-export const extractionFindingRelations = relations(extractionFindings, ({ one }) => ({
-  extraction: one(extractions, {
-    fields: [extractionFindings.extractionId],
-    references: [extractions.id],
-  }),
-}));
+export const extractionFindingRelations = relations(
+  extractionFindings,
+  ({ one }) => ({
+    extraction: one(extractions, {
+      fields: [extractionFindings.extractionId],
+      references: [extractions.id]
+    })
+  })
+);

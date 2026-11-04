@@ -1,15 +1,22 @@
-"use client";
+'use client';
 
-import { mitigationStatusAction } from "./actions";
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { savedKey } from "@/lib/saved-key";
+import { savedKey } from '@/lib/saved-key';
+import { useRefusableAction } from '@/lib/use-refusable-action';
 
-const STATUSES = ["planned", "in_progress", "implemented", "verified", "abandoned"] as const;
+import { mitigationStatusAction } from './actions';
+
+const STATUSES = [
+  'planned',
+  'in_progress',
+  'implemented',
+  'verified',
+  'abandoned'
+] as const;
 
 export function MitigationRow({
   riskId,
   mitigation,
-  editable,
+  editable
 }: {
   riskId: string;
   mitigation: {
@@ -31,9 +38,13 @@ export function MitigationRow({
   // Through a transition, so a refused update keeps the evidence reference typed.
   const { result, pending, formProps } = useRefusableAction<
     { ok: true } | { ok: false; message: string } | null
-  >((_previous, formData) => mitigationStatusAction(riskId, mitigation.id, formData), {
-    resetOnSuccess: false,
-  });
+  >(
+    (_previous, formData) =>
+      mitigationStatusAction(riskId, mitigation.id, formData),
+    {
+      resetOnSuccess: false
+    }
+  );
   const error = result && !result.ok ? result.message : null;
 
   return (
@@ -41,11 +52,11 @@ export function MitigationRow({
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-medium">{mitigation.description}</span>
         <span className="font-mono text-[11px] text-ink-soft">
-          {mitigation.treatment ? `${mitigation.treatment} · ` : ""}
-          {mitigation.controlRef ? `${mitigation.controlRef} · ` : ""}
-          {mitigation.dueAt ? `due ${mitigation.dueAt}` : "no date"}
-          {mitigation.verifiedAt ? ` · verified ${mitigation.verifiedAt}` : ""}
-          {mitigation.fromSource ? ` · ${mitigation.fromSource}` : ""}
+          {mitigation.treatment ? `${mitigation.treatment} · ` : ''}
+          {mitigation.controlRef ? `${mitigation.controlRef} · ` : ''}
+          {mitigation.dueAt ? `due ${mitigation.dueAt}` : 'no date'}
+          {mitigation.verifiedAt ? ` · verified ${mitigation.verifiedAt}` : ''}
+          {mitigation.fromSource ? ` · ${mitigation.fromSource}` : ''}
         </span>
       </div>
 
@@ -66,16 +77,18 @@ export function MitigationRow({
                 value={s}
                 // Verification is a second pair of eyes. Offering it to the
                 // owner of the mitigation invites a refusal they cannot act on.
-                disabled={s === "verified" && mitigation.ownedByViewer}
+                disabled={s === 'verified' && mitigation.ownedByViewer}
               >
-                {s.replace(/_/g, " ")}
-                {s === "verified" && mitigation.ownedByViewer ? " (not by its owner)" : ""}
+                {s.replace(/_/g, ' ')}
+                {s === 'verified' && mitigation.ownedByViewer
+                  ? ' (not by its owner)'
+                  : ''}
               </option>
             ))}
           </select>
           <input
             name="evidenceRef"
-            defaultValue={mitigation.evidenceRef ?? ""}
+            defaultValue={mitigation.evidenceRef ?? ''}
             placeholder="Evidence reference"
             className="w-48 rounded border border-line bg-ground px-2 py-1 text-xs"
           />
@@ -88,11 +101,16 @@ export function MitigationRow({
           </button>
         </form>
       ) : (
-        <p className="font-mono text-xs text-ink-soft">{mitigation.status.replace(/_/g, " ")}</p>
+        <p className="font-mono text-xs text-ink-soft">
+          {mitigation.status.replace(/_/g, ' ')}
+        </p>
       )}
 
       {error ? (
-        <p role="alert" className="text-xs text-red-800">
+        <p
+          role="alert"
+          className="text-xs text-red-800"
+        >
           {error}
         </p>
       ) : null}

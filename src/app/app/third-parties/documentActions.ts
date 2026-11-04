@@ -1,15 +1,16 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/session";
+import { revalidatePath } from 'next/cache';
+
+import { refusable, type EditResult } from '@/lib/edit-result';
+import { requireCapability } from '@/lib/session';
 import {
-  UploadRefused,
   attachDocument,
   moveDocument,
   removeDocument,
-} from "@/services/documents";
-import type { StoredDocument } from "@/services/documents";
-import { refusable, type EditResult } from "@/lib/edit-result";
+  UploadRefused
+} from '@/services/documents';
+import type { StoredDocument } from '@/services/documents';
 
 export type UploadResult = { ok: boolean; message: string } | null;
 
@@ -23,24 +24,31 @@ export type UploadResult = { ok: boolean; message: string } | null;
  */
 export async function uploadDocumentsAction(
   context: {
-    subjectType: StoredDocument["subjectType"];
+    subjectType: StoredDocument['subjectType'];
     subjectId: string;
     entityId: string | null;
     revalidate: string;
   },
   _prev: UploadResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<UploadResult> {
   const active = await requireCapability(
-    "record.write",
-    context.entityId ? { entityId: context.entityId } : undefined,
+    'record.write',
+    context.entityId ? { entityId: context.entityId } : undefined
   );
 
-  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-  if (files.length === 0) return { ok: false, message: "Choose at least one file." };
+  const files = formData
+    .getAll('files')
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0)
+    return { ok: false, message: 'Choose at least one file.' };
 
-  const description = String(formData.get("description") ?? "").trim();
-  const actor = { actorKind: "user" as const, actorUserId: active.userId, actorLabel: active.email };
+  const description = String(formData.get('description') ?? '').trim();
+  const actor = {
+    actorKind: 'user' as const,
+    actorUserId: active.userId,
+    actorLabel: active.email
+  };
 
   const attached: string[] = [];
   const refused: string[] = [];
@@ -56,7 +64,7 @@ export async function uploadDocumentsAction(
         contentType: file.type,
         description: description || null,
         content: Buffer.from(await file.arrayBuffer()),
-        actor,
+        actor
       });
       attached.push(file.name);
     } catch (error) {
@@ -73,22 +81,29 @@ export async function uploadDocumentsAction(
   revalidatePath(context.revalidate);
 
   if (refused.length === 0) {
-    return { ok: true, message: `Attached ${attached.length} file${attached.length === 1 ? "" : "s"}.` };
+    return {
+      ok: true,
+      message: `Attached ${attached.length} file${attached.length === 1 ? '' : 's'}.`
+    };
   }
   return {
     ok: attached.length > 0,
     message:
-      (attached.length > 0 ? `Attached ${attached.length}. ` : "") +
-      `Not attached: ${refused.join("; ")}`,
+      (attached.length > 0 ? `Attached ${attached.length}. ` : '') +
+      `Not attached: ${refused.join('; ')}`
   };
 }
 
 export async function removeDocumentAction(id: string, revalidate: string) {
-  const active = await requireCapability("record.write");
+  const active = await requireCapability('record.write');
   await removeDocument({
     id,
     organisationId: active.membership.organisationId,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
   revalidatePath(revalidate);
 }
@@ -103,13 +118,15 @@ export async function moveDocumentAction(
   id: string,
   revalidate: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await requireCapability("record.write");
-    const [subjectType, subjectId] = String(formData.get("target") ?? "").split(":");
-    if ((subjectType !== "dpa" && subjectType !== "supplier") || !subjectId) {
-      throw new Error("Choose where the document belongs.");
+    const active = await requireCapability('record.write');
+    const [subjectType, subjectId] = String(formData.get('target') ?? '').split(
+      ':'
+    );
+    if ((subjectType !== 'dpa' && subjectType !== 'supplier') || !subjectId) {
+      throw new Error('Choose where the document belongs.');
     }
 
     await moveDocument({
@@ -117,7 +134,11 @@ export async function moveDocumentAction(
       organisationId: active.membership.organisationId,
       subjectType,
       subjectId,
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
     revalidatePath(revalidate);
   });

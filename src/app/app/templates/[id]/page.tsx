@@ -1,29 +1,35 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { DraftEditor } from "@/components/templates/DraftEditor";
-import { NotPermitted } from "@/components/NotPermitted";
-import { legalRefMap } from "@/lib/legal-refs";
-import { describeCondition, describeType, questionLabels } from "@/lib/templates/describe";
-import { can, canForKind } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { validateTemplate } from "@/lib/templates/validate";
-import type { ResolvedRef } from "@/lib/legal-refs";
-import { loadTemplate } from "@/services/templates";
-import { publishAction, startDraftAction } from "../actions";
-import type { TemplateDefinition } from "@/lib/templates/schema";
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+
+import { NotPermitted } from '@/components/NotPermitted';
+import { DraftEditor } from '@/components/templates/DraftEditor';
+import { legalRefMap } from '@/lib/legal-refs';
+import type { ResolvedRef } from '@/lib/legal-refs';
+import { can, canForKind } from '@/lib/rbac';
+import { getActiveSession } from '@/lib/session';
+import {
+  describeCondition,
+  describeType,
+  questionLabels
+} from '@/lib/templates/describe';
+import type { TemplateDefinition } from '@/lib/templates/schema';
+import { validateTemplate } from '@/lib/templates/validate';
+import { loadTemplate } from '@/services/templates';
+
+import { publishAction, startDraftAction } from '../actions';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 export default async function TemplatePage({
-  params,
+  params
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="The template library"
@@ -34,13 +40,21 @@ export default async function TemplatePage({
 
   const [loaded, refs] = await Promise.all([
     loadTemplate(id, active.membership.organisationId),
-    legalRefMap(),
+    legalRefMap()
   ]);
   if (!loaded) notFound();
 
   const { template, versions, published, draft } = loaded;
-  const mayAuthor = canForKind(active.membership.grants, "template.author", template.kind);
-  const mayPublish = canForKind(active.membership.grants, "template.publish", template.kind);
+  const mayAuthor = canForKind(
+    active.membership.grants,
+    'template.author',
+    template.kind
+  );
+  const mayPublish = canForKind(
+    active.membership.grants,
+    'template.publish',
+    template.kind
+  );
 
   // Review the published version if there is one, since that is what
   // assessments actually run against. A draft is shown below it, not instead.
@@ -50,17 +64,24 @@ export default async function TemplatePage({
   return (
     <main className="mx-auto max-w-3xl space-y-9 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app/templates" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app/templates"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← Assessment templates
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">{template.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {template.name}
+        </h1>
         <p className="text-xs text-ink-soft">
-          {template.kind.replace(/_/g, " ")}
-          {template.jurisdiction ? ` · ${template.jurisdiction}` : ""}
-          {template.isSystem ? " · shipped with the platform" : ""}
+          {template.kind.replace(/_/g, ' ')}
+          {template.jurisdiction ? ` · ${template.jurisdiction}` : ''}
+          {template.isSystem ? ' · shipped with the platform' : ''}
         </p>
         {template.description ? (
-          <p className="max-w-prose text-sm text-ink-soft">{template.description}</p>
+          <p className="max-w-prose text-sm text-ink-soft">
+            {template.description}
+          </p>
         ) : null}
       </header>
 
@@ -68,12 +89,15 @@ export default async function TemplatePage({
         <h2 className="text-sm font-semibold">Versions</h2>
         <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
           {versions.map((v) => (
-            <li key={v.id} className="flex flex-wrap items-baseline justify-between gap-x-4 px-4 py-2.5 text-sm">
+            <li
+              key={v.id}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 px-4 py-2.5 text-sm"
+            >
               <span className="font-medium">Version {v.version}</span>
               <span className="font-mono text-[11px] text-ink-soft">
                 {v.status}
-                {v.publishedAt ? ` · published ${day(v.publishedAt)}` : ""}
-                {v.retiredAt ? ` · retired ${day(v.retiredAt)}` : ""}
+                {v.publishedAt ? ` · published ${day(v.publishedAt)}` : ''}
+                {v.retiredAt ? ` · retired ${day(v.retiredAt)}` : ''}
               </span>
             </li>
           ))}
@@ -90,7 +114,10 @@ export default async function TemplatePage({
           <h2 className="text-sm font-semibold">
             What version {showing.version} asks
           </h2>
-          <Definition definition={showing.definition} refs={refs} />
+          <Definition
+            definition={showing.definition}
+            refs={refs}
+          />
         </section>
       ) : null}
 
@@ -119,8 +146,9 @@ export default async function TemplatePage({
                   </button>
                   {problems.length > 0 ? (
                     <p className="mt-1.5 text-xs text-ink-soft">
-                      {problems.length} problem{problems.length === 1 ? "" : "s"} to
-                      settle first. Save the draft to see them.
+                      {problems.length} problem
+                      {problems.length === 1 ? '' : 's'} to settle first. Save
+                      the draft to see them.
                     </p>
                   ) : null}
                 </form>
@@ -135,7 +163,8 @@ export default async function TemplatePage({
             <>
               <p className="max-w-prose text-xs text-ink-soft">
                 There is no draft. Starting one copies the published version, so
-                you edit a copy rather than what assessments are running against.
+                you edit a copy rather than what assessments are running
+                against.
               </p>
               <form action={startDraftAction.bind(null, template.id)}>
                 <button
@@ -156,7 +185,7 @@ export default async function TemplatePage({
 /** The questions, as a reviewer needs to read them. */
 function Definition({
   definition,
-  refs,
+  refs
 }: {
   definition: TemplateDefinition;
   refs: Record<string, ResolvedRef>;
@@ -167,11 +196,16 @@ function Definition({
   return (
     <div className="space-y-5">
       {definition.schema.sections.map((section) => (
-        <div key={section.key} className="rounded border border-line bg-surface">
+        <div
+          key={section.key}
+          className="rounded border border-line bg-surface"
+        >
           <div className="space-y-1 border-b border-line px-4 py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4">
               <h3 className="text-sm font-medium">{section.title}</h3>
-              <span className="font-mono text-[11px] text-ink-soft">{section.key}</span>
+              <span className="font-mono text-[11px] text-ink-soft">
+                {section.key}
+              </span>
             </div>
             {section.description ? (
               <p className="text-xs text-ink-soft">{section.description}</p>
@@ -184,17 +218,24 @@ function Definition({
           </div>
           <ol className="divide-y divide-line">
             {section.questions.map((q) => (
-              <li key={q.key} className="space-y-1 px-4 py-3 text-sm">
+              <li
+                key={q.key}
+                className="space-y-1 px-4 py-3 text-sm"
+              >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4">
                   <span className="font-medium">
                     {q.label}
-                    {q.required ? <span className="text-red-800"> *</span> : null}
+                    {q.required ? (
+                      <span className="text-red-800"> *</span>
+                    ) : null}
                   </span>
-                  <span className="font-mono text-[11px] text-ink-soft">{q.key}</span>
+                  <span className="font-mono text-[11px] text-ink-soft">
+                    {q.key}
+                  </span>
                 </div>
                 <p className="text-xs text-ink-soft">
                   Expects {describeType(q)}
-                  {q.evidence !== "none" ? ` · evidence ${q.evidence}` : ""}
+                  {q.evidence !== 'none' ? ` · evidence ${q.evidence}` : ''}
                 </p>
                 {q.legalRefs?.length ? (
                   <ul className="flex flex-wrap gap-x-4 gap-y-1">
@@ -205,19 +246,30 @@ function Definition({
                       // seeing on the page that reviews the template.
                       if (!ref) {
                         return (
-                          <li key={code} className="font-mono text-[11px] text-amber-900">
+                          <li
+                            key={code}
+                            className="font-mono text-[11px] text-amber-900"
+                          >
                             {code} - unknown reference
                           </li>
                         );
                       }
                       return (
-                        <li key={code} className="text-[11px] text-ink-soft">
+                        <li
+                          key={code}
+                          className="text-[11px] text-ink-soft"
+                        >
                           <span className="font-mono">
                             {ref.regime} {ref.citation}
                           </span>
-                          {" - "}
+                          {' - '}
                           {ref.url ? (
-                            <a href={ref.url} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+                            <a
+                              href={ref.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand hover:underline"
+                            >
                               {ref.title}
                             </a>
                           ) : (
@@ -228,12 +280,19 @@ function Definition({
                     })}
                   </ul>
                 ) : null}
-                {q.help ? <p className="text-xs text-ink-soft">{q.help}</p> : null}
+                {q.help ? (
+                  <p className="text-xs text-ink-soft">{q.help}</p>
+                ) : null}
                 {q.options?.length ? (
                   <p className="text-xs text-ink-soft">
-                    Options: {q.options.map((o) =>
-                      o.weight === undefined ? o.label : `${o.label} (${o.weight})`,
-                    ).join(", ")}
+                    Options:{' '}
+                    {q.options
+                      .map((o) =>
+                        o.weight === undefined
+                          ? o.label
+                          : `${o.label} (${o.weight})`
+                      )
+                      .join(', ')}
                   </p>
                 ) : null}
                 {q.showWhen ? (
@@ -254,17 +313,20 @@ function Definition({
 
       <div className="rounded border border-line bg-surface px-4 py-3">
         <h3 className="text-sm font-medium">Scoring</h3>
-        {scoring.method === "none" ? (
+        {scoring.method === 'none' ? (
           <p className="mt-1 text-xs text-ink-soft">Unscored.</p>
         ) : (
           <>
             <p className="mt-1 text-xs text-ink-soft">
-              {scoring.method.replace(/_/g, " ")}
+              {scoring.method.replace(/_/g, ' ')}
             </p>
             {scoring.bands?.length ? (
               <ul className="mt-1.5 space-y-0.5 text-xs text-ink-soft">
                 {scoring.bands.map((b, i) => (
-                  <li key={i} className="font-mono">
+                  <li
+                    key={i}
+                    className="font-mono"
+                  >
                     {b.min}–{b.max}: {b.label}
                   </li>
                 ))}

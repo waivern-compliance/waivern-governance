@@ -1,29 +1,39 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { RiskTierBadge } from "@/components/RiskTierBadge";
-import { Discussion } from "@/components/Discussion";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { SCALES, labelFor, type RiskScaleId } from "@/lib/risk/scale";
-import { judge, scopeLabel, APPETITE_LEVEL_LABEL } from "@/lib/risk/appetite";
-import { TREATMENT_LABEL, type TreatmentType } from "@/lib/risk/treatment";
-import { suggestionsFor } from "@/lib/risk/treatment-library";
-import { aiFrameworkPackOf } from "@/services/ai-framework";
-import { appetiteInForce } from "@/services/risk-policy";
-import { categoryLabel, frameworkOfSuggestion } from "@/lib/ai-frameworks";
-import { getActiveSession } from "@/lib/session";
-import { loadRisk } from "@/services/risks";
-import { AcceptPanel } from "./accept";
-import { MitigationForm } from "./mitigation-form";
-import { MitigationRow } from "./mitigation-row";
-import { addMitigationAction, closeAction, rateResidualAction } from "./actions";
-import { savedKey } from "@/lib/saved-key";
-import { EditForm } from "@/components/EditForm";
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
 
-export default async function RiskPage({ params }: { params: Promise<{ id: string }> }) {
+import { Discussion } from '@/components/Discussion';
+import { EditForm } from '@/components/EditForm';
+import { NotPermitted } from '@/components/NotPermitted';
+import { RiskTierBadge } from '@/components/RiskTierBadge';
+import { categoryLabel, frameworkOfSuggestion } from '@/lib/ai-frameworks';
+import { can } from '@/lib/rbac';
+import { APPETITE_LEVEL_LABEL, judge, scopeLabel } from '@/lib/risk/appetite';
+import { labelFor, SCALES, type RiskScaleId } from '@/lib/risk/scale';
+import { TREATMENT_LABEL, type TreatmentType } from '@/lib/risk/treatment';
+import { suggestionsFor } from '@/lib/risk/treatment-library';
+import { savedKey } from '@/lib/saved-key';
+import { getActiveSession } from '@/lib/session';
+import { aiFrameworkPackOf } from '@/services/ai-framework';
+import { appetiteInForce } from '@/services/risk-policy';
+import { loadRisk } from '@/services/risks';
+
+import { AcceptPanel } from './accept';
+import {
+  addMitigationAction,
+  closeAction,
+  rateResidualAction
+} from './actions';
+import { MitigationForm } from './mitigation-form';
+import { MitigationRow } from './mitigation-row';
+
+export default async function RiskPage({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
   const loaded = await loadRisk(id, active.membership.organisationId);
   if (!loaded) notFound();
@@ -33,13 +43,17 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
   // current choice.
   const scale = risk.scale as RiskScaleId;
   const appetite = judge(
-    { category: risk.category, residualTier: risk.residualTier, status: risk.status },
-    await appetiteInForce(active.membership.organisationId),
+    {
+      category: risk.category,
+      residualTier: risk.residualTier,
+      status: risk.status
+    },
+    await appetiteInForce(active.membership.organisationId)
   );
   const framework = await aiFrameworkPackOf(active.membership.organisationId);
   const grants = active.membership.grants;
 
-  if (!can(grants, "record.read", risk.entityId)) {
+  if (!can(grants, 'record.read', risk.entityId)) {
     return (
       <NotPermitted
         what={`${risk.reference} belongs to another part of the organisation, and`}
@@ -47,8 +61,9 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
       />
     );
   }
-  const mayManage = can(grants, "risk.manage", risk.entityId) && risk.status !== "closed";
-  const mayAccept = can(grants, "risk.accept", risk.entityId);
+  const mayManage =
+    can(grants, 'risk.manage', risk.entityId) && risk.status !== 'closed';
+  const mayAccept = can(grants, 'risk.accept', risk.entityId);
   const live = acceptances.find((a) => !a.supersededAt && !a.revokedAt) ?? null;
   const lapsed = live ? hasPassed(live.expiresAt) : false;
   const ownsIt = risk.ownerId !== null && risk.ownerId === active.userId;
@@ -56,81 +71,103 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
   return (
     <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
       <header className="space-y-3 border-b border-line pb-6">
-        <Link href="/app/risks" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app/risks"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← Risk register
         </Link>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="font-mono text-sm text-ink-soft">{risk.reference}</span>
-          <h1 className="text-2xl font-semibold tracking-tight">{risk.title}</h1>
+          <span className="font-mono text-sm text-ink-soft">
+            {risk.reference}
+          </span>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {risk.title}
+          </h1>
         </div>
         <p className="max-w-prose text-sm text-ink-soft">{risk.description}</p>
         {risk.category ? (
           <p className="text-xs text-ink-soft">
-            Category: <span className="text-ink">{categoryLabel(risk.category)}</span>
+            Category:{' '}
+            <span className="text-ink">{categoryLabel(risk.category)}</span>
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <RiskTierBadge tier={risk.inherentTier} score={risk.inherentScore} prefix="inherent" />
-          <RiskTierBadge tier={risk.residualTier} score={risk.residualScore} prefix="residual" />
+          <RiskTierBadge
+            tier={risk.inherentTier}
+            score={risk.inherentScore}
+            prefix="inherent"
+          />
+          <RiskTierBadge
+            tier={risk.residualTier}
+            score={risk.residualScore}
+            prefix="residual"
+          />
           <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px] text-ink-soft">
             {risk.status}
           </span>
         </div>
         <p className="font-mono text-xs text-ink-soft">
-          inherent {labelFor("likelihood", risk.inherentLikelihood, scale)} ×{" "}
-          {labelFor("impact", risk.inherentImpact, scale)}
+          inherent {labelFor('likelihood', risk.inherentLikelihood, scale)} ×{' '}
+          {labelFor('impact', risk.inherentImpact, scale)}
           {risk.residualLikelihood
-            ? ` · residual ${labelFor("likelihood", risk.residualLikelihood, scale)} × ${labelFor("impact", risk.residualImpact!, scale)}`
-            : ""}
+            ? ` · residual ${labelFor('likelihood', risk.residualLikelihood, scale)} × ${labelFor('impact', risk.residualImpact!, scale)}`
+            : ''}
           {` · ${SCALES[scale].inSentence}`}
         </p>
         {assessment ? (
           <p className="text-xs text-ink-soft">
-            Raised from{" "}
-            <Link href={`/app/assessments/${assessment.id}`} className="text-brand hover:underline">
+            Raised from{' '}
+            <Link
+              href={`/app/assessments/${assessment.id}`}
+              className="text-brand hover:underline"
+            >
               {assessment.reference} {assessment.title}
             </Link>
           </p>
         ) : null}
       </header>
 
-      {appetite.state === "closed" ? null : (
+      {appetite.state === 'closed' ? null : (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
             Appetite
           </h2>
           <div
             className={`space-y-1 rounded border-l-2 px-4 py-3 text-sm ${
-              appetite.state === "within"
-                ? "border-emerald-700 bg-emerald-50 text-emerald-950"
-                : "border-amber-700 bg-amber-50 text-amber-950"
+              appetite.state === 'within'
+                ? 'border-emerald-700 bg-emerald-50 text-emerald-950'
+                : 'border-amber-700 bg-amber-50 text-amber-950'
             }`}
           >
             <p>
-              {appetite.state === "unrated" ? (
+              {appetite.state === 'unrated' ? (
                 <strong>Not yet judged against appetite.</strong>
-              ) : appetite.state === "within" ? (
+              ) : appetite.state === 'within' ? (
                 <strong>Within appetite.</strong>
               ) : (
                 <strong>Outside appetite.</strong>
-              )}{" "}
-              {appetite.basis.source === "platform"
+              )}{' '}
+              {appetite.basis.source === 'platform'
                 ? "No appetite has been signed off for this, so it is judged against the platform's assumption: residual high or critical is outside."
-                : `Judged against ${appetite.basis.source === "category" ? `the appetite for ${scopeLabel(appetite.basis.scope)}` : "the organisation's default appetite"} - ${APPETITE_LEVEL_LABEL[appetite.basis.level].toLowerCase()}, tolerating residual up to ${appetite.basis.toleratedTier}.`}
+                : `Judged against ${appetite.basis.source === 'category' ? `the appetite for ${scopeLabel(appetite.basis.scope)}` : "the organisation's default appetite"} - ${APPETITE_LEVEL_LABEL[appetite.basis.level].toLowerCase()}, tolerating residual up to ${appetite.basis.toleratedTier}.`}
             </p>
-            {appetite.state === "unrated" ? (
+            {appetite.state === 'unrated' ? (
               <p className="text-xs">
                 Rate the residual risk below. Until then it counts as not within
                 appetite - nobody has measured it.
               </p>
-            ) : appetite.state === "outside" ? (
+            ) : appetite.state === 'outside' ? (
               <p className="text-xs">
                 Treat it further, or put it to an approver to accept knowing it
                 is outside appetite. An acceptance records that it was.
               </p>
             ) : null}
             <p className="text-xs">
-              <Link href="/app/risks/appetite" className="underline">
+              <Link
+                href="/app/risks/appetite"
+                className="underline"
+              >
                 See the organisation&rsquo;s risk appetite
               </Link>
             </p>
@@ -159,8 +196,11 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
                   dueAt: m.dueAt?.toISOString().slice(0, 10) ?? null,
                   evidenceRef: m.evidenceRef,
                   verifiedAt: m.verifiedAt?.toISOString().slice(0, 10) ?? null,
-                  fromSource: frameworkOfSuggestion(m.suggestionKey)?.treatmentSource.tag ?? null,
-                  ownedByViewer: m.ownerId !== null && m.ownerId === active.userId,
+                  fromSource:
+                    frameworkOfSuggestion(m.suggestionKey)?.treatmentSource
+                      .tag ?? null,
+                  ownedByViewer:
+                    m.ownerId !== null && m.ownerId === active.userId
                 }}
                 editable={mayManage}
               />
@@ -196,20 +236,31 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
             className="grid gap-3 rounded border border-line bg-surface p-4 sm:grid-cols-[auto_auto_auto] sm:items-end"
           >
             <label className="block space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Likelihood</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+                Likelihood
+              </span>
               <select
                 name="likelihood"
                 required
-                defaultValue={risk.residualLikelihood ?? risk.inherentLikelihood}
+                defaultValue={
+                  risk.residualLikelihood ?? risk.inherentLikelihood
+                }
                 className="rounded border border-line bg-ground px-3 py-2 text-sm"
               >
                 {SCALES[scale].likelihood.map((l) => (
-                  <option key={l.value} value={l.value}>{l.value} · {l.label}</option>
+                  <option
+                    key={l.value}
+                    value={l.value}
+                  >
+                    {l.value} · {l.label}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Impact</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+                Impact
+              </span>
               <select
                 name="impact"
                 required
@@ -217,7 +268,12 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
                 className="rounded border border-line bg-ground px-3 py-2 text-sm"
               >
                 {SCALES[scale].impact.map((i) => (
-                  <option key={i.value} value={i.value}>{i.value} · {i.label}</option>
+                  <option
+                    key={i.value}
+                    value={i.value}
+                  >
+                    {i.value} · {i.label}
+                  </option>
                 ))}
               </select>
             </label>
@@ -245,7 +301,7 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
                 expiresAt: live.expiresAt.toISOString().slice(0, 10),
                 tier: live.residualTierAtAcceptance,
                 score: live.residualScoreAtAcceptance,
-                lapsed,
+                lapsed
               }
             : null
         }
@@ -256,13 +312,15 @@ export default async function RiskPage({ params }: { params: Promise<{ id: strin
             acceptedBy: a.acceptedByLabel,
             rationale: a.rationale,
             expiresAt: a.expiresAt.toISOString().slice(0, 10),
-            outcome: a.revokedAt ? `revoked - ${a.revokedReason}` : "superseded",
+            outcome: a.revokedAt ? `revoked - ${a.revokedReason}` : 'superseded'
           }))}
       />
 
       {mayManage ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">Close</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            Close
+          </h2>
           <form
             action={closeAction.bind(null, id)}
             className="grid gap-3 rounded border border-line bg-surface p-4 sm:grid-cols-[1fr_auto] sm:items-end"

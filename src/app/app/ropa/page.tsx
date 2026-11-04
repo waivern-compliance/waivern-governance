@@ -1,22 +1,24 @@
-import Link from "next/link";
-import { HelpLink } from "@/components/help/HelpLink";
-import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db, scoped } from "@/db/client";
-import { entities } from "@/db/schema";
-import { GapChips } from "@/components/GapChips";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
-import { GAP_WORDS, HARD_GAPS, registerHealth } from "@/services/ropa";
-import { dpoPosition } from "@/services/entities";
-import { recordActivity } from "./actions";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+
+import { GapChips } from '@/components/GapChips';
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { db, scoped } from '@/db/client';
+import { entities } from '@/db/schema';
+import { can } from '@/lib/rbac';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { dpoPosition } from '@/services/entities';
+import { GAP_WORDS, HARD_GAPS, registerHealth } from '@/services/ropa';
+
+import { recordActivity } from './actions';
 
 export default async function RopaPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="The record of processing activities"
@@ -28,24 +30,29 @@ export default async function RopaPage() {
   const org = active.membership.organisationId;
   const [health, orgEntities, dpo] = await Promise.all([
     registerHealth(org, visibleEntityIds(active)),
-    scoped(org, () => db.select().from(entities).where(eq(entities.organisationId, org))),
-    dpoPosition(org),
+    scoped(org, () =>
+      db.select().from(entities).where(eq(entities.organisationId, org))
+    ),
+    dpoPosition(org)
   ]);
   const withoutDpo = dpo.entities.filter((e) => e.missing);
-  const mayAdd = can(active.membership.grants, "record.write");
+  const mayAdd = can(active.membership.grants, 'record.write');
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">
           Record of processing activities
         </h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          The Article 30 register. Each record is checked against what Article 30
-          actually requires, so you can see which ones would not survive an
+          The Article 30 register. Each record is checked against what Article
+          30 actually requires, so you can see which ones would not survive an
           inspection before somebody else does.
         </p>
       </header>
@@ -53,20 +60,36 @@ export default async function RopaPage() {
       <HelpLink topic="ropa" />
 
       {withoutDpo.length > 0 ? (
-        <p role="alert" className="max-w-prose rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900">
-          {withoutDpo.map((e) => e.name).join(", ")} {withoutDpo.length === 1 ? "is a public or competent authority" : "are public or competent authorities"}{" "}
-          with no data protection officer recorded. UK GDPR Article 37(1)(a) and, for law enforcement processing, Data
-          Protection Act 2018 s.69 require one.{" "}
-          {can(active.membership.grants, "org.manage") ? (
-            <Link href="/app/admin/organisation" className="underline">Record the DPO</Link>
+        <p
+          role="alert"
+          className="max-w-prose rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900"
+        >
+          {withoutDpo.map((e) => e.name).join(', ')}{' '}
+          {withoutDpo.length === 1
+            ? 'is a public or competent authority'
+            : 'are public or competent authorities'}{' '}
+          with no data protection officer recorded. UK GDPR Article 37(1)(a)
+          and, for law enforcement processing, Data Protection Act 2018 s.69
+          require one.{' '}
+          {can(active.membership.grants, 'org.manage') ? (
+            <Link
+              href="/app/admin/organisation"
+              className="underline"
+            >
+              Record the DPO
+            </Link>
           ) : (
-            "Someone who manages the organisation can record them."
+            'Someone who manages the organisation can record them.'
           )}
         </p>
       ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Activities" value={health.total} note="on the register" />
+        <Stat
+          label="Activities"
+          value={health.total}
+          note="on the register"
+        />
         <Stat
           label="Article 30 complete"
           value={health.complete}
@@ -76,13 +99,13 @@ export default async function RopaPage() {
           label="Would fail an inspection"
           value={health.nonCompliant}
           note="a required element is missing, or the law does not allow it as recorded"
-          tone={health.nonCompliant > 0 ? "stop" : "plain"}
+          tone={health.nonCompliant > 0 ? 'stop' : 'plain'}
         />
         <Stat
           label="No named owner"
           value={health.unowned}
           note="nobody keeps these true"
-          tone={health.unowned > 0 ? "warn" : "plain"}
+          tone={health.unowned > 0 ? 'warn' : 'plain'}
         />
       </section>
 
@@ -99,7 +122,10 @@ export default async function RopaPage() {
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
             Record an activity
           </summary>
-          <form action={recordActivity} className="space-y-3 border-t border-line p-4">
+          <form
+            action={recordActivity}
+            className="space-y-3 border-t border-line p-4"
+          >
             <label className="block space-y-1">
               <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
                 What is the processing called?
@@ -113,7 +139,7 @@ export default async function RopaPage() {
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
-                Why do you do it?{" "}
+                Why do you do it?{' '}
                 <span className="font-normal normal-case tracking-normal">
                   one purpose per line
                 </span>
@@ -134,9 +160,13 @@ export default async function RopaPage() {
                   defaultValue="controller"
                   className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
                 >
-                  <option value="controller">Controller - you decide why and how</option>
+                  <option value="controller">
+                    Controller - you decide why and how
+                  </option>
                   <option value="joint_controller">Joint controller</option>
-                  <option value="processor">Processor - you act for somebody else</option>
+                  <option value="processor">
+                    Processor - you act for somebody else
+                  </option>
                 </select>
               </label>
               <label className="block space-y-1">
@@ -149,7 +179,12 @@ export default async function RopaPage() {
                   className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
                 >
                   {orgEntities.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
+                    <option
+                      key={e.id}
+                      value={e.id}
+                    >
+                      {e.name}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -165,7 +200,11 @@ export default async function RopaPage() {
               />
             </label>
             <label className="flex items-start gap-2.5 text-sm">
-              <input type="checkbox" name="ownMe" className="mt-1 accent-brand" />
+              <input
+                type="checkbox"
+                name="ownMe"
+                className="mt-1 accent-brand"
+              />
               <span>
                 I am accountable for keeping this record true
                 <span className="block text-xs text-ink-soft">
@@ -197,19 +236,27 @@ export default async function RopaPage() {
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="flex items-baseline gap-3">
-                  <span className="font-mono text-xs text-ink-soft">{activity.reference}</span>
+                  <span className="font-mono text-xs text-ink-soft">
+                    {activity.reference}
+                  </span>
                   <span className="font-medium">{activity.name}</span>
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {entityName}
-                  {activity.regime === "dpa_part3" ? " · Part 3" : ""}
+                  {activity.regime === 'dpa_part3' ? ' · Part 3' : ''}
                 </span>
               </div>
               <p className="text-xs text-ink-soft">
-                {(activity.purposes ?? []).slice(0, 2).join(" · ") || "no purpose recorded"}
-                {ownerEmail ? ` · ${ownerEmail}` : " · no owner"}
+                {(activity.purposes ?? []).slice(0, 2).join(' · ') ||
+                  'no purpose recorded'}
+                {ownerEmail ? ` · ${ownerEmail}` : ' · no owner'}
               </p>
-              <GapChips gaps={gaps} words={GAP_WORDS} serious={HARD_GAPS} clear="Article 30 complete" />
+              <GapChips
+                gaps={gaps}
+                words={GAP_WORDS}
+                serious={HARD_GAPS}
+                clear="Article 30 complete"
+              />
             </Link>
           </li>
         ))}
@@ -228,19 +275,25 @@ function Stat({
   label,
   value,
   note,
-  tone,
+  tone
 }: {
   label: string;
   value: number;
   note: string;
-  tone?: "plain" | "warn" | "stop";
+  tone?: 'plain' | 'warn' | 'stop';
 }) {
   return (
     <div className="rounded border border-line bg-surface px-4 py-3.5">
-      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+        {label}
+      </p>
       <p
         className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${
-          tone === "stop" ? "text-red-800" : tone === "warn" ? "text-amber-800" : "text-ink"
+          tone === 'stop'
+            ? 'text-red-800'
+            : tone === 'warn'
+              ? 'text-amber-800'
+              : 'text-ink'
         }`}
       >
         {value}

@@ -1,15 +1,22 @@
-import { and, desc, eq } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { aiAssuranceRecords, aiChanges, aiUseCases, type AssuranceMetric } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
+import { and, desc, eq } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import {
+  aiAssuranceRecords,
+  aiChanges,
+  aiUseCases,
+  type AssuranceMetric
+} from '@/db/schema';
 import {
   resultProblems,
   summarise,
   type AssuranceKind,
   type AssuranceResult,
-  type AssuranceSummary,
-} from "@/lib/ai/assurance";
-import type { Actor } from "./templates";
+  type AssuranceSummary
+} from '@/lib/ai/assurance';
+import { appendAuditEvent } from '@/lib/audit';
+
+import type { Actor } from './templates';
 
 export class AssuranceRefused extends Error {}
 
@@ -39,31 +46,50 @@ export async function recordAssurance(input: {
   return withOrganisation(input.organisationId, async () => {
     const title = input.title.trim();
     const performedBy = input.performedBy.trim();
-    const metrics = (input.metrics ?? []).map((m) => ({ ...m, name: m.name.trim() }));
+    const metrics = (input.metrics ?? []).map((m) => ({
+      ...m,
+      name: m.name.trim()
+    }));
     const findings = input.findings?.trim() || null;
-    if (!title) throw new AssuranceRefused("Give it a title");
-    if (!performedBy) throw new AssuranceRefused("Say who carried it out");
+    if (!title) throw new AssuranceRefused('Give it a title');
+    if (!performedBy) throw new AssuranceRefused('Say who carried it out');
     if (input.performedAt.getTime() > Date.now() + 86_400_000) {
-      throw new AssuranceRefused("It cannot have been carried out in the future");
+      throw new AssuranceRefused(
+        'It cannot have been carried out in the future'
+      );
     }
-    const problems = resultProblems(input.kind, input.result, metrics, findings);
-    if (problems.length > 0) throw new AssuranceRefused(problems.join("; "));
+    const problems = resultProblems(
+      input.kind,
+      input.result,
+      metrics,
+      findings
+    );
+    if (problems.length > 0) throw new AssuranceRefused(problems.join('; '));
 
     return db.transaction(async (tx) => {
       const [useCase] = await tx
         .select()
         .from(aiUseCases)
         .where(
-          and(eq(aiUseCases.id, input.useCaseId), eq(aiUseCases.organisationId, input.organisationId)),
+          and(
+            eq(aiUseCases.id, input.useCaseId),
+            eq(aiUseCases.organisationId, input.organisationId)
+          )
         );
-      if (!useCase) throw new Error("No such AI use case");
+      if (!useCase) throw new Error('No such AI use case');
 
       if (input.changeId) {
         const [change] = await tx
           .select({ id: aiChanges.id })
           .from(aiChanges)
-          .where(and(eq(aiChanges.id, input.changeId), eq(aiChanges.aiUseCaseId, useCase.id)));
-        if (!change) throw new AssuranceRefused("That change belongs to another system");
+          .where(
+            and(
+              eq(aiChanges.id, input.changeId),
+              eq(aiChanges.aiUseCaseId, useCase.id)
+            )
+          );
+        if (!change)
+          throw new AssuranceRefused('That change belongs to another system');
       }
 
       const [record] = await tx
@@ -84,15 +110,15 @@ export async function recordAssurance(input: {
           evidenceRef: input.evidenceRef?.trim() || null,
           changeId: input.changeId ?? null,
           recordedByUserId: input.actor.actorUserId ?? null,
-          recordedByLabel: input.actor.actorLabel,
+          recordedByLabel: input.actor.actorLabel
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_assurance.recorded",
-        subjectType: "ai_assurance_record",
+        action: 'ai_assurance.recorded',
+        subjectType: 'ai_assurance_record',
         subjectId: record.id,
         entityId: useCase.entityId,
         after: {
@@ -101,8 +127,8 @@ export async function recordAssurance(input: {
           title,
           result: record.result,
           independent: record.independent,
-          metrics: metrics.length,
-        },
+          metrics: metrics.length
+        }
       });
       return record;
     });
@@ -117,15 +143,20 @@ export async function assuranceFor(useCaseId: string, organisationId: string) {
       .where(
         and(
           eq(aiAssuranceRecords.aiUseCaseId, useCaseId),
-          eq(aiAssuranceRecords.organisationId, organisationId),
-        ),
+          eq(aiAssuranceRecords.organisationId, organisationId)
+        )
       )
-      .orderBy(desc(aiAssuranceRecords.performedAt), desc(aiAssuranceRecords.createdAt));
+      .orderBy(
+        desc(aiAssuranceRecords.performedAt),
+        desc(aiAssuranceRecords.createdAt)
+      );
   });
 }
 
 /** What testing says about each system, for the register's gaps. One query. */
-export async function assuranceByUseCase(organisationId: string): Promise<Map<string, AssuranceSummary>> {
+export async function assuranceByUseCase(
+  organisationId: string
+): Promise<Map<string, AssuranceSummary>> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({
@@ -133,7 +164,7 @@ export async function assuranceByUseCase(organisationId: string): Promise<Map<st
         kind: aiAssuranceRecords.kind,
         independent: aiAssuranceRecords.independent,
         result: aiAssuranceRecords.result,
-        performedAt: aiAssuranceRecords.performedAt,
+        performedAt: aiAssuranceRecords.performedAt
       })
       .from(aiAssuranceRecords)
       .where(eq(aiAssuranceRecords.organisationId, organisationId));
@@ -143,8 +174,14 @@ export async function assuranceByUseCase(organisationId: string): Promise<Map<st
     return new Map(
       [...grouped].map(([id, records]) => [
         id,
-        summarise(records.map((r) => ({ ...r, kind: r.kind as AssuranceKind, result: r.result as AssuranceResult | null }))),
-      ]),
+        summarise(
+          records.map((r) => ({
+            ...r,
+            kind: r.kind as AssuranceKind,
+            result: r.result as AssuranceResult | null
+          }))
+        )
+      ])
     );
   });
 }

@@ -11,7 +11,7 @@
 /** Article 33(1). Seventy-two hours, from awareness rather than occurrence. */
 export const NOTIFICATION_WINDOW_HOURS = 72;
 
-export type ControllerRole = "controller" | "joint_controller" | "processor";
+export type ControllerRole = 'controller' | 'joint_controller' | 'processor';
 
 /**
  * The two statutory thresholds, kept apart.
@@ -20,23 +20,26 @@ export type ControllerRole = "controller" | "joint_controller" | "processor";
  * 34 on whether that risk is high. They are different questions with different
  * consequences, and one field cannot answer both.
  */
-export type RiskLevel = "none" | "risk" | "high_risk";
+export type RiskLevel = 'none' | 'risk' | 'high_risk';
 
 /** Article 34(3): when the people affected need not be told individually. */
 export const COMMUNICATION_EXEMPTIONS = {
-  "34(3)(a)": "The data was unintelligible to anyone unauthorised - encryption or effective pseudonymisation",
-  "34(3)(b)": "Subsequent measures mean the high risk is no longer likely to materialise",
-  "34(3)(c)": "Individual communication would involve disproportionate effort, so a public communication was made instead",
+  '34(3)(a)':
+    'The data was unintelligible to anyone unauthorised - encryption or effective pseudonymisation',
+  '34(3)(b)':
+    'Subsequent measures mean the high risk is no longer likely to materialise',
+  '34(3)(c)':
+    'Individual communication would involve disproportionate effort, so a public communication was made instead'
 } as const;
 export type CommunicationExemption = keyof typeof COMMUNICATION_EXEMPTIONS;
 
 export type Obligation = {
   kind:
-    | "supervisory_authority"
-    | "data_subjects"
-    | "processor_to_controller"
-    | "pecr_commissioner"
-    | "pecr_subscribers";
+    | 'supervisory_authority'
+    | 'data_subjects'
+    | 'processor_to_controller'
+    | 'pecr_commissioner'
+    | 'pecr_subscribers';
   /** The provision that engages it. */
   basis: string;
   /** What has to happen. */
@@ -55,11 +58,15 @@ export type Obligation = {
  * not remove the obligation — it adds one.
  */
 export function notificationDeadline(discoveredAt: Date): Date {
-  return new Date(discoveredAt.getTime() + NOTIFICATION_WINDOW_HOURS * 3_600_000);
+  return new Date(
+    discoveredAt.getTime() + NOTIFICATION_WINDOW_HOURS * 3_600_000
+  );
 }
 
 export function hoursRemaining(discoveredAt: Date, now = new Date()): number {
-  return (notificationDeadline(discoveredAt).getTime() - now.getTime()) / 3_600_000;
+  return (
+    (notificationDeadline(discoveredAt).getTime() - now.getTime()) / 3_600_000
+  );
 }
 
 /**
@@ -81,23 +88,24 @@ export function obligationsFor(input: {
    * ss.67–68 in place of Articles 33–34, with the same thresholds and clock,
    * and s.68(7) letting telling the people affected be restricted.
    */
-  regime?: "uk_gdpr" | "dpa_part3";
+  regime?: 'uk_gdpr' | 'dpa_part3';
 }): Obligation[] {
   const { role, risk, discoveredAt } = input;
   const deadline = notificationDeadline(discoveredAt);
-  const part3 = input.regime === "dpa_part3";
+  const part3 = input.regime === 'dpa_part3';
 
   // A processor does not notify the authority. Its duty runs to the controller,
   // without undue delay and with no fixed period attached.
-  if (role === "processor") {
+  if (role === 'processor') {
     return [
       {
-        kind: "processor_to_controller",
-        basis: part3 ? "DPA 2018 s.67(9)" : "Article 33(2)",
-        what: "Tell the controller, without undue delay",
+        kind: 'processor_to_controller',
+        basis: part3 ? 'DPA 2018 s.67(9)' : 'Article 33(2)',
+        what: 'Tell the controller, without undue delay',
         dueAt: null,
-        deadlineWords: "without undue delay - no fixed period, and not seventy-two hours",
-      },
+        deadlineWords:
+          'without undue delay - no fixed period, and not seventy-two hours'
+      }
     ];
   }
 
@@ -105,30 +113,30 @@ export function obligationsFor(input: {
 
   // Unassessed counts as engaged. The seventy-two hours does not pause while
   // somebody decides whether it applies.
-  if (risk === null || risk === "risk" || risk === "high_risk") {
+  if (risk === null || risk === 'risk' || risk === 'high_risk') {
     obligations.push({
-      kind: "supervisory_authority",
-      basis: part3 ? "DPA 2018 s.67(1)" : "Article 33(1)",
+      kind: 'supervisory_authority',
+      basis: part3 ? 'DPA 2018 s.67(1)' : 'Article 33(1)',
       what:
         risk === null
-          ? `Assess the risk, and notify the ${part3 ? "Information Commission" : "supervisory authority"} unless it is unlikely to result in a risk to rights and freedoms`
-          : `Notify the ${part3 ? "Information Commission" : "supervisory authority"}`,
+          ? `Assess the risk, and notify the ${part3 ? 'Information Commission' : 'supervisory authority'} unless it is unlikely to result in a risk to rights and freedoms`
+          : `Notify the ${part3 ? 'Information Commission' : 'supervisory authority'}`,
       dueAt: deadline,
-      deadlineWords: "within seventy-two hours of becoming aware",
+      deadlineWords: 'within seventy-two hours of becoming aware'
     });
   }
 
-  if (risk === "high_risk") {
+  if (risk === 'high_risk') {
     obligations.push({
-      kind: "data_subjects",
-      basis: part3 ? "DPA 2018 s.68(1)" : "Article 34(1)",
+      kind: 'data_subjects',
+      basis: part3 ? 'DPA 2018 s.68(1)' : 'Article 34(1)',
       what: part3
-        ? "Tell the people affected, unless a s.68(3) exception applies or it is restricted under s.68(7)"
-        : "Tell the people affected, unless an Article 34(3) exemption applies",
+        ? 'Tell the people affected, unless a s.68(3) exception applies or it is restricted under s.68(7)'
+        : 'Tell the people affected, unless an Article 34(3) exemption applies',
       // No fixed period: "without undue delay" is the standard, and inventing
       // a number would misstate the law in the one place it matters most.
       dueAt: null,
-      deadlineWords: "without undue delay",
+      deadlineWords: 'without undue delay'
     });
   }
 
@@ -137,10 +145,13 @@ export function obligationsFor(input: {
 
 /** Article 33(3): the minimum a notification has to contain. */
 export const NOTIFICATION_CONTENT = {
-  nature: "The nature of the breach, and the categories and approximate numbers of data subjects and records concerned",
-  contact: "The name and contact details of the data protection officer or other contact point",
-  consequences: "The likely consequences of the breach",
-  measures: "The measures taken or proposed, including any to mitigate possible adverse effects",
+  nature:
+    'The nature of the breach, and the categories and approximate numbers of data subjects and records concerned',
+  contact:
+    'The name and contact details of the data protection officer or other contact point',
+  consequences: 'The likely consequences of the breach',
+  measures:
+    'The measures taken or proposed, including any to mitigate possible adverse effects'
 } as const;
 export type ContentElement = keyof typeof NOTIFICATION_CONTENT;
 
@@ -169,10 +180,10 @@ export function missingContent(breach: {
     breach.dataCategories.length > 0 &&
     breach.subjectsAffected !== null &&
     breach.recordsAffected !== null;
-  if (!natureKnown) missing.push("nature");
+  if (!natureKnown) missing.push('nature');
 
-  if (!breach.likelyConsequences?.trim()) missing.push("consequences");
-  if (!breach.measuresTaken?.trim()) missing.push("measures");
+  if (!breach.likelyConsequences?.trim()) missing.push('consequences');
+  if (!breach.measuresTaken?.trim()) missing.push('measures');
 
   // The contact point is an organisational fact rather than a breach fact, so
   // it is not derived from the record. It is listed so a notification checked
@@ -181,11 +192,11 @@ export function missingContent(breach: {
 }
 
 export type ClockState =
-  | { state: "not_applicable"; words: string }
-  | { state: "running"; hoursRemaining: number; dueAt: Date; words: string }
-  | { state: "due_soon"; hoursRemaining: number; dueAt: Date; words: string }
-  | { state: "overdue"; hoursOver: number; dueAt: Date; words: string }
-  | { state: "met"; dueAt: Date; notifiedAt: Date; words: string };
+  | { state: 'not_applicable'; words: string }
+  | { state: 'running'; hoursRemaining: number; dueAt: Date; words: string }
+  | { state: 'due_soon'; hoursRemaining: number; dueAt: Date; words: string }
+  | { state: 'overdue'; hoursOver: number; dueAt: Date; words: string }
+  | { state: 'met'; dueAt: Date; notifiedAt: Date; words: string };
 
 /** Under a quarter of the window left is worth saying differently. */
 const DUE_SOON_HOURS = 18;
@@ -205,33 +216,34 @@ export function clockFor(input: {
   notRequired?: boolean;
   now?: Date;
   /** Part 3 cites s.67 where the UK GDPR cites Article 33. */
-  regime?: "uk_gdpr" | "dpa_part3";
+  regime?: 'uk_gdpr' | 'dpa_part3';
 }): ClockState {
   const now = input.now ?? new Date();
   const dueAt = notificationDeadline(input.discoveredAt);
-  const provision = input.regime === "dpa_part3" ? "s.67" : "Article 33(1)";
+  const provision = input.regime === 'dpa_part3' ? 's.67' : 'Article 33(1)';
 
-  if (input.role === "processor") {
+  if (input.role === 'processor') {
     return {
-      state: "not_applicable",
-      words: "A processor tells the controller without undue delay; the seventy-two hours is the controller's",
+      state: 'not_applicable',
+      words:
+        "A processor tells the controller without undue delay; the seventy-two hours is the controller's"
     };
   }
   if (input.notRequired) {
     return {
-      state: "not_applicable",
-      words: `Assessed as unlikely to result in a risk, so ${provision === "s.67" ? "s.67(2)" : provision} does not require notification`,
+      state: 'not_applicable',
+      words: `Assessed as unlikely to result in a risk, so ${provision === 's.67' ? 's.67(2)' : provision} does not require notification`
     };
   }
   if (input.notifiedAt) {
     return {
-      state: "met",
+      state: 'met',
       dueAt,
       notifiedAt: input.notifiedAt,
       words:
         input.notifiedAt <= dueAt
-          ? "Notified within seventy-two hours"
-          : `Notified late - ${provision === "s.67" ? "s.67(3)" : provision} requires the reasons for the delay to accompany it`,
+          ? 'Notified within seventy-two hours'
+          : `Notified late - ${provision === 's.67' ? 's.67(3)' : provision} requires the reasons for the delay to accompany it`
     };
   }
 
@@ -239,14 +251,24 @@ export function clockFor(input: {
 }
 
 /** Where no notification has been made yet: how much of the window is left. */
-function runningClock(dueAt: Date, now: Date, overdueWords = "Past seventy-two hours - notification must still be made, with reasons for the delay"): ClockState {
+function runningClock(
+  dueAt: Date,
+  now: Date,
+  overdueWords = 'Past seventy-two hours - notification must still be made, with reasons for the delay'
+): ClockState {
   const remaining = (dueAt.getTime() - now.getTime()) / 3_600_000;
   if (remaining < 0) {
-    return { state: "overdue", hoursOver: Math.abs(remaining), dueAt, words: overdueWords };
+    return {
+      state: 'overdue',
+      hoursOver: Math.abs(remaining),
+      dueAt,
+      words: overdueWords
+    };
   }
   const words = `${Math.floor(remaining)} hours left of the seventy-two`;
-  if (remaining <= DUE_SOON_HOURS) return { state: "due_soon", hoursRemaining: remaining, dueAt, words };
-  return { state: "running", hoursRemaining: remaining, dueAt, words };
+  if (remaining <= DUE_SOON_HOURS)
+    return { state: 'due_soon', hoursRemaining: remaining, dueAt, words };
+  return { state: 'running', hoursRemaining: remaining, dueAt, words };
 }
 
 /*
@@ -271,46 +293,56 @@ function runningClock(dueAt: Date, now: Date, overdueWords = "Past seventy-two h
  * applying, for the same reason an unassessed risk engages Article 33: the
  * clock does not wait for the question to be settled.
  */
-export function reg5aApplies(input: { provider: boolean; serviceBreach: boolean | null }): boolean {
+export function reg5aApplies(input: {
+  provider: boolean;
+  serviceBreach: boolean | null;
+}): boolean {
   return input.provider && input.serviceBreach !== false;
 }
 
-export function pecrObligationsFor(input: { discoveredAt: Date }): Obligation[] {
+export function pecrObligationsFor(input: {
+  discoveredAt: Date;
+}): Obligation[] {
   return [
     {
-      kind: "pecr_commissioner",
-      basis: "PECR reg 5A(2)",
-      what: "Notify the Information Commission - every breach in providing the service, whatever the risk",
+      kind: 'pecr_commissioner',
+      basis: 'PECR reg 5A(2)',
+      what: 'Notify the Information Commission - every breach in providing the service, whatever the risk',
       dueAt: notificationDeadline(input.discoveredAt),
-      deadlineWords: "where feasible within seventy-two hours of becoming aware, with reasons if later",
+      deadlineWords:
+        'where feasible within seventy-two hours of becoming aware, with reasons if later'
     },
     {
-      kind: "pecr_subscribers",
-      basis: "PECR reg 5A(3)",
-      what: "Tell the subscribers or users affected, if it is likely to adversely affect their personal data or privacy, unless reg 5A(6) applies",
+      kind: 'pecr_subscribers',
+      basis: 'PECR reg 5A(3)',
+      what: 'Tell the subscribers or users affected, if it is likely to adversely affect their personal data or privacy, unless reg 5A(6) applies',
       dueAt: null,
-      deadlineWords: "without undue delay",
-    },
+      deadlineWords: 'without undue delay'
+    }
   ];
 }
 
 /** How the reg 5A seventy-two hours stands. No risk test can switch it off. */
-export function pecrClockFor(input: { discoveredAt: Date; notifiedAt?: Date | null; now?: Date }): ClockState {
+export function pecrClockFor(input: {
+  discoveredAt: Date;
+  notifiedAt?: Date | null;
+  now?: Date;
+}): ClockState {
   const dueAt = notificationDeadline(input.discoveredAt);
   if (input.notifiedAt) {
     return {
-      state: "met",
+      state: 'met',
       dueAt,
       notifiedAt: input.notifiedAt,
       words:
         input.notifiedAt <= dueAt
-          ? "Commissioner notified within seventy-two hours"
-          : "Commissioner notified late - reg 5A requires the reasons for the delay",
+          ? 'Commissioner notified within seventy-two hours'
+          : 'Commissioner notified late - reg 5A requires the reasons for the delay'
     };
   }
   return runningClock(
     dueAt,
     input.now ?? new Date(),
-    "Past seventy-two hours - reg 5A still requires notification, with reasons for the delay",
+    'Past seventy-two hours - reg 5A still requires notification, with reasons for the delay'
   );
 }

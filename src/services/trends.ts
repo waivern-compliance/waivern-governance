@@ -1,6 +1,7 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { assessments, riskAcceptances, risks, tasks } from "@/db/schema";
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import { assessments, riskAcceptances, risks, tasks } from '@/db/schema';
 
 /**
  * Governance posture over time.
@@ -44,8 +45,12 @@ export type TrendPoint = {
 export function monthsEnding(now: Date, count: number): Period[] {
   const periods: Period[] = [];
   for (let i = count - 1; i >= 0; i--) {
-    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1)
+    );
+    const end = new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1)
+    );
     periods.push({ key: start.toISOString().slice(0, 7), start, end });
   }
   return periods;
@@ -65,7 +70,11 @@ function median(values: number[]): number | null {
 
 export type TrendInput = {
   risks: { openedAt: Date; closedAt: Date | null }[];
-  assessments: { createdAt: Date; submittedAt: Date | null; completedAt: Date | null }[];
+  assessments: {
+    createdAt: Date;
+    submittedAt: Date | null;
+    completedAt: Date | null;
+  }[];
   tasks: { completedAt: Date | null; breachedAt: Date | null }[];
   acceptances: { createdAt: Date; expiresAt: Date; revokedAt: Date | null }[];
 };
@@ -77,31 +86,41 @@ export type TrendInput = {
  * can be wrong in ways nobody notices — an off-by-one at a month boundary
  * looks like a quiet week rather than a bug.
  */
-export function buildTrend(data: TrendInput, periods: readonly Period[]): TrendPoint[] {
+export function buildTrend(
+  data: TrendInput,
+  periods: readonly Period[]
+): TrendPoint[] {
   return periods.map((p) => {
     const decided = data.assessments
       .filter((a) => a.submittedAt && within(a.completedAt, p))
-      .map((a) => (a.completedAt!.getTime() - a.submittedAt!.getTime()) / 86_400_000);
+      .map(
+        (a) =>
+          (a.completedAt!.getTime() - a.submittedAt!.getTime()) / 86_400_000
+      );
 
     return {
       period: p.key,
-      assessmentsStarted: data.assessments.filter((a) => within(a.createdAt, p)).length,
-      assessmentsApproved: data.assessments.filter((a) => within(a.completedAt, p)).length,
+      assessmentsStarted: data.assessments.filter((a) => within(a.createdAt, p))
+        .length,
+      assessmentsApproved: data.assessments.filter((a) =>
+        within(a.completedAt, p)
+      ).length,
       risksOpened: data.risks.filter((r) => within(r.openedAt, p)).length,
       risksClosed: data.risks.filter((r) => within(r.closedAt, p)).length,
       // Open at the close of the period: raised by then, not yet closed by then.
       risksOpen: data.risks.filter(
-        (r) => r.openedAt < p.end && (!r.closedAt || r.closedAt >= p.end),
+        (r) => r.openedAt < p.end && (!r.closedAt || r.closedAt >= p.end)
       ).length,
       tasksCompleted: data.tasks.filter((t) => within(t.completedAt, p)).length,
       tasksBreached: data.tasks.filter((t) => within(t.breachedAt, p)).length,
-      acceptancesGranted: data.acceptances.filter((a) => within(a.createdAt, p)).length,
+      acceptancesGranted: data.acceptances.filter((a) => within(a.createdAt, p))
+        .length,
       // An acceptance that was revoked did not expire; it was withdrawn, which
       // is a different event and belongs in a different count.
       acceptancesExpired: data.acceptances.filter(
-        (a) => !a.revokedAt && within(a.expiresAt, p),
+        (a) => !a.revokedAt && within(a.expiresAt, p)
       ).length,
-      daysToDecide: median(decided.map((d) => Math.max(0, Math.round(d)))),
+      daysToDecide: median(decided.map((d) => Math.max(0, Math.round(d))))
     };
   });
 }
@@ -110,49 +129,62 @@ export async function trendFor(
   organisationId: string,
   entityIds: string[] | null,
   months = 12,
-  now = new Date(),
+  now = new Date()
 ): Promise<{ periods: Period[]; points: TrendPoint[] }> {
   return withOrganisation(organisationId, async () => {
     const periods = monthsEnding(now, months);
     const inScope = entityIds === null ? null : entityIds;
 
     const riskScope = inScope
-      ? and(eq(risks.organisationId, organisationId), inArray(risks.entityId, inScope))
+      ? and(
+          eq(risks.organisationId, organisationId),
+          inArray(risks.entityId, inScope)
+        )
       : eq(risks.organisationId, organisationId);
     const assessmentScope = inScope
-      ? and(eq(assessments.organisationId, organisationId), inArray(assessments.entityId, inScope))
+      ? and(
+          eq(assessments.organisationId, organisationId),
+          inArray(assessments.entityId, inScope)
+        )
       : eq(assessments.organisationId, organisationId);
     const taskScope = inScope
-      ? and(eq(tasks.organisationId, organisationId), inArray(tasks.entityId, inScope))
+      ? and(
+          eq(tasks.organisationId, organisationId),
+          inArray(tasks.entityId, inScope)
+        )
       : eq(tasks.organisationId, organisationId);
 
-    const [riskRows, assessmentRows, taskRows, acceptanceRows] = await Promise.all([
-      db
-        .select({ openedAt: risks.openedAt, closedAt: risks.closedAt })
-        .from(risks)
-        .where(riskScope),
-      db
-        .select({
-          createdAt: assessments.createdAt,
-          submittedAt: assessments.submittedAt,
-          completedAt: assessments.completedAt,
-        })
-        .from(assessments)
-        .where(assessmentScope),
-      db
-        .select({ completedAt: tasks.completedAt, breachedAt: tasks.breachedAt })
-        .from(tasks)
-        .where(taskScope),
-      db
-        .select({
-          createdAt: riskAcceptances.createdAt,
-          expiresAt: riskAcceptances.expiresAt,
-          revokedAt: riskAcceptances.revokedAt,
-        })
-        .from(riskAcceptances)
-        .innerJoin(risks, eq(risks.id, riskAcceptances.riskId))
-        .where(and(riskScope, isNotNull(riskAcceptances.createdAt))),
-    ]);
+    const [riskRows, assessmentRows, taskRows, acceptanceRows] =
+      await Promise.all([
+        db
+          .select({ openedAt: risks.openedAt, closedAt: risks.closedAt })
+          .from(risks)
+          .where(riskScope),
+        db
+          .select({
+            createdAt: assessments.createdAt,
+            submittedAt: assessments.submittedAt,
+            completedAt: assessments.completedAt
+          })
+          .from(assessments)
+          .where(assessmentScope),
+        db
+          .select({
+            completedAt: tasks.completedAt,
+            breachedAt: tasks.breachedAt
+          })
+          .from(tasks)
+          .where(taskScope),
+        db
+          .select({
+            createdAt: riskAcceptances.createdAt,
+            expiresAt: riskAcceptances.expiresAt,
+            revokedAt: riskAcceptances.revokedAt
+          })
+          .from(riskAcceptances)
+          .innerJoin(risks, eq(risks.id, riskAcceptances.riskId))
+          .where(and(riskScope, isNotNull(riskAcceptances.createdAt)))
+      ]);
 
     return {
       periods,
@@ -161,10 +193,10 @@ export async function trendFor(
           risks: riskRows,
           assessments: assessmentRows,
           tasks: taskRows,
-          acceptances: acceptanceRows,
+          acceptances: acceptanceRows
         },
-        periods,
-      ),
+        periods
+      )
     };
   });
 }
@@ -173,7 +205,11 @@ export async function trendFor(
 export function historyFrom(points: readonly TrendPoint[]): string | null {
   const first = points.find(
     (p) =>
-      p.assessmentsStarted + p.risksOpened + p.tasksCompleted + p.acceptancesGranted > 0,
+      p.assessmentsStarted +
+        p.risksOpened +
+        p.tasksCompleted +
+        p.acceptancesGranted >
+      0
   );
   return first?.period ?? null;
 }

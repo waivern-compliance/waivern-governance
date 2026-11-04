@@ -10,15 +10,17 @@
  * appear only when `WAIVERN_HOSTED` is "true".
  */
 
-export function waivernHosted(env: Record<string, string | undefined> = process.env): boolean {
-  return env.WAIVERN_HOSTED === "true";
+export function waivernHosted(
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  return env.WAIVERN_HOSTED === 'true';
 }
 
 /** Where the hosted service runs. Change this with the deployment, not after it. */
 export const HOSTED = {
-  provider: "Railway",
-  region: "EU West (Amsterdam)",
-  backups: "daily",
+  provider: 'Railway',
+  region: 'EU West (Amsterdam)',
+  backups: 'daily',
   /** Who to write to about security, a dedicated instance, or anything else. */
-  contact: "info@waivern.com",
+  contact: 'info@waivern.com'
 } as const;

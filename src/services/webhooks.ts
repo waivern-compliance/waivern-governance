@@ -1,9 +1,10 @@
-import { and, eq, inArray, isNull, lte, or } from "drizzle-orm";
-import { db, type Db, withOrganisation } from "@/db/client";
-import { integrationConnections, webhookDeliveries } from "@/db/schema";
-import { openSecret, signRequest } from "@/lib/integration/crypto";
+import { and, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+import { db, withOrganisation, type Db } from '@/db/client';
+import { integrationConnections, webhookDeliveries } from '@/db/schema';
+import { openSecret, signRequest } from '@/lib/integration/crypto';
+
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * Outbound events.
@@ -18,10 +19,10 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  */
 
 export type OutboundEvent =
-  | "assessment.approved"
-  | "assessment.rejected"
-  | "risk.accepted"
-  | "risk.acceptance_lapsed";
+  | 'assessment.approved'
+  | 'assessment.rejected'
+  | 'risk.accepted'
+  | 'risk.acceptance_lapsed';
 
 const MAX_ATTEMPTS = 6;
 
@@ -37,7 +38,7 @@ export async function queueEvent(
     event: OutboundEvent;
     payload: Record<string, unknown>;
     idempotencyKey: string;
-  },
+  }
 ) {
   const subscribers = await tx
     .select()
@@ -45,8 +46,8 @@ export async function queueEvent(
     .where(
       and(
         eq(integrationConnections.organisationId, input.organisationId),
-        eq(integrationConnections.isActive, true),
-      ),
+        eq(integrationConnections.isActive, true)
+      )
     );
 
   for (const c of subscribers) {
@@ -60,15 +61,22 @@ export async function queueEvent(
         payload: input.payload,
         targetUrl: c.webhookUrl,
         idempotencyKey: input.idempotencyKey,
-        nextAttemptAt: new Date(),
+        nextAttemptAt: new Date()
       })
       .onConflictDoNothing({
-        target: [webhookDeliveries.connectionId, webhookDeliveries.idempotencyKey],
+        target: [
+          webhookDeliveries.connectionId,
+          webhookDeliveries.idempotencyKey
+        ]
       });
   }
 }
 
-export type DeliveryRun = { attempted: number; delivered: number; failed: number };
+export type DeliveryRun = {
+  attempted: number;
+  delivered: number;
+  failed: number;
+};
 
 /**
  * Attempt the deliveries that are due.
@@ -77,23 +85,27 @@ export type DeliveryRun = { attempted: number; delivered: number; failed: number
  * event came from us using the secret it already holds. Runs on the same hourly
  * sweep as the rest of the time-based work.
  */
-export async function deliverPending(organisationId?: string): Promise<DeliveryRun> {
+export async function deliverPending(
+  organisationId?: string
+): Promise<DeliveryRun> {
   const due = await db
     .select({ delivery: webhookDeliveries, connection: integrationConnections })
     .from(webhookDeliveries)
     .innerJoin(
       integrationConnections,
-      eq(integrationConnections.id, webhookDeliveries.connectionId),
+      eq(integrationConnections.id, webhookDeliveries.connectionId)
     )
     .where(
       and(
-        organisationId ? eq(webhookDeliveries.organisationId, organisationId) : undefined,
-        inArray(webhookDeliveries.status, ["pending", "failed"]),
+        organisationId
+          ? eq(webhookDeliveries.organisationId, organisationId)
+          : undefined,
+        inArray(webhookDeliveries.status, ['pending', 'failed']),
         or(
           isNull(webhookDeliveries.nextAttemptAt),
-          lte(webhookDeliveries.nextAttemptAt, new Date()),
-        ),
-      ),
+          lte(webhookDeliveries.nextAttemptAt, new Date())
+        )
+      )
     )
     .limit(100);
 
@@ -106,7 +118,7 @@ export async function deliverPending(organisationId?: string): Promise<DeliveryR
       event: delivery.event,
       id: delivery.id,
       occurredAt: delivery.createdAt.toISOString(),
-      data: delivery.payload,
+      data: delivery.payload
     });
     const timestamp = String(Math.floor(Date.now() / 1000));
 
@@ -115,12 +127,15 @@ export async function deliverPending(organisationId?: string): Promise<DeliveryR
       secret = openSecret({
         ciphertext: connection.secretCiphertext,
         iv: connection.secretIv,
-        tag: connection.secretTag,
+        tag: connection.secretTag
       });
     } catch {
       await db
         .update(webhookDeliveries)
-        .set({ status: "abandoned", lastError: "Connection secret could not be decrypted" })
+        .set({
+          status: 'abandoned',
+          lastError: 'Connection secret could not be decrypted'
+        })
         .where(eq(webhookDeliveries.id, delivery.id));
       run.failed += 1;
       continue;
@@ -128,49 +143,55 @@ export async function deliverPending(organisationId?: string): Promise<DeliveryR
 
     try {
       const response = await fetch(delivery.targetUrl, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "content-type": "application/json",
-          "x-waivern-event": delivery.event,
-          "x-waivern-timestamp": timestamp,
-          "x-waivern-signature": signRequest({
+          'content-type': 'application/json',
+          'x-waivern-event': delivery.event,
+          'x-waivern-timestamp': timestamp,
+          'x-waivern-signature': signRequest({
             secret,
             timestamp,
-            method: "POST",
+            method: 'POST',
             // The subscriber knows its own path, and binding it means a
             // captured event cannot be aimed at another of their endpoints.
-            pathWithQuery: new URL(delivery.targetUrl).pathname +
+            pathWithQuery:
+              new URL(delivery.targetUrl).pathname +
               new URL(delivery.targetUrl).search,
-            body,
+            body
           }),
           // The subscriber can use this to make its own handling idempotent.
-          "x-waivern-delivery": delivery.id,
+          'x-waivern-delivery': delivery.id
         },
         body,
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(10_000)
       });
 
       if (response.ok) {
         await db
           .update(webhookDeliveries)
-          .set({ status: "delivered", attempts: attempt, deliveredAt: new Date(), lastError: null })
+          .set({
+            status: 'delivered',
+            attempts: attempt,
+            deliveredAt: new Date(),
+            lastError: null
+          })
           .where(eq(webhookDeliveries.id, delivery.id));
         run.delivered += 1;
         continue;
       }
       throw new Error(`Subscriber returned ${response.status}`);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Delivery failed";
+      const message = e instanceof Error ? e.message : 'Delivery failed';
       const exhausted = attempt >= MAX_ATTEMPTS;
       await db
         .update(webhookDeliveries)
         .set({
-          status: exhausted ? "abandoned" : "failed",
+          status: exhausted ? 'abandoned' : 'failed',
           attempts: attempt,
           lastError: message.slice(0, 500),
           nextAttemptAt: exhausted
             ? null
-            : new Date(Date.now() + backoffSeconds(attempt) * 1000),
+            : new Date(Date.now() + backoffSeconds(attempt) * 1000)
         })
         .where(eq(webhookDeliveries.id, delivery.id));
       run.failed += 1;
@@ -188,8 +209,8 @@ export async function pendingDeliveries(organisationId: string) {
       .where(
         and(
           eq(webhookDeliveries.organisationId, organisationId),
-          inArray(webhookDeliveries.status, ["pending", "failed"]),
-        ),
+          inArray(webhookDeliveries.status, ['pending', 'failed'])
+        )
       )
       .orderBy(webhookDeliveries.createdAt);
   });

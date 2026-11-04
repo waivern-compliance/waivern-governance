@@ -1,5 +1,6 @@
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { db, type Db, withOrganisation } from "@/db/client";
+import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+
+import { db, withOrganisation, type Db } from '@/db/client';
 import {
   aiUseCases,
   approvals,
@@ -7,30 +8,31 @@ import {
   assessments,
   entities,
   memberships,
+  notifications,
   organisations,
   roleAssignments,
-  notifications,
   schedules,
   slaPolicies,
   tasks,
-  templateVersions,
   taskType,
   templates,
+  templateVersions,
   workflowDefinitions,
-  workflowStages,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { actingGrants, mayDecideStage, type Grant } from "@/lib/rbac";
-import { addMonths } from "@/lib/dates";
-import type { RiskTier } from "@/lib/risk/scale";
-import { describe, matches, type RoutingContext } from "@/lib/workflow/routing";
-import { loadAssessment, submitAssessment } from "./assessments";
-import { needingSafeguards } from "./countries";
-import { effectiveDpo, isDpoStage } from "@/lib/dpa2018/public-authority";
-import { queueEvent } from "./webhooks";
-import type { Actor } from "./templates";
+  workflowStages
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { addMonths } from '@/lib/dates';
+import { effectiveDpo, isDpoStage } from '@/lib/dpa2018/public-authority';
+import { actingGrants, mayDecideStage, type Grant } from '@/lib/rbac';
+import type { RiskTier } from '@/lib/risk/scale';
+import { describe, matches, type RoutingContext } from '@/lib/workflow/routing';
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+import { loadAssessment, submitAssessment } from './assessments';
+import { needingSafeguards } from './countries';
+import type { Actor } from './templates';
+import { queueEvent } from './webhooks';
+
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * Who a stage's task goes to by name, besides the role.
@@ -44,25 +46,37 @@ async function stageAssignee(
   tx: Tx,
   organisationId: string,
   entityId: string,
-  stage: { name: string; requiredRole: string },
+  stage: { name: string; requiredRole: string }
 ): Promise<string | null> {
   if (!isDpoStage(stage.name)) return null;
-  const [org] = await tx.select({ dpo: organisations.dpo }).from(organisations).where(eq(organisations.id, organisationId));
-  const [entity] = await tx.select({ dpo: entities.dpo }).from(entities).where(eq(entities.id, entityId));
+  const [org] = await tx
+    .select({ dpo: organisations.dpo })
+    .from(organisations)
+    .where(eq(organisations.id, organisationId));
+  const [entity] = await tx
+    .select({ dpo: entities.dpo })
+    .from(entities)
+    .where(eq(entities.id, entityId));
   const dpo = effectiveDpo(org?.dpo ?? null, entity?.dpo ?? null);
   if (!dpo?.userId) return null;
   const roles = await tx
-    .select({ role: roleAssignments.role, scope: roleAssignments.scope, entityId: roleAssignments.entityId })
+    .select({
+      role: roleAssignments.role,
+      scope: roleAssignments.scope,
+      entityId: roleAssignments.entityId
+    })
     .from(roleAssignments)
     .innerJoin(memberships, eq(memberships.id, roleAssignments.membershipId))
     .where(
       and(
         eq(memberships.organisationId, organisationId),
         eq(memberships.userId, dpo.userId),
-        eq(memberships.isActive, true),
-      ),
+        eq(memberships.isActive, true)
+      )
     );
-  const held = roles.filter((r) => r.scope === "organisation" || r.entityId === entityId).map((r) => r.role);
+  const held = roles
+    .filter((r) => r.scope === 'organisation' || r.entityId === entityId)
+    .map((r) => r.role);
   return mayDecideStage(held, stage.requiredRole) ? dpo.userId : null;
 }
 
@@ -75,7 +89,7 @@ export type TaskType = (typeof taskType.enumValues)[number];
 const REVIEW_INTERVAL_MONTHS: Record<string, number> = {
   quarterly: 3,
   biannual: 6,
-  annual: 12,
+  annual: 12
 };
 
 /** Default service levels, applied where the organisation has set none. */
@@ -118,14 +132,19 @@ const DEFAULT_SLA_HOURS: Record<TaskType, number> = {
   // Cookies seen before consent may be unlawful today; a week to look at what the scan found.
   pecr_scan_changes: 24 * 7,
   // Placeholder: the sweep sets each reminder's due date to when the 28 days run out.
-  marketing_tps_screening: 24 * 3,
+  marketing_tps_screening: 24 * 3
 };
 
 async function slaHoursFor(tx: Tx, organisationId: string, type: TaskType) {
   const [policy] = await tx
     .select()
     .from(slaPolicies)
-    .where(and(eq(slaPolicies.organisationId, organisationId), eq(slaPolicies.taskType, type)));
+    .where(
+      and(
+        eq(slaPolicies.organisationId, organisationId),
+        eq(slaPolicies.taskType, type)
+      )
+    );
   return policy?.targetHours ?? DEFAULT_SLA_HOURS[type];
 }
 
@@ -144,15 +163,15 @@ export async function raiseTask(
     type: TaskType;
     title: string;
     description?: string;
-    subjectType: (typeof tasks.$inferInsert)["subjectType"];
+    subjectType: (typeof tasks.$inferInsert)['subjectType'];
     subjectId: string;
     assigneeUserId?: string | null;
     assigneeEmail?: string | null;
-    assigneeRole?: (typeof tasks.$inferInsert)["assigneeRole"];
+    assigneeRole?: (typeof tasks.$inferInsert)['assigneeRole'];
     dueAt?: Date;
     idempotencyKey: string;
     actor: Actor;
-  },
+  }
 ) {
   const slaHours = await slaHoursFor(tx, input.organisationId, input.type);
   const dueAt = input.dueAt ?? new Date(Date.now() + slaHours * 3600 * 1000);
@@ -172,9 +191,11 @@ export async function raiseTask(
       assigneeRole: input.assigneeRole,
       dueAt,
       slaHours,
-      idempotencyKey: input.idempotencyKey,
+      idempotencyKey: input.idempotencyKey
     })
-    .onConflictDoNothing({ target: [tasks.organisationId, tasks.idempotencyKey] })
+    .onConflictDoNothing({
+      target: [tasks.organisationId, tasks.idempotencyKey]
+    })
     .returning();
 
   if (!task) return null; // Already raised.
@@ -182,21 +203,25 @@ export async function raiseTask(
   await appendAuditEvent(tx, {
     ...input.actor,
     organisationId: input.organisationId,
-    action: "task.raised",
-    subjectType: "task",
+    action: 'task.raised',
+    subjectType: 'task',
     subjectId: task.id,
     entityId: input.entityId,
-    after: { type: input.type, title: input.title, dueAt: dueAt.toISOString() },
+    after: { type: input.type, title: input.title, dueAt: dueAt.toISOString() }
   });
 
   await queueNotification(tx, {
     organisationId: input.organisationId,
-    recipient: input.assigneeEmail ?? input.assigneeUserId ?? input.assigneeRole ?? "unassigned",
-    kind: "task.raised",
+    recipient:
+      input.assigneeEmail ??
+      input.assigneeUserId ??
+      input.assigneeRole ??
+      'unassigned',
+    kind: 'task.raised',
     subject: input.title,
     body: `${input.description ?? input.title}\nDue ${dueAt.toISOString().slice(0, 10)}.`,
     taskId: task.id,
-    idempotencyKey: `notify:raised:${task.id}`,
+    idempotencyKey: `notify:raised:${task.id}`
   });
 
   return task;
@@ -213,13 +238,13 @@ export async function queueNotification(
     body: string;
     taskId?: string;
     idempotencyKey: string;
-  },
+  }
 ) {
   await tx
     .insert(notifications)
     .values(input)
     .onConflictDoNothing({
-      target: [notifications.organisationId, notifications.idempotencyKey],
+      target: [notifications.organisationId, notifications.idempotencyKey]
     });
 }
 
@@ -237,15 +262,18 @@ export async function openApprovals(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    const loaded = await loadAssessment(input.assessmentId, input.organisationId);
-    if (!loaded) throw new Error("No such assessment");
+    const loaded = await loadAssessment(
+      input.assessmentId,
+      input.organisationId
+    );
+    if (!loaded) throw new Error('No such assessment');
 
     const [tmpl] = await db
       .select({ kind: templates.kind })
       .from(templateVersions)
       .innerJoin(templates, eq(templates.id, templateVersions.templateId))
       .where(eq(templateVersions.id, loaded.assessment.templateVersionId));
-    if (!tmpl) throw new Error("No such template");
+    if (!tmpl) throw new Error('No such template');
 
     const [definition] = await db
       .select()
@@ -254,8 +282,8 @@ export async function openApprovals(input: {
         and(
           eq(workflowDefinitions.organisationId, input.organisationId),
           eq(workflowDefinitions.templateKind, tmpl.kind),
-          eq(workflowDefinitions.isActive, true),
-        ),
+          eq(workflowDefinitions.isActive, true)
+        )
       );
     if (!definition) return { approvals: [], firstPending: null };
 
@@ -271,7 +299,7 @@ export async function openApprovals(input: {
       tier: loaded.assessment.scoreTier as RiskTier | null,
       // Loaded per submission rather than baked in, so an adequacy decision
       // changing takes effect on the next assessment rather than the next deploy.
-      needsSafeguards: await needingSafeguards(input.organisationId, "uk"),
+      needsSafeguards: await needingSafeguards(input.organisationId, 'uk')
     };
 
     return db.transaction(async (tx) => {
@@ -288,44 +316,55 @@ export async function openApprovals(input: {
             name: stage.name,
             requiredRole: stage.requiredRole,
             boardName: stage.boardName,
-            status: applies ? "pending" : "skipped",
+            status: applies ? 'pending' : 'skipped',
             reason: applies
               ? `Applies: ${describe(stage.condition)}`
-              : `Not required: ${describe(stage.condition)} did not hold`,
+              : `Not required: ${describe(stage.condition)} did not hold`
           })
-          .onConflictDoNothing({ target: [approvals.assessmentId, approvals.position] })
+          .onConflictDoNothing({
+            target: [approvals.assessmentId, approvals.position]
+          })
           .returning();
         if (row) created.push(row);
       }
 
-      const firstPending = created.find((a) => a.status === "pending") ?? null;
+      const firstPending = created.find((a) => a.status === 'pending') ?? null;
 
       if (firstPending) {
         await raiseTask(tx, {
           organisationId: input.organisationId,
           entityId: loaded.assessment.entityId,
-          type: "approve_stage",
+          type: 'approve_stage',
           title: `${firstPending.name}: ${loaded.assessment.reference} ${loaded.assessment.title}`,
           description: firstPending.reason,
-          subjectType: "assessment",
+          subjectType: 'assessment',
           subjectId: input.assessmentId,
           assigneeRole: firstPending.requiredRole,
-          assigneeUserId: await stageAssignee(tx, input.organisationId, loaded.assessment.entityId, firstPending),
+          assigneeUserId: await stageAssignee(
+            tx,
+            input.organisationId,
+            loaded.assessment.entityId,
+            firstPending
+          ),
           idempotencyKey: `approve:${firstPending.id}`,
-          actor: input.actor,
+          actor: input.actor
         });
       }
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "assessment.approvals_opened",
-        subjectType: "assessment",
+        action: 'assessment.approvals_opened',
+        subjectType: 'assessment',
         subjectId: input.assessmentId,
         entityId: loaded.assessment.entityId,
         after: {
-          stages: created.map((a) => ({ name: a.name, status: a.status, reason: a.reason })),
-        },
+          stages: created.map((a) => ({
+            name: a.name,
+            status: a.status,
+            reason: a.reason
+          }))
+        }
       });
 
       return { approvals: created, firstPending };
@@ -345,7 +384,7 @@ export async function openApprovals(input: {
 export async function decideApproval(input: {
   approvalId: string;
   organisationId: string;
-  decision: "approved" | "rejected" | "returned";
+  decision: 'approved' | 'rejected' | 'returned';
   rationale: string;
   /** For a board's stage: the meeting and minute that decided it. */
   boardReference?: string;
@@ -355,7 +394,8 @@ export async function decideApproval(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const rationale = input.rationale.trim();
-    if (!rationale) throw new DecisionRefused("A rationale is required for every decision");
+    if (!rationale)
+      throw new DecisionRefused('A rationale is required for every decision');
     const boardReference = input.boardReference?.trim() || null;
 
     return db.transaction(async (tx) => {
@@ -366,24 +406,26 @@ export async function decideApproval(input: {
         .where(
           and(
             eq(approvals.id, input.approvalId),
-            eq(assessments.organisationId, input.organisationId),
-          ),
+            eq(assessments.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such approval");
-      if (row.approval.status !== "pending") {
-        throw new DecisionRefused(`This stage is already ${row.approval.status}`);
+      if (!row) throw new Error('No such approval');
+      if (row.approval.status !== 'pending') {
+        throw new DecisionRefused(
+          `This stage is already ${row.approval.status}`
+        );
       }
       // A board's decision is recorded by one person but made by the meeting,
       // and the record has to say which meeting — otherwise it reads as that
       // person's own decision, with the board's authority borrowed.
       if (row.approval.boardName && !boardReference) {
         throw new DecisionRefused(
-          `This is the ${row.approval.boardName}'s decision: give the meeting and minute that made it`,
+          `This is the ${row.approval.boardName}'s decision: give the meeting and minute that made it`
         );
       }
       if (!mayDecideStage(input.callerRoles, row.approval.requiredRole)) {
         throw new NotYourDecision(
-          `This stage is decided by ${row.approval.requiredRole.replace(/_/g, " ")}`,
+          `This stage is decided by ${row.approval.requiredRole.replace(/_/g, ' ')}`
         );
       }
 
@@ -393,13 +435,13 @@ export async function decideApproval(input: {
         .where(
           and(
             eq(approvals.assessmentId, row.approval.assessmentId),
-            eq(approvals.status, "pending"),
-            sql`${approvals.position} < ${row.approval.position}`,
-          ),
+            eq(approvals.status, 'pending'),
+            sql`${approvals.position} < ${row.approval.position}`
+          )
         );
       if (earlier.length > 0) {
         throw new DecisionRefused(
-          `${earlier[0].name} has not been decided yet`,
+          `${earlier[0].name} has not been decided yet`
         );
       }
 
@@ -412,37 +454,45 @@ export async function decideApproval(input: {
           decidedByLabel: input.actor.actorLabel,
           decidedAt: now,
           rationale,
-          boardReference: row.approval.boardName ? boardReference : null,
+          boardReference: row.approval.boardName ? boardReference : null
         })
         .where(eq(approvals.id, input.approvalId));
 
       // Close the task that asked for this decision.
       await tx
         .update(tasks)
-        .set({ status: "done", completedAt: now, completedByLabel: input.actor.actorLabel })
+        .set({
+          status: 'done',
+          completedAt: now,
+          completedByLabel: input.actor.actorLabel
+        })
         .where(
           and(
             eq(tasks.organisationId, input.organisationId),
-            eq(tasks.idempotencyKey, `approve:${input.approvalId}`),
-          ),
+            eq(tasks.idempotencyKey, `approve:${input.approvalId}`)
+          )
         );
 
-      let assessmentStatus: "in_review" | "approved" | "returned" | "rejected" = "in_review";
+      let assessmentStatus: 'in_review' | 'approved' | 'returned' | 'rejected' =
+        'in_review';
       let nextPending: typeof approvals.$inferSelect | null = null;
 
-      if (input.decision === "rejected") {
-        assessmentStatus = "rejected";
-      } else if (input.decision === "returned") {
-        assessmentStatus = "returned";
+      if (input.decision === 'rejected') {
+        assessmentStatus = 'rejected';
+      } else if (input.decision === 'returned') {
+        assessmentStatus = 'returned';
         // The remaining gates are moot until it comes back.
         await tx
           .update(approvals)
-          .set({ status: "skipped", reason: "Assessment returned before this stage" })
+          .set({
+            status: 'skipped',
+            reason: 'Assessment returned before this stage'
+          })
           .where(
             and(
               eq(approvals.assessmentId, row.approval.assessmentId),
-              eq(approvals.status, "pending"),
-            ),
+              eq(approvals.status, 'pending')
+            )
           );
       } else {
         const remaining = await tx
@@ -451,12 +501,12 @@ export async function decideApproval(input: {
           .where(
             and(
               eq(approvals.assessmentId, row.approval.assessmentId),
-              eq(approvals.status, "pending"),
-            ),
+              eq(approvals.status, 'pending')
+            )
           )
           .orderBy(asc(approvals.position));
         nextPending = remaining[0] ?? null;
-        assessmentStatus = nextPending ? "in_review" : "approved";
+        assessmentStatus = nextPending ? 'in_review' : 'approved';
       }
 
       /**
@@ -470,7 +520,7 @@ export async function decideApproval(input: {
        */
       let reviewDueAt: Date | null = null;
       let intervalMonths: number | null = null;
-      if (assessmentStatus === "approved") {
+      if (assessmentStatus === 'approved') {
         const [version] = await tx
           .select({ definition: templateVersions.definition })
           .from(templateVersions)
@@ -488,12 +538,15 @@ export async function decideApproval(input: {
           .where(
             and(
               eq(assessmentAnswers.assessmentId, row.approval.assessmentId),
-              eq(assessmentAnswers.questionKey, "review_interval"),
-            ),
+              eq(assessmentAnswers.questionKey, 'review_interval')
+            )
           );
-        const assessorMonths = REVIEW_INTERVAL_MONTHS[String(chosen?.value ?? "")];
+        const assessorMonths =
+          REVIEW_INTERVAL_MONTHS[String(chosen?.value ?? '')];
         if (assessorMonths) {
-          intervalMonths = intervalMonths ? Math.min(intervalMonths, assessorMonths) : assessorMonths;
+          intervalMonths = intervalMonths
+            ? Math.min(intervalMonths, assessorMonths)
+            : assessorMonths;
         }
 
         if (intervalMonths) reviewDueAt = addMonths(now, intervalMonths);
@@ -504,23 +557,29 @@ export async function decideApproval(input: {
         .set({
           status: assessmentStatus,
           updatedAt: now,
-          completedAt: assessmentStatus === "approved" ? now : null,
-          ...(reviewDueAt ? { reviewDueAt, reviewIntervalMonths: intervalMonths } : {}),
+          completedAt: assessmentStatus === 'approved' ? now : null,
+          ...(reviewDueAt
+            ? { reviewDueAt, reviewIntervalMonths: intervalMonths }
+            : {})
         })
         .where(eq(assessments.id, row.approval.assessmentId));
 
       // An approved assessment of an AI system dates the system's next review on
       // the register too. Without this the register's review date is whatever
       // somebody typed when they added the system, and nothing ever moves it.
-      if (reviewDueAt && row.assessment.subjectType === "ai_use_case" && row.assessment.subjectId) {
+      if (
+        reviewDueAt &&
+        row.assessment.subjectType === 'ai_use_case' &&
+        row.assessment.subjectId
+      ) {
         await tx
           .update(aiUseCases)
           .set({ nextReviewAt: reviewDueAt, updatedAt: now })
           .where(
             and(
               eq(aiUseCases.id, row.assessment.subjectId),
-              eq(aiUseCases.organisationId, input.organisationId),
-            ),
+              eq(aiUseCases.organisationId, input.organisationId)
+            )
           );
       }
 
@@ -530,16 +589,16 @@ export async function decideApproval(input: {
           .values({
             organisationId: input.organisationId,
             entityId: row.assessment.entityId,
-            subjectType: "assessment",
+            subjectType: 'assessment',
             subjectId: row.approval.assessmentId,
-            action: "reassess",
+            action: 'reassess',
             title: `Reassess ${row.assessment.reference} ${row.assessment.title}`,
             intervalMonths,
             nextDueAt: reviewDueAt,
             // The owner does the work. The people who approved it are found at
             // materialisation time from the approvals themselves, because a
             // reapproval is theirs and a schedule holds only one name.
-            assigneeUserId: row.assessment.ownerId,
+            assigneeUserId: row.assessment.ownerId
           })
           .onConflictDoNothing();
       }
@@ -548,25 +607,33 @@ export async function decideApproval(input: {
         await raiseTask(tx, {
           organisationId: input.organisationId,
           entityId: row.assessment.entityId,
-          type: "approve_stage",
+          type: 'approve_stage',
           title: `${nextPending.name}: ${row.assessment.reference} ${row.assessment.title}`,
           description: nextPending.reason,
-          subjectType: "assessment",
+          subjectType: 'assessment',
           subjectId: row.approval.assessmentId,
           assigneeRole: nextPending.requiredRole,
-          assigneeUserId: await stageAssignee(tx, input.organisationId, row.assessment.entityId, nextPending),
+          assigneeUserId: await stageAssignee(
+            tx,
+            input.organisationId,
+            row.assessment.entityId,
+            nextPending
+          ),
           idempotencyKey: `approve:${nextPending.id}`,
-          actor: input.actor,
+          actor: input.actor
         });
       }
 
       // Queued inside the same transaction as the decision, so an approval never
       // lands without its notification and a rolled-back decision never announces
       // itself. Delivery happens later, on the sweep.
-      if (assessmentStatus === "approved" || assessmentStatus === "rejected") {
+      if (assessmentStatus === 'approved' || assessmentStatus === 'rejected') {
         await queueEvent(tx, {
           organisationId: input.organisationId,
-          event: assessmentStatus === "approved" ? "assessment.approved" : "assessment.rejected",
+          event:
+            assessmentStatus === 'approved'
+              ? 'assessment.approved'
+              : 'assessment.rejected',
           payload: {
             reference: row.assessment.reference,
             title: row.assessment.title,
@@ -574,9 +641,9 @@ export async function decideApproval(input: {
             score: row.assessment.scoreValue,
             tier: row.assessment.scoreTier,
             decidedBy: input.actor.actorLabel,
-            rationale,
+            rationale
           },
-          idempotencyKey: `assessment:${row.approval.assessmentId}:${assessmentStatus}`,
+          idempotencyKey: `assessment:${row.approval.assessmentId}:${assessmentStatus}`
         });
       }
 
@@ -584,15 +651,23 @@ export async function decideApproval(input: {
       // record of it is the notification; whether it is also emailed is theirs
       // to choose (lib/email/member.ts).
       const owner = row.assessment.ownerId;
-      if (assessmentStatus !== "in_review" && owner && owner !== input.actor.actorUserId) {
-        const verb = { approved: "was approved", rejected: "was rejected", returned: "was sent back for changes" }[assessmentStatus];
+      if (
+        assessmentStatus !== 'in_review' &&
+        owner &&
+        owner !== input.actor.actorUserId
+      ) {
+        const verb = {
+          approved: 'was approved',
+          rejected: 'was rejected',
+          returned: 'was sent back for changes'
+        }[assessmentStatus];
         await queueNotification(tx, {
           organisationId: input.organisationId,
           recipient: owner,
-          kind: "assessment.decided",
+          kind: 'assessment.decided',
           subject: `${row.assessment.reference} ${row.assessment.title} ${verb}`,
           body: `${row.approval.name}: ${input.actor.actorLabel}\n\n/app/assessments/${row.approval.assessmentId}`,
-          idempotencyKey: `decided:${row.approval.assessmentId}:${input.approvalId}`,
+          idempotencyKey: `decided:${row.approval.assessmentId}:${input.approvalId}`
         });
       }
 
@@ -600,10 +675,10 @@ export async function decideApproval(input: {
         ...input.actor,
         organisationId: input.organisationId,
         action: `approval.${input.decision}`,
-        subjectType: "approval",
+        subjectType: 'approval',
         subjectId: input.approvalId,
         entityId: row.assessment.entityId,
-        before: { status: "pending" },
+        before: { status: 'pending' },
         after: {
           status: input.decision,
           stage: row.approval.name,
@@ -611,8 +686,8 @@ export async function decideApproval(input: {
           ...(row.approval.boardName
             ? { decidedBy: row.approval.boardName, boardReference }
             : {}),
-          assessmentStatus,
-        },
+          assessmentStatus
+        }
       });
 
       return { status: assessmentStatus, nextPending };
@@ -638,13 +713,17 @@ export async function completeTask(input: {
       const now = new Date();
       const [task] = await tx
         .update(tasks)
-        .set({ status: "done", completedAt: now, completedByLabel: input.actor.actorLabel })
+        .set({
+          status: 'done',
+          completedAt: now,
+          completedByLabel: input.actor.actorLabel
+        })
         .where(
           and(
             eq(tasks.id, input.taskId),
             eq(tasks.organisationId, input.organisationId),
-            inArray(tasks.status, ["open", "in_progress"]),
-          ),
+            inArray(tasks.status, ['open', 'in_progress'])
+          )
         )
         .returning();
       if (!task) return null;
@@ -652,11 +731,11 @@ export async function completeTask(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "task.completed",
-        subjectType: "task",
+        action: 'task.completed',
+        subjectType: 'task',
         subjectId: task.id,
         entityId: task.entityId,
-        after: { title: task.title },
+        after: { title: task.title }
       });
       return task;
     });
@@ -668,7 +747,11 @@ export type TaskViewer = {
   entityIds: string[] | null;
   userId?: string | null;
   /** Roles held, and where. A role grant is what makes an unassigned task theirs. */
-  grants?: ReadonlyArray<{ role: string; scope: "organisation" | "entity"; entityId?: string }>;
+  grants?: ReadonlyArray<{
+    role: string;
+    scope: 'organisation' | 'entity';
+    entityId?: string;
+  }>;
 };
 
 /**
@@ -701,12 +784,12 @@ export async function openTasks(organisationId: string, viewer: TaskViewer) {
 
     for (const g of actingGrants((viewer.grants ?? []) as readonly Grant[])) {
       reach.push(
-        g.scope === "organisation"
+        g.scope === 'organisation'
           ? eq(tasks.assigneeRole, g.role as never)
           : and(
               eq(tasks.assigneeRole, g.role as never),
-              eq(tasks.entityId, g.entityId!),
-            ),
+              eq(tasks.entityId, g.entityId!)
+            )
       );
     }
 
@@ -719,9 +802,9 @@ export async function openTasks(organisationId: string, viewer: TaskViewer) {
       .where(
         and(
           eq(tasks.organisationId, organisationId),
-          inArray(tasks.status, ["open", "in_progress"]),
-          or(...reach),
-        ),
+          inArray(tasks.status, ['open', 'in_progress']),
+          or(...reach)
+        )
       )
       .orderBy(asc(tasks.dueAt));
   });
@@ -736,16 +819,19 @@ export async function tasksInBreach(organisationId: string) {
       .where(
         and(
           eq(tasks.organisationId, organisationId),
-          inArray(tasks.status, ["open", "in_progress"]),
+          inArray(tasks.status, ['open', 'in_progress']),
           isNull(tasks.breachedAt),
-          lte(tasks.dueAt, new Date()),
-        ),
+          lte(tasks.dueAt, new Date())
+        )
       );
   });
 }
 
 /** Open tasks falling due inside the window, for a nudge before the deadline. */
-export async function tasksDueSoon(organisationId: string, withinHours: number) {
+export async function tasksDueSoon(
+  organisationId: string,
+  withinHours: number
+) {
   return withOrganisation(organisationId, async () => {
     const horizon = new Date(Date.now() + withinHours * 3600 * 1000);
     return db
@@ -754,11 +840,11 @@ export async function tasksDueSoon(organisationId: string, withinHours: number) 
       .where(
         and(
           eq(tasks.organisationId, organisationId),
-          inArray(tasks.status, ["open", "in_progress"]),
+          inArray(tasks.status, ['open', 'in_progress']),
           isNull(tasks.breachedAt),
           lte(tasks.dueAt, horizon),
-          or(isNull(tasks.escalatedAt), sql`true`),
-        ),
+          or(isNull(tasks.escalatedAt), sql`true`)
+        )
       );
   });
 }

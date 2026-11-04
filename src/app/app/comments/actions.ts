@@ -1,10 +1,11 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { pathFor } from "@/lib/records";
-import { requireCapability } from "@/lib/session";
-import { postComment, withdrawComment } from "@/services/collaboration";
-import type { Comment } from "@/services/collaboration";
+import { revalidatePath } from 'next/cache';
+
+import { pathFor } from '@/lib/records';
+import { requireCapability } from '@/lib/session';
+import { postComment, withdrawComment } from '@/services/collaboration';
+import type { Comment } from '@/services/collaboration';
 
 /**
  * Commenting needs read access, not write.
@@ -16,19 +17,19 @@ import type { Comment } from "@/services/collaboration";
  */
 export async function postCommentAction(
   context: {
-    subjectType: Comment["subjectType"];
+    subjectType: Comment['subjectType'];
     subjectId: string;
     entityId: string | null;
     subjectLabel: string;
   },
-  formData: FormData,
+  formData: FormData
 ) {
-  const body = String(formData.get("body") ?? "").trim();
+  const body = String(formData.get('body') ?? '').trim();
   if (!body) return;
 
   const active = await requireCapability(
-    "record.read",
-    context.entityId ? { entityId: context.entityId } : undefined,
+    'record.read',
+    context.entityId ? { entityId: context.entityId } : undefined
   );
 
   await postComment({
@@ -38,7 +39,11 @@ export async function postCommentAction(
     subjectId: context.subjectId,
     subjectLabel: context.subjectLabel,
     body,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
 
   const href = pathFor(context.subjectType, context.subjectId);
@@ -46,11 +51,15 @@ export async function postCommentAction(
 }
 
 export async function withdrawCommentAction(commentId: string, href: string) {
-  const active = await requireCapability("record.read");
+  const active = await requireCapability('record.read');
   await withdrawComment({
     commentId,
     organisationId: active.membership.organisationId,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
   revalidatePath(href);
 }

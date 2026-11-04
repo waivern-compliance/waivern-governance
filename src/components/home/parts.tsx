@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 /**
  * The pieces every home is built from.
@@ -12,7 +12,7 @@ export function Panel({
   title,
   hint,
   action,
-  children,
+  children
 }: {
   title: string;
   hint?: string;
@@ -59,16 +59,20 @@ export function Row({
   title,
   detail,
   meta,
-  tone,
+  tone
 }: {
   href: string;
   title: string;
   detail?: string | null;
   meta?: string;
-  tone?: "plain" | "warn" | "stop";
+  tone?: 'plain' | 'warn' | 'stop';
 }) {
   const metaTone =
-    tone === "stop" ? "text-red-800" : tone === "warn" ? "text-amber-900" : "text-ink-soft";
+    tone === 'stop'
+      ? 'text-red-800'
+      : tone === 'warn'
+        ? 'text-amber-900'
+        : 'text-ink-soft';
   return (
     <li>
       <Link
@@ -77,7 +81,9 @@ export function Row({
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="font-medium">{title}</span>
-          {meta ? <span className={`font-mono text-[11px] ${metaTone}`}>{meta}</span> : null}
+          {meta ? (
+            <span className={`font-mono text-[11px] ${metaTone}`}>{meta}</span>
+          ) : null}
         </div>
         {detail ? <p className="text-xs text-ink-soft">{detail}</p> : null}
       </Link>
@@ -91,23 +97,31 @@ export function Tile({
   value,
   note,
   href,
-  tone,
+  tone
 }: {
   label: string;
   value: number | string;
   note: string;
   href: string;
-  tone?: "plain" | "warn" | "stop" | "good";
+  tone?: 'plain' | 'warn' | 'stop' | 'good';
 }) {
   const accent =
-    tone === "stop" ? "text-red-800" : tone === "warn" ? "text-amber-900" : "text-ink";
+    tone === 'stop'
+      ? 'text-red-800'
+      : tone === 'warn'
+        ? 'text-amber-900'
+        : 'text-ink';
   return (
     <Link
       href={href}
       className="block rounded border border-line bg-surface px-4 py-3.5 hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${accent}`}>
+      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+        {label}
+      </p>
+      <p
+        className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${accent}`}
+      >
         {value}
       </p>
       <p className="mt-0.5 text-xs text-ink-soft">{note}</p>
@@ -116,15 +130,20 @@ export function Tile({
 }
 
 export function Tiles({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
+  );
 }
 
 /** Relative due date, phrased the way a person would say it. */
-export function dueWords(due: Date | null): { text: string; tone: "plain" | "warn" | "stop" } {
-  if (!due) return { text: "no date", tone: "plain" };
+export function dueWords(due: Date | null): {
+  text: string;
+  tone: 'plain' | 'warn' | 'stop';
+} {
+  if (!due) return { text: 'no date', tone: 'plain' };
   const days = Math.round((due.getTime() - Date.now()) / (24 * 3600 * 1000));
-  if (days < 0) return { text: `${Math.abs(days)}d overdue`, tone: "stop" };
-  if (days === 0) return { text: "due today", tone: "warn" };
-  if (days <= 3) return { text: `in ${days}d`, tone: "warn" };
-  return { text: `in ${days}d`, tone: "plain" };
+  if (days < 0) return { text: `${Math.abs(days)}d overdue`, tone: 'stop' };
+  if (days === 0) return { text: 'due today', tone: 'warn' };
+  if (days <= 3) return { text: `in ${days}d`, tone: 'warn' };
+  return { text: `in ${days}d`, tone: 'plain' };
 }

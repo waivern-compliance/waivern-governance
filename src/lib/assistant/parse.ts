@@ -17,7 +17,10 @@ export function extractJson<T>(raw: string): T | null {
   if (fenced?.[1]) candidates.push(fenced[1]);
 
   // The first balanced object or array in the text, for prose-wrapped output.
-  for (const [open, close] of [["{", "}"], ["[", "]"]] as const) {
+  for (const [open, close] of [
+    ['{', '}'],
+    ['[', ']']
+  ] as const) {
     const start = raw.indexOf(open);
     const end = raw.lastIndexOf(close);
     if (start !== -1 && end > start) candidates.push(raw.slice(start, end + 1));
@@ -74,7 +77,7 @@ export function closeTruncated(text: string): string | null {
       escaped = false;
       continue;
     }
-    if (character === "\\") {
+    if (character === '\\') {
       escaped = true;
       continue;
     }
@@ -84,14 +87,14 @@ export function closeTruncated(text: string): string | null {
     }
     if (inString) continue;
 
-    if (character === "{") open.push("}");
-    else if (character === "[") open.push("]");
-    else if (character === "}" || character === "]") {
+    if (character === '{') open.push('}');
+    else if (character === '[') open.push(']');
+    else if (character === '}' || character === ']') {
       open.pop();
       // A value just closed. If we are still inside something, everything up
       // to here plus the outstanding closers is a whole document.
       if (open.length > 0) {
-        best = text.slice(start, at + 1) + [...open].reverse().join("");
+        best = text.slice(start, at + 1) + [...open].reverse().join('');
       }
     }
   }

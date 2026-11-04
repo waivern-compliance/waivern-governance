@@ -1,4 +1,4 @@
-import { inflateRawSync, inflateSync } from "node:zlib";
+import { inflateRawSync, inflateSync } from 'node:zlib';
 
 /**
  * The words inside an uploaded file.
@@ -24,33 +24,36 @@ const MAX_TEXT = 400_000;
 
 export function textFrom(contentType: string, bytes: Buffer): TextResult {
   switch (contentType) {
-    case "text/plain":
-    case "text/csv":
-      return finish(bytes.toString("utf8"));
-    case "application/pdf":
+    case 'text/plain':
+    case 'text/csv':
+      return finish(bytes.toString('utf8'));
+    case 'application/pdf':
       return fromPdf(bytes);
-    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       return fromDocx(bytes);
-    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
       return fromXlsx(bytes);
-    case "application/msword":
-    case "application/vnd.ms-excel":
+    case 'application/msword':
+    case 'application/vnd.ms-excel':
       return {
         ok: false,
         reason:
-          "This is a pre-2007 Office file, whose text cannot be read without a converter. " +
-          "Save it as .docx or PDF and attach that.",
+          'This is a pre-2007 Office file, whose text cannot be read without a converter. ' +
+          'Save it as .docx or PDF and attach that.'
       };
-    case "image/png":
-    case "image/jpeg":
+    case 'image/png':
+    case 'image/jpeg':
       return {
         ok: false,
         reason:
-          "This is an image, so it has no text to read. Reading a scanned agreement " +
-          "needs OCR, which the platform does not do.",
+          'This is an image, so it has no text to read. Reading a scanned agreement ' +
+          'needs OCR, which the platform does not do.'
       };
     default:
-      return { ok: false, reason: `${contentType || "That file type"} cannot be read as text.` };
+      return {
+        ok: false,
+        reason: `${contentType || 'That file type'} cannot be read as text.`
+      };
   }
 }
 
@@ -60,23 +63,26 @@ function finish(raw: string): TextResult {
     return {
       ok: false,
       reason:
-        "Almost no text came out of this file. If it is a scan, it has no text layer " +
-        "and needs OCR before anything can read it.",
+        'Almost no text came out of this file. If it is a scan, it has no text layer ' +
+        'and needs OCR before anything can read it.'
     };
   }
-  const note = raw.length > MAX_TEXT ? "Only the first part of this file was read." : null;
+  const note =
+    raw.length > MAX_TEXT ? 'Only the first part of this file was read.' : null;
   return { ok: true, text: text.slice(0, MAX_TEXT), note };
 }
 
 function tidy(raw: string): string {
-  return raw
-    .replace(/\r\n?/g, "\n")
-    // Soft hyphens and zero-width characters, which PDF producers scatter about.
-    .replace(/[­​-‍﻿]/g, "")
-    .replace(/[ \t\f\v]+/g, " ")
-    .replace(/ ?\n ?/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    raw
+      .replace(/\r\n?/g, '\n')
+      // Soft hyphens and zero-width characters, which PDF producers scatter about.
+      .replace(/[­​-‍﻿]/g, '')
+      .replace(/[ \t\f\v]+/g, ' ')
+      .replace(/ ?\n ?/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 /**
@@ -103,28 +109,28 @@ function fromPdf(bytes: Buffer): TextResult {
   for (const object of objects.values()) {
     if (total > MAX_TEXT) break;
     if (!object.stream || !isContentStream(object.stream)) continue;
-    const text = pdfTextOperators(object.stream.toString("latin1"), fonts);
+    const text = pdfTextOperators(object.stream.toString('latin1'), fonts);
     if (!text) continue;
     pieces.push(text);
     total += text.length;
   }
 
-  const joined = tidy(pieces.join("\n"));
+  const joined = tidy(pieces.join('\n'));
   if (!joined) {
     return {
       ok: false,
       reason:
-        "No text layer was found in this PDF. A scanned agreement is a picture of " +
-        "words, and needs OCR before anything can read it.",
+        'No text layer was found in this PDF. A scanned agreement is a picture of ' +
+        'words, and needs OCR before anything can read it.'
     };
   }
   if (!looksLikeProse(joined)) {
     return {
       ok: false,
       reason:
-        "The text in this PDF could not be decoded into readable words - its fonts " +
-        "carry no readable character map. Re-export it from the original application, " +
-        "or paste the relevant clauses in by hand.",
+        'The text in this PDF could not be decoded into readable words - its fonts ' +
+        'carry no readable character map. Re-export it from the original application, ' +
+        'or paste the relevant clauses in by hand.'
     };
   }
   return finish(joined);
@@ -142,31 +148,36 @@ type PdfObject = { dict: string; stream: Buffer | null };
  */
 function pdfObjects(bytes: Buffer): Map<number, PdfObject> {
   const objects = new Map<number, PdfObject>();
-  const raw = bytes.toString("latin1");
+  const raw = bytes.toString('latin1');
   const header = /(\d+)\s+\d+\s+obj\b/g;
 
   for (const match of raw.matchAll(header)) {
     const number = Number(match[1]);
     const from = match.index + match[0].length;
-    const endObj = raw.indexOf("endobj", from);
-    const streamAt = raw.indexOf("stream", from);
+    const endObj = raw.indexOf('endobj', from);
+    const streamAt = raw.indexOf('stream', from);
 
     const hasStream = streamAt !== -1 && (endObj === -1 || streamAt < endObj);
-    const dict = raw.slice(from, hasStream ? streamAt : endObj === -1 ? from : endObj);
+    const dict = raw.slice(
+      from,
+      hasStream ? streamAt : endObj === -1 ? from : endObj
+    );
 
     let stream: Buffer | null = null;
     if (hasStream) {
-      let start = streamAt + "stream".length;
+      let start = streamAt + 'stream'.length;
       if (bytes[start] === 0x0d) start += 1;
       if (bytes[start] === 0x0a) start += 1;
-      const stop = raw.indexOf("endstream", start);
-      if (stop !== -1 && stop - start <= 16_000_000) stream = inflateIfPossible(bytes.subarray(start, stop));
+      const stop = raw.indexOf('endstream', start);
+      if (stop !== -1 && stop - start <= 16_000_000)
+        stream = inflateIfPossible(bytes.subarray(start, stop));
     }
     objects.set(number, { dict, stream });
   }
 
   for (const object of [...objects.values()]) {
-    if (object.stream && /\/Type\s*\/ObjStm/.test(object.dict)) unpackObjStm(object, objects);
+    if (object.stream && /\/Type\s*\/ObjStm/.test(object.dict))
+      unpackObjStm(object, objects);
   }
   return objects;
 }
@@ -186,7 +197,7 @@ function inflateIfPossible(raw: Buffer): Buffer {
 
 /** An object stream is a header of number/offset pairs, then the objects. */
 function unpackObjStm(container: PdfObject, into: Map<number, PdfObject>) {
-  const body = container.stream!.toString("latin1");
+  const body = container.stream!.toString('latin1');
   const count = Number(/\/N\s+(\d+)/.exec(container.dict)?.[1] ?? 0);
   const first = Number(/\/First\s+(\d+)/.exec(container.dict)?.[1] ?? 0);
   if (!count || !first) return;
@@ -198,7 +209,11 @@ function unpackObjStm(container: PdfObject, into: Map<number, PdfObject>) {
     if (!Number.isFinite(number) || !Number.isFinite(offset)) continue;
     const next = i + 1 < count ? first + pairs[i * 2 + 3] : body.length;
     // Objects packed this way never carry a stream of their own.
-    if (!into.has(number)) into.set(number, { dict: body.slice(first + offset, next), stream: null });
+    if (!into.has(number))
+      into.set(number, {
+        dict: body.slice(first + offset, next),
+        stream: null
+      });
   }
 }
 
@@ -217,14 +232,16 @@ function fontMaps(objects: Map<number, PdfObject>): Map<string, CharMap> {
   for (const object of objects.values()) {
     const fontDict = /\/Font\s*<<([\s\S]*?)>>/.exec(object.dict);
     if (!fontDict) continue;
-    for (const entry of fontDict[1].matchAll(/\/([^\s/]+)\s+(\d+)\s+\d+\s+R/g)) {
+    for (const entry of fontDict[1].matchAll(
+      /\/([^\s/]+)\s+(\d+)\s+\d+\s+R/g
+    )) {
       const font = objects.get(Number(entry[2]));
       if (!font) continue;
       const toUnicode = /\/ToUnicode\s+(\d+)\s+\d+\s+R/.exec(font.dict);
       if (!toUnicode) continue;
       const cmap = objects.get(Number(toUnicode[1]));
       if (!cmap?.stream) continue;
-      const parsed = parseCMap(cmap.stream.toString("latin1"));
+      const parsed = parseCMap(cmap.stream.toString('latin1'));
       if (parsed.codes.size > 0) byName.set(entry[1], parsed);
     }
   }
@@ -238,7 +255,9 @@ function parseCMap(text: string): CharMap {
   let wide = false;
 
   for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    for (const pair of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+    for (const pair of block[1].matchAll(
+      /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g
+    )) {
       if (pair[1].length > 2) wide = true;
       codes.set(parseInt(pair[1], 16), utf16be(pair[2]));
     }
@@ -246,14 +265,22 @@ function parseCMap(text: string): CharMap {
 
   for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
     // <lo> <hi> [<a> <b> ...] — one destination each, in order.
-    for (const listed of block[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[([\s\S]*?)\]/g)) {
+    for (const listed of block[1].matchAll(
+      /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[([\s\S]*?)\]/g
+    )) {
       if (listed[1].length > 2) wide = true;
       let code = parseInt(listed[1], 16);
-      for (const item of listed[3].matchAll(/<([0-9A-Fa-f]+)>/g)) codes.set(code++, utf16be(item[1]));
+      for (const item of listed[3].matchAll(/<([0-9A-Fa-f]+)>/g))
+        codes.set(code++, utf16be(item[1]));
     }
     // <lo> <hi> <first> — consecutive destinations from <first>.
-    const spans = block[1].replace(/<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\s*\[[\s\S]*?\]/g, " ");
-    for (const span of spans.matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+    const spans = block[1].replace(
+      /<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\s*\[[\s\S]*?\]/g,
+      ' '
+    );
+    for (const span of spans.matchAll(
+      /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g
+    )) {
       if (span[1].length > 2) wide = true;
       const lo = parseInt(span[1], 16);
       const hi = parseInt(span[2], 16);
@@ -269,14 +296,15 @@ function parseCMap(text: string): CharMap {
 }
 
 function utf16be(hex: string): string {
-  const bytes = Buffer.from(hex.length % 2 ? `${hex}0` : hex, "hex");
-  let out = "";
-  for (let at = 0; at + 1 < bytes.length; at += 2) out += String.fromCharCode(bytes.readUInt16BE(at));
+  const bytes = Buffer.from(hex.length % 2 ? `${hex}0` : hex, 'hex');
+  let out = '';
+  for (let at = 0; at + 1 < bytes.length; at += 2)
+    out += String.fromCharCode(bytes.readUInt16BE(at));
   return out || String.fromCharCode(bytes[0] ?? 0);
 }
 
-const TEXT_OBJECT = Buffer.from("BT");
-const CMAP_KEYWORD = Buffer.from("begincmap");
+const TEXT_OBJECT = Buffer.from('BT');
+const CMAP_KEYWORD = Buffer.from('begincmap');
 
 /**
  * Does this stream hold drawing instructions, or is it a font?
@@ -303,7 +331,8 @@ function isContentStream(stream: Buffer): boolean {
   const head = stream.subarray(0, 2048);
   let printable = 0;
   for (const byte of head) {
-    if (byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte < 127)) printable += 1;
+    if (byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte < 127))
+      printable += 1;
   }
   if (head.length === 0 || printable / head.length < 0.9) return false;
   if (stream.includes(CMAP_KEYWORD)) return false;
@@ -323,7 +352,10 @@ function isContentStream(stream: Buffer): boolean {
  * positioning operator. Some producers reposition mid-word to kern a pair, and
  * treating every Tm or Td as a new line split "Two" into "T" and "wo".
  */
-function pdfTextOperators(content: string, fonts: Map<string, CharMap>): string {
+function pdfTextOperators(
+  content: string,
+  fonts: Map<string, CharMap>
+): string {
   const token =
     /\((?:\\[\s\S]|[^\\()])*\)|<[0-9A-Fa-f\s]*>|\[|\]|-?\d+(?:\.\d+)?|\/[^\s/<>[\]()]+|\bT[Jjm*]|\bTD\b|\bTd\b|\bTf\b|\bET\b|\bBT\b|'|"/g;
 
@@ -336,83 +368,88 @@ function pdfTextOperators(content: string, fonts: Map<string, CharMap>): string 
   let y: number | null = null;
 
   const flush = () => {
-    if (pending.length) out.push(pending.join(""));
+    if (pending.length) out.push(pending.join(''));
     pending = [];
   };
   const moveTo = (next: number | null) => {
     flush();
-    if (next === null || y === null || Math.abs(next - y) > 0.6) out.push("\n");
+    if (next === null || y === null || Math.abs(next - y) > 0.6) out.push('\n');
     y = next;
   };
 
   for (const match of content.matchAll(token)) {
     const text = match[0];
-    if (text.startsWith("/")) {
+    if (text.startsWith('/')) {
       lastName = text.slice(1);
       continue;
     }
     if (/^-?[\d.]+$/.test(text)) {
       // Inside a TJ array a wide negative kern is a space the producer chose
       // not to emit. Elsewhere the numbers are operands, kept for the operator.
-      if (inArray && Number(text) <= -100) pending.push(" ");
+      if (inArray && Number(text) <= -100) pending.push(' ');
       else if (!inArray) numbers.push(Number(text));
       continue;
     }
 
     switch (text) {
-      case "Tf":
+      case 'Tf':
         font = (lastName && fonts.get(lastName)) || null;
         break;
-      case "[":
+      case '[':
         inArray = true;
         break;
-      case "]":
+      case ']':
         inArray = false;
         break;
-      case "TJ":
-      case "Tj":
+      case 'TJ':
+      case 'Tj':
       case "'":
       case '"':
         flush();
         break;
-      case "Tm":
+      case 'Tm':
         // a b c d e f Tm — f is the vertical translation.
         moveTo(numbers.length >= 6 ? numbers[numbers.length - 1] : null);
         break;
-      case "Td":
-      case "TD":
+      case 'Td':
+      case 'TD':
         // tx ty Td, relative to the current line.
         moveTo(
-          numbers.length >= 2 && y !== null ? y + numbers[numbers.length - 1] : null,
+          numbers.length >= 2 && y !== null
+            ? y + numbers[numbers.length - 1]
+            : null
         );
         break;
-      case "T*":
-      case "ET":
-      case "BT":
+      case 'T*':
+      case 'ET':
+      case 'BT':
         moveTo(null);
         break;
       default:
-        if (text.startsWith("(")) pending.push(decodeString(pdfLiteralBytes(text.slice(1, -1)), font));
-        else if (text.startsWith("<")) pending.push(decodeString(hexBytes(text.slice(1, -1)), font));
+        if (text.startsWith('('))
+          pending.push(decodeString(pdfLiteralBytes(text.slice(1, -1)), font));
+        else if (text.startsWith('<'))
+          pending.push(decodeString(hexBytes(text.slice(1, -1)), font));
         break;
     }
     numbers = [];
   }
   flush();
-  return out.join("").replace(/\n{2,}/g, "\n");
+  return out.join('').replace(/\n{2,}/g, '\n');
 }
 
 function decodeString(bytes: Buffer, font: CharMap | null): string {
   if (!font) {
     // No character map: the bytes are the characters, which is true of the
     // standard encodings and near enough for Latin-1 text.
-    return bytes.toString("latin1");
+    return bytes.toString('latin1');
   }
-  let out = "";
+  let out = '';
   if (font.bytesPerCode === 2) {
-    for (let at = 0; at + 1 < bytes.length; at += 2) out += font.codes.get(bytes.readUInt16BE(at)) ?? "";
+    for (let at = 0; at + 1 < bytes.length; at += 2)
+      out += font.codes.get(bytes.readUInt16BE(at)) ?? '';
   } else {
-    for (const byte of bytes) out += font.codes.get(byte) ?? "";
+    for (const byte of bytes) out += font.codes.get(byte) ?? '';
   }
   return out;
 }
@@ -421,39 +458,40 @@ function pdfLiteralBytes(body: string): Buffer {
   const decoded = body.replace(/\\(\d{1,3}|[\s\S])/g, (_, escape: string) => {
     if (/^\d+$/.test(escape)) return String.fromCharCode(parseInt(escape, 8));
     switch (escape) {
-      case "n":
-      case "r":
-        return "\n";
-      case "t":
-        return "\t";
-      case "b":
-      case "f":
-        return " ";
-      case "\n":
-        return "";
+      case 'n':
+      case 'r':
+        return '\n';
+      case 't':
+        return '\t';
+      case 'b':
+      case 'f':
+        return ' ';
+      case '\n':
+        return '';
       default:
         return escape;
     }
   });
-  return Buffer.from(decoded, "latin1");
+  return Buffer.from(decoded, 'latin1');
 }
 
 function hexBytes(body: string): Buffer {
-  const digits = body.replace(/\s+/g, "");
+  const digits = body.replace(/\s+/g, '');
   if (!digits) return Buffer.alloc(0);
-  return Buffer.from(digits.length % 2 ? `${digits}0` : digits, "hex");
+  return Buffer.from(digits.length % 2 ? `${digits}0` : digits, 'hex');
 }
 
 /* --------------------------------------------------------------- OOXML */
 
 function fromDocx(bytes: Buffer): TextResult {
-  const xml = zipEntry(bytes, "word/document.xml");
-  if (!xml) return { ok: false, reason: "This .docx file could not be opened." };
+  const xml = zipEntry(bytes, 'word/document.xml');
+  if (!xml)
+    return { ok: false, reason: 'This .docx file could not be opened.' };
   const text = xml
-    .toString("utf8")
-    .replace(/<w:tab\b[^>]*\/>/g, "\t")
-    .replace(/<\/w:p>/g, "\n")
-    .replace(/<w:br\b[^>]*\/>/g, "\n");
+    .toString('utf8')
+    .replace(/<w:tab\b[^>]*\/>/g, '\t')
+    .replace(/<\/w:p>/g, '\n')
+    .replace(/<w:br\b[^>]*\/>/g, '\n');
   return finish(stripTags(text));
 }
 
@@ -461,26 +499,27 @@ function fromXlsx(bytes: Buffer): TextResult {
   // The shared string table holds every text cell in the workbook. Cell
   // positions are lost, which for a list of sub-processors costs nothing and
   // saves parsing every sheet.
-  const xml = zipEntry(bytes, "xl/sharedStrings.xml");
+  const xml = zipEntry(bytes, 'xl/sharedStrings.xml');
   if (!xml) {
     return {
       ok: false,
-      reason: "No text was found in this spreadsheet - it may hold only numbers or formulas.",
+      reason:
+        'No text was found in this spreadsheet - it may hold only numbers or formulas.'
     };
   }
-  const text = xml.toString("utf8").replace(/<\/si>/g, "\n");
+  const text = xml.toString('utf8').replace(/<\/si>/g, '\n');
   return finish(stripTags(text));
 }
 
 function stripTags(xml: string): string {
   return xml
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
-    .replace(/&amp;/g, "&");
+    .replace(/&amp;/g, '&');
 }
 
 /**
@@ -498,14 +537,15 @@ function zipEntry(bytes: Buffer, wanted: string): Buffer | null {
   const count = bytes.readUInt16LE(eocd + 10);
 
   for (let i = 0; i < count; i += 1) {
-    if (at + 46 > bytes.length || bytes.readUInt32LE(at) !== 0x02014b50) return null;
+    if (at + 46 > bytes.length || bytes.readUInt32LE(at) !== 0x02014b50)
+      return null;
     const method = bytes.readUInt16LE(at + 10);
     const compressedSize = bytes.readUInt32LE(at + 20);
     const nameLength = bytes.readUInt16LE(at + 28);
     const extraLength = bytes.readUInt16LE(at + 30);
     const commentLength = bytes.readUInt16LE(at + 32);
     const localAt = bytes.readUInt32LE(at + 42);
-    const name = bytes.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+    const name = bytes.subarray(at + 46, at + 46 + nameLength).toString('utf8');
 
     if (name === wanted) {
       if (bytes.readUInt32LE(localAt) !== 0x04034b50) return null;
@@ -541,11 +581,11 @@ function lastIndexOf(bytes: Buffer, signature: number): number {
  */
 export function textFromHtml(html: string): string {
   const body = html
-    .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<\/(p|div|li|tr|h[1-6]|section|article)>/gi, "\n")
-    .replace(/<br\b[^>]*\/?>/gi, "\n")
-    .replace(/<\/t[dh]>/gi, " · ");
+    .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<\/(p|div|li|tr|h[1-6]|section|article)>/gi, '\n')
+    .replace(/<br\b[^>]*\/?>/gi, '\n')
+    .replace(/<\/t[dh]>/gi, ' · ');
   return tidy(stripTags(body)).slice(0, MAX_TEXT);
 }

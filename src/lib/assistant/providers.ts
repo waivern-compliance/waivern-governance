@@ -1,5 +1,6 @@
-import { assistantBodies, excerpt, log } from "@/lib/log";
-import { redact, type Redaction } from "./redact";
+import { assistantBodies, excerpt, log } from '@/lib/log';
+
+import { redact, type Redaction } from './redact';
 
 /**
  * A model of the organisation's choosing.
@@ -14,7 +15,7 @@ import { redact, type Redaction } from "./redact";
  * assistant, rather than quietly having ours.
  */
 
-export type ProviderKind = "openai_compatible" | "anthropic";
+export type ProviderKind = 'openai_compatible' | 'anthropic';
 
 export type ProviderConfig = {
   kind: ProviderKind;
@@ -26,7 +27,7 @@ export type ProviderConfig = {
   apiVersion?: string;
 };
 
-export type Turn = { role: "user" | "assistant"; content: string };
+export type Turn = { role: 'user' | 'assistant'; content: string };
 
 export type AskResult =
   | {
@@ -71,14 +72,19 @@ const TIMEOUT_MS = 25_000;
 
 export async function ask(
   config: ProviderConfig,
-  input: { system: string; turns: Turn[]; maxTokens?: number; timeoutMs?: number },
+  input: {
+    system: string;
+    turns: Turn[];
+    maxTokens?: number;
+    timeoutMs?: number;
+  }
 ): Promise<AskResult> {
   // Minimisation happens here rather than at the call sites, so no surface can
   // forget it. Only user turns are scrubbed; the system prompt is ours, and
   // assistant turns already left the platform once.
   const redactions: Redaction[] = [];
   const turns = input.turns.map((turn) => {
-    if (turn.role !== "user") return turn;
+    if (turn.role !== 'user') return turn;
     const { text, redactions: found } = redact(turn.content);
     redactions.push(...found);
     return { ...turn, content: text };
@@ -99,42 +105,54 @@ export async function ask(
     turns: turns.length,
     maxTokens: input.maxTokens ?? 1024,
     timeoutMs: budget,
-    redacted: redactions.reduce((total, r) => total + r.count, 0),
+    redacted: redactions.reduce((total, r) => total + r.count, 0)
   };
-  log("info", "assistant.request", sent);
+  log('info', 'assistant.request', sent);
 
   try {
     const answer =
-      config.kind === "anthropic"
-        ? await askAnthropic(config, input.system, turns, input.maxTokens ?? 1024, controller.signal)
-        : await askOpenAiCompatible(config, input.system, turns, input.maxTokens ?? 1024, controller.signal);
-    log("info", "assistant.response", {
+      config.kind === 'anthropic'
+        ? await askAnthropic(
+            config,
+            input.system,
+            turns,
+            input.maxTokens ?? 1024,
+            controller.signal
+          )
+        : await askOpenAiCompatible(
+            config,
+            input.system,
+            turns,
+            input.maxTokens ?? 1024,
+            controller.signal
+          );
+    log('info', 'assistant.response', {
       ...sent,
       ok: true,
       ms: Date.now() - started,
       stopReason: answer.stopReason ?? null,
       replyChars: answer.text.length,
-      ...(assistantBodies() ? { reply: excerpt(answer.text) } : {}),
+      ...(assistantBodies() ? { reply: excerpt(answer.text) } : {})
     });
     return { ok: true, ...answer, model: config.model, redactions };
   } catch (error) {
     // Fail soft, and never leak the endpoint or key into a user-facing string.
-    const aborted = error instanceof Error && error.name === "AbortError";
+    const aborted = error instanceof Error && error.name === 'AbortError';
     const reason = aborted
-      ? "The model did not answer in time."
-      : "The model could not be reached.";
+      ? 'The model did not answer in time.'
+      : 'The model could not be reached.';
     const detail =
-      !aborted && error instanceof Error && error.name === "ProviderError"
+      !aborted && error instanceof Error && error.name === 'ProviderError'
         ? error.message
         : undefined;
-    log("warn", "assistant.response", {
+    log('warn', 'assistant.response', {
       ...sent,
       ok: false,
       ms: Date.now() - started,
       timedOut: aborted,
       // The provider's own words, which never contain the credential and are
       // already shown on the settings screen.
-      detail: detail ?? null,
+      detail: detail ?? null
     });
     return { ok: false, reason, detail, redactions, timedOut: aborted };
   } finally {
@@ -153,12 +171,12 @@ export async function ask(
 /** A failure attributable to the provider, carried to the settings screen. */
 function provider(message: string): Error {
   const error = new Error(message);
-  error.name = "ProviderError";
+  error.name = 'ProviderError';
   return error;
 }
 
 async function providerError(response: Response): Promise<Error> {
-  let said = "";
+  let said = '';
   try {
     const body = await response.text();
     const parsed = JSON.parse(body) as {
@@ -170,9 +188,11 @@ async function providerError(response: Response): Promise<Error> {
       parsed.message ??
       (parsed.error?.type ? String(parsed.error.type) : body.slice(0, 200));
   } catch {
-    said = "";
+    said = '';
   }
-  return provider(said ? `${response.status}: ${said}` : `status ${response.status}`);
+  return provider(
+    said ? `${response.status}: ${said}` : `status ${response.status}`
+  );
 }
 
 async function askOpenAiCompatible(
@@ -180,41 +200,41 @@ async function askOpenAiCompatible(
   system: string,
   turns: Turn[],
   maxTokens: number,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<{ text: string; stopReason?: string }> {
   const url = config.apiVersion
     ? `${config.baseUrl}?api-version=${encodeURIComponent(config.apiVersion)}`
     : config.baseUrl;
 
   const response = await fetch(url, {
-    method: "POST",
+    method: 'POST',
     signal,
     headers: {
-      "content-type": "application/json",
+      'content-type': 'application/json',
       // Azure uses api-key; OpenAI and most compatible servers use bearer.
       ...(config.apiVersion
-        ? { "api-key": config.apiKey }
-        : { authorization: `Bearer ${config.apiKey}` }),
+        ? { 'api-key': config.apiKey }
+        : { authorization: `Bearer ${config.apiKey}` })
     },
     body: JSON.stringify({
       model: config.model,
       max_tokens: maxTokens,
-      messages: [{ role: "system", content: system }, ...turns],
-    }),
+      messages: [{ role: 'system', content: system }, ...turns]
+    })
   });
   if (!response.ok) throw await providerError(response);
 
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
   };
-  const text = data.choices?.[0]?.message?.content ?? "";
+  const text = data.choices?.[0]?.message?.content ?? '';
   if (text) return { text, stopReason: data.choices?.[0]?.finish_reason };
 
   const finish = data.choices?.[0]?.finish_reason;
   throw provider(
     `the model answered with no text` +
-      (finish ? ` (finish reason: ${finish})` : "") +
-      `. If the finish reason is length, the budget was too small for a reply.`,
+      (finish ? ` (finish reason: ${finish})` : '') +
+      `. If the finish reason is length, the budget was too small for a reply.`
   );
 }
 
@@ -223,15 +243,15 @@ async function askAnthropic(
   system: string,
   turns: Turn[],
   maxTokens: number,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<{ text: string; stopReason?: string }> {
   const response = await fetch(config.baseUrl, {
-    method: "POST",
+    method: 'POST',
     signal,
     headers: {
-      "content-type": "application/json",
-      "x-api-key": config.apiKey,
-      "anthropic-version": "2023-06-01",
+      'content-type': 'application/json',
+      'x-api-key': config.apiKey,
+      'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
       model: config.model,
@@ -239,8 +259,8 @@ async function askAnthropic(
       // System is its own field here, not a message. Sending it as a turn is
       // the usual way this adapter gets written wrong.
       system,
-      messages: turns,
-    }),
+      messages: turns
+    })
   });
   if (!response.ok) throw await providerError(response);
 
@@ -253,17 +273,21 @@ async function askAnthropic(
   // mapping over everything turned those into empty strings, so a reply that
   // began with one looked like no reply at all.
   const text = (data.content ?? [])
-    .filter((c) => c.type === "text" || (c.type === undefined && c.text !== undefined))
-    .map((c) => c.text ?? "")
-    .join("");
+    .filter(
+      (c) => c.type === 'text' || (c.type === undefined && c.text !== undefined)
+    )
+    .map((c) => c.text ?? '')
+    .join('');
   if (text) return { text, stopReason: data.stop_reason };
 
   // Say what did come back. "Nothing" is not a diagnosis, and the previous
   // message guessed at the model name — which cannot be the cause of a 200.
-  const kinds = (data.content ?? []).map((c) => c.type ?? "untyped").join(", ") || "no blocks";
+  const kinds =
+    (data.content ?? []).map((c) => c.type ?? 'untyped').join(', ') ||
+    'no blocks';
   throw provider(
     `the model answered with no text (blocks: ${kinds}` +
-      (data.stop_reason ? `; stop reason: ${data.stop_reason}` : "") +
-      `). If the stop reason is max_tokens, the budget was too small for a reply.`,
+      (data.stop_reason ? `; stop reason: ${data.stop_reason}` : '') +
+      `). If the stop reason is max_tokens, the budget was too small for a reply.`
   );
 }

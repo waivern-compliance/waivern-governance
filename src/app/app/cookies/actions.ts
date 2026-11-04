@@ -1,39 +1,54 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { requireCapability, requireSession } from "@/lib/session";
-import { can, mayConfigureAnalyser } from "@/lib/rbac";
-import type { ConditionKey, StorageBasis } from "@/lib/pecr/statutory";
-import { refusable, type EditResult } from "@/lib/edit-result";
-import type { RequestResult } from "../requests/actions";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+
+import { refusable, type EditResult } from '@/lib/edit-result';
+import type { ConditionKey, StorageBasis } from '@/lib/pecr/statutory';
+import { can, mayConfigureAnalyser } from '@/lib/rbac';
+import { requireCapability, requireSession } from '@/lib/session';
 import {
-  InventoryRefused,
+  checkPropertyScan,
+  setAnalyserSettings,
+  startPropertyScan,
+  type ScanProgress
+} from '@/services/consent-analyser';
+import {
   addItem,
   createProperty,
   decideProposal,
   ingestAnalyserReport,
   inventoryEntity,
+  InventoryRefused,
+  ITEM_KINDS,
   recordStorageDecision,
   updateItem,
-  updateProperty,
-  ITEM_KINDS,
-} from "@/services/storage-inventory";
-import { checkPropertyScan, setAnalyserSettings, startPropertyScan, type ScanProgress } from "@/services/consent-analyser";
+  updateProperty
+} from '@/services/storage-inventory';
 
-const text = (v: FormDataEntryValue | null) => String(v ?? "").trim();
+import type { RequestResult } from '../requests/actions';
+
+const text = (v: FormDataEntryValue | null) => String(v ?? '').trim();
 
 function actorOf(active: { userId: string; email: string }) {
-  return { actorKind: "user" as const, actorUserId: active.userId, actorLabel: active.email };
+  return {
+    actorKind: 'user' as const,
+    actorUserId: active.userId,
+    actorLabel: active.email
+  };
 }
 
 /** A refusal from the service, worded for the person, shown beside the form. */
-async function refused(work: () => Promise<void>, ok: string): Promise<RequestResult> {
+async function refused(
+  work: () => Promise<void>,
+  ok: string
+): Promise<RequestResult> {
   try {
     await work();
     return { ok: true, message: ok };
   } catch (error) {
-    if (error instanceof InventoryRefused) return { ok: false, message: error.message };
+    if (error instanceof InventoryRefused)
+      return { ok: false, message: error.message };
     throw error;
   }
 }
@@ -45,42 +60,57 @@ async function refused(work: () => Promise<void>, ok: string): Promise<RequestRe
 async function writerFor(of: Parameters<typeof inventoryEntity>[0]) {
   const active = await requireSession();
   const entityId = await inventoryEntity(of, active.membership.organisationId);
-  if (!entityId || !can(active.membership.grants, "record.write", entityId)) return null;
+  if (!entityId || !can(active.membership.grants, 'record.write', entityId))
+    return null;
   return active;
 }
 
-const NOT_YOURS = { ok: false, message: "You cannot change this website's inventory." };
+const NOT_YOURS = {
+  ok: false,
+  message: "You cannot change this website's inventory."
+};
 
 function refresh(propertyId?: string) {
   if (propertyId) revalidatePath(`/app/cookies/${propertyId}`);
-  revalidatePath("/app/cookies");
+  revalidatePath('/app/cookies');
 }
 
-export async function createPropertyAction(_prev: RequestResult, formData: FormData): Promise<RequestResult> {
-  const entityId = text(formData.get("entityId"));
-  if (!entityId) return { ok: false, message: "Choose the entity the website or app belongs to." };
-  const active = await requireCapability("record.write", { entityId });
+export async function createPropertyAction(
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
+  const entityId = text(formData.get('entityId'));
+  if (!entityId)
+    return {
+      ok: false,
+      message: 'Choose the entity the website or app belongs to.'
+    };
+  const active = await requireCapability('record.write', { entityId });
   let id: string | null = null;
   const result = await refused(async () => {
     const property = await createProperty({
       organisationId: active.membership.organisationId,
       entityId,
-      name: text(formData.get("name")),
-      url: text(formData.get("url")),
-      kind: text(formData.get("kind")) === "app" ? "app" : "website",
-      informationUrl: text(formData.get("informationUrl")) || null,
-      objectionMechanism: text(formData.get("objectionMechanism")) || null,
-      ownerId: formData.get("ownMe") === "on" ? active.userId : null,
-      actor: actorOf(active),
+      name: text(formData.get('name')),
+      url: text(formData.get('url')),
+      kind: text(formData.get('kind')) === 'app' ? 'app' : 'website',
+      informationUrl: text(formData.get('informationUrl')) || null,
+      objectionMechanism: text(formData.get('objectionMechanism')) || null,
+      ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
+      actor: actorOf(active)
     });
     id = property.id;
-  }, "Added.");
+  }, 'Added.');
   if (!id) return result;
   refresh();
   redirect(`/app/cookies/${id}`);
 }
 
-export async function updatePropertyAction(propertyId: string, _prev: EditResult, formData: FormData): Promise<EditResult> {
+export async function updatePropertyAction(
+  propertyId: string,
+  _prev: EditResult,
+  formData: FormData
+): Promise<EditResult> {
   return refusable(async () => {
     const active = await writerFor({ property: propertyId });
     if (!active) throw new InventoryRefused(NOT_YOURS.message);
@@ -88,13 +118,15 @@ export async function updatePropertyAction(propertyId: string, _prev: EditResult
       propertyId,
       organisationId: active.membership.organisationId,
       changes: {
-        name: text(formData.get("name")),
-        url: text(formData.get("url")),
-        informationUrl: text(formData.get("informationUrl")) || null,
-        objectionMechanism: text(formData.get("objectionMechanism")) || null,
-        rescanIntervalMonths: text(formData.get("rescanIntervalMonths")) ? Number(text(formData.get("rescanIntervalMonths"))) : null,
+        name: text(formData.get('name')),
+        url: text(formData.get('url')),
+        informationUrl: text(formData.get('informationUrl')) || null,
+        objectionMechanism: text(formData.get('objectionMechanism')) || null,
+        rescanIntervalMonths: text(formData.get('rescanIntervalMonths'))
+          ? Number(text(formData.get('rescanIntervalMonths')))
+          : null
       },
-      actor: actorOf(active),
+      actor: actorOf(active)
     });
     refresh(propertyId);
   });
@@ -105,31 +137,39 @@ export async function updatePropertyAction(propertyId: string, _prev: EditResult
  * which would otherwise take most reports past the upload limit; the service
  * checks and strips it again regardless.
  */
-export async function uploadReportAction(propertyId: string, _prev: RequestResult, formData: FormData): Promise<RequestResult> {
+export async function uploadReportAction(
+  propertyId: string,
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
-  const raw = text(formData.get("report"));
-  if (!raw) return { ok: false, message: "Choose a report file first." };
+  const raw = text(formData.get('report'));
+  if (!raw) return { ok: false, message: 'Choose a report file first.' };
   let report: unknown;
   try {
     report = JSON.parse(raw);
   } catch {
-    return { ok: false, message: "That file is not valid JSON. Download the report as JSON from the analyser and try again." };
+    return {
+      ok: false,
+      message:
+        'That file is not valid JSON. Download the report as JSON from the analyser and try again.'
+    };
   }
-  let message = "";
+  let message = '';
   const result = await refused(async () => {
     const outcome = await ingestAnalyserReport({
       propertyId,
       organisationId: active.membership.organisationId,
       report,
-      source: "upload",
-      acceptOtherSite: formData.get("acceptOtherSite") === "on",
-      actor: actorOf(active),
+      source: 'upload',
+      acceptOtherSite: formData.get('acceptOtherSite') === 'on',
+      actor: actorOf(active)
     });
     message =
-      `Recorded. ${outcome.proposedNew} new item${outcome.proposedNew === 1 ? "" : "s"} and ` +
-      `${outcome.proposedNotSeen} no longer seen to review; ${outcome.findings} failing check${outcome.findings === 1 ? "" : "s"} added to Findings.`;
-  }, "Recorded.");
+      `Recorded. ${outcome.proposedNew} new item${outcome.proposedNew === 1 ? '' : 's'} and ` +
+      `${outcome.proposedNotSeen} no longer seen to review; ${outcome.findings} failing check${outcome.findings === 1 ? '' : 's'} added to Findings.`;
+  }, 'Recorded.');
   refresh(propertyId);
   return result?.ok ? { ok: true, message } : result;
 }
@@ -139,128 +179,175 @@ export async function decideProposalAction(
   propertyId: string,
   accept: boolean,
   _prev: RequestResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<RequestResult> {
   const active = await writerFor({ proposal: proposalId });
   if (!active) return NOT_YOURS;
-  const result = await refused(async () => {
-    await decideProposal({
-      proposalId,
-      organisationId: active.membership.organisationId,
-      accept,
-      note: text(formData.get("note")) || null,
-      actor: actorOf(active),
-    });
-  }, accept ? "Accepted." : "Rejected.");
+  const result = await refused(
+    async () => {
+      await decideProposal({
+        proposalId,
+        organisationId: active.membership.organisationId,
+        accept,
+        note: text(formData.get('note')) || null,
+        actor: actorOf(active)
+      });
+    },
+    accept ? 'Accepted.' : 'Rejected.'
+  );
   refresh(propertyId);
   return result;
 }
 
-export async function addItemAction(propertyId: string, _prev: RequestResult, formData: FormData): Promise<RequestResult> {
+export async function addItemAction(
+  propertyId: string,
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
-  const kind = text(formData.get("kind")) as (typeof ITEM_KINDS)[number];
-  const party = text(formData.get("party"));
+  const kind = text(formData.get('kind')) as (typeof ITEM_KINDS)[number];
+  const party = text(formData.get('party'));
   const result = await refused(async () => {
     await addItem({
       propertyId,
       organisationId: active.membership.organisationId,
-      name: text(formData.get("name")),
+      name: text(formData.get('name')),
       kind,
-      domain: text(formData.get("domain")) || null,
-      party: party === "first" || party === "third" ? party : "unknown",
-      expiry: text(formData.get("expiry")) || null,
-      purpose: text(formData.get("purpose")) || null,
-      actor: actorOf(active),
+      domain: text(formData.get('domain')) || null,
+      party: party === 'first' || party === 'third' ? party : 'unknown',
+      expiry: text(formData.get('expiry')) || null,
+      purpose: text(formData.get('purpose')) || null,
+      actor: actorOf(active)
     });
-  }, "Added. Record the basis it relies on next.");
+  }, 'Added. Record the basis it relies on next.');
   refresh(propertyId);
   return result;
 }
 
-export async function updateItemAction(itemId: string, propertyId: string, _prev: EditResult, formData: FormData): Promise<EditResult> {
+export async function updateItemAction(
+  itemId: string,
+  propertyId: string,
+  _prev: EditResult,
+  formData: FormData
+): Promise<EditResult> {
   return refusable(async () => {
     const active = await writerFor({ item: itemId });
     if (!active) throw new InventoryRefused(NOT_YOURS.message);
-    const party = text(formData.get("party"));
-    const status = text(formData.get("status"));
+    const party = text(formData.get('party'));
+    const status = text(formData.get('status'));
     await updateItem({
       itemId,
       organisationId: active.membership.organisationId,
       changes: {
-        purpose: text(formData.get("purpose")) || null,
-        supplierId: text(formData.get("supplierId")) || null,
-        expiry: text(formData.get("expiry")) || null,
-        party: party === "first" || party === "third" ? party : "unknown",
-        ...(status === "removed" || status === "active" ? { status } : {}),
+        purpose: text(formData.get('purpose')) || null,
+        supplierId: text(formData.get('supplierId')) || null,
+        expiry: text(formData.get('expiry')) || null,
+        party: party === 'first' || party === 'third' ? party : 'unknown',
+        ...(status === 'removed' || status === 'active' ? { status } : {})
       },
-      actor: actorOf(active),
+      actor: actorOf(active)
     });
     refresh(propertyId);
   });
 }
 
-export async function decideBasisAction(itemId: string, propertyId: string, _prev: RequestResult, formData: FormData): Promise<RequestResult> {
+export async function decideBasisAction(
+  itemId: string,
+  propertyId: string,
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
   const active = await writerFor({ item: itemId });
   if (!active) return NOT_YOURS;
   const conditions: Partial<Record<ConditionKey, boolean>> = {};
-  for (const key of formData.getAll("conditions").map(String)) conditions[key as ConditionKey] = true;
+  for (const key of formData.getAll('conditions').map(String))
+    conditions[key as ConditionKey] = true;
   const result = await refused(async () => {
     await recordStorageDecision({
       itemId,
       organisationId: active.membership.organisationId,
-      basis: text(formData.get("basis")) as StorageBasis,
+      basis: text(formData.get('basis')) as StorageBasis,
       conditions,
-      rationale: text(formData.get("rationale")),
-      actor: actorOf(active),
+      rationale: text(formData.get('rationale')),
+      actor: actorOf(active)
     });
-  }, "Recorded.");
+  }, 'Recorded.');
   refresh(propertyId);
   return result;
 }
 
-export async function analyserSettingsAction(_prev: RequestResult, formData: FormData): Promise<RequestResult> {
+export async function analyserSettingsAction(
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
   const active = await requireSession();
   if (!mayConfigureAnalyser(active.membership.grants)) {
-    return { ok: false, message: "Only somebody who configures the whole organisation can set the analyser." };
+    return {
+      ok: false,
+      message:
+        'Only somebody who configures the whole organisation can set the analyser.'
+    };
   }
-  const token = text(formData.get("token"));
-  const remove = formData.get("removeToken") === "on";
-  const result = await refused(async () => {
-    await setAnalyserSettings({
-      organisationId: active.membership.organisationId,
-      url: text(formData.get("url")),
-      token: remove ? null : token || undefined,
-      actor: actorOf(active),
-    });
-  }, remove ? "Saved. The token is removed." : token ? "Saved. The analyser accepted the token." : "Saved.");
+  const token = text(formData.get('token'));
+  const remove = formData.get('removeToken') === 'on';
+  const result = await refused(
+    async () => {
+      await setAnalyserSettings({
+        organisationId: active.membership.organisationId,
+        url: text(formData.get('url')),
+        token: remove ? null : token || undefined,
+        actor: actorOf(active)
+      });
+    },
+    remove
+      ? 'Saved. The token is removed.'
+      : token
+        ? 'Saved. The analyser accepted the token.'
+        : 'Saved.'
+  );
   refresh();
   return result;
 }
 
-export async function startScanAction(propertyId: string): Promise<RequestResult> {
+export async function startScanAction(
+  propertyId: string
+): Promise<RequestResult> {
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
   let note: string | null = null;
   const result = await refused(async () => {
-    const scan = await startPropertyScan({ propertyId, organisationId: active.membership.organisationId, actor: actorOf(active) });
+    const scan = await startPropertyScan({
+      propertyId,
+      organisationId: active.membership.organisationId,
+      actor: actorOf(active)
+    });
     note = scan.note;
-  }, "Scan started.");
+  }, 'Scan started.');
   refresh(propertyId);
-  return result?.ok && note ? { ok: true, message: `Scan started. ${note}` } : result;
+  return result?.ok && note
+    ? { ok: true, message: `Scan started. ${note}` }
+    : result;
 }
 
 /** Polled by the page while a scan runs. Reading is enough to ask: it changes nothing but the scan's own progress. */
-export async function checkScanAction(scanId: string, propertyId: string): Promise<ScanProgress> {
+export async function checkScanAction(
+  scanId: string,
+  propertyId: string
+): Promise<ScanProgress> {
   const active = await requireSession();
-  const entityId = await inventoryEntity({ property: propertyId }, active.membership.organisationId);
-  if (!entityId || !can(active.membership.grants, "record.read", entityId)) return { state: "failed", reason: "Not yours to see." };
+  const entityId = await inventoryEntity(
+    { property: propertyId },
+    active.membership.organisationId
+  );
+  if (!entityId || !can(active.membership.grants, 'record.read', entityId))
+    return { state: 'failed', reason: 'Not yours to see.' };
   const progress = await checkPropertyScan({
     scanId,
     propertyId,
     organisationId: active.membership.organisationId,
-    actor: actorOf(active),
+    actor: actorOf(active)
   });
-  if (progress.state !== "running") refresh(propertyId);
+  if (progress.state !== 'running') refresh(propertyId);
   return progress;
 }

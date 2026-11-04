@@ -1,14 +1,20 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { TREATMENT_HELP, TREATMENT_LABEL, type TreatmentType } from "@/lib/risk/treatment";
-import type { TreatmentSuggestion } from "@/lib/risk/treatment-library";
+import { useState } from 'react';
 
-const label = "block text-xs font-medium uppercase tracking-wider text-ink-soft";
+import {
+  TREATMENT_HELP,
+  TREATMENT_LABEL,
+  type TreatmentType
+} from '@/lib/risk/treatment';
+import type { TreatmentSuggestion } from '@/lib/risk/treatment-library';
+
+const label =
+  'block text-xs font-medium uppercase tracking-wider text-ink-soft';
 
 function SuggestionList({
   suggestions,
-  onUse,
+  onUse
 }: {
   suggestions: TreatmentSuggestion[];
   onUse: (s: TreatmentSuggestion) => void;
@@ -16,11 +22,16 @@ function SuggestionList({
   return (
     <ul className="divide-y divide-line rounded border border-line bg-ground">
       {suggestions.map((s) => (
-        <li key={s.key} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+        <li
+          key={s.key}
+          className="flex items-start justify-between gap-3 px-3 py-2 text-sm"
+        >
           <span>
             {s.text}
             <span className="block font-mono text-[11px] text-ink-soft">
-              {s.theme} · {s.toolkitType ?? (s.treatment ? TREATMENT_LABEL[s.treatment] : "")}
+              {s.theme} ·{' '}
+              {s.toolkitType ??
+                (s.treatment ? TREATMENT_LABEL[s.treatment] : '')}
             </span>
           </span>
           <button
@@ -48,7 +59,7 @@ export function MitigationForm({
   categoryLabel,
   matching,
   others,
-  source,
+  source
 }: {
   action: (formData: FormData) => Promise<void>;
   categoryLabel: string | null;
@@ -57,9 +68,11 @@ export function MitigationForm({
   /** Where the organisation's framework's suggestions come from. */
   source: { name: string; detail: string };
 }) {
-  const [description, setDescription] = useState("");
-  const [treatment, setTreatment] = useState<TreatmentType>("limitation");
-  const [suggestion, setSuggestion] = useState<TreatmentSuggestion | null>(null);
+  const [description, setDescription] = useState('');
+  const [treatment, setTreatment] = useState<TreatmentType>('limitation');
+  const [suggestion, setSuggestion] = useState<TreatmentSuggestion | null>(
+    null
+  );
 
   function use(s: TreatmentSuggestion) {
     setDescription(s.text);
@@ -72,12 +85,16 @@ export function MitigationForm({
       <form
         action={async (formData) => {
           await action(formData);
-          setDescription("");
+          setDescription('');
           setSuggestion(null);
         }}
         className="space-y-2 rounded border border-line bg-surface p-4"
       >
-        <input type="hidden" name="suggestionKey" value={suggestion?.key ?? ""} />
+        <input
+          type="hidden"
+          name="suggestionKey"
+          value={suggestion?.key ?? ''}
+        />
         <label className="block space-y-1">
           <span className={label}>What will be done</span>
           <textarea
@@ -99,7 +116,11 @@ export function MitigationForm({
               className="rounded border border-line bg-ground px-3 py-2 text-sm"
             >
               {(Object.keys(TREATMENT_LABEL) as TreatmentType[]).map((t) => (
-                <option key={t} value={t} title={TREATMENT_HELP[t]}>
+                <option
+                  key={t}
+                  value={t}
+                  title={TREATMENT_HELP[t]}
+                >
                   {TREATMENT_LABEL[t]}
                 </option>
               ))}
@@ -115,7 +136,11 @@ export function MitigationForm({
           </label>
           <label className="block space-y-1">
             <span className={label}>Due</span>
-            <input name="dueAt" type="date" className="rounded border border-line bg-ground px-3 py-2 text-sm" />
+            <input
+              name="dueAt"
+              type="date"
+              className="rounded border border-line bg-ground px-3 py-2 text-sm"
+            />
           </label>
           <button
             type="submit"
@@ -129,8 +154,8 @@ export function MitigationForm({
             Started from the suggestion under &ldquo;{suggestion.theme}&rdquo;.
             Change the wording to what you will actually do.
             {suggestion.treatment === null
-              ? " The toolkit calls this acceptance; here it is recorded as a mitigation, so choose the treatment that fits."
-              : ""}
+              ? ' The toolkit calls this acceptance; here it is recorded as a mitigation, so choose the treatment that fits.'
+              : ''}
           </p>
         ) : null}
       </form>
@@ -138,18 +163,28 @@ export function MitigationForm({
       <details className="space-y-2">
         <summary className="cursor-pointer text-sm text-brand">
           {matching.length > 0
-            ? `Treatments ${source.name} suggests for ${categoryLabel ?? "this category"} (${matching.length})`
+            ? `Treatments ${source.name} suggests for ${categoryLabel ?? 'this category'} (${matching.length})`
             : `Treatments ${source.name} suggests`}
         </summary>
         <div className="space-y-3 pt-2">
-          {matching.length > 0 ? <SuggestionList suggestions={matching} onUse={use} /> : null}
+          {matching.length > 0 ? (
+            <SuggestionList
+              suggestions={matching}
+              onUse={use}
+            />
+          ) : null}
           {others.length > 0 ? (
             <details>
               <summary className="cursor-pointer text-xs text-ink-soft">
-                {matching.length > 0 ? `For other categories (${others.length})` : `All suggestions (${others.length})`}
+                {matching.length > 0
+                  ? `For other categories (${others.length})`
+                  : `All suggestions (${others.length})`}
               </summary>
               <div className="pt-2">
-                <SuggestionList suggestions={others} onUse={use} />
+                <SuggestionList
+                  suggestions={others}
+                  onUse={use}
+                />
               </div>
             </details>
           ) : null}

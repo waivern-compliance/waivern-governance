@@ -1,15 +1,16 @@
-import { and, eq } from "drizzle-orm";
-import { db, sql as pg } from "@/db/client";
+import { and, eq } from 'drizzle-orm';
+
+import { db, sql as pg } from '@/db/client';
 import {
   entities,
   memberships,
   organisations,
   roleAssignments,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { ROLES, type AppRole } from "@/lib/rbac";
-import { PERSONAS, type Persona } from "@/lib/persona";
+  users
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { PERSONAS, type Persona } from '@/lib/persona';
+import { ROLES, type AppRole } from '@/lib/rbac';
 
 /**
  * Give a real person access.
@@ -27,19 +28,17 @@ import { PERSONAS, type Persona } from "@/lib/persona";
  * Idempotent: re-running adds nothing and changes nothing.
  */
 
-
-
 function usage(message?: string): never {
   if (message) console.error(`\n${message}\n`);
   console.error(`Usage: pnpm grant <email> [role] [options]
 
-  role        one of: ${ROLES.join(", ")}
+  role        one of: ${ROLES.join(', ')}
               defaults to "owner"
 
   --org <slug>       which organisation, if there is more than one
   --entity "<name>"  confine the role to one legal entity
   --name "<name>"    the person's display name
-  --persona <p>      how the platform presents itself: ${PERSONAS.join(", ")}
+  --persona <p>      how the platform presents itself: ${PERSONAS.join(', ')}
                      changes nothing about access; they can switch it later
 
 Examples:
@@ -57,25 +56,31 @@ function flag(argv: string[], name: string): string | undefined {
 
 async function main() {
   const argv = process.argv.slice(2);
-  const positional = argv.filter((a, i) => !a.startsWith("--") && !argv[i - 1]?.startsWith("--"));
+  const positional = argv.filter(
+    (a, i) => !a.startsWith('--') && !argv[i - 1]?.startsWith('--')
+  );
 
   const email = positional[0]?.toLowerCase().trim();
-  if (!email || !email.includes("@")) usage("An email address is required.");
+  if (!email || !email.includes('@')) usage('An email address is required.');
 
-  const role = (positional[1] ?? "owner") as AppRole;
-  if (!ROLES.includes(role)) usage(`"${role}" is not a role. Choose one of: ${ROLES.join(", ")}`);
+  const role = (positional[1] ?? 'owner') as AppRole;
+  if (!ROLES.includes(role))
+    usage(`"${role}" is not a role. Choose one of: ${ROLES.join(', ')}`);
 
-  const orgSlug = flag(argv, "org");
-  const entityName = flag(argv, "entity");
-  const displayName = flag(argv, "name");
+  const orgSlug = flag(argv, 'org');
+  const entityName = flag(argv, 'entity');
+  const displayName = flag(argv, 'name');
 
-  const personaFlag = flag(argv, "persona") as Persona | undefined;
+  const personaFlag = flag(argv, 'persona') as Persona | undefined;
   if (personaFlag && !PERSONAS.includes(personaFlag)) {
-    usage(`"${personaFlag}" is not a persona. Choose one of: ${PERSONAS.join(", ")}`);
+    usage(
+      `"${personaFlag}" is not a persona. Choose one of: ${PERSONAS.join(', ')}`
+    );
   }
 
   const allOrgs = await db.select().from(organisations);
-  if (allOrgs.length === 0) usage("There are no organisations yet. Run `pnpm seed` first.");
+  if (allOrgs.length === 0)
+    usage('There are no organisations yet. Run `pnpm seed` first.');
 
   const org = orgSlug
     ? allOrgs.find((o) => o.slug === orgSlug)
@@ -87,7 +92,7 @@ async function main() {
       orgSlug
         ? `No organisation with slug "${orgSlug}".`
         : `More than one organisation exists - name one with --org:\n` +
-            allOrgs.map((o) => `    ${o.slug}  (${o.name})`).join("\n"),
+            allOrgs.map((o) => `    ${o.slug}  (${o.name})`).join('\n')
     );
   }
 
@@ -96,7 +101,9 @@ async function main() {
     const [entity] = await db
       .select()
       .from(entities)
-      .where(and(eq(entities.organisationId, org.id), eq(entities.name, entityName)));
+      .where(
+        and(eq(entities.organisationId, org.id), eq(entities.name, entityName))
+      );
     if (!entity) {
       const available = await db
         .select({ name: entities.name })
@@ -104,35 +111,48 @@ async function main() {
         .where(eq(entities.organisationId, org.id));
       usage(
         `No entity called "${entityName}" in ${org.name}. Available:\n` +
-          available.map((e) => `    ${e.name}`).join("\n"),
+          available.map((e) => `    ${e.name}`).join('\n')
       );
     }
     entityId = entity.id;
   }
 
   const actor = {
-    actorKind: "system" as const,
+    actorKind: 'system' as const,
     actorUserId: null,
-    actorLabel: "grant-access",
+    actorLabel: 'grant-access'
   };
 
   await db.transaction(async (tx) => {
-    const [existingUser] = await tx.select().from(users).where(eq(users.email, email));
+    const [existingUser] = await tx
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
     const user =
       existingUser ??
-      (await tx.insert(users).values({ email, name: displayName }).returning())[0];
+      (
+        await tx.insert(users).values({ email, name: displayName }).returning()
+      )[0];
 
     // Fill in a name if one was supplied and none is recorded. Never overwrite
     // a name they already have — theirs is likelier to be right than a flag
     // typed at a terminal.
     if (displayName && !user.name) {
-      await tx.update(users).set({ name: displayName }).where(eq(users.id, user.id));
+      await tx
+        .update(users)
+        .set({ name: displayName })
+        .where(eq(users.id, user.id));
     }
 
     const [existingMembership] = await tx
       .select()
       .from(memberships)
-      .where(and(eq(memberships.organisationId, org.id), eq(memberships.userId, user.id)));
+      .where(
+        and(
+          eq(memberships.organisationId, org.id),
+          eq(memberships.userId, user.id)
+        )
+      );
 
     const membership =
       existingMembership ??
@@ -145,12 +165,15 @@ async function main() {
 
     // Reactivate rather than refuse: revoking and restoring access is a normal
     // thing to do, and it should not need a database console.
-    if (!membership.isActive || (personaFlag && membership.persona !== personaFlag)) {
+    if (
+      !membership.isActive ||
+      (personaFlag && membership.persona !== personaFlag)
+    ) {
       await tx
         .update(memberships)
         .set({
           isActive: true,
-          ...(personaFlag ? { persona: personaFlag } : {}),
+          ...(personaFlag ? { persona: personaFlag } : {})
         })
         .where(eq(memberships.id, membership.id));
     }
@@ -160,8 +183,8 @@ async function main() {
       .values({
         membershipId: membership.id,
         role,
-        scope: entityId ? "entity" : "organisation",
-        entityId,
+        scope: entityId ? 'entity' : 'organisation',
+        entityId
       })
       .onConflictDoNothing()
       .returning();
@@ -170,24 +193,24 @@ async function main() {
       await appendAuditEvent(tx, {
         ...actor,
         organisationId: org.id,
-        action: "role_assignment.granted",
-        subjectType: "role_assignment",
+        action: 'role_assignment.granted',
+        subjectType: 'role_assignment',
         subjectId: granted.id,
         entityId,
-        after: { email, role, scope: entityId ? "entity" : "organisation" },
+        after: { email, role, scope: entityId ? 'entity' : 'organisation' }
       });
     }
 
-    const scope = entityName ? `on ${entityName}` : "across the organisation";
+    const scope = entityName ? `on ${entityName}` : 'across the organisation';
     if (personaFlag) console.log(`Home view set to ${personaFlag}.`);
     console.log(
       granted
         ? `Granted ${role} ${scope} to ${email} in ${org.name}.`
-        : `${email} already holds ${role} ${scope} in ${org.name}. Nothing changed.`,
+        : `${email} already holds ${role} ${scope} in ${org.name}. Nothing changed.`
     );
     console.log(
       `\nThey sign in at /sign-in with the identity provider account for ${email}.` +
-        `\nThe email must match exactly - that is what the platform matches on.`,
+        `\nThe email must match exactly - that is what the platform matches on.`
     );
   });
 

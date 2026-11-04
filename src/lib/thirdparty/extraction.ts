@@ -1,5 +1,6 @@
-import { z } from "zod";
-import { extractJson } from "@/lib/assistant/parse";
+import { z } from 'zod';
+
+import { extractJson } from '@/lib/assistant/parse';
 
 /**
  * Reading transfers and sub-processors out of an agreement.
@@ -17,13 +18,13 @@ import { extractJson } from "@/lib/assistant/parse";
  * person then decides whether the platform should go and fetch it.
  */
 
-export const EXTRACTION_PROMPT_VERSION = "2026-09-04.1";
+export const EXTRACTION_PROMPT_VERSION = '2026-09-04.1';
 
 /** One thing the model was given to read, and what it is. */
 export type Source = {
   /** The label the model cites. Ours, not the model's. */
   label: string;
-  kind: "document" | "web_page";
+  kind: 'document' | 'web_page';
   /** Filename or URL, shown to the model and to the reviewer. */
   name: string;
   text: string;
@@ -85,33 +86,35 @@ British English. Where a document is ambiguous, say so in "notes" rather than
 resolving it.`;
 
 export const MECHANISMS = {
-  adequacy_decision: "Adequacy decision",
-  standard_contractual_clauses: "Standard contractual clauses",
-  binding_corporate_rules: "Binding corporate rules",
-  codes_of_conduct: "Code of conduct",
-  certification: "Certification",
-  derogation: "Article 49 derogation",
-  public_authority_instrument: "Instrument between public authorities",
-  no_transfer: "No transfer outside the UK/EEA",
-  unclear: "Not clear from the document",
+  adequacy_decision: 'Adequacy decision',
+  standard_contractual_clauses: 'Standard contractual clauses',
+  binding_corporate_rules: 'Binding corporate rules',
+  codes_of_conduct: 'Code of conduct',
+  certification: 'Certification',
+  derogation: 'Article 49 derogation',
+  public_authority_instrument: 'Instrument between public authorities',
+  no_transfer: 'No transfer outside the UK/EEA',
+  unclear: 'Not clear from the document'
 } as const;
 
 export type Mechanism = keyof typeof MECHANISMS;
 
 const cited = {
   quote: z.string().min(1).max(1200),
-  source: z.string().min(1).max(16),
+  source: z.string().min(1).max(16)
 };
 
 const Response = z.object({
   transfers: z
     .array(
       z.object({
-        mechanism: z.enum(Object.keys(MECHANISMS) as [Mechanism, ...Mechanism[]]).catch("unclear"),
+        mechanism: z
+          .enum(Object.keys(MECHANISMS) as [Mechanism, ...Mechanism[]])
+          .catch('unclear'),
         detail: z.string().max(600).nullish(),
         countries: z.array(z.string().max(120)).max(40).catch([]),
-        ...cited,
-      }),
+        ...cited
+      })
     )
     .max(40)
     .catch([]),
@@ -121,20 +124,31 @@ const Response = z.object({
         name: z.string().min(1).max(200),
         service: z.string().max(300).nullish(),
         country: z.string().max(120).nullish(),
-        ...cited,
-      }),
+        ...cited
+      })
     )
     .max(300)
     .catch([]),
   links: z
-    .array(z.object({ url: z.string().max(600), why: z.string().max(300).nullish(), source: z.string().max(16).nullish() }))
+    .array(
+      z.object({
+        url: z.string().max(600),
+        why: z.string().max(300).nullish(),
+        source: z.string().max(16).nullish()
+      })
+    )
     .max(20)
     .catch([]),
   elsewhere: z
-    .array(z.object({ describes: z.string().max(300), source: z.string().max(16).nullish() }))
+    .array(
+      z.object({
+        describes: z.string().max(300),
+        source: z.string().max(16).nullish()
+      })
+    )
     .max(20)
     .catch([]),
-  notes: z.string().max(2000).nullish(),
+  notes: z.string().max(2000).nullish()
 });
 
 export type Extracted = z.infer<typeof Response>;
@@ -143,12 +157,12 @@ export type Extracted = z.infer<typeof Response>;
 export function buildTurn(sources: Source[]): string {
   const parts = sources.map(
     (source) =>
-      `[${source.label}] ${source.kind === "web_page" ? "Web page" : "File"}: ${source.name}\n` +
-      `-----\n${source.text}\n-----`,
+      `[${source.label}] ${source.kind === 'web_page' ? 'Web page' : 'File'}: ${source.name}\n` +
+      `-----\n${source.text}\n-----`
   );
   return (
-    `Read the following ${sources.length === 1 ? "source" : `${sources.length} sources`} ` +
-    `and report the transfer mechanisms and sub-processors they name.\n\n${parts.join("\n\n")}`
+    `Read the following ${sources.length === 1 ? 'source' : `${sources.length} sources`} ` +
+    `and report the transfer mechanisms and sub-processors they name.\n\n${parts.join('\n\n')}`
   );
 }
 
@@ -161,7 +175,7 @@ export function buildTurn(sources: Source[]): string {
  */
 export function readResponse(
   raw: string,
-  sources: Source[],
+  sources: Source[]
 ): { data: Extracted; dropped: number } | null {
   const parsed = Response.safeParse(extractJson(raw));
   if (!parsed.success) return null;
@@ -171,7 +185,9 @@ export function readResponse(
     Boolean(label && known.has(label.trim().toUpperCase()));
 
   const transfers = parsed.data.transfers.filter((t) => resolves(t.source));
-  const subProcessors = parsed.data.subProcessors.filter((s) => resolves(s.source));
+  const subProcessors = parsed.data.subProcessors.filter((s) =>
+    resolves(s.source)
+  );
 
   // Counted, not merely discarded. A model citing sources it was never given
   // is the failure this design exists to catch, and it should be visible when
@@ -185,7 +201,10 @@ export function readResponse(
 }
 
 /** The source a citation points at, matched however the model cased it. */
-export function sourceFor(label: string | null | undefined, sources: Source[]): Source | null {
+export function sourceFor(
+  label: string | null | undefined,
+  sources: Source[]
+): Source | null {
   if (!label) return null;
   const wanted = label.trim().toUpperCase();
   return sources.find((s) => s.label.toUpperCase() === wanted) ?? null;

@@ -1,22 +1,25 @@
-import { eq } from "drizzle-orm";
-import { db, sql as pg } from "@/db/client";
+import { eq } from 'drizzle-orm';
+
+import { db, sql as pg } from '@/db/client';
 import {
   entities,
+  legalReferences,
   memberships,
   organisations,
   retentionProfiles,
   roleAssignments,
+  slaPolicies,
   users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { LEGAL_REFERENCES } from "@/lib/templates/library";
-import type { AppRole } from "@/lib/rbac";
-import { legalReferences } from "@/db/schema";
-import { installShippedTemplates } from "@/services/templates";
-import { seedSharedLibrary } from "@/services/countries";
-import { DEFAULT_SLA, DEFAULT_WORKFLOWS } from "@/lib/workflow/defaults";
-import { slaPolicies, workflowDefinitions, workflowStages } from "@/db/schema";
-import { RETENTION_DEFAULTS } from "@/lib/organisation/defaults";
+  workflowDefinitions,
+  workflowStages
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { RETENTION_DEFAULTS } from '@/lib/organisation/defaults';
+import type { AppRole } from '@/lib/rbac';
+import { LEGAL_REFERENCES } from '@/lib/templates/library';
+import { DEFAULT_SLA, DEFAULT_WORKFLOWS } from '@/lib/workflow/defaults';
+import { seedSharedLibrary } from '@/services/countries';
+import { installShippedTemplates } from '@/services/templates';
 
 /**
  * A demonstration tenant shaped like the buyer described in the RFI: a single
@@ -24,11 +27,11 @@ import { RETENTION_DEFAULTS } from "@/lib/organisation/defaults";
  * reported by entity. Deliberately generic underneath — nothing about the
  * platform knows this organisation is special.
  */
-const ORG = { name: "BBC Group", slug: "bbc-group" };
+const ORG = { name: 'BBC Group', slug: 'bbc-group' };
 
 const ENTITIES = [
-  { name: "BBC Public Service", legalEntityRef: "BBC-PS", isDefault: true },
-  { name: "BBC Studios", legalEntityRef: "BBC-STU", isDefault: false },
+  { name: 'BBC Public Service', legalEntityRef: 'BBC-PS', isDefault: true },
+  { name: 'BBC Studios', legalEntityRef: 'BBC-STU', isDefault: false }
 ];
 
 const PEOPLE: Array<{
@@ -36,25 +39,45 @@ const PEOPLE: Array<{
   name: string;
   roles: Array<{ role: AppRole; entity?: string }>;
 }> = [
-  { email: "programme.lead@example.bbc.co.uk", name: "Programme Lead", roles: [{ role: "owner" }] },
-  { email: "dpo@example.bbc.co.uk", name: "Data Protection Officer", roles: [{ role: "privacy_admin" }] },
-  { email: "privacy.analyst@example.bbc.co.uk", name: "Privacy Analyst", roles: [{ role: "privacy_analyst" }] },
-  { email: "ai.governance@example.bbc.co.uk", name: "Responsible AI Lead", roles: [{ role: "ai_governance" }] },
   {
-    email: "ps.approver@example.bbc.co.uk",
-    name: "Public Service Approver",
+    email: 'programme.lead@example.bbc.co.uk',
+    name: 'Programme Lead',
+    roles: [{ role: 'owner' }]
+  },
+  {
+    email: 'dpo@example.bbc.co.uk',
+    name: 'Data Protection Officer',
+    roles: [{ role: 'privacy_admin' }]
+  },
+  {
+    email: 'privacy.analyst@example.bbc.co.uk',
+    name: 'Privacy Analyst',
+    roles: [{ role: 'privacy_analyst' }]
+  },
+  {
+    email: 'ai.governance@example.bbc.co.uk',
+    name: 'Responsible AI Lead',
+    roles: [{ role: 'ai_governance' }]
+  },
+  {
+    email: 'ps.approver@example.bbc.co.uk',
+    name: 'Public Service Approver',
     // Deliberately not the same person as any risk owner: accepting a risk you
     // own is refused, so a demo tenant needs a separate approver to be usable.
-    roles: [{ role: "approver", entity: "BBC Public Service" }],
+    roles: [{ role: 'approver', entity: 'BBC Public Service' }]
   },
   {
-    email: "studios.approver@example.bbc.co.uk",
-    name: "Studios Approver",
+    email: 'studios.approver@example.bbc.co.uk',
+    name: 'Studios Approver',
     // Scoped to one entity: this person may decide approvals for BBC Studios
     // and holds no rights at all over Public Service records.
-    roles: [{ role: "approver", entity: "BBC Studios" }],
+    roles: [{ role: 'approver', entity: 'BBC Studios' }]
   },
-  { email: "internal.audit@example.bbc.co.uk", name: "Internal Audit", roles: [{ role: "auditor" }] },
+  {
+    email: 'internal.audit@example.bbc.co.uk',
+    name: 'Internal Audit',
+    roles: [{ role: 'auditor' }]
+  }
 ];
 
 /** Retention varies by record type and follows the client's own schedule. */
@@ -63,10 +86,12 @@ const RETENTION = RETENTION_DEFAULTS;
 async function main() {
   let organisationId: string | undefined;
   const existing = await db.query.organisations.findFirst({
-    where: eq(organisations.slug, ORG.slug),
+    where: eq(organisations.slug, ORG.slug)
   });
   if (existing) {
-    console.log(`Organisation "${ORG.slug}" already seeded. Run \`pnpm db:reset\` first to start clean.`);
+    console.log(
+      `Organisation "${ORG.slug}" already seeded. Run \`pnpm db:reset\` first to start clean.`
+    );
     await pg.end();
     return;
   }
@@ -79,16 +104,16 @@ async function main() {
     // has no unexplained gap at its head.
     const systemActor = {
       organisationId: org.id,
-      actorKind: "system" as const,
-      actorLabel: "seed",
+      actorKind: 'system' as const,
+      actorLabel: 'seed'
     };
 
     await appendAuditEvent(tx, {
       ...systemActor,
-      action: "organisation.created",
-      subjectType: "organisation",
+      action: 'organisation.created',
+      subjectType: 'organisation',
       subjectId: org.id,
-      after: { name: org.name, slug: org.slug },
+      after: { name: org.name, slug: org.slug }
     });
 
     const entityByName = new Map<string, string>();
@@ -100,11 +125,11 @@ async function main() {
       entityByName.set(row.name, row.id);
       await appendAuditEvent(tx, {
         ...systemActor,
-        action: "entity.created",
-        subjectType: "entity",
+        action: 'entity.created',
+        subjectType: 'entity',
         subjectId: row.id,
         entityId: row.id,
-        after: { name: row.name, legalEntityRef: row.legalEntityRef },
+        after: { name: row.name, legalEntityRef: row.legalEntityRef }
       });
     }
 
@@ -115,15 +140,15 @@ async function main() {
           organisationId: org.id,
           subjectType: r.subjectType,
           retentionMonths: r.months,
-          basis: r.basis,
+          basis: r.basis
         })
         .returning();
       await appendAuditEvent(tx, {
         ...systemActor,
-        action: "retention_profile.created",
-        subjectType: "retention_profile",
+        action: 'retention_profile.created',
+        subjectType: 'retention_profile',
         subjectId: row.id,
-        after: { subjectType: r.subjectType, retentionMonths: r.months },
+        after: { subjectType: r.subjectType, retentionMonths: r.months }
       });
     }
 
@@ -146,22 +171,24 @@ async function main() {
           .values({
             membershipId: membership.id,
             role: grant.role,
-            scope: entityId ? "entity" : "organisation",
-            entityId,
+            scope: entityId ? 'entity' : 'organisation',
+            entityId
           })
           .returning();
         await appendAuditEvent(tx, {
           ...systemActor,
-          action: "role_assignment.granted",
-          subjectType: "role_assignment",
+          action: 'role_assignment.granted',
+          subjectType: 'role_assignment',
           subjectId: row.id,
           entityId,
-          after: { email: p.email, role: grant.role, scope: row.scope },
+          after: { email: p.email, role: grant.role, scope: row.scope }
         });
       }
     }
 
-    console.log(`Seeded "${org.name}" - ${ENTITIES.length} entities, ${PEOPLE.length} people.`);
+    console.log(
+      `Seeded "${org.name}" - ${ENTITIES.length} entities, ${PEOPLE.length} people.`
+    );
     organisationId = org.id;
   });
 
@@ -175,7 +202,7 @@ async function main() {
       .values({ ...ref, reviewedAt: now })
       .onConflictDoUpdate({
         target: legalReferences.code,
-        set: { citation: ref.citation, title: ref.title, reviewedAt: now },
+        set: { citation: ref.citation, title: ref.title, reviewedAt: now }
       });
   }
   console.log(`Seeded ${LEGAL_REFERENCES.length} legal references.`);
@@ -185,18 +212,21 @@ async function main() {
   const countries = await seedSharedLibrary();
   console.log(
     `Country library: ${countries.created} of ${countries.total} entries added ` +
-      `(all unverified and due for review, deliberately).`,
+      `(all unverified and due for review, deliberately).`
   );
 
   // Templates are created and published through the same service the UI uses,
   // so the seed exercises publish-time validation rather than writing rows that
   // the application would have rejected.
   const actor = {
-    actorKind: "system" as const,
+    actorKind: 'system' as const,
     actorUserId: null,
-    actorLabel: "seed",
+    actorLabel: 'seed'
   };
-  for (const name of await installShippedTemplates({ organisationId: organisationId!, actor })) {
+  for (const name of await installShippedTemplates({
+    organisationId: organisationId!,
+    actor
+  })) {
     console.log(`  published ${name}`);
   }
 
@@ -209,7 +239,7 @@ async function main() {
       .values({
         organisationId: organisationId!,
         templateKind: spec.templateKind,
-        name: spec.name,
+        name: spec.name
       })
       .returning();
     for (const s of spec.stages) {
@@ -220,19 +250,21 @@ async function main() {
         requiredRole: s.requiredRole,
         condition: s.condition,
         slaHours: s.slaHours,
-        boardName: s.boardName ?? null,
+        boardName: s.boardName ?? null
       });
     }
   }
   for (const s of DEFAULT_SLA) {
     await db.insert(slaPolicies).values({
       organisationId: organisationId!,
-      taskType: s.taskType as "approve_stage",
+      taskType: s.taskType as 'approve_stage',
       targetHours: s.targetHours,
-      escalateToRole: s.escalateToRole,
+      escalateToRole: s.escalateToRole
     });
   }
-  console.log(`Seeded ${DEFAULT_WORKFLOWS.length} workflows and ${DEFAULT_SLA.length} service levels.`);
+  console.log(
+    `Seeded ${DEFAULT_WORKFLOWS.length} workflows and ${DEFAULT_SLA.length} service levels.`
+  );
 
   await pg.end();
 }

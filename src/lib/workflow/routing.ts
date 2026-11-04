@@ -1,7 +1,8 @@
-import { z } from "zod";
-import { SPECIAL_CATEGORY_VALUES } from "@/lib/templates/catalogues";
-import type { Answers } from "@/lib/templates/logic";
-import type { RiskTier } from "@/lib/risk/scale";
+import { z } from 'zod';
+
+import type { RiskTier } from '@/lib/risk/scale';
+import { SPECIAL_CATEGORY_VALUES } from '@/lib/templates/catalogues';
+import type { Answers } from '@/lib/templates/logic';
 
 /**
  * When an approval stage applies.
@@ -14,43 +15,56 @@ import type { RiskTier } from "@/lib/risk/scale";
  * reworded.
  */
 export type RoutingCondition =
-  | { op: "always" }
-  | { op: "scoreAtLeast"; value: number }
-  | { op: "tierAtLeast"; value: RiskTier }
-  | { op: "answerEquals"; question: string; value: string | number | boolean }
-  | { op: "answerIncludes"; question: string; value: string }
+  | { op: 'always' }
+  | { op: 'scoreAtLeast'; value: number }
+  | { op: 'tierAtLeast'; value: RiskTier }
+  | { op: 'answerEquals'; question: string; value: string | number | boolean }
+  | { op: 'answerIncludes'; question: string; value: string }
   /** A numeric answer at or above a figure — a spend threshold, a volume. */
-  | { op: "answerAtLeast"; question: string; value: number }
-  | { op: "specialCategoryData" }
-  | { op: "transferToNonAdequate" }
-  | { op: "and"; all: RoutingCondition[] }
-  | { op: "or"; any: RoutingCondition[] }
-  | { op: "not"; condition: RoutingCondition };
+  | { op: 'answerAtLeast'; question: string; value: number }
+  | { op: 'specialCategoryData' }
+  | { op: 'transferToNonAdequate' }
+  | { op: 'and'; all: RoutingCondition[] }
+  | { op: 'or'; any: RoutingCondition[] }
+  | { op: 'not'; condition: RoutingCondition };
 
 export const routingCondition: z.ZodType<RoutingCondition> = z.lazy(() =>
-  z.discriminatedUnion("op", [
-    z.object({ op: z.literal("always") }),
-    z.object({ op: z.literal("scoreAtLeast"), value: z.number() }),
+  z.discriminatedUnion('op', [
+    z.object({ op: z.literal('always') }),
+    z.object({ op: z.literal('scoreAtLeast'), value: z.number() }),
     z.object({
-      op: z.literal("tierAtLeast"),
-      value: z.enum(["low", "medium", "high", "critical"]),
+      op: z.literal('tierAtLeast'),
+      value: z.enum(['low', 'medium', 'high', 'critical'])
     }),
     z.object({
-      op: z.literal("answerEquals"),
+      op: z.literal('answerEquals'),
       question: z.string(),
-      value: z.union([z.string(), z.number(), z.boolean()]),
+      value: z.union([z.string(), z.number(), z.boolean()])
     }),
-    z.object({ op: z.literal("answerIncludes"), question: z.string(), value: z.string() }),
-    z.object({ op: z.literal("answerAtLeast"), question: z.string(), value: z.number() }),
-    z.object({ op: z.literal("specialCategoryData") }),
-    z.object({ op: z.literal("transferToNonAdequate") }),
-    z.object({ op: z.literal("and"), all: z.array(routingCondition).min(1) }),
-    z.object({ op: z.literal("or"), any: z.array(routingCondition).min(1) }),
-    z.object({ op: z.literal("not"), condition: routingCondition }),
-  ]),
+    z.object({
+      op: z.literal('answerIncludes'),
+      question: z.string(),
+      value: z.string()
+    }),
+    z.object({
+      op: z.literal('answerAtLeast'),
+      question: z.string(),
+      value: z.number()
+    }),
+    z.object({ op: z.literal('specialCategoryData') }),
+    z.object({ op: z.literal('transferToNonAdequate') }),
+    z.object({ op: z.literal('and'), all: z.array(routingCondition).min(1) }),
+    z.object({ op: z.literal('or'), any: z.array(routingCondition).min(1) }),
+    z.object({ op: z.literal('not'), condition: routingCondition })
+  ])
 );
 
-const TIER_ORDER: Record<RiskTier, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+const TIER_ORDER: Record<RiskTier, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  critical: 3
+};
 
 export type RoutingContext = {
   answers: Answers;
@@ -70,46 +84,55 @@ export type RoutingContext = {
 
 function valuesOf(answers: Answers): string[] {
   return Object.values(answers).flatMap((v) =>
-    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string")
-    : typeof v === "string" ? [v]
-    : [],
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === 'string')
+      : typeof v === 'string'
+        ? [v]
+        : []
   );
 }
 
-export function matches(condition: RoutingCondition, ctx: RoutingContext): boolean {
+export function matches(
+  condition: RoutingCondition,
+  ctx: RoutingContext
+): boolean {
   switch (condition.op) {
-    case "always":
+    case 'always':
       return true;
 
-    case "scoreAtLeast":
+    case 'scoreAtLeast':
       // An unscored assessment does not clear a score threshold. Treating a
       // missing score as zero would route a high-risk weighted-sum assessment
       // straight past the stage meant to catch it.
       return ctx.score !== null && ctx.score >= condition.value;
 
-    case "tierAtLeast":
-      return ctx.tier !== null && TIER_ORDER[ctx.tier] >= TIER_ORDER[condition.value];
+    case 'tierAtLeast':
+      return (
+        ctx.tier !== null && TIER_ORDER[ctx.tier] >= TIER_ORDER[condition.value]
+      );
 
-    case "answerEquals":
+    case 'answerEquals':
       return ctx.answers[condition.question] === condition.value;
 
-    case "answerIncludes": {
+    case 'answerIncludes': {
       const v = ctx.answers[condition.question];
       return Array.isArray(v) && v.includes(condition.value);
     }
 
-    case "answerAtLeast": {
+    case 'answerAtLeast': {
       // An unanswered figure does not clear a threshold, as an unscored
       // assessment does not clear a score. A stage that must catch large
       // spend should make the question required.
       const v = ctx.answers[condition.question];
-      return typeof v === "number" && Number.isFinite(v) && v >= condition.value;
+      return (
+        typeof v === 'number' && Number.isFinite(v) && v >= condition.value
+      );
     }
 
-    case "specialCategoryData":
+    case 'specialCategoryData':
       return valuesOf(ctx.answers).some((v) => SPECIAL_CATEGORY_VALUES.has(v));
 
-    case "transferToNonAdequate": {
+    case 'transferToNonAdequate': {
       // An absent or empty library means the question cannot be answered, and
       // an empty set is the dangerous case: `has()` returns false for every
       // country, so a transfer to anywhere would sail past the gate meant to
@@ -119,13 +142,13 @@ export function matches(condition: RoutingCondition, ctx: RoutingContext): boole
       return valuesOf(ctx.answers).some((v) => ctx.needsSafeguards!.has(v));
     }
 
-    case "and":
+    case 'and':
       return condition.all.every((c) => matches(c, ctx));
 
-    case "or":
+    case 'or':
       return condition.any.some((c) => matches(c, ctx));
 
-    case "not":
+    case 'not':
       return !matches(condition.condition, ctx);
   }
 }
@@ -133,27 +156,27 @@ export function matches(condition: RoutingCondition, ctx: RoutingContext): boole
 /** A short description of why a stage applied, recorded on the approval. */
 export function describe(condition: RoutingCondition): string {
   switch (condition.op) {
-    case "always":
-      return "always required";
-    case "scoreAtLeast":
+    case 'always':
+      return 'always required';
+    case 'scoreAtLeast':
       return `score is ${condition.value} or above`;
-    case "tierAtLeast":
+    case 'tierAtLeast':
       return `risk is ${condition.value} or above`;
-    case "answerEquals":
+    case 'answerEquals':
       return `${condition.question} is ${String(condition.value)}`;
-    case "answerIncludes":
+    case 'answerIncludes':
       return `${condition.question} includes ${condition.value}`;
-    case "answerAtLeast":
-      return `${condition.question} is ${condition.value.toLocaleString("en-GB")} or more`;
-    case "specialCategoryData":
-      return "special category data is involved";
-    case "transferToNonAdequate":
-      return "data goes to a country not approved by UK regulations (Article 45A)";
-    case "and":
-      return condition.all.map(describe).join(" and ");
-    case "or":
-      return condition.any.map(describe).join(" or ");
-    case "not":
+    case 'answerAtLeast':
+      return `${condition.question} is ${condition.value.toLocaleString('en-GB')} or more`;
+    case 'specialCategoryData':
+      return 'special category data is involved';
+    case 'transferToNonAdequate':
+      return 'data goes to a country not approved by UK regulations (Article 45A)';
+    case 'and':
+      return condition.all.map(describe).join(' and ');
+    case 'or':
+      return condition.any.map(describe).join(' or ');
+    case 'not':
       return `not (${describe(condition.condition)})`;
   }
 }
@@ -167,27 +190,27 @@ export function describe(condition: RoutingCondition): string {
  */
 export function describeRouting(condition: RoutingCondition): string {
   switch (condition.op) {
-    case "always":
-      return "always";
-    case "scoreAtLeast":
+    case 'always':
+      return 'always';
+    case 'scoreAtLeast':
       return `the risk score is ${condition.value} or more`;
-    case "tierAtLeast":
+    case 'tierAtLeast':
       return `the risk is ${condition.value} or worse`;
-    case "answerEquals":
+    case 'answerEquals':
       return `the answer to “${condition.question}” is ${String(condition.value)}`;
-    case "answerIncludes":
+    case 'answerIncludes':
       return `the answer to “${condition.question}” includes ${condition.value}`;
-    case "answerAtLeast":
-      return `the answer to “${condition.question}” is ${condition.value.toLocaleString("en-GB")} or more`;
-    case "specialCategoryData":
-      return "special-category data is involved";
-    case "transferToNonAdequate":
-      return "data goes to a country not approved by UK regulations";
-    case "and":
-      return condition.all.map(describeRouting).join(", and ");
-    case "or":
-      return condition.any.map(describeRouting).join(", or ");
-    case "not":
+    case 'answerAtLeast':
+      return `the answer to “${condition.question}” is ${condition.value.toLocaleString('en-GB')} or more`;
+    case 'specialCategoryData':
+      return 'special-category data is involved';
+    case 'transferToNonAdequate':
+      return 'data goes to a country not approved by UK regulations';
+    case 'and':
+      return condition.all.map(describeRouting).join(', and ');
+    case 'or':
+      return condition.any.map(describeRouting).join(', or ');
+    case 'not':
       return `not: ${describeRouting(condition.condition)}`;
   }
 }
@@ -200,19 +223,18 @@ export function describeRouting(condition: RoutingCondition): string {
  * replace a rule they did not fully read.
  */
 export const SIMPLE_CONDITIONS = [
-  "always",
-  "scoreAtLeast",
-  "tierAtLeast",
-  "answerAtLeast",
-  "specialCategoryData",
-  "transferToNonAdequate",
+  'always',
+  'scoreAtLeast',
+  'tierAtLeast',
+  'answerAtLeast',
+  'specialCategoryData',
+  'transferToNonAdequate'
 ] as const;
 
 export type SimpleConditionOp = (typeof SIMPLE_CONDITIONS)[number];
 
-export function isSimple(condition: RoutingCondition): condition is Extract<
-  RoutingCondition,
-  { op: SimpleConditionOp }
-> {
+export function isSimple(
+  condition: RoutingCondition
+): condition is Extract<RoutingCondition, { op: SimpleConditionOp }> {
   return (SIMPLE_CONDITIONS as readonly string[]).includes(condition.op);
 }

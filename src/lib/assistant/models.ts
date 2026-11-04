@@ -1,4 +1,4 @@
-import type { ProviderKind } from "./providers";
+import type { ProviderKind } from './providers';
 
 /**
  * Commonly used models, as suggestions rather than a menu.
@@ -17,7 +17,7 @@ import type { ProviderKind } from "./providers";
  */
 
 /** When these were last reviewed. Shown to the user, not decorative. */
-export const SUGGESTIONS_REVIEWED = "September 2026";
+export const SUGGESTIONS_REVIEWED = 'September 2026';
 
 export type ModelSuggestion = {
   id: string;
@@ -31,10 +31,22 @@ export type ModelSuggestion = {
  * a gateway in front of something else may also do so.
  */
 const ANTHROPIC: ModelSuggestion[] = [
-  { id: "claude-opus-5", label: "Claude Opus 5 - most capable", vendor: "Anthropic" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5 - balanced", vendor: "Anthropic" },
-  { id: "claude-fable-5-1", label: "Claude Fable 5.1", vendor: "Anthropic" },
-  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 - fastest", vendor: "Anthropic" },
+  {
+    id: 'claude-opus-5',
+    label: 'Claude Opus 5 - most capable',
+    vendor: 'Anthropic'
+  },
+  {
+    id: 'claude-sonnet-5',
+    label: 'Claude Sonnet 5 - balanced',
+    vendor: 'Anthropic'
+  },
+  { id: 'claude-fable-5-1', label: 'Claude Fable 5.1', vendor: 'Anthropic' },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    label: 'Claude Haiku 4.5 - fastest',
+    vendor: 'Anthropic'
+  }
 ];
 
 /**
@@ -47,28 +59,40 @@ const ANTHROPIC: ModelSuggestion[] = [
  * reads as an authentication failure.
  */
 const OPENAI_COMPATIBLE: ModelSuggestion[] = [
-  { id: "gpt-4o", label: "GPT-4o", vendor: "OpenAI" },
-  { id: "gpt-4o-mini", label: "GPT-4o mini - cheaper", vendor: "OpenAI" },
-  { id: "gpt-4.1", label: "GPT-4.1", vendor: "OpenAI" },
-  { id: "o3", label: "o3 - reasoning", vendor: "OpenAI" },
-  { id: "o4-mini", label: "o4-mini - reasoning, cheaper", vendor: "OpenAI" },
+  { id: 'gpt-4o', label: 'GPT-4o', vendor: 'OpenAI' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o mini - cheaper', vendor: 'OpenAI' },
+  { id: 'gpt-4.1', label: 'GPT-4.1', vendor: 'OpenAI' },
+  { id: 'o3', label: 'o3 - reasoning', vendor: 'OpenAI' },
+  { id: 'o4-mini', label: 'o4-mini - reasoning, cheaper', vendor: 'OpenAI' },
 
-  { id: "mistral-large-latest", label: "Mistral Large - tracks the current release", vendor: "Mistral" },
-  { id: "mistral-medium-latest", label: "Mistral Medium", vendor: "Mistral" },
-  { id: "mistral-small-latest", label: "Mistral Small", vendor: "Mistral" },
-  { id: "open-mistral-nemo", label: "Mistral NeMo - open weights", vendor: "Mistral" },
+  {
+    id: 'mistral-large-latest',
+    label: 'Mistral Large - tracks the current release',
+    vendor: 'Mistral'
+  },
+  { id: 'mistral-medium-latest', label: 'Mistral Medium', vendor: 'Mistral' },
+  { id: 'mistral-small-latest', label: 'Mistral Small', vendor: 'Mistral' },
+  {
+    id: 'open-mistral-nemo',
+    label: 'Mistral NeMo - open weights',
+    vendor: 'Mistral'
+  },
 
-  { id: "qwen-max", label: "Qwen Max", vendor: "Qwen (Alibaba)" },
-  { id: "qwen-plus", label: "Qwen Plus", vendor: "Qwen (Alibaba)" },
-  { id: "qwen-turbo", label: "Qwen Turbo - fastest", vendor: "Qwen (Alibaba)" },
-  { id: "Qwen/Qwen2.5-72B-Instruct", label: "Qwen2.5 72B Instruct - open weights, self-hosted", vendor: "Qwen (Alibaba)" },
+  { id: 'qwen-max', label: 'Qwen Max', vendor: 'Qwen (Alibaba)' },
+  { id: 'qwen-plus', label: 'Qwen Plus', vendor: 'Qwen (Alibaba)' },
+  { id: 'qwen-turbo', label: 'Qwen Turbo - fastest', vendor: 'Qwen (Alibaba)' },
+  {
+    id: 'Qwen/Qwen2.5-72B-Instruct',
+    label: 'Qwen2.5 72B Instruct - open weights, self-hosted',
+    vendor: 'Qwen (Alibaba)'
+  },
 
-  { id: "deepseek-chat", label: "DeepSeek Chat", vendor: "DeepSeek" },
-  { id: "deepseek-reasoner", label: "DeepSeek Reasoner", vendor: "DeepSeek" },
+  { id: 'deepseek-chat', label: 'DeepSeek Chat', vendor: 'DeepSeek' },
+  { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner', vendor: 'DeepSeek' }
 ];
 
 export function suggestionsFor(kind: ProviderKind): ModelSuggestion[] {
-  return kind === "anthropic" ? ANTHROPIC : OPENAI_COMPATIBLE;
+  return kind === 'anthropic' ? ANTHROPIC : OPENAI_COMPATIBLE;
 }
 
 /**
@@ -103,54 +127,54 @@ export type EndpointSuggestion = {
  */
 export const VENDOR_ENDPOINTS: EndpointSuggestion[] = [
   {
-    vendor: "Anthropic",
-    url: "https://api.anthropic.com/v1/messages",
-    kind: "anthropic",
+    vendor: 'Anthropic',
+    url: 'https://api.anthropic.com/v1/messages',
+    kind: 'anthropic'
   },
   {
-    vendor: "Anthropic via a gateway",
-    url: "https://llm-gateway.internal.example/v1/messages",
-    kind: "anthropic",
-    note: "Replace with your own gateway if it speaks the Anthropic shape.",
+    vendor: 'Anthropic via a gateway',
+    url: 'https://llm-gateway.internal.example/v1/messages',
+    kind: 'anthropic',
+    note: 'Replace with your own gateway if it speaks the Anthropic shape.'
   },
   {
-    vendor: "Azure OpenAI",
-    url: "https://<your-resource>.openai.azure.com/openai/deployments/<your-deployment>/chat/completions",
-    kind: "openai_compatible",
-    note: "Replace both bracketed parts, and set the API version below.",
+    vendor: 'Azure OpenAI',
+    url: 'https://<your-resource>.openai.azure.com/openai/deployments/<your-deployment>/chat/completions',
+    kind: 'openai_compatible',
+    note: 'Replace both bracketed parts, and set the API version below.'
   },
   {
-    vendor: "OpenAI",
-    url: "https://api.openai.com/v1/chat/completions",
-    kind: "openai_compatible",
+    vendor: 'OpenAI',
+    url: 'https://api.openai.com/v1/chat/completions',
+    kind: 'openai_compatible'
   },
   {
-    vendor: "Mistral",
-    url: "https://api.mistral.ai/v1/chat/completions",
-    kind: "openai_compatible",
+    vendor: 'Mistral',
+    url: 'https://api.mistral.ai/v1/chat/completions',
+    kind: 'openai_compatible'
   },
   {
-    vendor: "Qwen (Alibaba) - international",
-    url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
-    kind: "openai_compatible",
+    vendor: 'Qwen (Alibaba) - international',
+    url: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+    kind: 'openai_compatible'
   },
   {
-    vendor: "Qwen (Alibaba) - mainland China",
-    url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-    kind: "openai_compatible",
-    note: "A different jurisdiction from the international endpoint. Worth a transfer assessment.",
+    vendor: 'Qwen (Alibaba) - mainland China',
+    url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    kind: 'openai_compatible',
+    note: 'A different jurisdiction from the international endpoint. Worth a transfer assessment.'
   },
   {
-    vendor: "DeepSeek",
-    url: "https://api.deepseek.com/v1/chat/completions",
-    kind: "openai_compatible",
+    vendor: 'DeepSeek',
+    url: 'https://api.deepseek.com/v1/chat/completions',
+    kind: 'openai_compatible'
   },
   {
-    vendor: "Self-hosted - vLLM, Ollama, LM Studio",
-    url: "https://llm.internal.example/v1/chat/completions",
-    kind: "openai_compatible",
-    note: "Replace with your own host. Most self-hosted servers speak the OpenAI shape.",
-  },
+    vendor: 'Self-hosted - vLLM, Ollama, LM Studio',
+    url: 'https://llm.internal.example/v1/chat/completions',
+    kind: 'openai_compatible',
+    note: 'Replace with your own host. Most self-hosted servers speak the OpenAI shape.'
+  }
 ];
 
 /**
@@ -165,7 +189,7 @@ export function unresolvedPlaceholder(url: string): string | null {
   const found = url.match(/<[^>]+>/g);
   if (!found) return null;
   return (
-    `The endpoint still contains ${found.join(", ")} from the suggested template. ` +
-    `Replace ${found.length === 1 ? "it" : "them"} with your own resource and deployment names.`
+    `The endpoint still contains ${found.join(', ')} from the suggested template. ` +
+    `Replace ${found.length === 1 ? 'it' : 'them'} with your own resource and deployment names.`
   );
 }

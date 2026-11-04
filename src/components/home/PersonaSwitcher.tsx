@@ -1,8 +1,14 @@
-"use client";
+'use client';
 
-import { useTransition } from "react";
-import { PERSONAS, PERSONA_BLURB, PERSONA_LABEL, type Persona } from "@/lib/persona";
-import { switchPersonaAction } from "@/app/app/actions";
+import { useTransition } from 'react';
+
+import { switchPersonaAction } from '@/app/app/actions';
+import {
+  PERSONA_BLURB,
+  PERSONA_LABEL,
+  PERSONAS,
+  type Persona
+} from '@/lib/persona';
 
 /**
  * Change what your home leads with.
@@ -18,8 +24,9 @@ export function PersonaSwitcher({ current }: { current: Persona }) {
   return (
     <details className="rounded border border-line bg-surface">
       <summary className="cursor-pointer px-4 py-2.5 text-xs text-ink-soft">
-        Showing the <span className="font-medium text-ink">{PERSONA_LABEL[current]}</span> view
-        - change
+        Showing the{' '}
+        <span className="font-medium text-ink">{PERSONA_LABEL[current]}</span>{' '}
+        view - change
       </summary>
       <ul className="divide-y divide-line border-t border-line">
         {PERSONAS.map((p) => (
@@ -38,9 +45,13 @@ export function PersonaSwitcher({ current }: { current: Persona }) {
               >
                 <span className="font-medium">{PERSONA_LABEL[p]}</span>
                 {p === current ? (
-                  <span className="ml-2 font-mono text-[11px] text-ink-soft">current</span>
+                  <span className="ml-2 font-mono text-[11px] text-ink-soft">
+                    current
+                  </span>
                 ) : null}
-                <span className="mt-0.5 block text-xs text-ink-soft">{PERSONA_BLURB[p]}</span>
+                <span className="mt-0.5 block text-xs text-ink-soft">
+                  {PERSONA_BLURB[p]}
+                </span>
               </button>
             </form>
           </li>

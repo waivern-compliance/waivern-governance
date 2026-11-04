@@ -1,14 +1,20 @@
-import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { countryRisk, countryRiskReviews } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { addMonths } from "@/lib/dates";
-import { COUNTRY_LIBRARY, REVIEW_INTERVAL_MONTHS, SEED_REVIEWER } from "@/lib/countries/library";
-import type { AdequacyStatus, Regime, RiskLevel } from "@/lib/countries/labels";
-import type { Actor } from "./templates";
+import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 
-export type { AdequacyStatus, Regime, RiskLevel } from "@/lib/countries/labels";
-export { ADEQUACY_WORDS, RISK_WORDS } from "@/lib/countries/labels";
+import { db, withOrganisation } from '@/db/client';
+import { countryRisk, countryRiskReviews } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import type { AdequacyStatus, Regime, RiskLevel } from '@/lib/countries/labels';
+import {
+  COUNTRY_LIBRARY,
+  REVIEW_INTERVAL_MONTHS,
+  SEED_REVIEWER
+} from '@/lib/countries/library';
+import { addMonths } from '@/lib/dates';
+
+import type { Actor } from './templates';
+
+export type { AdequacyStatus, Regime, RiskLevel } from '@/lib/countries/labels';
+export { ADEQUACY_WORDS, RISK_WORDS } from '@/lib/countries/labels';
 
 export type CountryEntry = typeof countryRisk.$inferSelect & {
   /** True when this row is a client's own analysis rather than the shared one. */
@@ -23,7 +29,7 @@ function decorate(row: typeof countryRisk.$inferSelect): CountryEntry {
     ...row,
     isOverride: row.organisationId !== null,
     stale: row.nextReviewAt.getTime() <= Date.now(),
-    unverified: row.reviewedBy === SEED_REVIEWER,
+    unverified: row.reviewedBy === SEED_REVIEWER
   };
 }
 
@@ -34,12 +40,19 @@ function decorate(row: typeof countryRisk.$inferSelect): CountryEntry {
  * merging with it. Half a client's analysis and half ours would be a view
  * nobody wrote and nobody can defend.
  */
-export async function libraryFor(organisationId: string): Promise<CountryEntry[]> {
+export async function libraryFor(
+  organisationId: string
+): Promise<CountryEntry[]> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select()
       .from(countryRisk)
-      .where(or(isNull(countryRisk.organisationId), eq(countryRisk.organisationId, organisationId)))
+      .where(
+        or(
+          isNull(countryRisk.organisationId),
+          eq(countryRisk.organisationId, organisationId)
+        )
+      )
       .orderBy(asc(countryRisk.name));
 
     const byCode = new Map<string, typeof countryRisk.$inferSelect>();
@@ -55,7 +68,7 @@ export async function libraryFor(organisationId: string): Promise<CountryEntry[]
 
 export async function lookup(
   organisationId: string,
-  code: string,
+  code: string
 ): Promise<CountryEntry | null> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
@@ -64,8 +77,11 @@ export async function lookup(
       .where(
         and(
           eq(countryRisk.code, code.toUpperCase()),
-          or(isNull(countryRisk.organisationId), eq(countryRisk.organisationId, organisationId)),
-        ),
+          or(
+            isNull(countryRisk.organisationId),
+            eq(countryRisk.organisationId, organisationId)
+          )
+        )
       );
     if (rows.length === 0) return null;
     return decorate(rows.find((r) => r.organisationId !== null) ?? rows[0]);
@@ -75,21 +91,21 @@ export async function lookup(
 /** Codes needing an Article 46 route under a given regime. */
 export async function needingSafeguards(
   organisationId: string,
-  regime: Regime = "uk",
+  regime: Regime = 'uk'
 ): Promise<Set<string>> {
   return withOrganisation(organisationId, async () => {
     const library = await libraryFor(organisationId);
     return new Set(
       library
         .filter((c) => {
-          const status = regime === "uk" ? c.ukAdequacy : c.euAdequacy;
+          const status = regime === 'uk' ? c.ukAdequacy : c.euAdequacy;
           // "Conditionally adequate" counts as needing safeguards. The condition
           // is about the recipient, not the country, so the platform cannot know
           // it holds — and assuming it does is how a US transfer to an
           // uncertified processor sails through.
-          return status !== "adequate";
+          return status !== 'adequate';
         })
-        .map((c) => c.code),
+        .map((c) => c.code)
     );
   });
 }
@@ -102,7 +118,9 @@ export type LibraryHealth = {
   dueSoon: number;
 };
 
-export async function libraryHealth(organisationId: string): Promise<LibraryHealth> {
+export async function libraryHealth(
+  organisationId: string
+): Promise<LibraryHealth> {
   return withOrganisation(organisationId, async () => {
     const library = await libraryFor(organisationId);
     const soon = Date.now() + 30 * 24 * 3600 * 1000;
@@ -110,7 +128,9 @@ export async function libraryHealth(organisationId: string): Promise<LibraryHeal
       total: library.length,
       stale: library.filter((c) => c.stale).length,
       unverified: library.filter((c) => c.unverified).length,
-      dueSoon: library.filter((c) => !c.stale && c.nextReviewAt.getTime() <= soon).length,
+      dueSoon: library.filter(
+        (c) => !c.stale && c.nextReviewAt.getTime() <= soon
+      ).length
     };
   });
 }
@@ -141,7 +161,8 @@ export async function reviewCountry(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const note = input.note.trim();
-    if (!note) throw new Error("A review needs a note, even if nothing changed");
+    if (!note)
+      throw new Error('A review needs a note, even if nothing changed');
 
     const current = await lookup(input.organisationId, input.code);
     if (!current) throw new Error(`No country with code ${input.code}`);
@@ -155,7 +176,7 @@ export async function reviewCountry(input: {
         euAdequacy: current.euAdequacy,
         governmentAccess: current.governmentAccess,
         redress: current.redress,
-        reviewedBy: current.reviewedBy,
+        reviewedBy: current.reviewedBy
       };
 
       const values = {
@@ -163,7 +184,7 @@ export async function reviewCountry(input: {
         reviewedAt: now,
         reviewedBy: input.actor.actorLabel,
         nextReviewAt: next,
-        updatedAt: now,
+        updatedAt: now
       };
 
       // Editing the shared library from inside one client would change what every
@@ -185,12 +206,12 @@ export async function reviewCountry(input: {
               redress: current.redress,
               summary: current.summary,
               sources: current.sources,
-              ...values,
+              ...values
             })
             .onConflictDoUpdate({
               target: [countryRisk.organisationId, countryRisk.code],
               targetWhere: sql`${countryRisk.organisationId} is not null`,
-              set: values,
+              set: values
             })
             .returning()
         : await tx
@@ -209,18 +230,18 @@ export async function reviewCountry(input: {
           ukAdequacy: row.ukAdequacy,
           euAdequacy: row.euAdequacy,
           governmentAccess: row.governmentAccess,
-          redress: row.redress,
-        },
+          redress: row.redress
+        }
       });
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "country_risk.reviewed",
-        subjectType: "country_risk",
+        action: 'country_risk.reviewed',
+        subjectType: 'country_risk',
         subjectId: row.id,
         before,
-        after: { code: row.code, note, nextReviewAt: next.toISOString() },
+        after: { code: row.code, note, nextReviewAt: next.toISOString() }
       });
 
       return decorate(row);
@@ -268,20 +289,20 @@ export async function seedSharedLibrary() {
         ukAdequacyNote: entry.ukAdequacyNote,
         euAdequacy: entry.euAdequacy,
         euAdequacyNote: entry.euAdequacyNote,
-        governmentAccess: entry.governmentAccess ?? "unknown",
-        redress: entry.redress ?? "unknown",
+        governmentAccess: entry.governmentAccess ?? 'unknown',
+        redress: entry.redress ?? 'unknown',
         summary: entry.summary,
         sources: entry.sources ?? [],
         reviewedAt: now,
         reviewedBy: SEED_REVIEWER,
-        nextReviewAt: now,
+        nextReviewAt: now
       })
       .onConflictDoNothing({
         target: countryRisk.code,
         // The unique index is partial, so the predicate has to be repeated for
         // Postgres to match it. onConflictDoNothing names this `where`, where
         // onConflictDoUpdate names it `targetWhere`.
-        where: sql`${countryRisk.organisationId} is null`,
+        where: sql`${countryRisk.organisationId} is null`
       })
       .returning();
     if (row) created += 1;

@@ -1,5 +1,6 @@
-import Link from "next/link";
-import { TOPIC_BY_ID } from "@/lib/help/topics";
+import Link from 'next/link';
+
+import { TOPIC_BY_ID } from '@/lib/help/topics';
 
 /**
  * Help where the question arises.
@@ -19,7 +20,12 @@ export function HelpLink({ topic: id }: { topic: string }) {
   return (
     <details className="group rounded border border-line bg-surface">
       <summary className="cursor-pointer list-none px-3 py-1.5 text-xs text-ink-soft hover:text-brand focus-visible:outline-2 focus-visible:outline-brand">
-        <span aria-hidden className="mr-1.5 font-mono">?</span>
+        <span
+          aria-hidden
+          className="mr-1.5 font-mono"
+        >
+          ?
+        </span>
         How this page works
       </summary>
       <div className="space-y-2 border-t border-line px-3 py-2.5">

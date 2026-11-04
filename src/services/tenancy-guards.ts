@@ -1,6 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
-import { db, type Db } from "@/db/client";
-import { entities, memberships, recordType } from "@/db/schema";
+import { and, eq, sql } from 'drizzle-orm';
+
+import { db, type Db } from '@/db/client';
+import { entities, memberships, recordType } from '@/db/schema';
 
 /**
  * Checks that something a request names belongs to the organisation acting.
@@ -18,15 +19,25 @@ import { entities, memberships, recordType } from "@/db/schema";
 
 export class NotInOrganisation extends Error {}
 
-type Reader = Pick<Db, "select" | "execute">;
+type Reader = Pick<Db, 'select' | 'execute'>;
 type RecordType = (typeof recordType.enumValues)[number];
 
-export async function assertEntityIn(organisationId: string, entityId: string, executor: Reader = db) {
+export async function assertEntityIn(
+  organisationId: string,
+  entityId: string,
+  executor: Reader = db
+) {
   const [row] = await executor
     .select({ id: entities.id })
     .from(entities)
-    .where(and(eq(entities.id, entityId), eq(entities.organisationId, organisationId)));
-  if (!row) throw new NotInOrganisation("No such legal entity in this organisation.");
+    .where(
+      and(
+        eq(entities.id, entityId),
+        eq(entities.organisationId, organisationId)
+      )
+    );
+  if (!row)
+    throw new NotInOrganisation('No such legal entity in this organisation.');
 }
 
 /**
@@ -37,31 +48,73 @@ export async function assertEntityIn(organisationId: string, entityId: string, e
  * sends the owner back unchanged. Whether a leaver may be newly given work is
  * for the service that gives it.
  */
-export async function assertMemberOf(organisationId: string, userId: string, executor: Reader = db) {
+export async function assertMemberOf(
+  organisationId: string,
+  userId: string,
+  executor: Reader = db
+) {
   const [row] = await executor
     .select({ id: memberships.id })
     .from(memberships)
-    .where(and(eq(memberships.organisationId, organisationId), eq(memberships.userId, userId)));
-  if (!row) throw new NotInOrganisation("That person is not a member of this organisation.");
+    .where(
+      and(
+        eq(memberships.organisationId, organisationId),
+        eq(memberships.userId, userId)
+      )
+    );
+  if (!row)
+    throw new NotInOrganisation(
+      'That person is not a member of this organisation.'
+    );
 }
 
 /** Records that carry their organisation directly; the record type is the table's name. */
 const OWN_TABLE: ReadonlySet<RecordType> = new Set<RecordType>([
-  "assessment", "processing_activity", "ai_use_case", "supplier", "dpa", "risk", "breach",
-  "comment", "document", "extraction", "extraction_finding", "task", "ai_incident",
-  "ai_use_case_request", "atrs_record", "scan_finding", "evidence", "risk_appetite",
-  "training_record", "ai_change", "ai_assurance_record", "integration_connection", "template",
-  "workflow_definition", "breach_decision", "framework_profile_item", "digital_property", "storage_item",
-  "marketing_activity", "policy_document", "sharing_agreement",
+  'assessment',
+  'processing_activity',
+  'ai_use_case',
+  'supplier',
+  'dpa',
+  'risk',
+  'breach',
+  'comment',
+  'document',
+  'extraction',
+  'extraction_finding',
+  'task',
+  'ai_incident',
+  'ai_use_case_request',
+  'atrs_record',
+  'scan_finding',
+  'evidence',
+  'risk_appetite',
+  'training_record',
+  'ai_change',
+  'ai_assurance_record',
+  'integration_connection',
+  'template',
+  'workflow_definition',
+  'breach_decision',
+  'framework_profile_item',
+  'digital_property',
+  'storage_item',
+  'marketing_activity',
+  'policy_document',
+  'sharing_agreement'
 ]);
 
 /** Records that reach their organisation through one parent. */
-const THROUGH_PARENT: Partial<Record<RecordType, { parent: string; key: string }>> = {
-  mitigation: { parent: "risk", key: "risk_id" },
-  risk_acceptance: { parent: "risk", key: "risk_id" },
-  approval: { parent: "assessment", key: "assessment_id" },
-  template_version: { parent: "template", key: "template_id" },
-  workflow_stage: { parent: "workflow_definition", key: "workflow_definition_id" },
+const THROUGH_PARENT: Partial<
+  Record<RecordType, { parent: string; key: string }>
+> = {
+  mitigation: { parent: 'risk', key: 'risk_id' },
+  risk_acceptance: { parent: 'risk', key: 'risk_id' },
+  approval: { parent: 'assessment', key: 'assessment_id' },
+  template_version: { parent: 'template', key: 'template_id' },
+  workflow_stage: {
+    parent: 'workflow_definition',
+    key: 'workflow_definition_id'
+  }
 };
 
 /**
@@ -74,12 +127,12 @@ export async function assertRecordIn(
   organisationId: string,
   type: RecordType,
   id: string,
-  executor: Reader = db,
+  executor: Reader = db
 ) {
   let found: unknown[];
   if (OWN_TABLE.has(type)) {
     found = await executor.execute(
-      sql`select 1 from ${sql.identifier(type)} where id = ${id} and organisation_id = ${organisationId}`,
+      sql`select 1 from ${sql.identifier(type)} where id = ${id} and organisation_id = ${organisationId}`
     );
   } else if (THROUGH_PARENT[type]) {
     const { parent, key } = THROUGH_PARENT[type]!;
@@ -88,9 +141,13 @@ export async function assertRecordIn(
       join ${sql.identifier(parent)} p on p.id = c.${sql.identifier(key)}
       where c.id = ${id} and p.organisation_id = ${organisationId}`);
   } else {
-    throw new NotInOrganisation(`Nothing can be attached to a ${type.replace(/_/g, " ")}.`);
+    throw new NotInOrganisation(
+      `Nothing can be attached to a ${type.replace(/_/g, ' ')}.`
+    );
   }
   if (found.length === 0) {
-    throw new NotInOrganisation(`No such ${type.replace(/_/g, " ")} in this organisation.`);
+    throw new NotInOrganisation(
+      `No such ${type.replace(/_/g, ' ')} in this organisation.`
+    );
   }
 }

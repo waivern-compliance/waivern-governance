@@ -1,11 +1,13 @@
-import Link from "next/link";
-import { HomeLink } from "@/components/HomeLink";
-import { Wordmark } from "@/components/Wordmark";
-import { can } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { isPlatformAdmin } from "@/lib/platform";
-import { switchOrganisationAction } from "./actions";
-import { FeedbackButton } from "@/components/FeedbackButton";
+import Link from 'next/link';
+
+import { FeedbackButton } from '@/components/FeedbackButton';
+import { HomeLink } from '@/components/HomeLink';
+import { Wordmark } from '@/components/Wordmark';
+import { isPlatformAdmin } from '@/lib/platform';
+import { can } from '@/lib/rbac';
+import { getActiveSession } from '@/lib/session';
+
+import { switchOrganisationAction } from './actions';
 
 /**
  * The masthead every signed-in page carries.
@@ -15,14 +17,18 @@ import { FeedbackButton } from "@/components/FeedbackButton";
  * whose product this is, which organisation you are looking at, and a way
  * back — a house marked Home, top left, as well as the wordmark. Navigation stays on the home page, where it is chosen by capability.
  */
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children
+}: {
+  children: React.ReactNode;
+}) {
   const active = await getActiveSession();
   // Shown to whoever can actually change something. Administration belongs
   // where it is always reachable, not below a task list.
   const mayAdminister =
     active !== null &&
-    (can(active.membership.grants, "member.manage") ||
-      can(active.membership.grants, "org.manage"));
+    (can(active.membership.grants, 'member.manage') ||
+      can(active.membership.grants, 'org.manage'));
 
   return (
     <>
@@ -43,8 +49,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               // Waivern staff and anyone else in several organisations choose
               // which one they are working in. A plain form, so it works before
               // the page has finished loading.
-              <form action={switchOrganisationAction} className="flex items-center gap-1.5">
-                <label htmlFor="organisation-switcher" className="sr-only">
+              <form
+                action={switchOrganisationAction}
+                className="flex items-center gap-1.5"
+              >
+                <label
+                  htmlFor="organisation-switcher"
+                  className="sr-only"
+                >
                   Organisation
                 </label>
                 <select
@@ -54,7 +66,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   className="rounded border border-white/25 bg-navy px-2 py-1 font-mono text-[11px] text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
                   {active.organisations.map((o) => (
-                    <option key={o.organisationId} value={o.organisationId}>
+                    <option
+                      key={o.organisationId}
+                      value={o.organisationId}
+                    >
                       {o.organisationName}
                     </option>
                   ))}

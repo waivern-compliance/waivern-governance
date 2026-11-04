@@ -1,8 +1,8 @@
-import { exportRoute } from "@/lib/integration/handler";
-import { parseExportQuery } from "@/lib/integration/query";
-import { governanceContext } from "@/services/export";
+import { exportRoute } from '@/lib/integration/handler';
+import { parseExportQuery } from '@/lib/integration/query';
+import { governanceContext } from '@/services/export';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 /**
@@ -14,10 +14,10 @@ export const maxDuration = 120;
  * entity.
  */
 export const GET = exportRoute({
-  kinds: ["waivern_portal", "other"],
+  kinds: ['waivern_portal', 'other'],
   handle: async (connection, url) =>
     governanceContext({
       organisationId: connection.organisationId,
-      ...parseExportQuery(url),
-    }),
+      ...parseExportQuery(url)
+    })
 });

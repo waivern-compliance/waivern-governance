@@ -1,25 +1,26 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { requireCapability } from "@/lib/session";
-import { isAiInvolvement } from "@/lib/thirdparty/ai-procurement";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+
+import type { SupplierRole } from '@/lib/dpa2018/sharing';
+import { refusable, type EditResult } from '@/lib/edit-result';
+import { requireCapability } from '@/lib/session';
+import { isAiInvolvement } from '@/lib/thirdparty/ai-procurement';
 import {
-  ArchiveRefused,
   archiveDpa,
+  ArchiveRefused,
   createSupplier,
   recordDpa,
   restoreDpa,
   updateDpa,
-  updateSupplier,
-} from "@/services/third-party";
-import type { SupplierRole } from "@/lib/dpa2018/sharing";
-import { refusable, type EditResult } from "@/lib/edit-result";
+  updateSupplier
+} from '@/services/third-party';
 
-const text = (v: FormDataEntryValue | null) => String(v ?? "").trim();
+const text = (v: FormDataEntryValue | null) => String(v ?? '').trim();
 
 const lines = (v: FormDataEntryValue | null) =>
-  String(v ?? "")
+  String(v ?? '')
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -33,46 +34,54 @@ const date = (v: FormDataEntryValue | null) => {
 };
 
 export async function addSupplier(formData: FormData) {
-  const name = text(formData.get("name"));
+  const name = text(formData.get('name'));
   if (!name) return;
 
-  const active = await requireCapability("record.write");
+  const active = await requireCapability('record.write');
   const supplier = await createSupplier({
     organisationId: active.membership.organisationId,
     name,
-    description: text(formData.get("description")) || undefined,
-    categories: lines(formData.get("categories")),
-    ownerId: formData.get("ownMe") === "on" ? active.userId : null,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    description: text(formData.get('description')) || undefined,
+    categories: lines(formData.get('categories')),
+    ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
 
-  revalidatePath("/app/third-parties");
+  revalidatePath('/app/third-parties');
   redirect(`/app/third-parties/${supplier.id}`);
 }
 
 export async function updateSupplierAction(
   supplierId: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await requireCapability("record.write");
-    const owner = formData.get("ownerId");
+    const active = await requireCapability('record.write');
+    const owner = formData.get('ownerId');
 
     await updateSupplier({
       supplierId,
       organisationId: active.membership.organisationId,
       changes: {
-        name: text(formData.get("name")),
-        description: text(formData.get("description")),
-        categories: lines(formData.get("categories")),
-        ...(owner !== null ? { ownerId: text(owner) || null } : {}),
+        name: text(formData.get('name')),
+        description: text(formData.get('description')),
+        categories: lines(formData.get('categories')),
+        ...(owner !== null ? { ownerId: text(owner) || null } : {})
       },
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
 
     revalidatePath(`/app/third-parties/${supplierId}`);
-    revalidatePath("/app/third-parties");
+    revalidatePath('/app/third-parties');
   });
 }
 
@@ -80,20 +89,24 @@ export async function updateSupplierAction(
 export async function setSupplierRoleAction(
   supplierId: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await requireCapability("record.write");
+    const active = await requireCapability('record.write');
     await updateSupplier({
       supplierId,
       organisationId: active.membership.organisationId,
-      changes: { role: text(formData.get("role")) as SupplierRole },
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      changes: { role: text(formData.get('role')) as SupplierRole },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
     revalidatePath(`/app/third-parties/${supplierId}`);
-    revalidatePath("/app/third-parties");
-    revalidatePath("/app/ropa");
-    revalidatePath("/app/sharing-agreements");
+    revalidatePath('/app/third-parties');
+    revalidatePath('/app/ropa');
+    revalidatePath('/app/sharing-agreements');
   });
 }
 
@@ -101,20 +114,24 @@ export async function setSupplierRoleAction(
 export async function setAiInvolvementAction(
   supplierId: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await requireCapability("record.write");
-    const value = formData.get("aiInvolvement");
+    const active = await requireCapability('record.write');
+    const value = formData.get('aiInvolvement');
     await updateSupplier({
       supplierId,
       organisationId: active.membership.organisationId,
       changes: { aiInvolvement: isAiInvolvement(value) ? value : null },
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
     revalidatePath(`/app/third-parties/${supplierId}`);
-    revalidatePath("/app/third-parties");
-    revalidatePath("/app/ai");
+    revalidatePath('/app/third-parties');
+    revalidatePath('/app/ai');
   });
 }
 
@@ -126,65 +143,76 @@ export async function setAiInvolvementAction(
  * scanner findings permanently untriaged.
  */
 export async function confirmSupplierAction(supplierId: string) {
-  const active = await requireCapability("record.write");
+  const active = await requireCapability('record.write');
   await updateSupplier({
     supplierId,
     organisationId: active.membership.organisationId,
     changes: {},
     confirmBy: active.userId,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
   revalidatePath(`/app/third-parties/${supplierId}`);
-  revalidatePath("/app/third-parties");
+  revalidatePath('/app/third-parties');
 }
 
 export async function recordDpaAction(supplierId: string, formData: FormData) {
-  const title = text(formData.get("title"));
+  const title = text(formData.get('title'));
   if (!title) return;
 
-  const active = await requireCapability("record.write");
+  const active = await requireCapability('record.write');
   await recordDpa({
     organisationId: active.membership.organisationId,
     supplierId,
     title,
-    documentRef: text(formData.get("documentRef")) || undefined,
-    signedAt: date(formData.get("signedAt")),
-    expiresAt: date(formData.get("expiresAt")),
-    transferMechanism: text(formData.get("transferMechanism")) || undefined,
-    subProcessors: lines(formData.get("subProcessors")),
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    documentRef: text(formData.get('documentRef')) || undefined,
+    signedAt: date(formData.get('signedAt')),
+    expiresAt: date(formData.get('expiresAt')),
+    transferMechanism: text(formData.get('transferMechanism')) || undefined,
+    subProcessors: lines(formData.get('subProcessors')),
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
 
   revalidatePath(`/app/third-parties/${supplierId}`);
-  revalidatePath("/app/third-parties");
+  revalidatePath('/app/third-parties');
 }
-
 
 export async function updateDpaAction(
   supplierId: string,
   dpaId: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const title = text(formData.get("title"));
-    if (!title) throw new Error("An agreement needs a title.");
+    const title = text(formData.get('title'));
+    if (!title) throw new Error('An agreement needs a title.');
 
-    const active = await requireCapability("record.write");
+    const active = await requireCapability('record.write');
     await updateDpa({
       organisationId: active.membership.organisationId,
       dpaId,
       title,
-      documentRef: text(formData.get("documentRef")),
-      signedAt: date(formData.get("signedAt")),
-      expiresAt: date(formData.get("expiresAt")),
-      transferMechanism: text(formData.get("transferMechanism")),
-      subProcessors: lines(formData.get("subProcessors")),
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      documentRef: text(formData.get('documentRef')),
+      signedAt: date(formData.get('signedAt')),
+      expiresAt: date(formData.get('expiresAt')),
+      transferMechanism: text(formData.get('transferMechanism')),
+      subProcessors: lines(formData.get('subProcessors')),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
 
     revalidatePath(`/app/third-parties/${supplierId}`);
-    revalidatePath("/app/third-parties");
+    revalidatePath('/app/third-parties');
   });
 }
 
@@ -194,33 +222,42 @@ export async function archiveDpaAction(
   supplierId: string,
   dpaId: string,
   _prev: ArchiveResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<ArchiveResult> {
-  const active = await requireCapability("record.write");
+  const active = await requireCapability('record.write');
   try {
     await archiveDpa({
       organisationId: active.membership.organisationId,
       dpaId,
-      reason: String(formData.get("reason") ?? ""),
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      reason: String(formData.get('reason') ?? ''),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
   } catch (error) {
-    if (error instanceof ArchiveRefused) return { ok: false, message: error.message };
+    if (error instanceof ArchiveRefused)
+      return { ok: false, message: error.message };
     throw error;
   }
 
   revalidatePath(`/app/third-parties/${supplierId}`);
-  revalidatePath("/app/third-parties");
-  return { ok: true, message: "Archived." };
+  revalidatePath('/app/third-parties');
+  return { ok: true, message: 'Archived.' };
 }
 
 export async function restoreDpaAction(supplierId: string, dpaId: string) {
-  const active = await requireCapability("record.write");
+  const active = await requireCapability('record.write');
   await restoreDpa({
     organisationId: active.membership.organisationId,
     dpaId,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
   revalidatePath(`/app/third-parties/${supplierId}`);
-  revalidatePath("/app/third-parties");
+  revalidatePath('/app/third-parties');
 }

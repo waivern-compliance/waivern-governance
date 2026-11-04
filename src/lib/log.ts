@@ -18,17 +18,21 @@
  * about what it does, and documented as unfit for production.
  */
 
-export type Level = "info" | "warn" | "error";
+export type Level = 'info' | 'warn' | 'error';
 
-export function log(level: Level, event: string, fields: Record<string, unknown> = {}) {
+export function log(
+  level: Level,
+  event: string,
+  fields: Record<string, unknown> = {}
+) {
   const line = JSON.stringify({
     at: new Date().toISOString(),
     level,
     event,
-    ...fields,
+    ...fields
   });
-  if (level === "error") console.error(line);
-  else if (level === "warn") console.warn(line);
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
   else console.log(line);
 }
 
@@ -42,10 +46,12 @@ export function log(level: Level, event: string, fields: Record<string, unknown>
  * stream. For a short debugging session on a system you control, then off.
  */
 export function assistantBodies(): boolean {
-  return process.env.ASSISTANT_DEBUG_BODIES === "true";
+  return process.env.ASSISTANT_DEBUG_BODIES === 'true';
 }
 
 /** A bounded excerpt, only ever used behind `assistantBodies()`. */
 export function excerpt(text: string, limit = 800): string {
-  return text.length <= limit ? text : `${text.slice(0, limit)}… (${text.length} characters)`;
+  return text.length <= limit
+    ? text
+    : `${text.slice(0, limit)}… (${text.length} characters)`;
 }

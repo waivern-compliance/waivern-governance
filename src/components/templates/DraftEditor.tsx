@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { saveDraftAction, type DraftResult } from "@/app/app/templates/actions";
-import { savedKey } from "@/lib/saved-key";
+import { saveDraftAction, type DraftResult } from '@/app/app/templates/actions';
+import { savedKey } from '@/lib/saved-key';
+import { useRefusableAction } from '@/lib/use-refusable-action';
 
 /**
  * The draft schema, as JSON, with the validator's findings shown against it.
@@ -16,7 +16,7 @@ import { savedKey } from "@/lib/saved-key";
 export function DraftEditor({
   templateId,
   versionId,
-  definition,
+  definition
 }: {
   templateId: string;
   versionId: string;
@@ -26,11 +26,15 @@ export function DraftEditor({
   // to be fixed — losing an hour's JSON to one stray comma is the failure here.
   const { result, pending, formProps } = useRefusableAction<DraftResult | null>(
     saveDraftAction.bind(null, templateId, versionId),
-    { resetOnSuccess: false },
+    { resetOnSuccess: false }
   );
 
   return (
-    <form key={savedKey(definition)} {...formProps} className="space-y-3">
+    <form
+      key={savedKey(definition)}
+      {...formProps}
+      className="space-y-3"
+    >
       <label className="block space-y-1">
         <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
           Draft definition
@@ -58,7 +62,12 @@ export function DraftEditor({
           </strong>
           <ul className="list-disc space-y-0.5 pl-5 text-xs">
             {result.problems.map((p, i) => (
-              <li key={i} className="font-mono">{p}</li>
+              <li
+                key={i}
+                className="font-mono"
+              >
+                {p}
+              </li>
             ))}
           </ul>
         </div>
@@ -78,7 +87,7 @@ export function DraftEditor({
         disabled={pending}
         className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        {pending ? "Saving…" : "Save draft"}
+        {pending ? 'Saving…' : 'Save draft'}
       </button>
     </form>
   );

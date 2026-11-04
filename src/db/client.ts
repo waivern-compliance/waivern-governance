@@ -1,14 +1,16 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { sql as drizzleSql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { assertUsable } from "@/lib/db-url";
-import * as schema from "./schema";
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { sql as drizzleSql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+
+import { assertUsable } from '@/lib/db-url';
+
+import * as schema from './schema';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   throw new Error(
-    "DATABASE_URL is not set. Copy .env.example to .env.local and start the local database with `docker compose up -d`.",
+    'DATABASE_URL is not set. Copy .env.example to .env.local and start the local database with `docker compose up -d`.'
   );
 }
 
@@ -30,7 +32,7 @@ assertUsable(connectionString);
  */
 const client = postgres(connectionString, {
   prepare: false,
-  max: process.env.NODE_ENV === "production" ? 1 : 5,
+  max: process.env.NODE_ENV === 'production' ? 1 : 5
 });
 
 const base = drizzle(client, { schema });
@@ -53,8 +55,8 @@ export const db: Db = new Proxy(base, {
   get(target, property) {
     const real = scope.getStore()?.tx ?? target;
     const value = Reflect.get(real, property, real) as unknown;
-    return typeof value === "function" ? value.bind(real) : value;
-  },
+    return typeof value === 'function' ? value.bind(real) : value;
+  }
 });
 
 /**
@@ -68,17 +70,22 @@ export const db: Db = new Proxy(base, {
  * Not for work that waits on something outside, such as a model or a webhook:
  * the transaction would hold the instance's only connection while it waits.
  */
-export async function withOrganisation<T>(organisationId: string, work: () => Promise<T>): Promise<T> {
+export async function withOrganisation<T>(
+  organisationId: string,
+  work: () => Promise<T>
+): Promise<T> {
   const current = scope.getStore();
   if (current) {
     if (current.organisationId !== organisationId) {
-      throw new Error("Work for one organisation tried to act for another inside the same transaction.");
+      throw new Error(
+        'Work for one organisation tried to act for another inside the same transaction.'
+      );
     }
     return work();
   }
   return base.transaction(async (tx) => {
     await tx.execute(
-      drizzleSql`select set_config('app.organisation_id', ${organisationId}, true), set_config('role', 'govern_tenant', true)`,
+      drizzleSql`select set_config('app.organisation_id', ${organisationId}, true), set_config('role', 'govern_tenant', true)`
     );
     return scope.run({ organisationId, tx: tx as unknown as Db }, work);
   });
@@ -89,7 +96,10 @@ export async function withOrganisation<T>(organisationId: string, work: () => Pr
  * a page or form action makes itself, without a service: a whole action cannot
  * be wrapped, because `redirect()` throws and would roll the transaction back.
  */
-export function scoped<T>(organisationId: string, query: () => PromiseLike<T>): Promise<T> {
+export function scoped<T>(
+  organisationId: string,
+  query: () => PromiseLike<T>
+): Promise<T> {
   return withOrganisation(organisationId, async () => query());
 }
 

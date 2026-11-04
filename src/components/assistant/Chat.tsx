@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { askAction } from "@/app/app/assistant/actions";
-import { EMPTY_CHAT, type ChatState } from "@/lib/assistant/chat-state";
+import { useActionState } from 'react';
+
+import { askAction } from '@/app/app/assistant/actions';
+import { EMPTY_CHAT, type ChatState } from '@/lib/assistant/chat-state';
 
 /**
  * A conversation with the organisation's model, beside the work.
@@ -19,9 +20,9 @@ export function Chat({
   entityId,
   contextText,
   invitation,
-  placeholder,
+  placeholder
 }: {
-  surface: "assessment" | "help";
+  surface: 'assessment' | 'help';
   subjectType?: string;
   subjectId?: string;
   entityId: string | null;
@@ -30,8 +31,14 @@ export function Chat({
   placeholder: string;
 }) {
   const [state, action, pending] = useActionState<ChatState, FormData>(
-    askAction.bind(null, { surface, subjectType, subjectId, entityId, contextText }),
-    EMPTY_CHAT,
+    askAction.bind(null, {
+      surface,
+      subjectType,
+      subjectId,
+      entityId,
+      contextText
+    }),
+    EMPTY_CHAT
   );
 
   // The panel is a side feature of every page it appears on. It must not be
@@ -48,13 +55,15 @@ export function Chat({
             <li
               key={i}
               className={
-                turn.role === "user"
-                  ? "rounded border border-line bg-ground px-3 py-2 text-sm"
-                  : "rounded border border-line bg-surface px-3 py-2.5 text-sm"
+                turn.role === 'user'
+                  ? 'rounded border border-line bg-ground px-3 py-2 text-sm'
+                  : 'rounded border border-line bg-surface px-3 py-2.5 text-sm'
               }
             >
               <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-ink-soft">
-                {turn.role === "user" ? "You asked" : "Suggested - check before you use it"}
+                {turn.role === 'user'
+                  ? 'You asked'
+                  : 'Suggested - check before you use it'}
               </span>
               <span className="whitespace-pre-wrap">{turn.content}</span>
             </li>
@@ -78,7 +87,10 @@ export function Chat({
         </p>
       ) : null}
 
-      <form action={action} className="space-y-2">
+      <form
+        action={action}
+        className="space-y-2"
+      >
         <label className="block">
           <span className="sr-only">Ask the assistant</span>
           <textarea
@@ -95,11 +107,11 @@ export function Chat({
             disabled={pending}
             className="rounded bg-brand px-3.5 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            {pending ? "Asking…" : "Ask"}
+            {pending ? 'Asking…' : 'Ask'}
           </button>
           <span className="text-[11px] text-ink-soft">
-            Answers are drafts. Nothing is saved until you write it yourself.
-            Do not type names or personal details.
+            Answers are drafts. Nothing is saved until you write it yourself. Do
+            not type names or personal details.
           </span>
         </div>
       </form>

@@ -1,9 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { searchHelp } from "@/lib/help/search";
-import { HELP_TOPICS } from "@/lib/help/topics";
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+
+import { searchHelp } from '@/lib/help/search';
+import { HELP_TOPICS } from '@/lib/help/topics';
 
 /**
  * Search that runs as you type.
@@ -13,7 +14,7 @@ import { HELP_TOPICS } from "@/lib/help/topics";
  * exactly when somebody is stuck, which is the moment help has to work.
  */
 export function HelpSearch({ autoFocus = false }: { autoFocus?: boolean }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const hits = useMemo(() => searchHelp(HELP_TOPICS, query), [query]);
   const asked = query.trim().length > 1;
   const partial = hits.length > 0 && hits[0].matched < hits[0].typed;
@@ -50,7 +51,9 @@ export function HelpSearch({ autoFocus = false }: { autoFocus?: boolean }) {
                     className="block px-4 py-3 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
                   >
                     <p className="text-sm font-medium">{topic.title}</p>
-                    <p className="mt-0.5 text-xs text-ink-soft">{topic.summary}</p>
+                    <p className="mt-0.5 text-xs text-ink-soft">
+                      {topic.summary}
+                    </p>
                   </Link>
                 </li>
               ))}

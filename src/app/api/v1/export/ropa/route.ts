@@ -1,8 +1,8 @@
-import { exportRoute } from "@/lib/integration/handler";
-import { parseExportQuery } from "@/lib/integration/query";
-import { governanceContext } from "@/services/export";
+import { exportRoute } from '@/lib/integration/handler';
+import { parseExportQuery } from '@/lib/integration/query';
+import { governanceContext } from '@/services/export';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 /**
  * Article 30 records on their own, with the assessments that cover them.
@@ -12,12 +12,12 @@ export const dynamic = "force-dynamic";
  * governance state.
  */
 export const GET = exportRoute({
-  kinds: ["waivern_portal", "other"],
+  kinds: ['waivern_portal', 'other'],
   handle: async (connection, url) => {
     const query = parseExportQuery(url);
     const context = await governanceContext({
       organisationId: connection.organisationId,
-      ...query,
+      ...query
     });
     return {
       contextVersion: context.contextVersion,
@@ -34,12 +34,12 @@ export const GET = exportRoute({
         kind: a.kind,
         score: a.score,
         approvedAt: a.approvedAt,
-        approvals: a.approvals.filter((g) => g.decision === "approved"),
+        approvals: a.approvals.filter((g) => g.decision === 'approved')
       })),
       counts: {
         processingActivities: context.counts.processingActivities,
-        assessments: context.counts.assessments,
-      },
+        assessments: context.counts.assessments
+      }
     };
-  },
+  }
 });

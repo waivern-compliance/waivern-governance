@@ -18,38 +18,38 @@ export class FeedbackRefused extends Error {}
 
 /** Route prefixes and what a person would call the page, most specific first. */
 const PLACES: Array<[RegExp, string]> = [
-  [/^\/app$/, "Home"],
-  [/^\/app\/tasks/, "Tasks"],
-  [/^\/app\/dashboard/, "Governance overview"],
-  [/^\/app\/trends/, "Trends"],
-  [/^\/app\/assessments\/\[id\]/, "An assessment"],
-  [/^\/app\/assessments/, "Assessments"],
-  [/^\/app\/reviews/, "Recurring reviews"],
-  [/^\/app\/ropa\/\[id\]/, "A processing record"],
-  [/^\/app\/ropa/, "Processing register"],
-  [/^\/app\/policy-documents/, "Appropriate policy documents"],
-  [/^\/app\/sharing-agreements/, "Data sharing agreements"],
-  [/^\/app\/third-parties/, "Third parties"],
-  [/^\/app\/ai\/\[id\]/, "An AI use case"],
-  [/^\/app\/ai/, "AI register"],
-  [/^\/app\/breaches/, "Breaches"],
-  [/^\/app\/requests\/\[id\]/, "A data subject request"],
-  [/^\/app\/requests/, "Data subject requests"],
-  [/^\/app\/cookies/, "Cookies and similar technologies"],
-  [/^\/app\/marketing/, "Electronic marketing"],
-  [/^\/app\/complaints/, "Data protection complaints"],
-  [/^\/app\/risks/, "Risk register"],
-  [/^\/app\/findings/, "Scan findings"],
-  [/^\/app\/countries/, "Country library"],
-  [/^\/app\/exports/, "Exports"],
-  [/^\/app\/training/, "AI learning"],
-  [/^\/app\/templates/, "Assessment templates"],
-  [/^\/app\/help/, "Help"],
-  [/^\/app\/profile/, "Your profile"],
-  [/^\/app\/admin\/organisation/, "Organisation"],
-  [/^\/app\/admin\/people/, "People and access"],
-  [/^\/app\/admin\/workflows/, "Approval workflows"],
-  [/^\/app\/admin/, "Settings"],
+  [/^\/app$/, 'Home'],
+  [/^\/app\/tasks/, 'Tasks'],
+  [/^\/app\/dashboard/, 'Governance overview'],
+  [/^\/app\/trends/, 'Trends'],
+  [/^\/app\/assessments\/\[id\]/, 'An assessment'],
+  [/^\/app\/assessments/, 'Assessments'],
+  [/^\/app\/reviews/, 'Recurring reviews'],
+  [/^\/app\/ropa\/\[id\]/, 'A processing record'],
+  [/^\/app\/ropa/, 'Processing register'],
+  [/^\/app\/policy-documents/, 'Appropriate policy documents'],
+  [/^\/app\/sharing-agreements/, 'Data sharing agreements'],
+  [/^\/app\/third-parties/, 'Third parties'],
+  [/^\/app\/ai\/\[id\]/, 'An AI use case'],
+  [/^\/app\/ai/, 'AI register'],
+  [/^\/app\/breaches/, 'Breaches'],
+  [/^\/app\/requests\/\[id\]/, 'A data subject request'],
+  [/^\/app\/requests/, 'Data subject requests'],
+  [/^\/app\/cookies/, 'Cookies and similar technologies'],
+  [/^\/app\/marketing/, 'Electronic marketing'],
+  [/^\/app\/complaints/, 'Data protection complaints'],
+  [/^\/app\/risks/, 'Risk register'],
+  [/^\/app\/findings/, 'Scan findings'],
+  [/^\/app\/countries/, 'Country library'],
+  [/^\/app\/exports/, 'Exports'],
+  [/^\/app\/training/, 'AI learning'],
+  [/^\/app\/templates/, 'Assessment templates'],
+  [/^\/app\/help/, 'Help'],
+  [/^\/app\/profile/, 'Your profile'],
+  [/^\/app\/admin\/organisation/, 'Organisation'],
+  [/^\/app\/admin\/people/, 'People and access'],
+  [/^\/app\/admin\/workflows/, 'Approval workflows'],
+  [/^\/app\/admin/, 'Settings']
 ];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -61,13 +61,13 @@ const REFERENCE = /^[A-Z]{2,6}-\d{4}-\d{3,}$/i;
  * `[id]`, and its name. Anything outside the app is "Elsewhere".
  */
 export function placeOf(pathname: string): { place: string; label: string } {
-  const path = (pathname.split(/[?#]/)[0] || "/").replace(/\/+$/, "") || "/";
+  const path = (pathname.split(/[?#]/)[0] || '/').replace(/\/+$/, '') || '/';
   const place = path
-    .split("/")
-    .map((s) => (UUID.test(s) || REFERENCE.test(s) ? "[id]" : s))
-    .join("/")
+    .split('/')
+    .map((s) => (UUID.test(s) || REFERENCE.test(s) ? '[id]' : s))
+    .join('/')
     .slice(0, 200);
-  const label = PLACES.find(([re]) => re.test(place))?.[1] ?? "Elsewhere";
+  const label = PLACES.find(([re]) => re.test(place))?.[1] ?? 'Elsewhere';
   return { place, label };
 }
 
@@ -90,13 +90,26 @@ export function cleanFeedback(input: {
   shareEmail: boolean;
   email: string | null | undefined;
 }): Feedback {
-  const message = typeof input.message === "string" ? input.message.trim() : "";
-  if (message.length < FEEDBACK_MIN) throw new FeedbackRefused("Say what you would like us to know.");
+  const message = typeof input.message === 'string' ? input.message.trim() : '';
+  if (message.length < FEEDBACK_MIN)
+    throw new FeedbackRefused('Say what you would like us to know.');
   if (message.length > FEEDBACK_MAX) {
-    throw new FeedbackRefused(`That is ${message.length} characters; feedback can be up to ${FEEDBACK_MAX}.`);
+    throw new FeedbackRefused(
+      `That is ${message.length} characters; feedback can be up to ${FEEDBACK_MAX}.`
+    );
   }
-  const { place, label } = placeOf(typeof input.pathname === "string" ? input.pathname : "/");
+  const { place, label } = placeOf(
+    typeof input.pathname === 'string' ? input.pathname : '/'
+  );
   const email = input.email?.trim().toLowerCase() || null;
-  if (input.shareEmail && !email) throw new FeedbackRefused("We could not find your email address. Send it anonymously instead.");
-  return { message, place, placeLabel: label, contactEmail: input.shareEmail ? email : null };
+  if (input.shareEmail && !email)
+    throw new FeedbackRefused(
+      'We could not find your email address. Send it anonymously instead.'
+    );
+  return {
+    message,
+    place,
+    placeLabel: label,
+    contactEmail: input.shareEmail ? email : null
+  };
 }

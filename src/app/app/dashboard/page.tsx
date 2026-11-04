@@ -1,24 +1,25 @@
-import Link from "next/link";
-import { HelpLink } from "@/components/help/HelpLink";
-import { redirect } from "next/navigation";
-import { PairedBars } from "@/components/charts/PairedBars";
-import { StatusBars } from "@/components/charts/StatusBars";
-import { can } from "@/lib/rbac";
-import { NotPermitted } from "@/components/NotPermitted";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
-import { dashboardMetrics } from "@/services/metrics";
-import { complaintRegister } from "@/services/complaints";
-import { anyEntityUnderUkLaw } from "@/services/entities";
-import { requestRegister } from "@/services/data-subject-requests";
-import { propertyRegister } from "@/services/storage-inventory";
-import { rescanState } from "@/lib/pecr/rescan";
-import { mergeGapSummaries } from "@/lib/pecr/statutory";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { PairedBars } from '@/components/charts/PairedBars';
+import { StatusBars } from '@/components/charts/StatusBars';
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { rescanState } from '@/lib/pecr/rescan';
+import { mergeGapSummaries } from '@/lib/pecr/statutory';
+import { can } from '@/lib/rbac';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { complaintRegister } from '@/services/complaints';
+import { requestRegister } from '@/services/data-subject-requests';
+import { anyEntityUnderUkLaw } from '@/services/entities';
+import { dashboardMetrics } from '@/services/metrics';
+import { propertyRegister } from '@/services/storage-inventory';
 
 export default async function Dashboard() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-    if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="The governance overview"
@@ -27,47 +28,69 @@ export default async function Dashboard() {
     );
   }
 
-const m = await dashboardMetrics(
+  const m = await dashboardMetrics(
     active.membership.organisationId,
-    visibleEntityIds(active),
+    visibleEntityIds(active)
   );
 
   // Requests are the requester's own personal data, so their counts are shown
   // only to the people who handle them.
-  const requests = can(active.membership.grants, "dsr.handle")
-    ? await requestRegister(active.membership.organisationId, visibleEntityIds(active, "dsr.handle"))
+  const requests = can(active.membership.grants, 'dsr.handle')
+    ? await requestRegister(
+        active.membership.organisationId,
+        visibleEntityIds(active, 'dsr.handle')
+      )
     : null;
   // Complaints likewise: the complainant's own data, behind the same capability.
   // The 30 days are the Data Protection Act 2018's (s.164A), so only where some entity is subject to UK law.
-  const complaints = can(active.membership.grants, "dsr.handle") && (await anyEntityUnderUkLaw(active.membership.organisationId))
-    ? await complaintRegister(active.membership.organisationId, visibleEntityIds(active, "dsr.handle"))
-    : null;
+  const complaints =
+    can(active.membership.grants, 'dsr.handle') &&
+    (await anyEntityUnderUkLaw(active.membership.organisationId))
+      ? await complaintRegister(
+          active.membership.organisationId,
+          visibleEntityIds(active, 'dsr.handle')
+        )
+      : null;
 
   // Cookies hold nobody's personal data, so anyone who may read records sees them.
-  const properties = await propertyRegister(active.membership.organisationId, visibleEntityIds(active));
+  const properties = await propertyRegister(
+    active.membership.organisationId,
+    visibleEntityIds(active)
+  );
   const cookieGaps = mergeGapSummaries(properties.map((p) => p.gapSummary));
   const cookiesWithGaps = properties.reduce((n, p) => n + p.withGaps, 0);
-  const scansDue = properties.filter((p) => rescanState(p.rescanDueAt) !== "not_due");
-  const scansOverdue = scansDue.filter((p) => rescanState(p.rescanDueAt) === "overdue").length;
+  const scansDue = properties.filter(
+    (p) => rescanState(p.rescanDueAt) !== 'not_due'
+  );
+  const scansOverdue = scansDue.filter(
+    (p) => rescanState(p.rescanDueAt) === 'overdue'
+  ).length;
 
   const treated = m.riskPosture.reduce((n, r) => n + r.residual, 0);
   const shift =
-    m.riskPosture.find((r) => r.tier === "high")!.inherent +
-    m.riskPosture.find((r) => r.tier === "critical")!.inherent -
-    (m.riskPosture.find((r) => r.tier === "high")!.residual +
-      m.riskPosture.find((r) => r.tier === "critical")!.residual);
+    m.riskPosture.find((r) => r.tier === 'high')!.inherent +
+    m.riskPosture.find((r) => r.tier === 'critical')!.inherent -
+    (m.riskPosture.find((r) => r.tier === 'high')!.residual +
+      m.riskPosture.find((r) => r.tier === 'critical')!.residual);
 
   return (
     <main className="mx-auto max-w-5xl space-y-10 px-6 py-12">
       <header className="space-y-1 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Governance overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Governance overview
+        </h1>
         <p className="text-sm text-ink-soft">
-          {m.totals.assessments} assessments · {m.totals.risks} risks ·{" "}
+          {m.totals.assessments} assessments · {m.totals.risks} risks ·{' '}
           {m.totals.openTasks} open tasks
-          {visibleEntityIds(active) === null ? "" : " · limited to your entities"}
+          {visibleEntityIds(active) === null
+            ? ''
+            : ' · limited to your entities'}
         </p>
       </header>
 
@@ -79,39 +102,39 @@ const m = await dashboardMetrics(
           label="Awaiting a decision"
           value={m.attention.awaitingDecision}
           href="/app/tasks"
-          tone={m.attention.awaitingDecision > 0 ? "warning" : "quiet"}
-          note={`${m.attention.openGates} approval gate${m.attention.openGates === 1 ? "" : "s"} open`}
+          tone={m.attention.awaitingDecision > 0 ? 'warning' : 'quiet'}
+          note={`${m.attention.openGates} approval gate${m.attention.openGates === 1 ? '' : 's'} open`}
         />
         <Tile
           label="Overdue"
           value={m.attention.overdueTasks}
           href="/app/tasks"
-          tone={m.attention.overdueTasks > 0 ? "critical" : "good"}
+          tone={m.attention.overdueTasks > 0 ? 'critical' : 'good'}
           note="past their service level"
         />
         <Tile
           label="Not within appetite"
           value={m.attention.notWithinAppetite}
           href="/app/risks"
-          tone={m.attention.notWithinAppetite > 0 ? "critical" : "good"}
+          tone={m.attention.notWithinAppetite > 0 ? 'critical' : 'good'}
           note={
             m.unratedRisks > 0
               ? `residual high or critical, or unrated (${m.unratedRisks})`
-              : "residual high or critical"
+              : 'residual high or critical'
           }
         />
         <Tile
           label="Lapsed acceptances"
           value={m.attention.lapsedAcceptances}
           href="/app/risks"
-          tone={m.attention.lapsedAcceptances > 0 ? "warning" : "good"}
+          tone={m.attention.lapsedAcceptances > 0 ? 'warning' : 'good'}
           note="need looking at again"
         />
         <Tile
           label="Past review"
           value={m.attention.reviewsOverdue}
           href="/app/reviews"
-          tone={m.attention.reviewsOverdue > 0 ? "critical" : "good"}
+          tone={m.attention.reviewsOverdue > 0 ? 'critical' : 'good'}
           note="approved, and nobody has confirmed it still holds"
         />
         {requests ? (
@@ -120,14 +143,14 @@ const m = await dashboardMetrics(
               label="Requests due this week"
               value={requests.dueSoon}
               href="/app/requests"
-              tone={requests.dueSoon > 0 ? "warning" : "good"}
+              tone={requests.dueSoon > 0 ? 'warning' : 'good'}
               note="from data subjects: respond, or extend and say why"
             />
             <Tile
               label="Requests past deadline"
               value={requests.overdue}
               href="/app/requests"
-              tone={requests.overdue > 0 ? "critical" : "good"}
+              tone={requests.overdue > 0 ? 'critical' : 'good'}
               note="the response is still owed"
             />
           </>
@@ -138,14 +161,14 @@ const m = await dashboardMetrics(
               label="Complaints to acknowledge this week"
               value={complaints.acknowledgeSoon}
               href="/app/complaints"
-              tone={complaints.acknowledgeSoon > 0 ? "warning" : "good"}
+              tone={complaints.acknowledgeSoon > 0 ? 'warning' : 'good'}
               note="within the 30 days in DPA 2018 s.164A"
             />
             <Tile
               label="Complaints past the 30 days"
               value={complaints.acknowledgementOverdue}
               href="/app/complaints"
-              tone={complaints.acknowledgementOverdue > 0 ? "critical" : "good"}
+              tone={complaints.acknowledgementOverdue > 0 ? 'critical' : 'good'}
               note="the acknowledgement is still owed"
             />
           </>
@@ -156,15 +179,41 @@ const m = await dashboardMetrics(
               label="Cookies with gaps"
               value={cookiesWithGaps}
               href="/app/cookies"
-              tone={cookieGaps.some((g) => g.kind === "before_consent" || g.kind === "after_reject") ? "critical" : cookiesWithGaps > 0 ? "warning" : "good"}
-              note={cookieGaps.length ? cookieGaps.slice(0, 2).map((g) => g.text).join(", ") : "every item has its Schedule A1 basis shown"}
+              tone={
+                cookieGaps.some(
+                  (g) =>
+                    g.kind === 'before_consent' || g.kind === 'after_reject'
+                )
+                  ? 'critical'
+                  : cookiesWithGaps > 0
+                    ? 'warning'
+                    : 'good'
+              }
+              note={
+                cookieGaps.length
+                  ? cookieGaps
+                      .slice(0, 2)
+                      .map((g) => g.text)
+                      .join(', ')
+                  : 'every item has its Schedule A1 basis shown'
+              }
             />
             <Tile
               label="Cookie scans due"
               value={scansDue.length}
               href="/app/cookies"
-              tone={scansOverdue > 0 ? "critical" : scansDue.length > 0 ? "warning" : "good"}
-              note={scansOverdue > 0 ? `${scansOverdue} overdue: the inventory may be out of date` : "websites and apps due a scan within a fortnight"}
+              tone={
+                scansOverdue > 0
+                  ? 'critical'
+                  : scansDue.length > 0
+                    ? 'warning'
+                    : 'good'
+              }
+              note={
+                scansOverdue > 0
+                  ? `${scansOverdue} overdue: the inventory may be out of date`
+                  : 'websites and apps due a scan within a fortnight'
+              }
             />
           </>
         ) : null}
@@ -179,35 +228,46 @@ const m = await dashboardMetrics(
             rows={m.riskPosture.map((r) => ({
               label: r.label,
               before: r.inherent,
-              after: r.residual,
+              after: r.residual
             }))}
             beforeLabel="Inherent"
             afterLabel="Residual"
             caption={
               m.unratedRisks > 0
-                ? `${m.unratedRisks} risk${m.unratedRisks === 1 ? "" : "s"} not yet rated for residual - those are missing from the residual bars.`
-                : `Treatment moved ${shift} risk${shift === 1 ? "" : "s"} out of high or critical.`
+                ? `${m.unratedRisks} risk${m.unratedRisks === 1 ? '' : 's'} not yet rated for residual - those are missing from the residual bars.`
+                : `Treatment moved ${shift} risk${shift === 1 ? '' : 's'} out of high or critical.`
             }
           />
           {treated === 0 ? (
             <p className="text-sm text-ink-soft">
-              Nothing has a residual rating yet, so there is no after to compare.
+              Nothing has a residual rating yet, so there is no after to
+              compare.
             </p>
           ) : null}
         </Panel>
 
-        <Panel title="Service levels" hint="Open work against its due date.">
+        <Panel
+          title="Service levels"
+          hint="Open work against its due date."
+        >
           <StatusBars
             unit="open tasks"
             rows={[
-              { label: "On time", value: m.sla.onTime, tone: "good" },
-              { label: "Due within 3 days", value: m.sla.dueSoon, tone: "warning" },
-              { label: "Overdue", value: m.sla.overdue, tone: "critical" },
+              { label: 'On time', value: m.sla.onTime, tone: 'good' },
+              {
+                label: 'Due within 3 days',
+                value: m.sla.dueSoon,
+                tone: 'warning'
+              },
+              { label: 'Overdue', value: m.sla.overdue, tone: 'critical' }
             ]}
           />
         </Panel>
 
-        <Panel title="Assessment pipeline" hint="Where the work has got to.">
+        <Panel
+          title="Assessment pipeline"
+          hint="Where the work has got to."
+        >
           <StatusBars
             unit="assessments"
             labelWidth="8.5rem"
@@ -215,31 +275,37 @@ const m = await dashboardMetrics(
               label: p.label,
               value: p.count,
               tone:
-                p.status === "approved" ? "good"
-                : p.status === "returned" || p.status === "in_review" ? "warning"
-                : p.status === "rejected" ? "critical"
-                : "neutral",
+                p.status === 'approved'
+                  ? 'good'
+                  : p.status === 'returned' || p.status === 'in_review'
+                    ? 'warning'
+                    : p.status === 'rejected'
+                      ? 'critical'
+                      : 'neutral'
             }))}
           />
         </Panel>
 
-        <Panel title="By assessment type" hint="Privacy and AI governance side by side.">
+        <Panel
+          title="By assessment type"
+          hint="Privacy and AI governance side by side."
+        >
           <StatusBars
             unit="assessments"
             labelWidth="8.5rem"
             rows={m.byKind.map((k) => ({
               label: k.label,
               value: k.count,
-              tone: "neutral" as const,
+              tone: 'neutral' as const
             }))}
           />
           {m.byKind.some((k) => k.critical > 0) ? (
             <p className="text-xs text-ink-soft">
-              Rated critical:{" "}
+              Rated critical:{' '}
               {m.byKind
                 .filter((k) => k.critical > 0)
                 .map((k) => `${k.label} ${k.critical}`)
-                .join(" · ")}
+                .join(' · ')}
             </p>
           ) : null}
         </Panel>
@@ -254,10 +320,13 @@ const m = await dashboardMetrics(
           <table className="w-full min-w-[28rem] text-sm">
             <thead>
               <tr className="border-b border-line text-left">
-                <th scope="col" className="px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-ink-soft">
+                <th
+                  scope="col"
+                  className="px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-ink-soft"
+                >
                   Entity
                 </th>
-                {["Assessments", "Open risks", "Open tasks"].map((h) => (
+                {['Assessments', 'Open risks', 'Open tasks'].map((h) => (
                   <th
                     key={h}
                     scope="col"
@@ -270,11 +339,20 @@ const m = await dashboardMetrics(
             </thead>
             <tbody>
               {m.byEntity.map((e) => (
-                <tr key={e.entityId} className="border-b border-line last:border-0">
+                <tr
+                  key={e.entityId}
+                  className="border-b border-line last:border-0"
+                >
                   <td className="px-4 py-2.5 font-medium">{e.name}</td>
-                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">{e.assessments}</td>
-                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">{e.openRisks}</td>
-                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">{e.openTasks}</td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                    {e.assessments}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                    {e.openRisks}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                    {e.openTasks}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -290,26 +368,33 @@ function Tile({
   value,
   note,
   href,
-  tone,
+  tone
 }: {
   label: string;
   value: number;
   note: string;
   href: string;
-  tone: "good" | "warning" | "critical" | "quiet";
+  tone: 'good' | 'warning' | 'critical' | 'quiet';
 }) {
   const accent =
-    tone === "critical" ? "text-red-800"
-    : tone === "warning" ? "text-amber-900"
-    : tone === "good" ? "text-ink"
-    : "text-ink";
+    tone === 'critical'
+      ? 'text-red-800'
+      : tone === 'warning'
+        ? 'text-amber-900'
+        : tone === 'good'
+          ? 'text-ink'
+          : 'text-ink';
   return (
     <Link
       href={href}
       className="block rounded border border-line bg-surface px-4 py-3.5 hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${accent}`}>
+      <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+        {label}
+      </p>
+      <p
+        className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${accent}`}
+      >
         {value}
       </p>
       <p className="mt-0.5 text-xs text-ink-soft">{note}</p>
@@ -320,7 +405,7 @@ function Tile({
 function Panel({
   title,
   hint,
-  children,
+  children
 }: {
   title: string;
   hint: string;

@@ -1,10 +1,10 @@
-import { exportRoute } from "@/lib/integration/handler";
-import { BadQuery } from "@/lib/integration/query";
-import { requestsSummary } from "@/services/data-subject-requests";
+import { exportRoute } from '@/lib/integration/handler';
+import { BadQuery } from '@/lib/integration/query';
+import { requestsSummary } from '@/services/data-subject-requests';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-const ALLOWED = new Set(["entity", "months"]);
+const ALLOWED = new Set(['entity', 'months']);
 
 /**
  * How data subject requests were answered, in counts.
@@ -15,23 +15,25 @@ const ALLOWED = new Set(["entity", "months"]);
  * would read as a summary of everything.
  */
 export const GET = exportRoute({
-  kinds: ["waivern_portal", "other"],
+  kinds: ['waivern_portal', 'other'],
   handle: async (connection, url) => {
-    const unknown = [...new Set(url.searchParams.keys())].filter((k) => !ALLOWED.has(k));
+    const unknown = [...new Set(url.searchParams.keys())].filter(
+      (k) => !ALLOWED.has(k)
+    );
     if (unknown.length) {
       throw new BadQuery(
-        `The requests summary takes only \`entity\` and \`months\` (got ${unknown.map((k) => `\`${k}\``).join(", ")})`,
+        `The requests summary takes only \`entity\` and \`months\` (got ${unknown.map((k) => `\`${k}\``).join(', ')})`
       );
     }
-    const raw = url.searchParams.get("months");
+    const raw = url.searchParams.get('months');
     const months = raw === null ? 12 : Number(raw);
     if (!Number.isInteger(months) || months < 1 || months > 24) {
-      throw new BadQuery("`months` must be a whole number between 1 and 24");
+      throw new BadQuery('`months` must be a whole number between 1 and 24');
     }
     return requestsSummary({
       organisationId: connection.organisationId,
-      entities: url.searchParams.getAll("entity"),
-      months,
+      entities: url.searchParams.getAll('entity'),
+      months
     });
-  },
+  }
 });

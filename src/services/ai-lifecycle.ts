@@ -1,16 +1,24 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, desc, eq, inArray } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiChanges,
   aiUseCases,
   assessmentRevisions,
   assessments,
-  templateVersions,
   templates,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { GATE_WORDS, LIVE, unmetConditions, type GateCondition, type Stage } from "@/lib/ai/lifecycle";
-import type { Actor } from "./templates";
+  templateVersions
+} from '@/db/schema';
+import {
+  GATE_WORDS,
+  LIVE,
+  unmetConditions,
+  type GateCondition,
+  type Stage
+} from '@/lib/ai/lifecycle';
+import { appendAuditEvent } from '@/lib/audit';
+
+import type { Actor } from './templates';
 
 /**
  * Moving an AI system through its lifecycle, and recording what changes about it.
@@ -18,28 +26,36 @@ import type { Actor } from "./templates";
 
 export class GateNotMet extends Error {
   constructor(readonly unmet: GateCondition[]) {
-    super(`Not yet: ${unmet.map((c) => GATE_WORDS[c].toLowerCase()).join("; ")}`);
+    super(
+      `Not yet: ${unmet.map((c) => GATE_WORDS[c].toLowerCase()).join('; ')}`
+    );
   }
 }
 
 export class ChangeRefused extends Error {}
 
-type MaterialKind = "model" | "data" | "scope";
+type MaterialKind = 'model' | 'data' | 'scope';
 
 /** The latest approved AI assessment of a system, if any. */
 async function latestApprovedAiAssessment(useCaseId: string) {
   const [row] = await db
-    .select({ completedAt: assessments.completedAt, reviewDueAt: assessments.reviewDueAt })
+    .select({
+      completedAt: assessments.completedAt,
+      reviewDueAt: assessments.reviewDueAt
+    })
     .from(assessments)
-    .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+    .innerJoin(
+      templateVersions,
+      eq(templateVersions.id, assessments.templateVersionId)
+    )
     .innerJoin(templates, eq(templates.id, templateVersions.templateId))
     .where(
       and(
-        eq(assessments.subjectType, "ai_use_case"),
+        eq(assessments.subjectType, 'ai_use_case'),
         eq(assessments.subjectId, useCaseId),
-        eq(assessments.status, "approved"),
-        eq(templates.kind, "ai_risk"),
-      ),
+        eq(assessments.status, 'approved'),
+        eq(templates.kind, 'ai_risk')
+      )
     )
     .orderBy(desc(assessments.completedAt))
     .limit(1);
@@ -55,19 +71,24 @@ async function latestApprovedAiAssessment(useCaseId: string) {
  * residual risk, that counts as outstanding, because nothing shows the Information Commission was
  * consulted.
  */
-export async function icoConsultationOutstanding(useCaseId: string): Promise<boolean> {
+export async function icoConsultationOutstanding(
+  useCaseId: string
+): Promise<boolean> {
   const [dpia] = await db
     .select({ id: assessments.id })
     .from(assessments)
-    .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+    .innerJoin(
+      templateVersions,
+      eq(templateVersions.id, assessments.templateVersionId)
+    )
     .innerJoin(templates, eq(templates.id, templateVersions.templateId))
     .where(
       and(
-        eq(assessments.subjectType, "ai_use_case"),
+        eq(assessments.subjectType, 'ai_use_case'),
         eq(assessments.subjectId, useCaseId),
-        eq(assessments.status, "approved"),
-        eq(templates.kind, "dpia"),
-      ),
+        eq(assessments.status, 'approved'),
+        eq(templates.kind, 'dpia')
+      )
     )
     .orderBy(desc(assessments.completedAt))
     .limit(1);
@@ -79,11 +100,16 @@ export async function icoConsultationOutstanding(useCaseId: string): Promise<boo
     .orderBy(desc(assessmentRevisions.revision))
     .limit(1);
   const answers = (snapshot?.answers ?? {}) as Record<string, unknown>;
-  return answers.residual_accepted === true && answers.ico_consultation !== "advice_received";
+  return (
+    answers.residual_accepted === true &&
+    answers.ico_consultation !== 'advice_received'
+  );
 }
 
 /** When the model, its data or its use last changed, per system. */
-export async function lastMaterialChanges(organisationId: string): Promise<Map<string, Date>> {
+export async function lastMaterialChanges(
+  organisationId: string
+): Promise<Map<string, Date>> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({ id: aiChanges.aiUseCaseId, at: aiChanges.createdAt })
@@ -91,8 +117,8 @@ export async function lastMaterialChanges(organisationId: string): Promise<Map<s
       .where(
         and(
           eq(aiChanges.organisationId, organisationId),
-          inArray(aiChanges.kind, ["model", "data", "scope"]),
-        ),
+          inArray(aiChanges.kind, ['model', 'data', 'scope'])
+        )
       );
     const latest = new Map<string, Date>();
     for (const r of rows) {
@@ -109,12 +135,17 @@ export async function gateContext(useCaseId: string, organisationId: string) {
     const [useCase] = await db
       .select()
       .from(aiUseCases)
-      .where(and(eq(aiUseCases.id, useCaseId), eq(aiUseCases.organisationId, organisationId)));
+      .where(
+        and(
+          eq(aiUseCases.id, useCaseId),
+          eq(aiUseCases.organisationId, organisationId)
+        )
+      );
     if (!useCase) return null;
     const [assessed, changes, icoOutstanding] = await Promise.all([
       latestApprovedAiAssessment(useCaseId),
       lastMaterialChanges(organisationId),
-      icoConsultationOutstanding(useCaseId),
+      icoConsultationOutstanding(useCaseId)
     ]);
     return {
       useCase,
@@ -124,8 +155,8 @@ export async function gateContext(useCaseId: string, organisationId: string) {
         assessedAt: assessed?.completedAt ?? null,
         assessmentReviewDue: assessed?.reviewDueAt ?? null,
         lastMaterialChangeAt: changes.get(useCaseId) ?? null,
-        icoConsultationOutstanding: icoOutstanding,
-      },
+        icoConsultationOutstanding: icoOutstanding
+      }
     };
   });
 }
@@ -150,19 +181,22 @@ export async function changeStage(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const summary = input.summary.trim();
-    if (!summary) throw new ChangeRefused("Say why it is moving");
+    if (!summary) throw new ChangeRefused('Say why it is moving');
 
     const loaded = await gateContext(input.useCaseId, input.organisationId);
-    if (!loaded) throw new Error("No such AI use case");
+    if (!loaded) throw new Error('No such AI use case');
     const { useCase, context } = loaded;
-    if (context.from === input.to) throw new ChangeRefused(`It is already at that stage`);
+    if (context.from === input.to)
+      throw new ChangeRefused(`It is already at that stage`);
 
     const unmet = unmetConditions(input.to, context);
-    const waiverReason = input.waiverReason?.trim() ?? "";
+    const waiverReason = input.waiverReason?.trim() ?? '';
     if (unmet.length > 0) {
       if (!waiverReason) throw new GateNotMet(unmet);
       if (!input.mayWaive) {
-        throw new ChangeRefused("Only somebody who decides approvals can let a system go live without meeting its gate");
+        throw new ChangeRefused(
+          'Only somebody who decides approvals can let a system go live without meeting its gate'
+        );
       }
     }
 
@@ -173,10 +207,10 @@ export async function changeStage(input: {
         .set({
           lifecycleStage: input.to,
           updatedAt: now,
-          retiredAt: input.to === "retired" ? now : null,
+          retiredAt: input.to === 'retired' ? now : null,
           // First time live only. A system that goes back into development and
           // returns has been live since the first occasion, not the latest.
-          liveSince: useCase.liveSince ?? (LIVE.includes(input.to) ? now : null),
+          liveSince: useCase.liveSince ?? (LIVE.includes(input.to) ? now : null)
         })
         .where(eq(aiUseCases.id, useCase.id))
         .returning();
@@ -187,30 +221,33 @@ export async function changeStage(input: {
           organisationId: input.organisationId,
           entityId: useCase.entityId,
           aiUseCaseId: useCase.id,
-          kind: "stage",
+          kind: 'stage',
           fromStage: context.from,
           toStage: input.to,
           summary,
           gateWaived: unmet.length > 0 ? unmet : null,
           waiverReason: unmet.length > 0 ? waiverReason : null,
           recordedByUserId: input.actor.actorUserId ?? null,
-          recordedByLabel: input.actor.actorLabel,
+          recordedByLabel: input.actor.actorLabel
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: unmet.length > 0 ? "ai_use_case.stage_changed_gate_waived" : "ai_use_case.stage_changed",
-        subjectType: "ai_use_case",
+        action:
+          unmet.length > 0
+            ? 'ai_use_case.stage_changed_gate_waived'
+            : 'ai_use_case.stage_changed',
+        subjectType: 'ai_use_case',
         subjectId: useCase.id,
         entityId: useCase.entityId,
         before: { lifecycleStage: context.from },
         after: {
           lifecycleStage: input.to,
           change: change.id,
-          ...(unmet.length > 0 ? { gateWaived: unmet, waiverReason } : {}),
-        },
+          ...(unmet.length > 0 ? { gateWaived: unmet, waiverReason } : {})
+        }
       });
       return after;
     });
@@ -239,9 +276,11 @@ export async function recordChange(input: {
     const summary = input.summary.trim();
     const validation = input.validation?.trim() || null;
     const rollback = input.rollback?.trim() || null;
-    if (!summary) throw new ChangeRefused("Say what changed");
-    if (input.kind === "model" && (!validation || !rollback)) {
-      throw new ChangeRefused("A model change records how it was validated and how it would be rolled back");
+    if (!summary) throw new ChangeRefused('Say what changed');
+    if (input.kind === 'model' && (!validation || !rollback)) {
+      throw new ChangeRefused(
+        'A model change records how it was validated and how it would be rolled back'
+      );
     }
 
     return db.transaction(async (tx) => {
@@ -249,9 +288,12 @@ export async function recordChange(input: {
         .select()
         .from(aiUseCases)
         .where(
-          and(eq(aiUseCases.id, input.useCaseId), eq(aiUseCases.organisationId, input.organisationId)),
+          and(
+            eq(aiUseCases.id, input.useCaseId),
+            eq(aiUseCases.organisationId, input.organisationId)
+          )
         );
-      if (!useCase) throw new Error("No such AI use case");
+      if (!useCase) throw new Error('No such AI use case');
 
       const now = new Date();
       const [change] = await tx
@@ -265,12 +307,15 @@ export async function recordChange(input: {
           validation,
           rollback,
           recordedByUserId: input.actor.actorUserId ?? null,
-          recordedByLabel: input.actor.actorLabel,
+          recordedByLabel: input.actor.actorLabel
         })
         .returning();
 
       // Due now, unless something already made it due sooner.
-      if (useCase.lifecycleStage !== "retired" && (!useCase.nextReviewAt || useCase.nextReviewAt > now)) {
+      if (
+        useCase.lifecycleStage !== 'retired' &&
+        (!useCase.nextReviewAt || useCase.nextReviewAt > now)
+      ) {
         await tx
           .update(aiUseCases)
           .set({ nextReviewAt: now, updatedAt: now })
@@ -280,11 +325,11 @@ export async function recordChange(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_use_case.changed",
-        subjectType: "ai_change",
+        action: 'ai_use_case.changed',
+        subjectType: 'ai_change',
         subjectId: change.id,
         entityId: useCase.entityId,
-        after: { useCase: useCase.reference, kind: input.kind, summary },
+        after: { useCase: useCase.reference, kind: input.kind, summary }
       });
       return change;
     });
@@ -296,7 +341,12 @@ export async function historyFor(useCaseId: string, organisationId: string) {
     return db
       .select()
       .from(aiChanges)
-      .where(and(eq(aiChanges.aiUseCaseId, useCaseId), eq(aiChanges.organisationId, organisationId)))
+      .where(
+        and(
+          eq(aiChanges.aiUseCaseId, useCaseId),
+          eq(aiChanges.organisationId, organisationId)
+        )
+      )
       .orderBy(desc(aiChanges.createdAt));
   });
 }

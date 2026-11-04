@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { createHash } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 
 /**
  * Retrieve a page the platform was pointed at by a document.
@@ -28,7 +28,7 @@ export type Fetched = {
 export class FetchRefused extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "FetchRefused";
+    this.name = 'FetchRefused';
   }
 }
 
@@ -38,7 +38,7 @@ const MAX_REDIRECTS = 3;
 
 export async function fetchPage(
   raw: string,
-  options: { resolve?: (host: string) => Promise<string[]> } = {},
+  options: { resolve?: (host: string) => Promise<string[]> } = {}
 ): Promise<Fetched> {
   let url = await vetted(raw, options.resolve);
 
@@ -49,17 +49,19 @@ export async function fetchPage(
     for (let hop = 0; ; hop += 1) {
       const response = await fetch(url, {
         signal: controller.signal,
-        redirect: "manual",
+        redirect: 'manual',
         headers: {
           // Said plainly, so a supplier seeing this in their logs knows what it is.
-          "user-agent": "WaivernGovernanceTool/1.0 (+document sub-processor check)",
-          accept: "text/html, text/plain;q=0.9, */*;q=0.1",
-        },
+          'user-agent':
+            'WaivernGovernanceTool/1.0 (+document sub-processor check)',
+          accept: 'text/html, text/plain;q=0.9, */*;q=0.1'
+        }
       });
 
-      const location = response.headers.get("location");
+      const location = response.headers.get('location');
       if (response.status >= 300 && response.status < 400 && location) {
-        if (hop >= MAX_REDIRECTS) throw new FetchRefused("That address redirected too many times.");
+        if (hop >= MAX_REDIRECTS)
+          throw new FetchRefused('That address redirected too many times.');
         // Every hop is vetted again. A public URL redirecting inward is the
         // usual way this class of check gets walked past.
         url = await vetted(new URL(location, url).toString(), options.resolve);
@@ -70,11 +72,16 @@ export async function fetchPage(
         throw new FetchRefused(`That address answered ${response.status}.`);
       }
 
-      const contentType = (response.headers.get("content-type") ?? "").split(";")[0].trim();
-      if (contentType && !/^text\/|^application\/(xhtml\+xml|xml)$/.test(contentType)) {
+      const contentType = (response.headers.get('content-type') ?? '')
+        .split(';')[0]
+        .trim();
+      if (
+        contentType &&
+        !/^text\/|^application\/(xhtml\+xml|xml)$/.test(contentType)
+      ) {
         throw new FetchRefused(
           `That address returned ${contentType}, not a web page. If the list is a PDF, ` +
-            `download it and attach it to the agreement instead.`,
+            `download it and attach it to the agreement instead.`
         );
       }
 
@@ -82,18 +89,18 @@ export async function fetchPage(
       return {
         url,
         status: response.status,
-        contentType: contentType || "text/html",
+        contentType: contentType || 'text/html',
         body,
-        sha256: createHash("sha256").update(body).digest("hex"),
-        fetchedAt: new Date(),
+        sha256: createHash('sha256').update(body).digest('hex'),
+        fetchedAt: new Date()
       };
     }
   } catch (error) {
     if (error instanceof FetchRefused) throw error;
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new FetchRefused("That address did not answer in time.");
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new FetchRefused('That address did not answer in time.');
     }
-    throw new FetchRefused("That address could not be reached.");
+    throw new FetchRefused('That address could not be reached.');
   } finally {
     clearTimeout(timer);
   }
@@ -101,7 +108,7 @@ export async function fetchPage(
 
 async function readCapped(response: Response): Promise<string> {
   const reader = response.body?.getReader();
-  if (!reader) return "";
+  if (!reader) return '';
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
@@ -110,11 +117,11 @@ async function readCapped(response: Response): Promise<string> {
     size += value.byteLength;
     if (size > MAX_BYTES) {
       await reader.cancel();
-      throw new FetchRefused("That page is too large to read.");
+      throw new FetchRefused('That page is too large to read.');
     }
     chunks.push(value);
   }
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 /**
@@ -127,29 +134,32 @@ async function readCapped(response: Response): Promise<string> {
  */
 export async function vetted(
   raw: string,
-  resolve: (host: string) => Promise<string[]> = defaultResolve,
+  resolve: (host: string) => Promise<string[]> = defaultResolve
 ): Promise<string> {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new FetchRefused("That is not a valid web address.");
+    throw new FetchRefused('That is not a valid web address.');
   }
 
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new FetchRefused("Only http and https addresses can be opened.");
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new FetchRefused('Only http and https addresses can be opened.');
   }
   if (url.username || url.password) {
-    throw new FetchRefused("That address carries credentials, which will not be sent.");
+    throw new FetchRefused(
+      'That address carries credentials, which will not be sent.'
+    );
   }
 
-  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = isIP(host) ? [host] : await resolve(host);
-  if (addresses.length === 0) throw new FetchRefused("That address could not be resolved.");
+  if (addresses.length === 0)
+    throw new FetchRefused('That address could not be resolved.');
   for (const address of addresses) {
     if (isPrivate(address)) {
       throw new FetchRefused(
-        "That address points inside a private network, so it will not be opened.",
+        'That address points inside a private network, so it will not be opened.'
       );
     }
   }
@@ -161,7 +171,7 @@ async function defaultResolve(host: string): Promise<string[]> {
     const found = await lookup(host, { all: true });
     return found.map((f) => f.address);
   } catch {
-    throw new FetchRefused("That address could not be resolved.");
+    throw new FetchRefused('That address could not be resolved.');
   }
 }
 
@@ -177,7 +187,7 @@ async function defaultResolve(host: string): Promise<string[]> {
 export function isPrivate(address: string): boolean {
   const kind = isIP(address);
   if (kind === 4) {
-    const [a, b] = address.split(".").map(Number);
+    const [a, b] = address.split('.').map(Number);
     if (a === 10 || a === 127 || a === 0) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
@@ -189,10 +199,10 @@ export function isPrivate(address: string): boolean {
   }
   if (kind === 6) {
     const lower = address.toLowerCase();
-    if (lower === "::1" || lower === "::") return true;
+    if (lower === '::1' || lower === '::') return true;
     if (/^f[cd]/.test(lower)) return true; // unique local
-    if (lower.startsWith("fe80")) return true; // link-local
-    if (lower.startsWith("ff")) return true; // multicast
+    if (lower.startsWith('fe80')) return true; // link-local
+    if (lower.startsWith('ff')) return true; // multicast
     // IPv4 written as IPv6, which would otherwise walk straight past the above.
     const mapped = /::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
     if (mapped) return isPrivate(mapped[1]);

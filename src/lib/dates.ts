@@ -19,14 +19,14 @@ export function addMonths(from: Date, months: number): Date {
   target.setUTCDate(1);
   target.setUTCMonth(target.getUTCMonth() + months);
   const lastOfTarget = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)
   ).getUTCDate();
   target.setUTCDate(Math.min(day, lastOfTarget));
   target.setUTCHours(
     from.getUTCHours(),
     from.getUTCMinutes(),
     from.getUTCSeconds(),
-    from.getUTCMilliseconds(),
+    from.getUTCMilliseconds()
   );
   return target;
 }

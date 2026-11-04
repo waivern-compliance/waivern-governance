@@ -1,14 +1,16 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import type { ScalePoint } from "@/lib/risk/scale";
-import { dismissAction, raiseAsRiskAction } from "./actions";
+import { useState, useTransition } from 'react';
+
+import type { ScalePoint } from '@/lib/risk/scale';
+
+import { dismissAction, raiseAsRiskAction } from './actions';
 
 const SEVERITY: Record<string, string> = {
-  high: "border-red-700 bg-red-50 text-red-900",
-  medium: "border-amber-700 bg-amber-50 text-amber-900",
-  low: "border-line bg-surface-2 text-ink-soft",
-  info: "border-line bg-surface-2 text-ink-soft",
+  high: 'border-red-700 bg-red-50 text-red-900',
+  medium: 'border-amber-700 bg-amber-50 text-amber-900',
+  low: 'border-line bg-surface-2 text-ink-soft',
+  info: 'border-line bg-surface-2 text-ink-soft'
 };
 
 export type Finding = {
@@ -38,7 +40,7 @@ export function FindingCard({
   finding,
   canAct,
   likelihood,
-  impact,
+  impact
 }: {
   finding: Finding;
   canAct: boolean;
@@ -46,7 +48,7 @@ export function FindingCard({
   likelihood: readonly ScalePoint[];
   impact: readonly ScalePoint[];
 }) {
-  const [mode, setMode] = useState<"idle" | "raise" | "dismiss">("idle");
+  const [mode, setMode] = useState<'idle' | 'raise' | 'dismiss'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const suggestion = finding.advisory?.suggestion;
@@ -56,7 +58,9 @@ export function FindingCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1">
           <p className="font-medium">{finding.title}</p>
-          {finding.detail ? <p className="text-sm text-ink-soft">{finding.detail}</p> : null}
+          {finding.detail ? (
+            <p className="text-sm text-ink-soft">{finding.detail}</p>
+          ) : null}
         </div>
         <span
           className={`shrink-0 rounded border px-2 py-0.5 font-mono text-[11px] ${SEVERITY[finding.severity] ?? SEVERITY.info}`}
@@ -76,44 +80,46 @@ export function FindingCard({
         <span>· {finding.scanRef}</span>
       </p>
 
-      {typeof suggestion === "string" ? (
+      {typeof suggestion === 'string' ? (
         <p className="border-l-2 border-line pl-3 text-sm text-ink-soft">
           <span className="font-medium">Scanner suggests:</span> {suggestion}
           <span className="ml-1 italic">Advisory only - a person decides.</span>
         </p>
       ) : null}
 
-      {!canAct ? null : mode === "idle" ? (
+      {!canAct ? null : mode === 'idle' ? (
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setMode("raise")}
+            onClick={() => setMode('raise')}
             className="rounded border border-line bg-surface px-3 py-1.5 text-sm hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
           >
             Raise as a risk
           </button>
           <button
             type="button"
-            onClick={() => setMode("dismiss")}
+            onClick={() => setMode('dismiss')}
             className="rounded border border-line bg-surface px-3 py-1.5 text-sm hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
           >
             Dismiss
           </button>
         </div>
-      ) : mode === "raise" ? (
+      ) : mode === 'raise' ? (
         <form
           action={(formData) => {
             startTransition(async () => {
               setError(null);
               const r = await raiseAsRiskAction(finding.id, formData);
               if (!r.ok) setError(r.message);
-              else setMode("idle");
+              else setMode('idle');
             });
           }}
           className="space-y-3 rounded border border-line bg-ground p-3"
         >
           <label className="block space-y-1">
-            <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Risk title</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+              Risk title
+            </span>
             <input
               name="title"
               required
@@ -129,7 +135,7 @@ export function FindingCard({
               name="description"
               required
               rows={2}
-              defaultValue={finding.detail ?? ""}
+              defaultValue={finding.detail ?? ''}
               className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
             />
           </label>
@@ -144,9 +150,19 @@ export function FindingCard({
                 defaultValue=""
                 className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
               >
-                <option value="" disabled>Choose…</option>
+                <option
+                  value=""
+                  disabled
+                >
+                  Choose…
+                </option>
                 {likelihood.map((l) => (
-                  <option key={l.value} value={l.value}>{l.value} · {l.label}</option>
+                  <option
+                    key={l.value}
+                    value={l.value}
+                  >
+                    {l.value} · {l.label}
+                  </option>
                 ))}
               </select>
             </label>
@@ -160,16 +176,26 @@ export function FindingCard({
                 defaultValue=""
                 className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
               >
-                <option value="" disabled>Choose…</option>
+                <option
+                  value=""
+                  disabled
+                >
+                  Choose…
+                </option>
                 {impact.map((i) => (
-                  <option key={i.value} value={i.value}>{i.value} · {i.label}</option>
+                  <option
+                    key={i.value}
+                    value={i.value}
+                  >
+                    {i.value} · {i.label}
+                  </option>
                 ))}
               </select>
             </label>
           </div>
           <p className="text-xs text-ink-soft">
-            Your rating, not the scanner&rsquo;s. Its severity is recorded alongside
-            for provenance.
+            Your rating, not the scanner&rsquo;s. Its severity is recorded
+            alongside for provenance.
           </p>
           <div className="flex gap-2">
             <button
@@ -181,7 +207,7 @@ export function FindingCard({
             </button>
             <button
               type="button"
-              onClick={() => setMode("idle")}
+              onClick={() => setMode('idle')}
               className="rounded border border-line bg-surface px-3 py-1.5 text-sm"
             >
               Cancel
@@ -195,7 +221,7 @@ export function FindingCard({
               setError(null);
               const r = await dismissAction(finding.id, formData);
               if (!r.ok) setError(r.message);
-              else setMode("idle");
+              else setMode('idle');
             });
           }}
           className="flex flex-wrap items-end gap-2 rounded border border-line bg-ground p-3"
@@ -220,7 +246,7 @@ export function FindingCard({
           </button>
           <button
             type="button"
-            onClick={() => setMode("idle")}
+            onClick={() => setMode('idle')}
             className="rounded border border-line bg-surface px-3 py-2 text-sm"
           >
             Cancel
@@ -229,7 +255,10 @@ export function FindingCard({
       )}
 
       {error ? (
-        <p role="alert" className="text-sm text-red-800">
+        <p
+          role="alert"
+          className="text-sm text-red-800"
+        >
           {error}
         </p>
       ) : null}

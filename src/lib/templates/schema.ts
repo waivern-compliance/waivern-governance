@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * A template is data, not code: sections and questions, the conditions that
@@ -9,19 +9,19 @@ import { z } from "zod";
  */
 
 export const questionType = z.enum([
-  "short_text",
-  "long_text",
-  "boolean",
-  "single_select",
-  "multi_select",
-  "number",
-  "date",
+  'short_text',
+  'long_text',
+  'boolean',
+  'single_select',
+  'multi_select',
+  'number',
+  'date',
   /** Resolves against the maintained country risk library. */
-  "country",
+  'country',
   /** Categories of personal data. Never identities — that is out of scope. */
-  "data_category",
+  'data_category',
   /** Prompts for a file rather than a value. */
-  "evidence",
+  'evidence'
 ]);
 export type QuestionType = z.infer<typeof questionType>;
 
@@ -32,47 +32,59 @@ export type QuestionType = z.infer<typeof questionType>;
  * reason a section did not apply.
  */
 export type Condition =
-  | { op: "answered"; question: string }
-  | { op: "equals"; question: string; value: string | number | boolean }
-  | { op: "notEquals"; question: string; value: string | number | boolean }
-  | { op: "includes"; question: string; value: string }
-  | { op: "greaterThan"; question: string; value: number }
-  | { op: "lessThan"; question: string; value: number }
-  | { op: "and"; all: Condition[] }
-  | { op: "or"; any: Condition[] }
-  | { op: "not"; condition: Condition };
+  | { op: 'answered'; question: string }
+  | { op: 'equals'; question: string; value: string | number | boolean }
+  | { op: 'notEquals'; question: string; value: string | number | boolean }
+  | { op: 'includes'; question: string; value: string }
+  | { op: 'greaterThan'; question: string; value: number }
+  | { op: 'lessThan'; question: string; value: number }
+  | { op: 'and'; all: Condition[] }
+  | { op: 'or'; any: Condition[] }
+  | { op: 'not'; condition: Condition };
 
 export const condition: z.ZodType<Condition> = z.lazy(() =>
-  z.discriminatedUnion("op", [
-    z.object({ op: z.literal("answered"), question: z.string() }),
+  z.discriminatedUnion('op', [
+    z.object({ op: z.literal('answered'), question: z.string() }),
     z.object({
-      op: z.literal("equals"),
+      op: z.literal('equals'),
       question: z.string(),
-      value: z.union([z.string(), z.number(), z.boolean()]),
+      value: z.union([z.string(), z.number(), z.boolean()])
     }),
     z.object({
-      op: z.literal("notEquals"),
+      op: z.literal('notEquals'),
       question: z.string(),
-      value: z.union([z.string(), z.number(), z.boolean()]),
+      value: z.union([z.string(), z.number(), z.boolean()])
     }),
-    z.object({ op: z.literal("includes"), question: z.string(), value: z.string() }),
-    z.object({ op: z.literal("greaterThan"), question: z.string(), value: z.number() }),
-    z.object({ op: z.literal("lessThan"), question: z.string(), value: z.number() }),
-    z.object({ op: z.literal("and"), all: z.array(condition).min(1) }),
-    z.object({ op: z.literal("or"), any: z.array(condition).min(1) }),
-    z.object({ op: z.literal("not"), condition }),
-  ]),
+    z.object({
+      op: z.literal('includes'),
+      question: z.string(),
+      value: z.string()
+    }),
+    z.object({
+      op: z.literal('greaterThan'),
+      question: z.string(),
+      value: z.number()
+    }),
+    z.object({
+      op: z.literal('lessThan'),
+      question: z.string(),
+      value: z.number()
+    }),
+    z.object({ op: z.literal('and'), all: z.array(condition).min(1) }),
+    z.object({ op: z.literal('or'), any: z.array(condition).min(1) }),
+    z.object({ op: z.literal('not'), condition })
+  ])
 );
 
 export const option = z.object({
   value: z.string().min(1),
   label: z.string().min(1),
   /** Contribution to a weighted score, where the template scores that way. */
-  weight: z.number().optional(),
+  weight: z.number().optional()
 });
 
 export const question = z.object({
-  key: z.string().regex(/^[a-z][a-z0-9_]*$/, "keys are lower_snake_case"),
+  key: z.string().regex(/^[a-z][a-z0-9_]*$/, 'keys are lower_snake_case'),
   label: z.string().min(1),
   type: questionType,
   help: z.string().optional(),
@@ -89,8 +101,8 @@ export const question = z.object({
   requireWhen: condition.optional(),
   /** Codes into the legal reference library, rendered beside the question. */
   legalRefs: z.array(z.string()).default([]),
-  evidence: z.enum(["none", "optional", "required"]).default("none"),
-  placeholder: z.string().optional(),
+  evidence: z.enum(['none', 'optional', 'required']).default('none'),
+  placeholder: z.string().optional()
 });
 export type Question = z.infer<typeof question>;
 
@@ -99,12 +111,12 @@ export const section = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   showWhen: condition.optional(),
-  questions: z.array(question).min(1),
+  questions: z.array(question).min(1)
 });
 export type Section = z.infer<typeof section>;
 
 export const templateSchema = z.object({
-  sections: z.array(section).min(1),
+  sections: z.array(section).min(1)
 });
 export type TemplateSchema = z.infer<typeof templateSchema>;
 
@@ -120,29 +132,29 @@ export const scoreBand = z.object({
   min: z.number(),
   max: z.number(),
   label: z.string(),
-  tier: z.enum(["low", "medium", "high", "critical"]),
+  tier: z.enum(['low', 'medium', 'high', 'critical'])
 });
 export type ScoreBand = z.infer<typeof scoreBand>;
 
-export const scoringConfig = z.discriminatedUnion("method", [
+export const scoringConfig = z.discriminatedUnion('method', [
   z.object({
-    method: z.literal("likelihood_impact"),
+    method: z.literal('likelihood_impact'),
     likelihoodQuestion: z.string(),
     impactQuestion: z.string(),
     /** Maps an option value to its position on the axis, from 1 upward. */
     likelihoodScale: z.record(z.string(), z.number()),
     impactScale: z.record(z.string(), z.number()),
-    bands: z.array(scoreBand).min(1),
+    bands: z.array(scoreBand).min(1)
   }),
   z.object({
-    method: z.literal("weighted_sum"),
+    method: z.literal('weighted_sum'),
     /** Questions whose selected options carry weights. */
     questions: z.array(z.string()).min(1),
-    bands: z.array(scoreBand).min(1),
+    bands: z.array(scoreBand).min(1)
   }),
   z.object({
-    method: z.literal("none"),
-  }),
+    method: z.literal('none')
+  })
 ]);
 export type ScoringConfig = z.infer<typeof scoringConfig>;
 
@@ -158,6 +170,6 @@ export const templateDefinition = z.object({
    * nothing produces no schedule and nobody is reminded of something the
    * organisation never asked to revisit.
    */
-  reviewIntervalMonths: z.number().int().min(1).max(120).optional(),
+  reviewIntervalMonths: z.number().int().min(1).max(120).optional()
 });
 export type TemplateDefinition = z.infer<typeof templateDefinition>;

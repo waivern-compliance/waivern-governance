@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 /**
  * Shown when somebody reaches a page their grants do not cover.
@@ -9,14 +9,16 @@ import Link from "next/link";
  */
 export function NotPermitted({
   what,
-  organisationName,
+  organisationName
 }: {
   what: string;
   organisationName: string;
 }) {
   return (
     <main className="mx-auto max-w-xl space-y-5 px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Not part of your access</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Not part of your access
+      </h1>
       <p className="text-ink-soft">
         {what} is not something your account can see in {organisationName}. That
         is a matter of what you have been granted, not a fault - ask whoever

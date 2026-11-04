@@ -1,23 +1,24 @@
-import { eq, sql } from "drizzle-orm";
-import { db, sql as pg } from "@/db/client";
+import { eq, sql } from 'drizzle-orm';
+
+import { db, sql as pg } from '@/db/client';
 import {
   assessments,
   entities,
   organisations,
-  templateVersions,
   templates,
-  users,
-} from "@/db/schema";
-import { createUseCase } from "@/services/ai-register";
-import { createAssessment, saveAnswers } from "@/services/assessments";
+  templateVersions,
+  users
+} from '@/db/schema';
+import { createUseCase } from '@/services/ai-register';
+import { createAssessment, saveAnswers } from '@/services/assessments';
 import {
   acceptRisk,
   addMitigation,
   createRisk,
   setResidual,
-  updateMitigation,
-} from "@/services/risks";
-import { decideApproval, submitForApproval } from "@/services/workflow";
+  updateMitigation
+} from '@/services/risks';
+import { decideApproval, submitForApproval } from '@/services/workflow';
 
 /**
  * A demonstration portfolio.
@@ -31,240 +32,398 @@ import { decideApproval, submitForApproval } from "@/services/workflow";
  * Run after `pnpm seed`.
  */
 
-const SYSTEM = { actorKind: "system" as const, actorUserId: null, actorLabel: "demo" };
+const SYSTEM = {
+  actorKind: 'system' as const,
+  actorUserId: null,
+  actorLabel: 'demo'
+};
 
 const DPIA_BASE = {
-  nature: "Collect and process personal data to deliver the service described.",
-  purpose: "Deliver and improve the service.",
-  lawful_basis: "public_task",
-  subject_groups: "Audience members and staff, in the UK.",
+  nature: 'Collect and process personal data to deliver the service described.',
+  purpose: 'Deliver and improve the service.',
+  lawful_basis: 'public_task',
+  subject_groups: 'Audience members and staff, in the UK.',
   children_likely: false,
-  dpo_consulted: "no_dpo",
+  dpo_consulted: 'no_dpo',
   criminal_offence: false,
-  necessity: "The processing is required to deliver the stated purpose.",
-  alternatives: "Less intrusive options were considered and documented.",
-  transparency: "Covered by the privacy notice and an in-product explainer.",
-  rights_support: "Handled through the existing rights workflow.",
-  measures: "Access control, minimisation and a defined retention period.",
-  residual_accepted: false,
+  necessity: 'The processing is required to deliver the stated purpose.',
+  alternatives: 'Less intrusive options were considered and documented.',
+  transparency: 'Covered by the privacy notice and an in-product explainer.',
+  rights_support: 'Handled through the existing rights workflow.',
+  measures: 'Access control, minimisation and a defined retention period.',
+  residual_accepted: false
 };
 
 type Spec = {
-  kind: "dpia" | "tra" | "tia" | "ai_risk" | "screening";
+  kind: 'dpia' | 'tra' | 'tia' | 'ai_risk' | 'screening';
   title: string;
-  entity: "BBC Public Service" | "BBC Studios";
+  entity: 'BBC Public Service' | 'BBC Studios';
   answers: Record<string, unknown>;
   /** How far to take it: left in progress, submitted, or walked to approval. */
-  advance: "drafting" | "submitted" | "approved" | "returned";
+  advance: 'drafting' | 'submitted' | 'approved' | 'returned';
 };
 
 function dpia(over: Record<string, unknown>) {
   return {
     ...DPIA_BASE,
-    data_categories: ["account_identifiers"],
+    data_categories: ['account_identifiers'],
     special_category: false,
     volume: 50000,
-    retention: "Twenty-four months from last activity.",
+    retention: 'Twenty-four months from last activity.',
     transfers_abroad: false,
-    risk_description: "Exposure of personal data beyond what people expect.",
-    likelihood: "unlikely",
-    impact: "limited",
-    ...over,
+    risk_description: 'Exposure of personal data beyond what people expect.',
+    likelihood: 'unlikely',
+    impact: 'limited',
+    ...over
   };
 }
 
 const SPECS: Spec[] = [
   {
-    kind: "dpia", entity: "BBC Public Service", advance: "approved",
-    title: "Newsletter subscription management",
-    answers: dpia({ activity_name: "Newsletter subscriptions", lawful_basis: "consent", likelihood: "remote", impact: "minimal", volume: 380000 }),
-  },
-  {
-    kind: "dpia", entity: "BBC Public Service", advance: "approved",
-    title: "Accessibility feedback survey",
-    answers: dpia({ activity_name: "Accessibility survey", lawful_basis: "consent", likelihood: "remote", impact: "limited", volume: 4200 }),
-  },
-  {
-    kind: "dpia", entity: "BBC Public Service", advance: "submitted",
-    title: "Audience research panel recruitment",
-    answers: dpia({ activity_name: "Research panel", likelihood: "possible", impact: "limited", volume: 15000 }),
-  },
-  {
-    kind: "dpia", entity: "BBC Studios", advance: "submitted",
-    title: "Contributor contract records",
+    kind: 'dpia',
+    entity: 'BBC Public Service',
+    advance: 'approved',
+    title: 'Newsletter subscription management',
     answers: dpia({
-      activity_name: "Contributor records", data_categories: ["contractual", "financial"],
-      likelihood: "possible", impact: "significant", volume: 9000,
-      transfers_abroad: true, transfer_destinations: ["US"], tra_reference: "TRA-2026-0002",
-    }),
+      activity_name: 'Newsletter subscriptions',
+      lawful_basis: 'consent',
+      likelihood: 'remote',
+      impact: 'minimal',
+      volume: 380000
+    })
   },
   {
-    kind: "dpia", entity: "BBC Studios", advance: "submitted",
-    title: "Casting and talent database",
+    kind: 'dpia',
+    entity: 'BBC Public Service',
+    advance: 'approved',
+    title: 'Accessibility feedback survey',
     answers: dpia({
-      activity_name: "Casting database",
-      data_categories: ["images_audio", "contact_details", "racial_ethnic"],
-      special_category: true, art9_condition: "a",
-      likelihood: "likely", impact: "significant", volume: 26000,
-    }),
+      activity_name: 'Accessibility survey',
+      lawful_basis: 'consent',
+      likelihood: 'remote',
+      impact: 'limited',
+      volume: 4200
+    })
   },
   {
-    kind: "dpia", entity: "BBC Public Service", advance: "returned",
-    title: "Live events ticketing ballot",
-    answers: dpia({ activity_name: "Ticketing ballot", likelihood: "possible", impact: "limited", volume: 120000 }),
+    kind: 'dpia',
+    entity: 'BBC Public Service',
+    advance: 'submitted',
+    title: 'Audience research panel recruitment',
+    answers: dpia({
+      activity_name: 'Research panel',
+      likelihood: 'possible',
+      impact: 'limited',
+      volume: 15000
+    })
   },
   {
-    kind: "dpia", entity: "BBC Public Service", advance: "drafting",
-    title: "Complaints handling replatform",
-    answers: { activity_name: "Complaints replatform", nature: "Migrate complaints records to a new system." },
+    kind: 'dpia',
+    entity: 'BBC Studios',
+    advance: 'submitted',
+    title: 'Contributor contract records',
+    answers: dpia({
+      activity_name: 'Contributor records',
+      data_categories: ['contractual', 'financial'],
+      likelihood: 'possible',
+      impact: 'significant',
+      volume: 9000,
+      transfers_abroad: true,
+      transfer_destinations: ['US'],
+      tra_reference: 'TRA-2026-0002'
+    })
   },
   {
-    kind: "dpia", entity: "BBC Studios", advance: "drafting",
-    title: "Production crew scheduling",
-    answers: { activity_name: "Crew scheduling" },
+    kind: 'dpia',
+    entity: 'BBC Studios',
+    advance: 'submitted',
+    title: 'Casting and talent database',
+    answers: dpia({
+      activity_name: 'Casting database',
+      data_categories: ['images_audio', 'contact_details', 'racial_ethnic'],
+      special_category: true,
+      art9_condition: 'a',
+      likelihood: 'likely',
+      impact: 'significant',
+      volume: 26000
+    })
   },
   {
-    kind: "screening", entity: "BBC Public Service", advance: "approved",
-    title: "Podcast listener metrics",
+    kind: 'dpia',
+    entity: 'BBC Public Service',
+    advance: 'returned',
+    title: 'Live events ticketing ballot',
+    answers: dpia({
+      activity_name: 'Ticketing ballot',
+      likelihood: 'possible',
+      impact: 'limited',
+      volume: 120000
+    })
+  },
+  {
+    kind: 'dpia',
+    entity: 'BBC Public Service',
+    advance: 'drafting',
+    title: 'Complaints handling replatform',
     answers: {
-      activity_name: "Podcast metrics", summary: "Aggregate listening statistics for editorial planning.",
-      owner_area: "Audio", criteria: ["none_apply"], ai_involved: false,
-    },
+      activity_name: 'Complaints replatform',
+      nature: 'Migrate complaints records to a new system.'
+    }
   },
   {
-    kind: "screening", entity: "BBC Studios", advance: "submitted",
-    title: "Format rights analytics",
-    answers: {
-      activity_name: "Format analytics", summary: "Analyse performance of formats across markets.",
-      owner_area: "Studios Distribution", criteria: ["data_matching"], ai_involved: false,
-    },
+    kind: 'dpia',
+    entity: 'BBC Studios',
+    advance: 'drafting',
+    title: 'Production crew scheduling',
+    answers: { activity_name: 'Crew scheduling' }
   },
   {
-    kind: "tra", entity: "BBC Studios", advance: "submitted",
-    title: "Post-production vendor in the United States",
+    kind: 'screening',
+    entity: 'BBC Public Service',
+    advance: 'approved',
+    title: 'Podcast listener metrics',
     answers: {
-      transfer_name: "US post-production", importer: "Vendor Inc (processor)", destination: "US",
-      data_categories: ["images_audio", "contractual"], special_category: false, frequency: "continuous",
-      mechanism: "idta", mechanism_evidence: "Contract library ref CTR-4471",
-      surveillance_regime: "broad", redress: "partial",
-      supplementary: ["encryption_at_rest", "contractual"],
-      likelihood: "possible", impact: "significant",
-      conclusion: "Proceed with the supplementary measures recorded above.",
-      review_trigger: "A change in sub-processors or in the destination's access regime.",
-    },
+      activity_name: 'Podcast metrics',
+      summary: 'Aggregate listening statistics for editorial planning.',
+      owner_area: 'Audio',
+      criteria: ['none_apply'],
+      ai_involved: false
+    }
   },
   {
-    kind: "tia", entity: "BBC Studios", advance: "approved",
-    title: "EU distribution partner reporting",
+    kind: 'screening',
+    entity: 'BBC Studios',
+    advance: 'submitted',
+    title: 'Format rights analytics',
     answers: {
-      transfer_name: "EU partner reporting", exporter_entity: "BBC Studios Distribution BV",
-      importer: "Partner SA", destination: "SG", data_categories: ["contractual"],
-      onward_transfers: false, mechanism: "sccs", sccs_modules: "m2",
-      legislation_review: "Reviewed the destination's access legislation; narrow and overseen.",
-      practice_evidence: "Importer transparency report and contractual attestations.",
-      problematic: "no", likelihood: "unlikely", impact: "limited",
-      decision: "proceed", rationale: "The transfer tool remains effective in practice.",
+      activity_name: 'Format analytics',
+      summary: 'Analyse performance of formats across markets.',
+      owner_area: 'Studios Distribution',
+      criteria: ['data_matching'],
+      ai_involved: false
+    }
+  },
+  {
+    kind: 'tra',
+    entity: 'BBC Studios',
+    advance: 'submitted',
+    title: 'Post-production vendor in the United States',
+    answers: {
+      transfer_name: 'US post-production',
+      importer: 'Vendor Inc (processor)',
+      destination: 'US',
+      data_categories: ['images_audio', 'contractual'],
+      special_category: false,
+      frequency: 'continuous',
+      mechanism: 'idta',
+      mechanism_evidence: 'Contract library ref CTR-4471',
+      surveillance_regime: 'broad',
+      redress: 'partial',
+      supplementary: ['encryption_at_rest', 'contractual'],
+      likelihood: 'possible',
+      impact: 'significant',
+      conclusion: 'Proceed with the supplementary measures recorded above.',
+      review_trigger:
+        "A change in sub-processors or in the destination's access regime."
+    }
+  },
+  {
+    kind: 'tia',
+    entity: 'BBC Studios',
+    advance: 'approved',
+    title: 'EU distribution partner reporting',
+    answers: {
+      transfer_name: 'EU partner reporting',
+      exporter_entity: 'BBC Studios Distribution BV',
+      importer: 'Partner SA',
+      destination: 'SG',
+      data_categories: ['contractual'],
+      onward_transfers: false,
+      mechanism: 'sccs',
+      sccs_modules: 'm2',
+      legislation_review:
+        "Reviewed the destination's access legislation; narrow and overseen.",
+      practice_evidence:
+        'Importer transparency report and contractual attestations.',
+      problematic: 'no',
+      likelihood: 'unlikely',
+      impact: 'limited',
+      decision: 'proceed',
+      rationale: 'The transfer tool remains effective in practice.',
       // EDPB Recommendations 01/2020 steps four to six, added to the template
       // after this portfolio was first written.
       measures_needed: false,
-      importer_notification: "Contractual duty to notify us within 72 hours of any access request.",
-      monitoring: "Annual review of the destination's access legislation and the importer's transparency reporting.",
-      review_date: "2027-06-30",
-    },
+      importer_notification:
+        'Contractual duty to notify us within 72 hours of any access request.',
+      monitoring:
+        "Annual review of the destination's access legislation and the importer's transparency reporting.",
+      review_date: '2027-06-30'
+    }
   },
   {
-    kind: "ai_risk", entity: "BBC Public Service", advance: "submitted",
-    title: "Automated subtitle generation for archive",
+    kind: 'ai_risk',
+    entity: 'BBC Public Service',
+    advance: 'submitted',
+    title: 'Automated subtitle generation for archive',
     answers: {
-      use_case_name: "Archive subtitling", purpose: "Generate subtitles for archive content.",
-      ai_type: "generative", provenance: "third_party_api", lifecycle_stage: "production",
-      affects_people: true, consequence: "influences", audience: ["public"],
-      personal_data: false, data_provenance: "vendor_asserted", sensitive_inputs: "no",
-      bias_considered: "reviewed", affected_groups: "Speakers of regional accents and minority languages.",
-      contestability: "informal", human_oversight: "post_hoc",
-      monitoring: ["accuracy", "complaints"],
-      kill_switch: "Editorial systems lead can disable the pipeline.", review_interval: "biannual",
-    },
+      use_case_name: 'Archive subtitling',
+      purpose: 'Generate subtitles for archive content.',
+      ai_type: 'generative',
+      provenance: 'third_party_api',
+      lifecycle_stage: 'production',
+      affects_people: true,
+      consequence: 'influences',
+      audience: ['public'],
+      personal_data: false,
+      data_provenance: 'vendor_asserted',
+      sensitive_inputs: 'no',
+      bias_considered: 'reviewed',
+      affected_groups: 'Speakers of regional accents and minority languages.',
+      contestability: 'informal',
+      human_oversight: 'post_hoc',
+      monitoring: ['accuracy', 'complaints'],
+      kill_switch: 'Editorial systems lead can disable the pipeline.',
+      review_interval: 'biannual'
+    }
   },
   {
-    kind: "ai_risk", entity: "BBC Studios", advance: "submitted",
-    title: "Script development assistant",
+    kind: 'ai_risk',
+    entity: 'BBC Studios',
+    advance: 'submitted',
+    title: 'Script development assistant',
     answers: {
-      use_case_name: "Script assistant", purpose: "Draft and summarise script coverage for readers.",
-      ai_type: "generative", provenance: "fine_tuned", lifecycle_stage: "pilot",
-      affects_people: true, consequence: "recommends", audience: ["contributors"],
-      personal_data: true, dpia_reference: "DPIA-2026-0004",
-      data_provenance: "opaque", sensitive_inputs: "proxies_possible",
-      bias_considered: "not_done", affected_groups: "Writers from under-represented backgrounds.",
-      contestability: "none", human_oversight: "on_the_loop",
-      monitoring: ["none"],
-      kill_switch: "Product owner can withdraw access.", review_interval: "quarterly",
-    },
-  },
+      use_case_name: 'Script assistant',
+      purpose: 'Draft and summarise script coverage for readers.',
+      ai_type: 'generative',
+      provenance: 'fine_tuned',
+      lifecycle_stage: 'pilot',
+      affects_people: true,
+      consequence: 'recommends',
+      audience: ['contributors'],
+      personal_data: true,
+      dpia_reference: 'DPIA-2026-0004',
+      data_provenance: 'opaque',
+      sensitive_inputs: 'proxies_possible',
+      bias_considered: 'not_done',
+      affected_groups: 'Writers from under-represented backgrounds.',
+      contestability: 'none',
+      human_oversight: 'on_the_loop',
+      monitoring: ['none'],
+      kill_switch: 'Product owner can withdraw access.',
+      review_interval: 'quarterly'
+    }
+  }
 ];
 
 const RISKS: Array<{
-  title: string; description: string; entity: string;
-  l: number; i: number; residual?: [number, number];
-  accept?: { rationale: string; days: number }; lapsed?: boolean; mitigation?: string;
+  title: string;
+  description: string;
+  entity: string;
+  l: number;
+  i: number;
+  residual?: [number, number];
+  accept?: { rationale: string; days: number };
+  lapsed?: boolean;
+  mitigation?: string;
 }> = [
   {
-    title: "Inference of sensitive interests from viewing behaviour",
-    description: "Behavioural signal could reveal health, religious or political interests never disclosed.",
-    entity: "BBC Public Service", l: 3, i: 3, residual: [2, 2],
-    mitigation: "Exclude special-category topics from the interest taxonomy.",
-    accept: { rationale: "Within appetite once the taxonomy exclusion is live.", days: 180 },
+    title: 'Inference of sensitive interests from viewing behaviour',
+    description:
+      'Behavioural signal could reveal health, religious or political interests never disclosed.',
+    entity: 'BBC Public Service',
+    l: 3,
+    i: 3,
+    residual: [2, 2],
+    mitigation: 'Exclude special-category topics from the interest taxonomy.',
+    accept: {
+      rationale: 'Within appetite once the taxonomy exclusion is live.',
+      days: 180
+    }
   },
   {
-    title: "Casting database retains contributor images indefinitely",
-    description: "No retention rule applied to historic casting material.",
-    entity: "BBC Studios", l: 3, i: 3, residual: [3, 2],
-    mitigation: "Apply a seven-year retention rule and purge historic records.",
+    title: 'Casting database retains contributor images indefinitely',
+    description: 'No retention rule applied to historic casting material.',
+    entity: 'BBC Studios',
+    l: 3,
+    i: 3,
+    residual: [3, 2],
+    mitigation: 'Apply a seven-year retention rule and purge historic records.'
   },
   {
-    title: "US post-production vendor subject to broad access powers",
-    description: "Destination law permits access with limited redress for UK data subjects.",
-    entity: "BBC Studios", l: 2, i: 4, residual: [2, 3],
-    mitigation: "Encryption at rest with keys held in the UK; contractual challenge obligation.",
+    title: 'US post-production vendor subject to broad access powers',
+    description:
+      'Destination law permits access with limited redress for UK data subjects.',
+    entity: 'BBC Studios',
+    l: 2,
+    i: 4,
+    residual: [2, 3],
+    mitigation:
+      'Encryption at rest with keys held in the UK; contractual challenge obligation.'
   },
   {
-    title: "Script assistant has no bias assessment",
-    description: "A generative tool influencing commissioning decisions has not been assessed for bias.",
-    entity: "BBC Studios", l: 3, i: 4,
+    title: 'Script assistant has no bias assessment',
+    description:
+      'A generative tool influencing commissioning decisions has not been assessed for bias.',
+    entity: 'BBC Studios',
+    l: 3,
+    i: 4
   },
   {
-    title: "Subtitle accuracy varies by accent",
-    description: "Machine-generated subtitles are materially less accurate for some regional accents.",
-    entity: "BBC Public Service", l: 4, i: 2, residual: [3, 2],
-    mitigation: "Sample review by accent group; publish an accuracy statement.",
+    title: 'Subtitle accuracy varies by accent',
+    description:
+      'Machine-generated subtitles are materially less accurate for some regional accents.',
+    entity: 'BBC Public Service',
+    l: 4,
+    i: 2,
+    residual: [3, 2],
+    mitigation: 'Sample review by accent group; publish an accuracy statement.'
   },
   {
-    title: "Complaints records migrated without a documented lawful basis",
-    description: "The replatform is under way ahead of the DPIA being completed.",
-    entity: "BBC Public Service", l: 3, i: 3,
+    title: 'Complaints records migrated without a documented lawful basis',
+    description:
+      'The replatform is under way ahead of the DPIA being completed.',
+    entity: 'BBC Public Service',
+    l: 3,
+    i: 3
   },
   {
-    title: "Ticketing ballot collects more than it needs",
-    description: "The ballot form asks for date of birth where an age band would do.",
-    entity: "BBC Public Service", l: 2, i: 2, residual: [1, 2],
-    mitigation: "Replace date of birth with an age band.",
-    accept: { rationale: "Residual is low and the change ships next quarter.", days: -3 },
-    lapsed: true,
+    title: 'Ticketing ballot collects more than it needs',
+    description:
+      'The ballot form asks for date of birth where an age band would do.',
+    entity: 'BBC Public Service',
+    l: 2,
+    i: 2,
+    residual: [1, 2],
+    mitigation: 'Replace date of birth with an age band.',
+    accept: {
+      rationale: 'Residual is low and the change ships next quarter.',
+      days: -3
+    },
+    lapsed: true
   },
   {
-    title: "Research panel incentives create a power imbalance",
-    description: "Payment for participation may undermine the freeness of consent.",
-    entity: "BBC Public Service", l: 2, i: 2, residual: [1, 1],
-    mitigation: "Cap incentives and restate withdrawal rights at each wave.",
-    accept: { rationale: "Mitigated to low; reviewed annually with the panel contract.", days: 300 },
+    title: 'Research panel incentives create a power imbalance',
+    description:
+      'Payment for participation may undermine the freeness of consent.',
+    entity: 'BBC Public Service',
+    l: 2,
+    i: 2,
+    residual: [1, 1],
+    mitigation: 'Cap incentives and restate withdrawal rights at each wave.',
+    accept: {
+      rationale: 'Mitigated to low; reviewed annually with the panel contract.',
+      days: 300
+    }
   },
   {
-    title: "Crew scheduling exports contain home addresses",
-    description: "Scheduling exports shared with third-party locations include full home addresses.",
-    entity: "BBC Studios", l: 4, i: 3,
-  },
+    title: 'Crew scheduling exports contain home addresses',
+    description:
+      'Scheduling exports shared with third-party locations include full home addresses.',
+    entity: 'BBC Studios',
+    l: 4,
+    i: 3
+  }
 ];
-
 
 /**
  * AI systems with the chain behind them, in three states.
@@ -275,45 +434,68 @@ const RISKS: Array<{
  */
 const AI_CHAINS = [
   {
-    name: "Subtitle generation",
-    purpose: "Generates draft subtitles for archive programmes, reviewed before publication.",
-    systemType: "generative" as const,
-    provenance: "third_party_api" as const,
-    stage: "production" as const,
+    name: 'Subtitle generation',
+    purpose:
+      'Generates draft subtitles for archive programmes, reviewed before publication.',
+    systemType: 'generative' as const,
+    provenance: 'third_party_api' as const,
+    stage: 'production' as const,
     // Assessed, approved, risks raised and treated: the chain holds.
     assess: true,
     risks: [
-      { title: "Mis-transcription of names", l: 3, i: 2, residual: [2, 2], treat: "mitigate" as const },
-      { title: "Training data provenance unclear", l: 2, i: 3, residual: [2, 3], treat: "accept" as const },
-    ],
+      {
+        title: 'Mis-transcription of names',
+        l: 3,
+        i: 2,
+        residual: [2, 2],
+        treat: 'mitigate' as const
+      },
+      {
+        title: 'Training data provenance unclear',
+        l: 2,
+        i: 3,
+        residual: [2, 3],
+        treat: 'accept' as const
+      }
+    ]
   },
   {
-    name: "Audience recommendation ranking",
-    purpose: "Orders programme suggestions on the homepage from viewing history.",
-    systemType: "predictive" as const,
-    provenance: "built_in_house" as const,
-    stage: "production" as const,
+    name: 'Audience recommendation ranking',
+    purpose:
+      'Orders programme suggestions on the homepage from viewing history.',
+    systemType: 'predictive' as const,
+    provenance: 'built_in_house' as const,
+    stage: 'production' as const,
     // Assessed and approved, but the severe risk was never treated.
     assess: true,
     risks: [
-      { title: "Reinforces narrow viewing", l: 4, i: 4, residual: [4, 4], treat: "none" as const },
-    ],
+      {
+        title: 'Reinforces narrow viewing',
+        l: 4,
+        i: 4,
+        residual: [4, 4],
+        treat: 'none' as const
+      }
+    ]
   },
   {
-    name: "Applicant CV screening",
-    purpose: "Ranks applications for shortlisting by recruiters.",
-    systemType: "predictive" as const,
-    provenance: "third_party_api" as const,
-    stage: "pilot" as const,
+    name: 'Applicant CV screening',
+    purpose: 'Ranks applications for shortlisting by recruiters.',
+    systemType: 'predictive' as const,
+    provenance: 'third_party_api' as const,
+    stage: 'pilot' as const,
     // Running in pilot with nothing assessing it at all.
     assess: false,
-    risks: [],
-  },
+    risks: []
+  }
 ];
 
 async function main() {
-  const [org] = await db.select().from(organisations).where(eq(organisations.slug, "bbc-group"));
-  if (!org) throw new Error("Run `pnpm seed` first.");
+  const [org] = await db
+    .select()
+    .from(organisations)
+    .where(eq(organisations.slug, 'bbc-group'));
+  if (!org) throw new Error('Run `pnpm seed` first.');
 
   // Unlike `seed`, this creates records with no natural key, so running it
   // twice silently doubles the portfolio — every assessment duplicated, every
@@ -328,17 +510,24 @@ async function main() {
         `portfolio has been loaded before.\n` +
         `Running again would duplicate all of it. To start clean:\n\n` +
         `  pnpm db:reset && pnpm seed && pnpm seed:demo\n\n` +
-        `against a local database, or drop and recreate the schema on a hosted one.`,
+        `against a local database, or drop and recreate the schema on a hosted one.`
     );
     await pg.end();
     return;
   }
 
-  const ents = await db.select().from(entities).where(eq(entities.organisationId, org.id));
+  const ents = await db
+    .select()
+    .from(entities)
+    .where(eq(entities.organisationId, org.id));
   const entityByName = new Map(ents.map((e) => [e.name, e.id]));
 
   const versions = await db
-    .select({ id: templateVersions.id, kind: templates.kind, name: templates.name })
+    .select({
+      id: templateVersions.id,
+      kind: templates.kind,
+      name: templates.name
+    })
     .from(templateVersions)
     .innerJoin(templates, eq(templates.id, templateVersions.templateId))
     .where(eq(templates.organisationId, org.id));
@@ -358,26 +547,31 @@ async function main() {
     if (!versionByKind.has(v.kind)) versionByKind.set(v.kind, v.id);
   }
   const versionFor = (spec: { kind: string; template?: string }) =>
-    spec.template ? versionByName.get(spec.template) : versionByKind.get(spec.kind);
+    spec.template
+      ? versionByName.get(spec.template)
+      : versionByKind.get(spec.kind);
 
   const people = await db.select().from(users);
   const byEmail = (e: string) => people.find((p) => p.email === e);
-  const analyst = byEmail("privacy.analyst@example.bbc.co.uk")!;
-  const dpo = byEmail("dpo@example.bbc.co.uk")!;
-  const aiLead = byEmail("ai.governance@example.bbc.co.uk")!;
-  const psApprover = byEmail("ps.approver@example.bbc.co.uk")!;
-  const studiosApprover = byEmail("studios.approver@example.bbc.co.uk")!;
+  const analyst = byEmail('privacy.analyst@example.bbc.co.uk')!;
+  const dpo = byEmail('dpo@example.bbc.co.uk')!;
+  const aiLead = byEmail('ai.governance@example.bbc.co.uk')!;
+  const psApprover = byEmail('ps.approver@example.bbc.co.uk')!;
+  const studiosApprover = byEmail('studios.approver@example.bbc.co.uk')!;
 
   const actorOf = (u: { id: string; email: string }) => ({
-    actorKind: "user" as const,
+    actorKind: 'user' as const,
     actorUserId: u.id,
-    actorLabel: u.email,
+    actorLabel: u.email
   });
   const rolesOf = (u: { email: string }) =>
-    u.email === analyst.email ? ["privacy_analyst"]
-    : u.email === dpo.email ? ["privacy_admin"]
-    : u.email === aiLead.email ? ["ai_governance"]
-    : ["approver"];
+    u.email === analyst.email
+      ? ['privacy_analyst']
+      : u.email === dpo.email
+        ? ['privacy_admin']
+        : u.email === aiLead.email
+          ? ['ai_governance']
+          : ['approver'];
 
   let created = 0;
   for (const spec of SPECS) {
@@ -391,36 +585,37 @@ async function main() {
       templateVersionId,
       title: spec.title,
       ownerId: analyst.id,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
     await saveAnswers({
       assessmentId: a.id,
       organisationId: org.id,
       answers: spec.answers as never,
-      actor: actorOf(analyst),
+      actor: actorOf(analyst)
     });
     created += 1;
-    if (spec.advance === "drafting") continue;
+    if (spec.advance === 'drafting') continue;
 
     const submitted = await submitForApproval({
       assessmentId: a.id,
       organisationId: org.id,
-      actor: actorOf(analyst),
+      actor: actorOf(analyst)
     });
 
-    if (spec.advance === "submitted") continue;
+    if (spec.advance === 'submitted') continue;
 
     // Walk the gates. Each is decided by somebody who holds its role.
-    const gates = submitted.approvals.filter((g) => g.status === "pending");
-    if (spec.advance === "returned") {
+    const gates = submitted.approvals.filter((g) => g.status === 'pending');
+    if (spec.advance === 'returned') {
       if (gates[0]) {
         await decideApproval({
           approvalId: gates[0].id,
           organisationId: org.id,
-          decision: "returned",
-          rationale: "Retention period needs a source in the corporate schedule.",
+          decision: 'returned',
+          rationale:
+            'Retention period needs a source in the corporate schedule.',
           callerRoles: rolesOf(analyst),
-          actor: actorOf(analyst),
+          actor: actorOf(analyst)
         });
       }
       continue;
@@ -428,17 +623,22 @@ async function main() {
 
     for (const gate of gates) {
       const decider =
-        gate.requiredRole === "privacy_analyst" ? analyst
-        : gate.requiredRole === "privacy_admin" ? dpo
-        : gate.requiredRole === "ai_governance" ? aiLead
-        : spec.entity === "BBC Studios" ? studiosApprover : psApprover;
+        gate.requiredRole === 'privacy_analyst'
+          ? analyst
+          : gate.requiredRole === 'privacy_admin'
+            ? dpo
+            : gate.requiredRole === 'ai_governance'
+              ? aiLead
+              : spec.entity === 'BBC Studios'
+                ? studiosApprover
+                : psApprover;
       await decideApproval({
         approvalId: gate.id,
         organisationId: org.id,
-        decision: "approved",
-        rationale: "Reviewed against the template and the supporting evidence.",
+        decision: 'approved',
+        rationale: 'Reviewed against the template and the supporting evidence.',
         callerRoles: rolesOf(decider),
-        actor: actorOf(decider),
+        actor: actorOf(decider)
       });
     }
   }
@@ -456,7 +656,7 @@ async function main() {
       likelihood: r.l,
       impact: r.i,
       ownerId: analyst.id,
-      actor: actorOf(dpo),
+      actor: actorOf(dpo)
     });
     riskCount += 1;
 
@@ -467,7 +667,7 @@ async function main() {
         description: r.mitigation,
         ownerId: analyst.id,
         dueAt: new Date(Date.now() + 45 * 24 * 3600 * 1000),
-        actor: actorOf(dpo),
+        actor: actorOf(dpo)
       });
     }
     if (r.residual) {
@@ -476,11 +676,12 @@ async function main() {
         organisationId: org.id,
         likelihood: r.residual[0],
         impact: r.residual[1],
-        actor: actorOf(dpo),
+        actor: actorOf(dpo)
       });
     }
     if (r.accept) {
-      const approver = r.entity === "BBC Studios" ? studiosApprover : psApprover;
+      const approver =
+        r.entity === 'BBC Studios' ? studiosApprover : psApprover;
       if (r.lapsed) {
         // A decision taken months ago whose end date has passed. Inserted
         // directly because the service — correctly — refuses to record an
@@ -493,14 +694,16 @@ async function main() {
                   ${r.residual![0] * r.residual![1]}, 'low',
                   now() - interval '3 days', now() - interval '190 days')
         `);
-        await db.execute(sql`update risk set status = 'accepted' where id = ${risk.id}`);
+        await db.execute(
+          sql`update risk set status = 'accepted' where id = ${risk.id}`
+        );
       } else {
         await acceptRisk({
           riskId: risk.id,
           organisationId: org.id,
           rationale: r.accept.rationale,
           expiresAt: new Date(Date.now() + r.accept.days * 24 * 3600 * 1000),
-          actor: actorOf(approver),
+          actor: actorOf(approver)
         });
       }
     }
@@ -513,11 +716,11 @@ async function main() {
     where organisation_id = ${org.id} and status = 'open'
       and id in (select id from task where organisation_id = ${org.id} and status = 'open' limit 3)
   `);
-  console.log("Backdated 3 open tasks so the service-level view is exercised.");
+  console.log('Backdated 3 open tasks so the service-level view is exercised.');
 
   // AI systems, and the chain behind each.
   const aiTemplateVersion =
-    versionByKind.get("ai_risk") ?? versionByKind.values().next().value;
+    versionByKind.get('ai_risk') ?? versionByKind.values().next().value;
   const aiEntityId = entityByName.values().next().value as string;
   let chainCount = 0;
 
@@ -532,7 +735,7 @@ async function main() {
       lifecycleStage: spec.stage,
       ownerId: aiLead.id,
       processesPersonalData: true,
-      actor: actorOf(aiLead),
+      actor: actorOf(aiLead)
     });
     chainCount += 1;
 
@@ -543,17 +746,17 @@ async function main() {
       entityId: aiEntityId,
       templateVersionId: aiTemplateVersion,
       title: `AI risk assessment - ${spec.name}`,
-      subjectType: "ai_use_case",
+      subjectType: 'ai_use_case',
       subjectId: useCase.id,
       ownerId: analyst.id,
-      actor: SYSTEM,
+      actor: SYSTEM
     });
 
     // Approve it outright: the point of these three is the shape of the chain,
     // not another walk through the gates, which SPECS already demonstrates.
     await db
       .update(assessments)
-      .set({ status: "approved" })
+      .set({ status: 'approved' })
       .where(eq(assessments.id, assessment.id));
 
     for (const r of spec.risks) {
@@ -566,8 +769,8 @@ async function main() {
         impact: r.i,
         ownerId: aiLead.id,
         assessmentId: assessment.id,
-        source: "assessment",
-        actor: actorOf(dpo),
+        source: 'assessment',
+        actor: actorOf(dpo)
       });
 
       await setResidual({
@@ -575,33 +778,34 @@ async function main() {
         organisationId: org.id,
         likelihood: r.residual[0],
         impact: r.residual[1],
-        actor: actorOf(dpo),
+        actor: actorOf(dpo)
       });
 
-      if (r.treat === "mitigate") {
+      if (r.treat === 'mitigate') {
         const mitigation = await addMitigation({
           riskId: risk.id,
           organisationId: org.id,
-          description: "Human review before publication, sampled weekly.",
+          description: 'Human review before publication, sampled weekly.',
           ownerId: analyst.id,
           dueAt: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-          actor: actorOf(dpo),
+          actor: actorOf(dpo)
         });
         // Advanced deliberately. A mitigation that is only planned is not yet
         // treatment, and this chain exists to show one that holds.
         await updateMitigation({
           mitigationId: mitigation.id,
           organisationId: org.id,
-          status: "in_progress",
-          actor: actorOf(analyst),
+          status: 'in_progress',
+          actor: actorOf(analyst)
         });
-      } else if (r.treat === "accept") {
+      } else if (r.treat === 'accept') {
         await acceptRisk({
           riskId: risk.id,
           organisationId: org.id,
-          rationale: "Vendor attestation reviewed; residual exposure is tolerable this year.",
+          rationale:
+            'Vendor attestation reviewed; residual exposure is tolerable this year.',
           expiresAt: new Date(Date.now() + 180 * 24 * 3600 * 1000),
-          actor: actorOf(psApprover),
+          actor: actorOf(psApprover)
         });
       }
     }
@@ -649,16 +853,15 @@ async function main() {
       status     = case when n % 3 = 0 then 'closed'::risk_status else r.status end
     from numbered where numbered.id = r.id
   `);
-  console.log("Backdated the portfolio across six months so the trend view has a shape.");
+  console.log(
+    'Backdated the portfolio across six months so the trend view has a shape.'
+  );
 
   await pg.end();
 }
 
 main().catch(async (err) => {
   console.error(err);
-
-
-
 
   await pg.end();
   process.exit(1);

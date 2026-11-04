@@ -1,12 +1,13 @@
-import Link from "next/link";
-import type { Metadata } from "next";
-import { Chat } from "@/components/assistant/Chat";
-import { HelpSearch } from "@/components/help/HelpSearch";
-import { HELP_GROUPS, HELP_TOPICS } from "@/lib/help/topics";
-import { getActiveSession } from "@/lib/session";
-import { providerFor } from "@/services/assistant";
+import type { Metadata } from 'next';
+import Link from 'next/link';
 
-export const metadata: Metadata = { title: "Help" };
+import { Chat } from '@/components/assistant/Chat';
+import { HelpSearch } from '@/components/help/HelpSearch';
+import { HELP_GROUPS, HELP_TOPICS } from '@/lib/help/topics';
+import { getActiveSession } from '@/lib/session';
+import { providerFor } from '@/services/assistant';
+
+export const metadata: Metadata = { title: 'Help' };
 
 /**
  * Everything, searchable, in one place.
@@ -22,13 +23,15 @@ export default async function HelpPage() {
   const configured = active
     ? await providerFor(active.membership.organisationId)
     : null;
-  const assistant = configured?.surfaces.includes("help") ?? false;
-
+  const assistant = configured?.surfaces.includes('help') ?? false;
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← Back
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Help</h1>
@@ -54,7 +57,10 @@ export default async function HelpPage() {
       ) : null}
 
       {HELP_GROUPS.map((group) => (
-        <section key={group.heading} className="space-y-2">
+        <section
+          key={group.heading}
+          className="space-y-2"
+        >
           <h2 className="text-sm font-semibold">{group.heading}</h2>
           <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
             {group.ids.map((id) => {
@@ -67,7 +73,9 @@ export default async function HelpPage() {
                     className="block px-4 py-3 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
                   >
                     <p className="text-sm font-medium">{topic.title}</p>
-                    <p className="mt-0.5 text-xs text-ink-soft">{topic.summary}</p>
+                    <p className="mt-0.5 text-xs text-ink-soft">
+                      {topic.summary}
+                    </p>
                   </Link>
                 </li>
               );

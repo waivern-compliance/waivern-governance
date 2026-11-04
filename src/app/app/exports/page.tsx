@@ -1,30 +1,40 @@
-import Link from "next/link";
-import { HelpLink } from "@/components/help/HelpLink";
-import { redirect } from "next/navigation";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
-import { DATASET_LABEL, type Dataset } from "@/services/exports";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { can } from '@/lib/rbac';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { DATASET_LABEL, type Dataset } from '@/services/exports';
 
 const BLURB: Record<Dataset, string> = {
-  risks: "Every risk with its inherent and residual rating, mitigations, and the acceptance in force.",
-  assessments: "Every assessment with its type, status, score and dates.",
-  "ai-register": "Every AI system, its stage and owner, and what is outstanding against it.",
-  "ai-risks": "Every risk belonging to an AI system, judged against appetite, with its treatments - the central AI risk log DSIT's toolkit asks departments to keep and share with GDS and DSIT.",
-  ropa: "Every processing activity in Article 30 order, with the gaps in each record named so you can see what an inspection would find.",
-  "third-parties": "Every processor with the agreement in force, its expiry, and what is missing against Article 28.",
-  breaches: "Every breach with both statutory decisions and the reasoning for each, including the ones judged not notifiable.",
-  requests: "Every request from a data subject: rights, dates, the deadline, each decision with its reasoning, and whether it was answered on time. Who asked and what they wrote stay in Govern.",
-  trends: "Twelve months of posture: risks raised and closed, assessments decided, how long decisions took, data subject requests answered on time and late.",
-  countries: "UK approval, EU adequacy and transfer risk per destination, with when each was last checked.",
-  audit: "The complete record of who did what, with the hash chain, so a recipient can verify it themselves.",
+  risks:
+    'Every risk with its inherent and residual rating, mitigations, and the acceptance in force.',
+  assessments: 'Every assessment with its type, status, score and dates.',
+  'ai-register':
+    'Every AI system, its stage and owner, and what is outstanding against it.',
+  'ai-risks':
+    "Every risk belonging to an AI system, judged against appetite, with its treatments - the central AI risk log DSIT's toolkit asks departments to keep and share with GDS and DSIT.",
+  ropa: 'Every processing activity in Article 30 order, with the gaps in each record named so you can see what an inspection would find.',
+  'third-parties':
+    'Every processor with the agreement in force, its expiry, and what is missing against Article 28.',
+  breaches:
+    'Every breach with both statutory decisions and the reasoning for each, including the ones judged not notifiable.',
+  requests:
+    'Every request from a data subject: rights, dates, the deadline, each decision with its reasoning, and whether it was answered on time. Who asked and what they wrote stay in Govern.',
+  trends:
+    'Twelve months of posture: risks raised and closed, assessments decided, how long decisions took, data subject requests answered on time and late.',
+  countries:
+    'UK approval, EU adequacy and transfer risk per destination, with when each was last checked.',
+  audit:
+    'The complete record of who did what, with the hash chain, so a recipient can verify it themselves.'
 };
 
 export default async function ExportsPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="Exports"
@@ -33,16 +43,19 @@ export default async function ExportsPage() {
     );
   }
 
-  const mayExportAudit = can(active.membership.grants, "audit.export");
-  const mayExportRequests = can(active.membership.grants, "dsr.handle");
+  const mayExportAudit = can(active.membership.grants, 'audit.export');
+  const mayExportRequests = can(active.membership.grants, 'dsr.handle');
   // A complete chain is what makes an audit export verifiable, and an
   // entity-scoped viewer cannot have one.
-  const wholeChain = visibleEntityIds(active, "audit.export") === null;
+  const wholeChain = visibleEntityIds(active, 'audit.export') === null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Exports</h1>
@@ -56,13 +69,20 @@ export default async function ExportsPage() {
 
       <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
         {(Object.keys(DATASET_LABEL) as Dataset[])
-          .filter((d) => (d !== "audit" || mayExportAudit) && (d !== "requests" || mayExportRequests))
+          .filter(
+            (d) =>
+              (d !== 'audit' || mayExportAudit) &&
+              (d !== 'requests' || mayExportRequests)
+          )
           .map((d) => (
-            <li key={d} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+            <li
+              key={d}
+              className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
+            >
               <div className="min-w-0">
                 <p className="font-medium">{DATASET_LABEL[d]}</p>
                 <p className="text-xs text-ink-soft">{BLURB[d]}</p>
-                {d === "audit" && !wholeChain ? (
+                {d === 'audit' && !wholeChain ? (
                   <p className="mt-1 text-xs text-amber-900">
                     Yours will be an extract limited to your entities. The hash
                     chain cannot be verified from a partial export, and the file

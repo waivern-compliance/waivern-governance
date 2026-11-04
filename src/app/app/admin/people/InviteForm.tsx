@@ -1,8 +1,10 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { PERSONA_LABEL, PERSONAS } from "@/lib/persona";
-import { inviteAction, type AdminResult } from "../actions";
+import { useActionState } from 'react';
+
+import { PERSONA_LABEL, PERSONAS } from '@/lib/persona';
+
+import { inviteAction, type AdminResult } from '../actions';
 
 /**
  * Grant somebody access.
@@ -15,20 +17,26 @@ import { inviteAction, type AdminResult } from "../actions";
 export function InviteForm({
   roles,
   roleNotes,
-  entities,
+  entities
 }: {
   roles: readonly string[];
   roleNotes: Record<string, string>;
   entities: Array<{ id: string; name: string }>;
 }) {
-  const [result, action, pending] = useActionState<AdminResult, FormData>(inviteAction, null);
+  const [result, action, pending] = useActionState<AdminResult, FormData>(
+    inviteAction,
+    null
+  );
 
   return (
     <details className="rounded border border-line bg-surface">
       <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
         Give somebody access
       </summary>
-      <form action={action} className="space-y-3 border-t border-line p-4">
+      <form
+        action={action}
+        className="space-y-3 border-t border-line p-4"
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1">
             <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
@@ -63,8 +71,11 @@ export function InviteForm({
             className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
           >
             {roles.map((r) => (
-              <option key={r} value={r}>
-                {r.replace(/_/g, " ")} - {roleNotes[r] ?? ""}
+              <option
+                key={r}
+                value={r}
+              >
+                {r.replace(/_/g, ' ')} - {roleNotes[r] ?? ''}
               </option>
             ))}
           </select>
@@ -82,7 +93,12 @@ export function InviteForm({
             >
               <option value="">The whole organisation</option>
               {entities.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
+                <option
+                  key={e.id}
+                  value={e.id}
+                >
+                  {e.name}
+                </option>
               ))}
             </select>
           </label>
@@ -97,7 +113,12 @@ export function InviteForm({
             >
               <option value="">Not set</option>
               {PERSONAS.map((p) => (
-                <option key={p} value={p}>{PERSONA_LABEL[p]}</option>
+                <option
+                  key={p}
+                  value={p}
+                >
+                  {PERSONA_LABEL[p]}
+                </option>
               ))}
             </select>
           </label>
@@ -108,8 +129,8 @@ export function InviteForm({
             role="status"
             className={`rounded border px-4 py-2.5 text-sm ${
               result.ok
-                ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                : "border-amber-700 bg-amber-50 text-amber-900"
+                ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                : 'border-amber-700 bg-amber-50 text-amber-900'
             }`}
           >
             {result.message}
@@ -121,7 +142,7 @@ export function InviteForm({
           disabled={pending}
           className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
-          {pending ? "Granting…" : "Grant access"}
+          {pending ? 'Granting…' : 'Grant access'}
         </button>
         <p className="text-xs text-ink-soft">
           They sign in with the identity provider - no password is created here.

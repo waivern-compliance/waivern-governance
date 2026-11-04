@@ -17,50 +17,56 @@
  */
 export const AI_RISK_CATEGORIES = [
   {
-    value: "financial",
-    label: "Financial",
-    summary: "Running, scaling and remediation costs, and the cost of getting it wrong.",
+    value: 'financial',
+    label: 'Financial',
+    summary:
+      'Running, scaling and remediation costs, and the cost of getting it wrong.'
   },
   {
-    value: "legal_regulatory",
-    label: "Legal and regulatory compliance",
-    summary: "Data protection, equality, human rights, intellectual property and AI-specific law.",
+    value: 'legal_regulatory',
+    label: 'Legal and regulatory compliance',
+    summary:
+      'Data protection, equality, human rights, intellectual property and AI-specific law.'
   },
   {
-    value: "transparency_explainability",
-    label: "Transparency and explainability",
-    summary: "Whether people know AI is involved, and whether its outputs can be explained.",
+    value: 'transparency_explainability',
+    label: 'Transparency and explainability',
+    summary:
+      'Whether people know AI is involved, and whether its outputs can be explained.'
   },
   {
-    value: "fairness",
-    label: "Fairness",
-    summary: "Bias, discrimination, and unfair outcomes for groups or markets.",
+    value: 'fairness',
+    label: 'Fairness',
+    summary: 'Bias, discrimination, and unfair outcomes for groups or markets.'
   },
   {
-    value: "accountability_governance",
-    label: "Accountability and governance",
-    summary: "Who answers for the system, and whether oversight actually works.",
+    value: 'accountability_governance',
+    label: 'Accountability and governance',
+    summary: 'Who answers for the system, and whether oversight actually works.'
   },
   {
-    value: "contestability_redress",
-    label: "Contestability and redress",
-    summary: "Whether people can challenge an outcome and have harm put right.",
+    value: 'contestability_redress',
+    label: 'Contestability and redress',
+    summary: 'Whether people can challenge an outcome and have harm put right.'
   },
   {
-    value: "technical_robustness",
-    label: "Technical robustness",
-    summary: "Reliability, data quality, drift, and behaviour in conditions it was not built for.",
+    value: 'technical_robustness',
+    label: 'Technical robustness',
+    summary:
+      'Reliability, data quality, drift, and behaviour in conditions it was not built for.'
   },
   {
-    value: "security",
-    label: "Security",
-    summary: "Data poisoning, leakage, prompt injection and other attacks the system opens up.",
+    value: 'security',
+    label: 'Security',
+    summary:
+      'Data poisoning, leakage, prompt injection and other attacks the system opens up.'
   },
   {
-    value: "environment_people",
-    label: "Environment and people",
-    summary: "Physical and mental wellbeing, safety of infrastructure, and the environment.",
-  },
+    value: 'environment_people',
+    label: 'Environment and people',
+    summary:
+      'Physical and mental wellbeing, safety of infrastructure, and the environment.'
+  }
 ] as const;
 
-export type AiRiskCategory = (typeof AI_RISK_CATEGORIES)[number]["value"];
+export type AiRiskCategory = (typeof AI_RISK_CATEGORIES)[number]['value'];

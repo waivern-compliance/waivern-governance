@@ -1,6 +1,6 @@
-import { startAssessmentFor } from "@/app/app/assessments/actions";
-import { KINDS_FOR, type AssessableSubject } from "@/lib/assessment-subjects";
-import { availableTemplates } from "@/services/templates";
+import { startAssessmentFor } from '@/app/app/assessments/actions';
+import { KINDS_FOR, type AssessableSubject } from '@/lib/assessment-subjects';
+import { availableTemplates } from '@/services/templates';
 
 /**
  * Start an assessment about this record, from the record.
@@ -13,7 +13,7 @@ export async function StartAssessment({
   organisationId,
   subjectType,
   subjectId,
-  prefer,
+  prefer
 }: {
   organisationId: string;
   subjectType: AssessableSubject;
@@ -21,12 +21,16 @@ export async function StartAssessment({
   /** A template name to put first, where one is the obvious choice. */
   prefer?: string;
 }) {
-  const fitting = (await availableTemplates(organisationId)).filter(({ template }) =>
-    KINDS_FOR[subjectType].includes(template.kind),
+  const fitting = (await availableTemplates(organisationId)).filter(
+    ({ template }) => KINDS_FOR[subjectType].includes(template.kind)
   );
   if (fitting.length === 0) return null;
   const ordered = prefer
-    ? [...fitting].sort((a, b) => Number(b.template.name === prefer) - Number(a.template.name === prefer))
+    ? [...fitting].sort(
+        (a, b) =>
+          Number(b.template.name === prefer) -
+          Number(a.template.name === prefer)
+      )
     : fitting;
 
   return (
@@ -43,7 +47,10 @@ export async function StartAssessment({
           className="rounded border border-line bg-ground px-3 py-2 text-sm"
         >
           {ordered.map(({ template, version }) => (
-            <option key={version.id} value={version.id}>
+            <option
+              key={version.id}
+              value={version.id}
+            >
               {template.name}
             </option>
           ))}

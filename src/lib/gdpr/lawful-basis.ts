@@ -13,22 +13,31 @@
  */
 
 export type LawfulBasis =
-  | "consent"
-  | "contract"
-  | "legal_obligation"
-  | "vital_interests"
-  | "public_task"
-  | "recognised_legitimate_interests"
-  | "legitimate_interests";
+  | 'consent'
+  | 'contract'
+  | 'legal_obligation'
+  | 'vital_interests'
+  | 'public_task'
+  | 'recognised_legitimate_interests'
+  | 'legitimate_interests';
 
-export const LAWFUL_BASES: Record<LawfulBasis, { label: string; point: string }> = {
-  consent: { label: "Consent", point: "Article 6(1)(a)" },
-  contract: { label: "Contract", point: "Article 6(1)(b)" },
-  legal_obligation: { label: "Legal obligation", point: "Article 6(1)(c)" },
-  vital_interests: { label: "Vital interests", point: "Article 6(1)(d)" },
-  public_task: { label: "Public task", point: "Article 6(1)(e)" },
-  recognised_legitimate_interests: { label: "Recognised legitimate interests", point: "Article 6(1)(ea)" },
-  legitimate_interests: { label: "Legitimate interests", point: "Article 6(1)(f)" },
+export const LAWFUL_BASES: Record<
+  LawfulBasis,
+  { label: string; point: string }
+> = {
+  consent: { label: 'Consent', point: 'Article 6(1)(a)' },
+  contract: { label: 'Contract', point: 'Article 6(1)(b)' },
+  legal_obligation: { label: 'Legal obligation', point: 'Article 6(1)(c)' },
+  vital_interests: { label: 'Vital interests', point: 'Article 6(1)(d)' },
+  public_task: { label: 'Public task', point: 'Article 6(1)(e)' },
+  recognised_legitimate_interests: {
+    label: 'Recognised legitimate interests',
+    point: 'Article 6(1)(ea)'
+  },
+  legitimate_interests: {
+    label: 'Legitimate interests',
+    point: 'Article 6(1)(f)'
+  }
 };
 
 export const LAWFUL_BASIS_KEYS = Object.keys(LAWFUL_BASES) as LawfulBasis[];
@@ -39,43 +48,55 @@ export function isLawfulBasis(value: string): value is LawfulBasis {
 
 /** Annex 1: the conditions under which a legitimate interest is recognised. */
 export type RecognisedCondition =
-  | "public_task_disclosure"
-  | "national_security"
-  | "emergency"
-  | "crime"
-  | "safeguarding";
+  | 'public_task_disclosure'
+  | 'national_security'
+  | 'emergency'
+  | 'crime'
+  | 'safeguarding';
 
-export const RECOGNISED_CONDITIONS: Record<RecognisedCondition, { paragraph: string; label: string; summary: string }> = {
+export const RECOGNISED_CONDITIONS: Record<
+  RecognisedCondition,
+  { paragraph: string; label: string; summary: string }
+> = {
   public_task_disclosure: {
-    paragraph: "Annex 1, paragraph 1",
+    paragraph: 'Annex 1, paragraph 1',
     label: "Disclosure for another's public task",
-    summary: "Disclosing data on request to someone who needs it for a task in the public interest or in the exercise of official authority, with a legal basis.",
+    summary:
+      'Disclosing data on request to someone who needs it for a task in the public interest or in the exercise of official authority, with a legal basis.'
   },
   national_security: {
-    paragraph: "Annex 1, paragraph 2",
-    label: "National security, public security or defence",
-    summary: "Processing necessary for the purposes of safeguarding national security, protecting public security, or defence.",
+    paragraph: 'Annex 1, paragraph 2',
+    label: 'National security, public security or defence',
+    summary:
+      'Processing necessary for the purposes of safeguarding national security, protecting public security, or defence.'
   },
   emergency: {
-    paragraph: "Annex 1, paragraph 3",
-    label: "Responding to an emergency",
-    summary: "Processing necessary to respond to an emergency, as paragraph 4 defines it.",
+    paragraph: 'Annex 1, paragraph 3',
+    label: 'Responding to an emergency',
+    summary:
+      'Processing necessary to respond to an emergency, as paragraph 4 defines it.'
   },
   crime: {
-    paragraph: "Annex 1, paragraph 5",
-    label: "Detecting, investigating or preventing crime",
-    summary: "Processing necessary to detect, investigate or prevent crime, or to apprehend or prosecute offenders.",
+    paragraph: 'Annex 1, paragraph 5',
+    label: 'Detecting, investigating or preventing crime',
+    summary:
+      'Processing necessary to detect, investigate or prevent crime, or to apprehend or prosecute offenders.'
   },
   safeguarding: {
-    paragraph: "Annex 1, paragraph 6",
-    label: "Safeguarding a vulnerable individual",
-    summary: "Processing necessary to safeguard a vulnerable individual, as paragraphs 7 and 8 define it.",
-  },
+    paragraph: 'Annex 1, paragraph 6',
+    label: 'Safeguarding a vulnerable individual',
+    summary:
+      'Processing necessary to safeguard a vulnerable individual, as paragraphs 7 and 8 define it.'
+  }
 };
 
-export const RECOGNISED_CONDITION_KEYS = Object.keys(RECOGNISED_CONDITIONS) as RecognisedCondition[];
+export const RECOGNISED_CONDITION_KEYS = Object.keys(
+  RECOGNISED_CONDITIONS
+) as RecognisedCondition[];
 
-export function isRecognisedCondition(value: string): value is RecognisedCondition {
+export function isRecognisedCondition(
+  value: string
+): value is RecognisedCondition {
   return value in RECOGNISED_CONDITIONS;
 }
 
@@ -85,23 +106,32 @@ export function isRecognisedCondition(value: string): value is RecognisedConditi
  * contain the other's.
  */
 const PATTERNS: Array<[LawfulBasis, RegExp]> = [
-  ["recognised_legitimate_interests", /\brecogni[sz]ed legitimate interests?\b|6\s*\(1\)\s*\(ea\)|^\(?ea\)?$/],
-  ["legitimate_interests", /\blegitimate interests?\b|6\s*\(1\)\s*\(f\)|^\(?f\)?$/],
-  ["consent", /\bconsent\b|6\s*\(1\)\s*\(a\)/],
-  ["contract", /\bcontract(ual)?\b|6\s*\(1\)\s*\(b\)/],
-  ["legal_obligation", /\blegal obligation\b|6\s*\(1\)\s*\(c\)/],
-  ["vital_interests", /\bvital interests?\b|6\s*\(1\)\s*\(d\)/],
-  ["public_task", /\bpublic (task|interest)\b|\bofficial authority\b|6\s*\(1\)\s*\(e\)/],
+  [
+    'recognised_legitimate_interests',
+    /\brecogni[sz]ed legitimate interests?\b|6\s*\(1\)\s*\(ea\)|^\(?ea\)?$/
+  ],
+  [
+    'legitimate_interests',
+    /\blegitimate interests?\b|6\s*\(1\)\s*\(f\)|^\(?f\)?$/
+  ],
+  ['consent', /\bconsent\b|6\s*\(1\)\s*\(a\)/],
+  ['contract', /\bcontract(ual)?\b|6\s*\(1\)\s*\(b\)/],
+  ['legal_obligation', /\blegal obligation\b|6\s*\(1\)\s*\(c\)/],
+  ['vital_interests', /\bvital interests?\b|6\s*\(1\)\s*\(d\)/],
+  [
+    'public_task',
+    /\bpublic (task|interest)\b|\bofficial authority\b|6\s*\(1\)\s*\(e\)/
+  ]
 ];
 
 function basisOfPart(part: string): LawfulBasis | null {
-  const text = part.toLowerCase().replace(/\s+/g, " ").trim();
+  const text = part.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!text) return null;
   const matches = PATTERNS.filter(([, re]) => re.test(text)).map(([b]) => b);
   // "Recognised legitimate interests" also matches the plain pattern; the more
   // specific reading is the meaning.
-  const distinct = matches.includes("recognised_legitimate_interests")
-    ? matches.filter((m) => m !== "legitimate_interests")
+  const distinct = matches.includes('recognised_legitimate_interests')
+    ? matches.filter((m) => m !== 'legitimate_interests')
     : matches;
   return distinct.length === 1 ? distinct[0] : null;
 }
@@ -114,9 +144,14 @@ function basisOfPart(part: string): LawfulBasis | null {
  * consent, TBC" is not read at all, because a guess here would put a basis on
  * the record that nobody chose.
  */
-export function basesFromText(text: string | null | undefined): LawfulBasis[] | null {
+export function basesFromText(
+  text: string | null | undefined
+): LawfulBasis[] | null {
   if (!text?.trim()) return null;
-  const parts = text.split(/[;,/+&\n]|\band\b/i).map((p) => p.trim()).filter(Boolean);
+  const parts = text
+    .split(/[;,/+&\n]|\band\b/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
   if (parts.length === 0) return null;
   const bases: LawfulBasis[] = [];
   for (const part of parts) {
@@ -127,25 +162,31 @@ export function basesFromText(text: string | null | undefined): LawfulBasis[] | 
   return bases;
 }
 
-export type LawfulBasisGap = "no_basis" | "no_recognised_condition";
+export type LawfulBasisGap = 'no_basis' | 'no_recognised_condition';
 
 export const LAWFUL_BASIS_GAP_WORDS: Record<LawfulBasisGap, string> = {
-  no_basis: "No lawful basis chosen",
-  no_recognised_condition: "Recognised legitimate interests with no Annex 1 condition",
+  no_basis: 'No lawful basis chosen',
+  no_recognised_condition:
+    'Recognised legitimate interests with no Annex 1 condition'
 };
 
 export function lawfulBasisGaps(input: {
   bases: readonly LawfulBasis[];
   recognisedCondition: string | null;
 }): LawfulBasisGap[] {
-  if (input.bases.length === 0) return ["no_basis"];
-  if (input.bases.includes("recognised_legitimate_interests") && !input.recognisedCondition) {
-    return ["no_recognised_condition"];
+  if (input.bases.length === 0) return ['no_basis'];
+  if (
+    input.bases.includes('recognised_legitimate_interests') &&
+    !input.recognisedCondition
+  ) {
+    return ['no_recognised_condition'];
   }
   return [];
 }
 
 /** Bases in the order Article 6(1) lists them, for display. */
 export function describeBases(bases: readonly LawfulBasis[]): string {
-  return LAWFUL_BASIS_KEYS.filter((b) => bases.includes(b)).map((b) => LAWFUL_BASES[b].label).join(", ");
+  return LAWFUL_BASIS_KEYS.filter((b) => bases.includes(b))
+    .map((b) => LAWFUL_BASES[b].label)
+    .join(', ');
 }

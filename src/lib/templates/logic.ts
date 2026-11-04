@@ -1,9 +1,4 @@
-import type {
-  Condition,
-  Question,
-  Section,
-  TemplateSchema,
-} from "./schema";
+import type { Condition, Question, Section, TemplateSchema } from './schema';
 
 export type AnswerValue = string | number | boolean | string[] | null;
 export type Answers = Record<string, AnswerValue | undefined>;
@@ -30,7 +25,7 @@ export function questionsOf(schema: TemplateSchema): Array<{
   question: Question;
 }> {
   return schema.sections.flatMap((section) =>
-    section.questions.map((question) => ({ section, question })),
+    section.questions.map((question) => ({ section, question }))
   );
 }
 
@@ -38,11 +33,11 @@ export function questionsOf(schema: TemplateSchema): Array<{
 export function conditionDependencies(c: Condition | undefined): string[] {
   if (!c) return [];
   switch (c.op) {
-    case "and":
+    case 'and':
       return c.all.flatMap(conditionDependencies);
-    case "or":
+    case 'or':
       return c.any.flatMap(conditionDependencies);
-    case "not":
+    case 'not':
       return conditionDependencies(c.condition);
     default:
       return [c.question];
@@ -51,7 +46,7 @@ export function conditionDependencies(c: Condition | undefined): string[] {
 
 function isAnswered(v: AnswerValue | undefined): boolean {
   if (v === undefined || v === null) return false;
-  if (typeof v === "string") return v.trim() !== "";
+  if (typeof v === 'string') return v.trim() !== '';
   if (Array.isArray(v)) return v.length > 0;
   return true;
 }
@@ -66,29 +61,29 @@ function isAnswered(v: AnswerValue | undefined): boolean {
  */
 export function evaluateCondition(c: Condition, answers: Answers): boolean {
   switch (c.op) {
-    case "answered":
+    case 'answered':
       return isAnswered(answers[c.question]);
-    case "equals":
+    case 'equals':
       return answers[c.question] === c.value;
-    case "notEquals":
+    case 'notEquals':
       return answers[c.question] !== c.value;
-    case "includes": {
+    case 'includes': {
       const v = answers[c.question];
       return Array.isArray(v) && v.includes(c.value);
     }
-    case "greaterThan": {
+    case 'greaterThan': {
       const v = answers[c.question];
-      return typeof v === "number" && v > c.value;
+      return typeof v === 'number' && v > c.value;
     }
-    case "lessThan": {
+    case 'lessThan': {
       const v = answers[c.question];
-      return typeof v === "number" && v < c.value;
+      return typeof v === 'number' && v < c.value;
     }
-    case "and":
+    case 'and':
       return c.all.every((x) => evaluateCondition(x, answers));
-    case "or":
+    case 'or':
       return c.any.some((x) => evaluateCondition(x, answers));
-    case "not":
+    case 'not':
       return !evaluateCondition(c.condition, answers);
   }
 }
@@ -100,9 +95,14 @@ export function evaluateCondition(c: Condition, answers: Answers): boolean {
  * guarantees is acyclic at publish time — so a single pass is enough and there
  * is no iteration-limit behaviour to reason about at runtime.
  */
-export function evaluate(schema: TemplateSchema, answers: Answers): EvaluationResult {
+export function evaluate(
+  schema: TemplateSchema,
+  answers: Answers
+): EvaluationResult {
   const all = questionsOf(schema);
-  const byQuestionKey = new Map(all.map(({ question, section }) => [question.key, { question, section }]));
+  const byQuestionKey = new Map(
+    all.map(({ question, section }) => [question.key, { question, section }])
+  );
 
   const order = topologicalOrder(schema);
   const visibleAnswers: Answers = {};
@@ -118,7 +118,7 @@ export function evaluate(schema: TemplateSchema, answers: Answers): EvaluationRe
       sections[section.key] = {
         visible: section.showWhen
           ? evaluateCondition(section.showWhen, visibleAnswers)
-          : true,
+          : true
       };
     }
 
@@ -142,7 +142,7 @@ export function evaluate(schema: TemplateSchema, answers: Answers): EvaluationRe
       // An answer that exists for a question no longer being asked. Kept in the
       // record, excluded from evaluation and scoring, and surfaced to the
       // auditor as "asked, then no longer applicable".
-      suppressed: !visible && isAnswered(answers[key]),
+      suppressed: !visible && isAnswered(answers[key])
     };
 
     if (visible) visibleAnswers[key] = answers[key];
@@ -151,7 +151,9 @@ export function evaluate(schema: TemplateSchema, answers: Answers): EvaluationRe
   for (const s of schema.sections) {
     if (!(s.key in sections)) {
       sections[s.key] = {
-        visible: s.showWhen ? evaluateCondition(s.showWhen, visibleAnswers) : true,
+        visible: s.showWhen
+          ? evaluateCondition(s.showWhen, visibleAnswers)
+          : true
       };
     }
   }
@@ -178,8 +180,8 @@ export function topologicalOrder(schema: TemplateSchema): string[] {
       [
         ...conditionDependencies(question.showWhen),
         ...conditionDependencies(question.requireWhen),
-        ...conditionDependencies(section.showWhen),
-      ].filter((k) => known.has(k) && k !== question.key),
+        ...conditionDependencies(section.showWhen)
+      ].filter((k) => known.has(k) && k !== question.key)
     );
     deps.set(question.key, d);
   }

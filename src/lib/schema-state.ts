@@ -1,6 +1,8 @@
-import { sql } from "drizzle-orm";
-import { db } from "@/db/client";
-import journal from "../../drizzle/meta/_journal.json";
+import { sql } from 'drizzle-orm';
+
+import { db } from '@/db/client';
+
+import journal from '../../drizzle/meta/_journal.json';
 
 /**
  * Whether the database is running the schema this build expects.
@@ -18,20 +20,20 @@ export type SchemaState =
   | { ok: true; applied: number; expected: number }
   | {
       ok: false;
-      reason: "unreachable" | "behind" | "no_migrations_table";
+      reason: 'unreachable' | 'behind' | 'no_migrations_table';
       applied?: number;
       expected: number;
       detail: string;
     };
 
 export const EXPECTED_MIGRATIONS = journal.entries.length;
-export const LATEST_MIGRATION = journal.entries.at(-1)?.tag ?? "none";
+export const LATEST_MIGRATION = journal.entries.at(-1)?.tag ?? 'none';
 
 export async function schemaState(): Promise<SchemaState> {
   let rows: Array<{ n: number | string }>;
   try {
     rows = await db.execute<{ n: number | string }>(
-      sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
+      sql`select count(*)::int as n from drizzle.__drizzle_migrations`
     );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -40,16 +42,16 @@ export async function schemaState(): Promise<SchemaState> {
     if (/drizzle|does not exist|relation/i.test(message)) {
       return {
         ok: false,
-        reason: "no_migrations_table",
+        reason: 'no_migrations_table',
         expected: EXPECTED_MIGRATIONS,
-        detail: "No migrations have ever been applied to this database.",
+        detail: 'No migrations have ever been applied to this database.'
       };
     }
     return {
       ok: false,
-      reason: "unreachable",
+      reason: 'unreachable',
       expected: EXPECTED_MIGRATIONS,
-      detail: message.slice(0, 300),
+      detail: message.slice(0, 300)
     };
   }
 
@@ -57,12 +59,12 @@ export async function schemaState(): Promise<SchemaState> {
   if (applied < EXPECTED_MIGRATIONS) {
     return {
       ok: false,
-      reason: "behind",
+      reason: 'behind',
       applied,
       expected: EXPECTED_MIGRATIONS,
       detail:
         `The database has ${applied} of ${EXPECTED_MIGRATIONS} migrations. ` +
-        `This build expects up to ${LATEST_MIGRATION}. Run pnpm db:migrate.`,
+        `This build expects up to ${LATEST_MIGRATION}. Run pnpm db:migrate.`
     };
   }
 

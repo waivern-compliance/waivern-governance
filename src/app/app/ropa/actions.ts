@@ -1,40 +1,51 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
-import { db, scoped } from "@/db/client";
-import { entities } from "@/db/schema";
-import { requireCapability } from "@/lib/session";
-import { createActivity, setFurtherProcessing, updateActivity } from "@/services/ropa";
-import { COMPATIBILITY_FACTOR_KEYS, RESEARCH_SAFEGUARD_KEYS } from "@/lib/gdpr/further-processing";
-import { refusable, type EditResult } from "@/lib/edit-result";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { and, eq } from 'drizzle-orm';
+
+import { db, scoped } from '@/db/client';
+import { entities } from '@/db/schema';
+import { refusable, type EditResult } from '@/lib/edit-result';
+import {
+  COMPATIBILITY_FACTOR_KEYS,
+  RESEARCH_SAFEGUARD_KEYS
+} from '@/lib/gdpr/further-processing';
+import { requireCapability } from '@/lib/session';
+import {
+  createActivity,
+  setFurtherProcessing,
+  updateActivity
+} from '@/services/ropa';
 
 /** "GB", "US: SCCs", "us — scc" — all three are what people actually type. */
 function parseTransfers(raw: string) {
   return raw
-    .split("\n")
+    .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
       const [country, ...rest] = line.split(/[:—-]/);
-      const mechanism = rest.join(" ").trim();
+      const mechanism = rest.join(' ').trim();
       return {
         country: country.trim().toUpperCase(),
-        ...(mechanism ? { mechanism } : {}),
+        ...(mechanism ? { mechanism } : {})
       };
     });
 }
 
 const lines = (raw: FormDataEntryValue | null) =>
-  String(raw ?? "")
+  String(raw ?? '')
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
 
 /** Ticked catalogue entries (whose words may contain commas) and any others typed. */
 const categories = (formData: FormData, name: string) => [
-  ...new Set([...formData.getAll(`${name}Pick`).map(String), ...lines(formData.get(name))]),
+  ...new Set([
+    ...formData.getAll(`${name}Pick`).map(String),
+    ...lines(formData.get(name))
+  ])
 ];
 
 /**
@@ -42,170 +53,207 @@ const categories = (formData: FormData, name: string) => [
  * record names, and left untouched, is not a statement.
  */
 function loggingRows(formData: FormData) {
-  const n = Number(formData.get("loggingRows") ?? 0);
-  return Array.from({ length: Number.isFinite(n) ? Math.min(n, 100) : 0 }, (_, i) => ({
-    system: text(formData.get(`logging_system_${i}`)),
-    operations: formData.getAll(`logging_ops_${i}`).map(String) as never[],
-    identifiesPeople: formData.get(`logging_identifies_${i}`) === "on",
-    reviewer: text(formData.get(`logging_reviewer_${i}`)) || null,
-    lastChecked: text(formData.get(`logging_checked_${i}`)) || null,
-  })).filter((r) => r.system && (r.operations.length > 0 || r.reviewer || r.lastChecked || r.identifiesPeople));
+  const n = Number(formData.get('loggingRows') ?? 0);
+  return Array.from(
+    { length: Number.isFinite(n) ? Math.min(n, 100) : 0 },
+    (_, i) => ({
+      system: text(formData.get(`logging_system_${i}`)),
+      operations: formData.getAll(`logging_ops_${i}`).map(String) as never[],
+      identifiesPeople: formData.get(`logging_identifies_${i}`) === 'on',
+      reviewer: text(formData.get(`logging_reviewer_${i}`)) || null,
+      lastChecked: text(formData.get(`logging_checked_${i}`)) || null
+    })
+  ).filter(
+    (r) =>
+      r.system &&
+      (r.operations.length > 0 ||
+        r.reviewer ||
+        r.lastChecked ||
+        r.identifiesPeople)
+  );
 }
 
-const text = (raw: FormDataEntryValue | null) => String(raw ?? "").trim();
+const text = (raw: FormDataEntryValue | null) => String(raw ?? '').trim();
 
 const yesNo = (raw: FormDataEntryValue | null) => {
-  const v = String(raw ?? "");
-  return v === "yes" ? true : v === "no" ? false : null;
+  const v = String(raw ?? '');
+  return v === 'yes' ? true : v === 'no' ? false : null;
 };
 
 export async function recordActivity(formData: FormData) {
-  const entityId = text(formData.get("entityId"));
-  const name = text(formData.get("name"));
+  const entityId = text(formData.get('entityId'));
+  const name = text(formData.get('name'));
   if (!entityId || !name) return;
 
-  const active = await requireCapability("record.write", { entityId });
+  const active = await requireCapability('record.write', { entityId });
 
-  const [entity] = await scoped(active.membership.organisationId, () => db
-    .select()
-    .from(entities)
-    .where(
-      and(
-        eq(entities.id, entityId),
-        eq(entities.organisationId, active.membership.organisationId),
-      ),
-    ));
-  if (!entity) throw new Error("No such entity");
+  const [entity] = await scoped(active.membership.organisationId, () =>
+    db
+      .select()
+      .from(entities)
+      .where(
+        and(
+          eq(entities.id, entityId),
+          eq(entities.organisationId, active.membership.organisationId)
+        )
+      )
+  );
+  if (!entity) throw new Error('No such entity');
 
   const activity = await createActivity({
     organisationId: active.membership.organisationId,
     entityId,
     name,
-    description: text(formData.get("description")) || undefined,
-    purposes: lines(formData.get("purposes")),
-    controllerRole: text(formData.get("controllerRole")) || "controller",
+    description: text(formData.get('description')) || undefined,
+    purposes: lines(formData.get('purposes')),
+    controllerRole: text(formData.get('controllerRole')) || 'controller',
     // Deliberately permissive: a thin record that exists can be completed, and
     // the register reports its own gaps. Refusing to save until every Article
     // 30 field is filled is how processing stays undocumented.
-    ownerId: formData.get("ownMe") === "on" ? active.userId : null,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
 
-  revalidatePath("/app/ropa");
+  revalidatePath('/app/ropa');
   redirect(`/app/ropa/${activity.id}`);
 }
 
 export async function updateActivityAction(
   activityId: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await requireCapability("record.write");
-    const owner = formData.get("ownerId");
+    const active = await requireCapability('record.write');
+    const owner = formData.get('ownerId');
 
     // Only the regime's own questions are on the form; the other regime's
     // answers are left as they were, not cleared for being absent.
-    const part3 = text(formData.get("regime")) === "dpa_part3";
+    const part3 = text(formData.get('regime')) === 'dpa_part3';
     // For an entity subject to EU law only, Schedule 1 and paragraph 41 are not
     // asked, so what was recorded under UK law is kept, not cleared.
-    const ukLaw = formData.get("ukLaw") !== "no";
+    const ukLaw = formData.get('ukLaw') !== 'no';
     const ukGdpr = {
-      lawfulBasis: text(formData.get("lawfulBasis")),
-      lawfulBases: formData.getAll("lawfulBases").map(String),
-      recognisedCondition: text(formData.get("recognisedCondition")) || null,
-      childrenLikely: yesNo(formData.get("childrenLikely")),
-      outsidePublicTasks: formData.get("outsidePublicTasks") === "on",
-      specialCategory: yesNo(formData.get("specialCategory")),
-      art9Condition: text(formData.get("art9Condition")) || null,
-      ...(ukLaw ? { schedule1Condition: text(formData.get("schedule1Condition")) || null } : {}),
-      criminalOffence: yesNo(formData.get("criminalOffence")),
-      art10Condition: text(formData.get("art10Condition")) || null,
+      lawfulBasis: text(formData.get('lawfulBasis')),
+      lawfulBases: formData.getAll('lawfulBases').map(String),
+      recognisedCondition: text(formData.get('recognisedCondition')) || null,
+      childrenLikely: yesNo(formData.get('childrenLikely')),
+      outsidePublicTasks: formData.get('outsidePublicTasks') === 'on',
+      specialCategory: yesNo(formData.get('specialCategory')),
+      art9Condition: text(formData.get('art9Condition')) || null,
+      ...(ukLaw
+        ? {
+            schedule1Condition: text(formData.get('schedule1Condition')) || null
+          }
+        : {}),
+      criminalOffence: yesNo(formData.get('criminalOffence')),
+      art10Condition: text(formData.get('art10Condition')) || null
     };
     const lawEnforcement = {
-      part3Basis: text(formData.get("part3Basis")) || null,
-      sensitiveProcessing: yesNo(formData.get("sensitiveProcessing")),
-      sensitiveRoute: text(formData.get("sensitiveRoute")) || null,
-      schedule8Condition: text(formData.get("schedule8Condition")) || null,
-      factOpinionMarked: yesNo(formData.get("factOpinionMarked")),
-      logging: loggingRows(formData),
+      part3Basis: text(formData.get('part3Basis')) || null,
+      sensitiveProcessing: yesNo(formData.get('sensitiveProcessing')),
+      sensitiveRoute: text(formData.get('sensitiveRoute')) || null,
+      schedule8Condition: text(formData.get('schedule8Condition')) || null,
+      factOpinionMarked: yesNo(formData.get('factOpinionMarked')),
+      logging: loggingRows(formData)
     };
 
     await updateActivity({
       activityId,
       organisationId: active.membership.organisationId,
       changes: {
-        name: text(formData.get("name")),
-        description: text(formData.get("description")),
-        purposes: lines(formData.get("purposes")),
-        regime: text(formData.get("regime")) || "uk_gdpr",
+        name: text(formData.get('name')),
+        description: text(formData.get('description')),
+        purposes: lines(formData.get('purposes')),
+        regime: text(formData.get('regime')) || 'uk_gdpr',
         ...(part3 ? lawEnforcement : ukGdpr),
-        dataCategories: categories(formData, "dataCategories"),
-        subjectCategories: categories(formData, "subjectCategories"),
-        recipients: lines(formData.get("recipients")),
-        systems: lines(formData.get("systems")),
-        transfers: parseTransfers(String(formData.get("transfers") ?? "")),
-        retention: text(formData.get("retention")),
-        securityMeasures: text(formData.get("securityMeasures")),
-        controllerRole: text(formData.get("controllerRole")),
-        controllerName: text(formData.get("controllerName")),
+        dataCategories: categories(formData, 'dataCategories'),
+        subjectCategories: categories(formData, 'subjectCategories'),
+        recipients: lines(formData.get('recipients')),
+        systems: lines(formData.get('systems')),
+        transfers: parseTransfers(String(formData.get('transfers') ?? '')),
+        retention: text(formData.get('retention')),
+        securityMeasures: text(formData.get('securityMeasures')),
+        controllerRole: text(formData.get('controllerRole')),
+        controllerName: text(formData.get('controllerName')),
         ...(ukLaw || part3
           ? {
-              retentionFollowsPolicy: yesNo(formData.get("retentionFollowsPolicy")),
-              retentionPolicyNote: text(formData.get("retentionPolicyNote")) || null,
+              retentionFollowsPolicy: yesNo(
+                formData.get('retentionFollowsPolicy')
+              ),
+              retentionPolicyNote:
+                text(formData.get('retentionPolicyNote')) || null
             }
           : {}),
-        ...(owner !== null ? { ownerId: text(owner) || null } : {}),
+        ...(owner !== null ? { ownerId: text(owner) || null } : {})
       },
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
 
     revalidatePath(`/app/ropa/${activityId}`);
-    revalidatePath("/app/ropa");
+    revalidatePath('/app/ropa');
   });
 }
 
 export async function saveFurtherProcessingAction(
   activityId: string,
   _previous: EditResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await requireCapability("record.write");
+    const active = await requireCapability('record.write');
     await setFurtherProcessing({
       activityId,
       organisationId: active.membership.organisationId,
       record: {
-        furtherProcessing: yesNo(formData.get("furtherProcessing")),
-        originalActivityId: text(formData.get("originalActivityId")) || null,
-        originalConsent: yesNo(formData.get("originalConsent")),
-        compatibilityRoute: text(formData.get("compatibilityRoute")) || null,
-        annex2Condition: text(formData.get("annex2Condition")) || null,
-        consentUnobtainable: yesNo(formData.get("consentUnobtainable")),
+        furtherProcessing: yesNo(formData.get('furtherProcessing')),
+        originalActivityId: text(formData.get('originalActivityId')) || null,
+        originalConsent: yesNo(formData.get('originalConsent')),
+        compatibilityRoute: text(formData.get('compatibilityRoute')) || null,
+        annex2Condition: text(formData.get('annex2Condition')) || null,
+        consentUnobtainable: yesNo(formData.get('consentUnobtainable')),
         compatibilityFactors: Object.fromEntries(
-          COMPATIBILITY_FACTOR_KEYS.map((k) => [k, text(formData.get(`factor_${k}`))]),
+          COMPATIBILITY_FACTOR_KEYS.map((k) => [
+            k,
+            text(formData.get(`factor_${k}`))
+          ])
         ),
-        compatibilityNote: text(formData.get("compatibilityNote")) || null,
-        furtherAuthorisedBy: text(formData.get("furtherAuthorisedBy")) || null,
-        furtherNecessaryProportionate: yesNo(formData.get("furtherNecessaryProportionate")),
-        research: yesNo(formData.get("research")),
+        compatibilityNote: text(formData.get('compatibilityNote')) || null,
+        furtherAuthorisedBy: text(formData.get('furtherAuthorisedBy')) || null,
+        furtherNecessaryProportionate: yesNo(
+          formData.get('furtherNecessaryProportionate')
+        ),
+        research: yesNo(formData.get('research')),
         researchSafeguards: Object.fromEntries(
           RESEARCH_SAFEGUARD_KEYS.map((k) => [
             k,
             {
-              confirmed: formData.get(`researchSafeguard_${k}`) === "on",
-              note: text(formData.get(`researchSafeguardNote_${k}`)),
-            },
-          ]),
+              confirmed: formData.get(`researchSafeguard_${k}`) === 'on',
+              note: text(formData.get(`researchSafeguardNote_${k}`))
+            }
+          ])
         ),
-        approvedMedicalResearch: formData.get("approvedMedicalResearch") === "on" ? true : null,
-        art13Exemption: yesNo(formData.get("art13Exemption")),
-        publicInformationUrl: text(formData.get("publicInformationUrl")) || null,
+        approvedMedicalResearch:
+          formData.get('approvedMedicalResearch') === 'on' ? true : null,
+        art13Exemption: yesNo(formData.get('art13Exemption')),
+        publicInformationUrl: text(formData.get('publicInformationUrl')) || null
       },
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
 
     revalidatePath(`/app/ropa/${activityId}`);
-    revalidatePath("/app/ropa");
+    revalidatePath('/app/ropa');
   });
 }

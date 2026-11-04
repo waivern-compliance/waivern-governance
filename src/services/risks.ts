@@ -1,23 +1,34 @@
-import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
-import { db, type Db, withOrganisation } from "@/db/client";
+import { and, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+
+import { db, withOrganisation, type Db } from '@/db/client';
 import {
   assessments,
   mitigations,
   organisations,
   referenceCounters,
   riskAcceptances,
-  risks,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { judge } from "@/lib/risk/appetite";
-import { DEFAULT_SCALE, rate, type RiskScaleId, type RiskTier } from "@/lib/risk/scale";
-import { suggestionByKey } from "@/lib/ai-frameworks";
-import { appetiteInForce } from "./appetite-in-force";
-import type { Actor } from "./templates";
-import { queueEvent } from "./webhooks";
-import { assertEntityIn, assertMemberOf, assertRecordIn } from "./tenancy-guards";
+  risks
+} from '@/db/schema';
+import { suggestionByKey } from '@/lib/ai-frameworks';
+import { appendAuditEvent } from '@/lib/audit';
+import { judge } from '@/lib/risk/appetite';
+import {
+  DEFAULT_SCALE,
+  rate,
+  type RiskScaleId,
+  type RiskTier
+} from '@/lib/risk/scale';
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+import { appetiteInForce } from './appetite-in-force';
+import type { Actor } from './templates';
+import {
+  assertEntityIn,
+  assertMemberOf,
+  assertRecordIn
+} from './tenancy-guards';
+import { queueEvent } from './webhooks';
+
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export class RiskNotAcceptable extends Error {}
 export class SegregationOfDuties extends Error {}
@@ -27,13 +38,16 @@ export class SegregationOfDuties extends Error {}
  * transaction, so the scale cannot change between reading it and writing a
  * risk rated on it.
  */
-export async function riskScaleOf(organisationId: string, tx: Tx | Db = db): Promise<RiskScaleId> {
+export async function riskScaleOf(
+  organisationId: string,
+  tx: Tx | Db = db
+): Promise<RiskScaleId> {
   return withOrganisation(organisationId, async () => {
     const query = tx
       .select({ riskScale: organisations.riskScale })
       .from(organisations)
       .where(eq(organisations.id, organisationId));
-    const [org] = tx === db ? await query : await query.for("share");
+    const [org] = tx === db ? await query : await query.for('share');
     return (org?.riskScale as RiskScaleId | undefined) ?? DEFAULT_SCALE;
   });
 }
@@ -46,7 +60,7 @@ async function nextRiskReference(tx: Tx, organisationId: string, year: number) {
       do update set next_value = ${referenceCounters}.next_value + 1
     returning next_value
   `);
-  return `RISK-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, "0")}`;
+  return `RISK-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 export async function createRisk(input: {
@@ -59,7 +73,7 @@ export async function createRisk(input: {
   impact: number;
   ownerId?: string;
   assessmentId?: string;
-  source?: "assessment" | "manual" | "integration";
+  source?: 'assessment' | 'manual' | 'integration';
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
@@ -69,13 +83,20 @@ export async function createRisk(input: {
       const scale = await riskScaleOf(input.organisationId, tx);
       const inherent = rate(input.likelihood, input.impact, scale);
       await assertEntityIn(input.organisationId, input.entityId, tx);
-      if (input.ownerId) await assertMemberOf(input.organisationId, input.ownerId, tx);
-      if (input.assessmentId) await assertRecordIn(input.organisationId, "assessment", input.assessmentId, tx);
+      if (input.ownerId)
+        await assertMemberOf(input.organisationId, input.ownerId, tx);
+      if (input.assessmentId)
+        await assertRecordIn(
+          input.organisationId,
+          'assessment',
+          input.assessmentId,
+          tx
+        );
 
       const reference = await nextRiskReference(
         tx,
         input.organisationId,
-        new Date().getUTCFullYear(),
+        new Date().getUTCFullYear()
       );
 
       const [risk] = await tx
@@ -87,7 +108,8 @@ export async function createRisk(input: {
           title: input.title,
           description: input.description,
           category: input.category,
-          source: input.source ?? (input.assessmentId ? "assessment" : "manual"),
+          source:
+            input.source ?? (input.assessmentId ? 'assessment' : 'manual'),
           assessmentId: input.assessmentId,
           ownerId: input.ownerId,
           scale,
@@ -95,22 +117,28 @@ export async function createRisk(input: {
           inherentImpact: input.impact,
           inherentScore: inherent.score,
           inherentTier: inherent.tier,
-          status: "identified",
+          status: 'identified'
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "risk.created",
-        subjectType: "risk",
+        action: 'risk.created',
+        subjectType: 'risk',
         subjectId: risk.id,
         entityId: input.entityId,
         after: {
           reference,
           title: risk.title,
-          inherent: { scale, likelihood: input.likelihood, impact: input.impact, score: inherent.score, tier: inherent.tier },
-        },
+          inherent: {
+            scale,
+            likelihood: input.likelihood,
+            impact: input.impact,
+            score: inherent.score,
+            tier: inherent.tier
+          }
+        }
       });
 
       return risk;
@@ -138,11 +166,21 @@ export async function setResidual(input: {
       const [existing] = await tx
         .select()
         .from(risks)
-        .where(and(eq(risks.id, input.riskId), eq(risks.organisationId, input.organisationId)));
-      if (!existing) throw new Error("No such risk");
-      if (existing.status === "closed") throw new Error("A closed risk cannot be re-rated");
+        .where(
+          and(
+            eq(risks.id, input.riskId),
+            eq(risks.organisationId, input.organisationId)
+          )
+        );
+      if (!existing) throw new Error('No such risk');
+      if (existing.status === 'closed')
+        throw new Error('A closed risk cannot be re-rated');
       // On the scale the risk was raised on, whatever the organisation uses now.
-      const residual = rate(input.likelihood, input.impact, existing.scale as RiskScaleId);
+      const residual = rate(
+        input.likelihood,
+        input.impact,
+        existing.scale as RiskScaleId
+      );
 
       const [updated] = await tx
         .update(risks)
@@ -151,8 +189,9 @@ export async function setResidual(input: {
           residualImpact: input.impact,
           residualScore: residual.score,
           residualTier: residual.tier,
-          status: existing.status === "identified" ? "treating" : existing.status,
-          updatedAt: new Date(),
+          status:
+            existing.status === 'identified' ? 'treating' : existing.status,
+          updatedAt: new Date()
         })
         .where(eq(risks.id, input.riskId))
         .returning();
@@ -160,18 +199,23 @@ export async function setResidual(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "risk.residual_rated",
-        subjectType: "risk",
+        action: 'risk.residual_rated',
+        subjectType: 'risk',
         subjectId: input.riskId,
         entityId: existing.entityId,
         before: {
           residual: existing.residualScore
             ? { score: existing.residualScore, tier: existing.residualTier }
-            : null,
+            : null
         },
         after: {
-          residual: { likelihood: input.likelihood, impact: input.impact, score: residual.score, tier: residual.tier },
-        },
+          residual: {
+            likelihood: input.likelihood,
+            impact: input.impact,
+            score: residual.score,
+            tier: residual.tier
+          }
+        }
       });
 
       return updated;
@@ -184,7 +228,7 @@ export async function addMitigation(input: {
   organisationId: string;
   description: string;
   controlRef?: string;
-  treatmentType?: "avoidance" | "limitation" | "transference";
+  treatmentType?: 'avoidance' | 'limitation' | 'transference';
   /** A key from the toolkit's treatment library, where the person started from one. */
   suggestionKey?: string;
   ownerId?: string;
@@ -192,16 +236,25 @@ export async function addMitigation(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    if (input.suggestionKey !== undefined && !suggestionByKey(input.suggestionKey)) {
-      throw new Error("No such treatment suggestion");
+    if (
+      input.suggestionKey !== undefined &&
+      !suggestionByKey(input.suggestionKey)
+    ) {
+      throw new Error('No such treatment suggestion');
     }
     return db.transaction(async (tx) => {
       const [risk] = await tx
         .select()
         .from(risks)
-        .where(and(eq(risks.id, input.riskId), eq(risks.organisationId, input.organisationId)));
-      if (!risk) throw new Error("No such risk");
-      if (input.ownerId) await assertMemberOf(input.organisationId, input.ownerId, tx);
+        .where(
+          and(
+            eq(risks.id, input.riskId),
+            eq(risks.organisationId, input.organisationId)
+          )
+        );
+      if (!risk) throw new Error('No such risk');
+      if (input.ownerId)
+        await assertMemberOf(input.organisationId, input.ownerId, tx);
 
       const [mitigation] = await tx
         .insert(mitigations)
@@ -212,19 +265,22 @@ export async function addMitigation(input: {
           treatmentType: input.treatmentType,
           suggestionKey: input.suggestionKey,
           ownerId: input.ownerId,
-          dueAt: input.dueAt,
+          dueAt: input.dueAt
         })
         .returning();
 
-      if (risk.status === "identified") {
-        await tx.update(risks).set({ status: "treating" }).where(eq(risks.id, input.riskId));
+      if (risk.status === 'identified') {
+        await tx
+          .update(risks)
+          .set({ status: 'treating' })
+          .where(eq(risks.id, input.riskId));
       }
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "mitigation.added",
-        subjectType: "mitigation",
+        action: 'mitigation.added',
+        subjectType: 'mitigation',
         subjectId: mitigation.id,
         entityId: risk.entityId,
         after: {
@@ -232,8 +288,8 @@ export async function addMitigation(input: {
           description: input.description,
           treatmentType: input.treatmentType ?? null,
           suggestionKey: input.suggestionKey ?? null,
-          dueAt: input.dueAt?.toISOString() ?? null,
-        },
+          dueAt: input.dueAt?.toISOString() ?? null
+        }
       });
 
       return mitigation;
@@ -252,7 +308,7 @@ export async function addMitigation(input: {
 export async function updateMitigation(input: {
   mitigationId: string;
   organisationId: string;
-  status: "planned" | "in_progress" | "implemented" | "verified" | "abandoned";
+  status: 'planned' | 'in_progress' | 'implemented' | 'verified' | 'abandoned';
   evidenceRef?: string;
   actor: Actor;
 }) {
@@ -265,18 +321,23 @@ export async function updateMitigation(input: {
         .where(
           and(
             eq(mitigations.id, input.mitigationId),
-            eq(risks.organisationId, input.organisationId),
-          ),
+            eq(risks.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such mitigation");
+      if (!row) throw new Error('No such mitigation');
 
-      if (input.status === "verified") {
+      if (input.status === 'verified') {
         if (!input.actor.actorUserId) {
-          throw new SegregationOfDuties("Verification must be attributed to a named person");
-        }
-        if (row.mitigation.ownerId && row.mitigation.ownerId === input.actor.actorUserId) {
           throw new SegregationOfDuties(
-            "A mitigation cannot be verified by the person who owns it",
+            'Verification must be attributed to a named person'
+          );
+        }
+        if (
+          row.mitigation.ownerId &&
+          row.mitigation.ownerId === input.actor.actorUserId
+        ) {
+          throw new SegregationOfDuties(
+            'A mitigation cannot be verified by the person who owns it'
           );
         }
       }
@@ -288,12 +349,16 @@ export async function updateMitigation(input: {
           status: input.status,
           evidenceRef: input.evidenceRef ?? row.mitigation.evidenceRef,
           implementedAt:
-            input.status === "implemented" || input.status === "verified"
+            input.status === 'implemented' || input.status === 'verified'
               ? (row.mitigation.implementedAt ?? now)
               : row.mitigation.implementedAt,
-          verifiedByUserId: input.status === "verified" ? input.actor.actorUserId : row.mitigation.verifiedByUserId,
-          verifiedAt: input.status === "verified" ? now : row.mitigation.verifiedAt,
-          updatedAt: now,
+          verifiedByUserId:
+            input.status === 'verified'
+              ? input.actor.actorUserId
+              : row.mitigation.verifiedByUserId,
+          verifiedAt:
+            input.status === 'verified' ? now : row.mitigation.verifiedAt,
+          updatedAt: now
         })
         .where(eq(mitigations.id, input.mitigationId))
         .returning();
@@ -301,12 +366,12 @@ export async function updateMitigation(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "mitigation.updated",
-        subjectType: "mitigation",
+        action: 'mitigation.updated',
+        subjectType: 'mitigation',
         subjectId: input.mitigationId,
         entityId: row.risk.entityId,
         before: { status: row.mitigation.status },
-        after: { status: input.status },
+        after: { status: input.status }
       });
 
       return updated;
@@ -340,26 +405,37 @@ export async function acceptRisk(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const rationale = input.rationale.trim();
-    if (!rationale) throw new RiskNotAcceptable("A rationale is required to accept a risk");
+    if (!rationale)
+      throw new RiskNotAcceptable('A rationale is required to accept a risk');
     if (input.expiresAt.getTime() <= Date.now()) {
-      throw new RiskNotAcceptable("An acceptance must expire in the future");
+      throw new RiskNotAcceptable('An acceptance must expire in the future');
     }
 
     return db.transaction(async (tx) => {
       const [risk] = await tx
         .select()
         .from(risks)
-        .where(and(eq(risks.id, input.riskId), eq(risks.organisationId, input.organisationId)));
-      if (!risk) throw new Error("No such risk");
-      if (risk.status === "closed") throw new RiskNotAcceptable("A closed risk cannot be accepted");
+        .where(
+          and(
+            eq(risks.id, input.riskId),
+            eq(risks.organisationId, input.organisationId)
+          )
+        );
+      if (!risk) throw new Error('No such risk');
+      if (risk.status === 'closed')
+        throw new RiskNotAcceptable('A closed risk cannot be accepted');
       if (risk.residualScore === null || risk.residualTier === null) {
         throw new RiskNotAcceptable(
-          "Rate the residual risk before accepting it - there is nothing to accept until someone has judged what remains",
+          'Rate the residual risk before accepting it - there is nothing to accept until someone has judged what remains'
         );
       }
-      if (risk.ownerId && input.actor.actorUserId && risk.ownerId === input.actor.actorUserId) {
+      if (
+        risk.ownerId &&
+        input.actor.actorUserId &&
+        risk.ownerId === input.actor.actorUserId
+      ) {
         throw new SegregationOfDuties(
-          "A risk cannot be accepted by the person who owns it",
+          'A risk cannot be accepted by the person who owns it'
         );
       }
 
@@ -374,8 +450,8 @@ export async function acceptRisk(input: {
           and(
             eq(riskAcceptances.riskId, input.riskId),
             isNull(riskAcceptances.supersededAt),
-            isNull(riskAcceptances.revokedAt),
-          ),
+            isNull(riskAcceptances.revokedAt)
+          )
         );
 
       const [acceptance] = await tx
@@ -387,18 +463,22 @@ export async function acceptRisk(input: {
           rationale,
           residualScoreAtAcceptance: risk.residualScore,
           residualTierAtAcceptance: risk.residualTier,
-          expiresAt: input.expiresAt,
+          expiresAt: input.expiresAt
         })
         .returning();
 
       await tx
         .update(risks)
-        .set({ status: "accepted", nextReviewAt: input.expiresAt, updatedAt: now })
+        .set({
+          status: 'accepted',
+          nextReviewAt: input.expiresAt,
+          updatedAt: now
+        })
         .where(eq(risks.id, input.riskId));
 
       await queueEvent(tx, {
         organisationId: input.organisationId,
-        event: "risk.accepted",
+        event: 'risk.accepted',
         payload: {
           reference: risk.reference,
           title: risk.title,
@@ -407,9 +487,9 @@ export async function acceptRisk(input: {
           residualTier: risk.residualTier,
           acceptedBy: input.actor.actorLabel,
           rationale,
-          expiresAt: input.expiresAt.toISOString(),
+          expiresAt: input.expiresAt.toISOString()
         },
-        idempotencyKey: `risk-accepted:${acceptance.id}`,
+        idempotencyKey: `risk-accepted:${acceptance.id}`
       });
 
       // Accepting a risk outside appetite is allowed — that is what escalation to
@@ -417,15 +497,19 @@ export async function acceptRisk(input: {
       // within appetite when it was accepted?" is the first question an auditor
       // asks, and the appetite may have changed since.
       const appetite = judge(
-        { category: risk.category, residualTier: risk.residualTier as RiskTier, status: risk.status },
-        await appetiteInForce(input.organisationId, tx),
+        {
+          category: risk.category,
+          residualTier: risk.residualTier as RiskTier,
+          status: risk.status
+        },
+        await appetiteInForce(input.organisationId, tx)
       );
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "risk.accepted",
-        subjectType: "risk_acceptance",
+        action: 'risk.accepted',
+        subjectType: 'risk_acceptance',
         subjectId: acceptance.id,
         entityId: risk.entityId,
         after: {
@@ -434,15 +518,17 @@ export async function acceptRisk(input: {
           rationale,
           expiresAt: input.expiresAt.toISOString(),
           appetite:
-            appetite.state === "within" || appetite.state === "outside"
+            appetite.state === 'within' || appetite.state === 'outside'
               ? {
-                  withinAppetite: appetite.state === "within",
+                  withinAppetite: appetite.state === 'within',
                   judgedAgainst: appetite.basis.source,
                   toleratedTier: appetite.basis.toleratedTier,
-                  ...(appetite.basis.source === "platform" ? {} : { statement: appetite.basis.id }),
+                  ...(appetite.basis.source === 'platform'
+                    ? {}
+                    : { statement: appetite.basis.id })
                 }
-              : null,
-        },
+              : null
+        }
       });
 
       return acceptance;
@@ -457,7 +543,8 @@ export async function revokeAcceptance(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    if (!input.reason.trim()) throw new Error("A reason is required to revoke an acceptance");
+    if (!input.reason.trim())
+      throw new Error('A reason is required to revoke an acceptance');
 
     return db.transaction(async (tx) => {
       const [row] = await tx
@@ -467,10 +554,10 @@ export async function revokeAcceptance(input: {
         .where(
           and(
             eq(riskAcceptances.id, input.acceptanceId),
-            eq(risks.organisationId, input.organisationId),
-          ),
+            eq(risks.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such acceptance");
+      if (!row) throw new Error('No such acceptance');
 
       const now = new Date();
       await tx
@@ -480,17 +567,17 @@ export async function revokeAcceptance(input: {
 
       await tx
         .update(risks)
-        .set({ status: "treating", nextReviewAt: null, updatedAt: now })
+        .set({ status: 'treating', nextReviewAt: null, updatedAt: now })
         .where(eq(risks.id, row.risk.id));
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "risk.acceptance_revoked",
-        subjectType: "risk_acceptance",
+        action: 'risk.acceptance_revoked',
+        subjectType: 'risk_acceptance',
         subjectId: input.acceptanceId,
         entityId: row.risk.entityId,
-        after: { risk: row.risk.reference, reason: input.reason },
+        after: { risk: row.risk.reference, reason: input.reason }
       });
     });
   });
@@ -505,8 +592,8 @@ export async function liveAcceptance(riskId: string) {
       and(
         eq(riskAcceptances.riskId, riskId),
         isNull(riskAcceptances.supersededAt),
-        isNull(riskAcceptances.revokedAt),
-      ),
+        isNull(riskAcceptances.revokedAt)
+      )
     );
   if (!row) return null;
   return { ...row, expired: row.expiresAt.getTime() <= Date.now() };
@@ -531,8 +618,8 @@ export async function expiredAcceptances(organisationId: string) {
           eq(risks.organisationId, organisationId),
           isNull(riskAcceptances.supersededAt),
           isNull(riskAcceptances.revokedAt),
-          lte(riskAcceptances.expiresAt, new Date()),
-        ),
+          lte(riskAcceptances.expiresAt, new Date())
+        )
       );
   });
 }
@@ -544,37 +631,51 @@ export async function closeRisk(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    if (!input.reason.trim()) throw new Error("A reason is required to close a risk");
+    if (!input.reason.trim())
+      throw new Error('A reason is required to close a risk');
     return db.transaction(async (tx) => {
       const [risk] = await tx
         .select()
         .from(risks)
-        .where(and(eq(risks.id, input.riskId), eq(risks.organisationId, input.organisationId)));
-      if (!risk) throw new Error("No such risk");
+        .where(
+          and(
+            eq(risks.id, input.riskId),
+            eq(risks.organisationId, input.organisationId)
+          )
+        );
+      if (!risk) throw new Error('No such risk');
 
       const now = new Date();
       const [updated] = await tx
         .update(risks)
-        .set({ status: "closed", closedAt: now, nextReviewAt: null, updatedAt: now })
+        .set({
+          status: 'closed',
+          closedAt: now,
+          nextReviewAt: null,
+          updatedAt: now
+        })
         .where(eq(risks.id, input.riskId))
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "risk.closed",
-        subjectType: "risk",
+        action: 'risk.closed',
+        subjectType: 'risk',
         subjectId: input.riskId,
         entityId: risk.entityId,
         before: { status: risk.status },
-        after: { status: "closed", reason: input.reason },
+        after: { status: 'closed', reason: input.reason }
       });
       return updated;
     });
   });
 }
 
-export async function listRisks(organisationId: string, entityIds: string[] | null) {
+export async function listRisks(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     return db
       .select()
@@ -584,20 +685,28 @@ export async function listRisks(organisationId: string, entityIds: string[] | nu
           ? eq(risks.organisationId, organisationId)
           : and(
               eq(risks.organisationId, organisationId),
-              inArray(risks.entityId, entityIds),
-            ),
+              inArray(risks.entityId, entityIds)
+            )
       )
       .orderBy(desc(risks.inherentScore), desc(risks.updatedAt));
   });
 }
 
 /** Risks raised out of one assessment, most serious first. */
-export async function risksForAssessment(assessmentId: string, organisationId: string) {
+export async function risksForAssessment(
+  assessmentId: string,
+  organisationId: string
+) {
   return withOrganisation(organisationId, async () => {
     return db
       .select()
       .from(risks)
-      .where(and(eq(risks.assessmentId, assessmentId), eq(risks.organisationId, organisationId)))
+      .where(
+        and(
+          eq(risks.assessmentId, assessmentId),
+          eq(risks.organisationId, organisationId)
+        )
+      )
       .orderBy(desc(risks.inherentScore), risks.reference);
   });
 }
@@ -607,21 +716,35 @@ export async function loadRisk(riskId: string, organisationId: string) {
     const [risk] = await db
       .select()
       .from(risks)
-      .where(and(eq(risks.id, riskId), eq(risks.organisationId, organisationId)));
+      .where(
+        and(eq(risks.id, riskId), eq(risks.organisationId, organisationId))
+      );
     if (!risk) return null;
 
     const [treatments, acceptances, assessment] = await Promise.all([
-      db.select().from(mitigations).where(eq(mitigations.riskId, riskId)).orderBy(mitigations.createdAt),
+      db
+        .select()
+        .from(mitigations)
+        .where(eq(mitigations.riskId, riskId))
+        .orderBy(mitigations.createdAt),
       db
         .select()
         .from(riskAcceptances)
         .where(eq(riskAcceptances.riskId, riskId))
         .orderBy(desc(riskAcceptances.createdAt)),
       risk.assessmentId
-        ? db.select().from(assessments).where(eq(assessments.id, risk.assessmentId))
-        : Promise.resolve([]),
+        ? db
+            .select()
+            .from(assessments)
+            .where(eq(assessments.id, risk.assessmentId))
+        : Promise.resolve([])
     ]);
 
-    return { risk, mitigations: treatments, acceptances, assessment: assessment[0] ?? null };
+    return {
+      risk,
+      mitigations: treatments,
+      acceptances,
+      assessment: assessment[0] ?? null
+    };
   });
 }

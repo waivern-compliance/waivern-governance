@@ -1,19 +1,26 @@
-import { and, asc, desc, eq, lte } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, desc, eq, lte } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiConversations,
   aiMessages,
   aiSuggestions,
-  integrationConnections,
-} from "@/db/schema";
-import { PRODUCT_NAME } from "@/lib/product";
-import { appendAuditEvent } from "@/lib/audit";
-import { openSecret, sealSecret } from "@/lib/integration/crypto";
-import { ask, type ProviderConfig, type ProviderKind, type Turn } from "@/lib/assistant/providers";
-import { unresolvedPlaceholder } from "@/lib/assistant/models";
-import { summariseRedactions } from "@/lib/assistant/redact";
-import type { Actor } from "./templates";
-import { NotInOrganisation, assertRecordIn } from "./tenancy-guards";
+  integrationConnections
+} from '@/db/schema';
+import { unresolvedPlaceholder } from '@/lib/assistant/models';
+import {
+  ask,
+  type ProviderConfig,
+  type ProviderKind,
+  type Turn
+} from '@/lib/assistant/providers';
+import { summariseRedactions } from '@/lib/assistant/redact';
+import { appendAuditEvent } from '@/lib/audit';
+import { openSecret, sealSecret } from '@/lib/integration/crypto';
+import { PRODUCT_NAME } from '@/lib/product';
+
+import type { Actor } from './templates';
+import { assertRecordIn, NotInOrganisation } from './tenancy-guards';
 
 /**
  * The assistant, such as it is permitted to be.
@@ -25,14 +32,14 @@ import { NotInOrganisation, assertRecordIn } from "./tenancy-guards";
 
 /** Where an assistant may appear, and what each is for. */
 export const SURFACES = {
-  assessment: "Help with answering an assessment",
-  help: "Questions about how the platform works",
-  extraction: "Read an uploaded agreement for transfers and sub-processors",
+  assessment: 'Help with answering an assessment',
+  help: 'Questions about how the platform works',
+  extraction: 'Read an uploaded agreement for transfers and sub-processors'
 } as const;
 export type Surface = keyof typeof SURFACES;
 
 /** Bumped when a prompt changes, so a proposal stays attributable to one. */
-export const PROMPT_VERSION = "2026-08-30.1";
+export const PROMPT_VERSION = '2026-08-30.1';
 
 /**
  * The house rules, sent on every request.
@@ -73,7 +80,9 @@ export type Configured = { config: ProviderConfig; surfaces: Surface[] };
  * There is deliberately no fallback endpoint. An organisation that has not
  * configured a provider has no assistant, rather than quietly having ours.
  */
-export async function providerFor(organisationId: string): Promise<Configured | null> {
+export async function providerFor(
+  organisationId: string
+): Promise<Configured | null> {
   return withOrganisation(organisationId, async () => {
     const [connection] = await db
       .select()
@@ -81,9 +90,9 @@ export async function providerFor(organisationId: string): Promise<Configured | 
       .where(
         and(
           eq(integrationConnections.organisationId, organisationId),
-          eq(integrationConnections.kind, "model_provider"),
-          eq(integrationConnections.isActive, true),
-        ),
+          eq(integrationConnections.kind, 'model_provider'),
+          eq(integrationConnections.isActive, true)
+        )
       );
     if (!connection) return null;
 
@@ -93,12 +102,12 @@ export async function providerFor(organisationId: string): Promise<Configured | 
       apiKey = openSecret({
         ciphertext: connection.secretCiphertext,
         iv: connection.secretIv,
-        tag: connection.secretTag,
+        tag: connection.secretTag
       });
       // The non-secret half rides on webhookUrl, which is the connection row's
       // free-text field. A dedicated column would be tidier and is a migration
       // this does not need yet.
-      settings = JSON.parse(connection.webhookUrl ?? "{}") as ProviderSettings;
+      settings = JSON.parse(connection.webhookUrl ?? '{}') as ProviderSettings;
     } catch {
       return null;
     }
@@ -106,13 +115,13 @@ export async function providerFor(organisationId: string): Promise<Configured | 
 
     return {
       config: {
-        kind: settings.kind === "anthropic" ? "anthropic" : "openai_compatible",
+        kind: settings.kind === 'anthropic' ? 'anthropic' : 'openai_compatible',
         baseUrl: settings.baseUrl,
         model: settings.model,
         apiKey,
-        apiVersion: settings.apiVersion,
+        apiVersion: settings.apiVersion
       },
-      surfaces: settings.surfaces ?? [],
+      surfaces: settings.surfaces ?? []
     };
   });
 }
@@ -131,7 +140,7 @@ export async function converse(input: {
   organisationId: string;
   entityId: string | null;
   surface: Surface;
-  subjectType?: Parameters<typeof appendAuditEvent>[1]["subjectType"];
+  subjectType?: Parameters<typeof appendAuditEvent>[1]['subjectType'];
   subjectId?: string;
   /** Facts the surface chose to give the model. Never the register wholesale. */
   context: string;
@@ -141,10 +150,12 @@ export async function converse(input: {
 }): Promise<Exchange | { error: string }> {
   const configured = await providerFor(input.organisationId);
   if (!configured) {
-    return { error: "No model is configured for this organisation." };
+    return { error: 'No model is configured for this organisation.' };
   }
   if (!configured.surfaces.includes(input.surface)) {
-    return { error: "The assistant is not switched on for this part of the platform." };
+    return {
+      error: 'The assistant is not switched on for this part of the platform.'
+    };
   }
 
   const conversationId =
@@ -160,7 +171,7 @@ export async function converse(input: {
           subjectId: input.subjectId ?? null,
           userId: input.actor.actorUserId ?? null,
           userLabel: input.actor.actorLabel,
-          retainUntil: new Date(Date.now() + RETAIN_DAYS * 86_400_000),
+          retainUntil: new Date(Date.now() + RETAIN_DAYS * 86_400_000)
         })
         .returning()
     )[0].id;
@@ -172,8 +183,14 @@ export async function converse(input: {
     .orderBy(asc(aiMessages.createdAt));
 
   const turns: Turn[] = [
-    ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-    { role: "user" as const, content: `${input.context}\n\nQuestion: ${input.question}` },
+    ...history.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content
+    })),
+    {
+      role: 'user' as const,
+      content: `${input.context}\n\nQuestion: ${input.question}`
+    }
   ];
 
   const result = await ask(configured.config, { system: HOUSE_RULES, turns });
@@ -183,9 +200,9 @@ export async function converse(input: {
   // happened.
   await db.insert(aiMessages).values({
     conversationId,
-    role: "user",
+    role: 'user',
     content: input.question,
-    redactions: result.redactions,
+    redactions: result.redactions
   });
 
   if (!result.ok) {
@@ -199,10 +216,10 @@ export async function converse(input: {
   await db.transaction(async (tx) => {
     await tx.insert(aiMessages).values({
       conversationId,
-      role: "assistant",
+      role: 'assistant',
       content: result.text,
       model: result.model,
-      promptVersion: PROMPT_VERSION,
+      promptVersion: PROMPT_VERSION
     });
     await tx
       .update(aiConversations)
@@ -214,13 +231,13 @@ export async function converse(input: {
       await appendAuditEvent(tx, {
         organisationId: input.organisationId,
         entityId: input.entityId ?? undefined,
-        actorKind: "assistant",
+        actorKind: 'assistant',
         actorUserId: null,
         actorLabel: `${result.model} (asked by ${input.actor.actorLabel})`,
-        action: "assistant.answered",
+        action: 'assistant.answered',
         subjectType: input.subjectType,
         subjectId: input.subjectId,
-        after: { surface: input.surface, promptVersion: PROMPT_VERSION },
+        after: { surface: input.surface, promptVersion: PROMPT_VERSION }
       });
     }
   });
@@ -228,11 +245,14 @@ export async function converse(input: {
   return {
     conversationId,
     reply: result.text,
-    minimisation: summariseRedactions(result.redactions),
+    minimisation: summariseRedactions(result.redactions)
   };
 }
 
-export async function conversationMessages(conversationId: string, organisationId: string) {
+export async function conversationMessages(
+  conversationId: string,
+  organisationId: string
+) {
   return withOrganisation(organisationId, async () => {
     const [conversation] = await db
       .select()
@@ -240,8 +260,8 @@ export async function conversationMessages(conversationId: string, organisationI
       .where(
         and(
           eq(aiConversations.id, conversationId),
-          eq(aiConversations.organisationId, organisationId),
-        ),
+          eq(aiConversations.organisationId, organisationId)
+        )
       );
     if (!conversation) return null;
 
@@ -264,7 +284,7 @@ export async function conversationMessages(conversationId: string, organisationI
 export async function acceptSuggestion(input: {
   organisationId: string;
   conversationId: string | null;
-  subjectType: Parameters<typeof appendAuditEvent>[1]["subjectType"];
+  subjectType: Parameters<typeof appendAuditEvent>[1]['subjectType'];
   subjectId: string;
   field: string | null;
   proposed: string;
@@ -280,12 +300,19 @@ export async function acceptSuggestion(input: {
         .where(
           and(
             eq(aiConversations.id, input.conversationId),
-            eq(aiConversations.organisationId, input.organisationId),
-          ),
+            eq(aiConversations.organisationId, input.organisationId)
+          )
         );
-      if (!own) throw new NotInOrganisation("No such conversation in this organisation.");
+      if (!own)
+        throw new NotInOrganisation(
+          'No such conversation in this organisation.'
+        );
     }
-    await assertRecordIn(input.organisationId, input.subjectType, input.subjectId);
+    await assertRecordIn(
+      input.organisationId,
+      input.subjectType,
+      input.subjectId
+    );
     return db.transaction(async (tx) => {
       const [row] = await tx
         .insert(aiSuggestions)
@@ -298,19 +325,19 @@ export async function acceptSuggestion(input: {
           proposed: input.proposed,
           model: input.model,
           promptVersion: PROMPT_VERSION,
-          status: "accepted",
+          status: 'accepted',
           decidedBy: input.actor.actorUserId ?? null,
-          decidedAt: new Date(),
+          decidedAt: new Date()
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "assistant.suggestion_accepted",
+        action: 'assistant.suggestion_accepted',
         subjectType: input.subjectType,
         subjectId: input.subjectId,
-        after: { field: input.field, model: input.model, suggestion: row.id },
+        after: { field: input.field, model: input.model, suggestion: row.id }
       });
       return row;
     });
@@ -318,15 +345,17 @@ export async function acceptSuggestion(input: {
 }
 
 /** Conversations past their retention date. Called by the sweep. */
-export async function forgetExpiredConversations(organisationId: string): Promise<number> {
+export async function forgetExpiredConversations(
+  organisationId: string
+): Promise<number> {
   return withOrganisation(organisationId, async () => {
     const expired = await db
       .delete(aiConversations)
       .where(
         and(
           eq(aiConversations.organisationId, organisationId),
-          lte(aiConversations.retainUntil, new Date()),
-        ),
+          lte(aiConversations.retainUntil, new Date())
+        )
       )
       .returning({ id: aiConversations.id });
     return expired.length;
@@ -358,7 +387,7 @@ export type ProviderSummary = {
 };
 
 export async function providerSummary(
-  organisationId: string,
+  organisationId: string
 ): Promise<ProviderSummary | null> {
   return withOrganisation(organisationId, async () => {
     const [connection] = await db
@@ -367,27 +396,27 @@ export async function providerSummary(
       .where(
         and(
           eq(integrationConnections.organisationId, organisationId),
-          eq(integrationConnections.kind, "model_provider"),
-        ),
+          eq(integrationConnections.kind, 'model_provider')
+        )
       );
     if (!connection) return null;
 
     let settings: ProviderSettings = {} as ProviderSettings;
     try {
-      settings = JSON.parse(connection.webhookUrl ?? "{}") as ProviderSettings;
+      settings = JSON.parse(connection.webhookUrl ?? '{}') as ProviderSettings;
     } catch {
       // A malformed row should still be visible and replaceable, not invisible.
     }
 
     return {
       connectionId: connection.id,
-      kind: settings.kind === "anthropic" ? "anthropic" : "openai_compatible",
-      baseUrl: settings.baseUrl ?? "",
-      model: settings.model ?? "",
+      kind: settings.kind === 'anthropic' ? 'anthropic' : 'openai_compatible',
+      baseUrl: settings.baseUrl ?? '',
+      model: settings.model ?? '',
       apiVersion: settings.apiVersion ?? null,
       surfaces: settings.surfaces ?? [],
       isActive: connection.isActive,
-      lastSeenAt: connection.lastSeenAt,
+      lastSeenAt: connection.lastSeenAt
     };
   });
 }
@@ -417,8 +446,10 @@ export async function saveProvider(input: {
       kind: input.kind,
       baseUrl: input.baseUrl.trim(),
       model: input.model.trim(),
-      ...(input.apiVersion?.trim() ? { apiVersion: input.apiVersion.trim() } : {}),
-      surfaces: input.surfaces,
+      ...(input.apiVersion?.trim()
+        ? { apiVersion: input.apiVersion.trim() }
+        : {}),
+      surfaces: input.surfaces
     };
 
     return db.transaction(async (tx) => {
@@ -428,12 +459,14 @@ export async function saveProvider(input: {
         .where(
           and(
             eq(integrationConnections.organisationId, input.organisationId),
-            eq(integrationConnections.kind, "model_provider"),
-          ),
+            eq(integrationConnections.kind, 'model_provider')
+          )
         );
 
       if (!existing && !input.apiKey) {
-        throw new Error("A key is needed the first time a provider is configured");
+        throw new Error(
+          'A key is needed the first time a provider is configured'
+        );
       }
 
       const sealed = input.apiKey
@@ -441,18 +474,18 @@ export async function saveProvider(input: {
         : {
             ciphertext: existing!.secretCiphertext,
             iv: existing!.secretIv,
-            tag: existing!.secretTag,
+            tag: existing!.secretTag
           };
 
       const values = {
         organisationId: input.organisationId,
-        kind: "model_provider" as const,
+        kind: 'model_provider' as const,
         name: `${input.kind} · ${input.model}`,
         secretCiphertext: sealed.ciphertext,
         secretIv: sealed.iv,
         secretTag: sealed.tag,
         webhookUrl: JSON.stringify(settings),
-        isActive: input.isActive,
+        isActive: input.isActive
       };
 
       const row = existing
@@ -463,13 +496,17 @@ export async function saveProvider(input: {
               .where(eq(integrationConnections.id, existing.id))
               .returning()
           )[0]
-        : (await tx.insert(integrationConnections).values(values).returning())[0];
+        : (
+            await tx.insert(integrationConnections).values(values).returning()
+          )[0];
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: existing ? "model_provider.updated" : "model_provider.configured",
-        subjectType: "integration_connection",
+        action: existing
+          ? 'model_provider.updated'
+          : 'model_provider.configured',
+        subjectType: 'integration_connection',
         subjectId: row.id,
         // The endpoint and model are recorded; the key never is.
         after: {
@@ -478,8 +515,8 @@ export async function saveProvider(input: {
           model: settings.model,
           surfaces: input.surfaces,
           isActive: input.isActive,
-          keyReplaced: Boolean(input.apiKey),
-        },
+          keyReplaced: Boolean(input.apiKey)
+        }
       });
 
       return row;
@@ -487,7 +524,10 @@ export async function saveProvider(input: {
   });
 }
 
-export async function removeProvider(input: { organisationId: string; actor: Actor }) {
+export async function removeProvider(input: {
+  organisationId: string;
+  actor: Actor;
+}) {
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
       const [existing] = await tx
@@ -496,18 +536,20 @@ export async function removeProvider(input: { organisationId: string; actor: Act
         .where(
           and(
             eq(integrationConnections.organisationId, input.organisationId),
-            eq(integrationConnections.kind, "model_provider"),
-          ),
+            eq(integrationConnections.kind, 'model_provider')
+          )
         );
       if (!existing) return;
 
-      await tx.delete(integrationConnections).where(eq(integrationConnections.id, existing.id));
+      await tx
+        .delete(integrationConnections)
+        .where(eq(integrationConnections.id, existing.id));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "model_provider.removed",
-        subjectType: "integration_connection",
-        subjectId: existing.id,
+        action: 'model_provider.removed',
+        subjectType: 'integration_connection',
+        subjectId: existing.id
       });
     });
   });
@@ -530,14 +572,17 @@ export async function removeProvider(input: { organisationId: string; actor: Act
  */
 export function mismatchedWireFormat(
   kind: ProviderKind,
-  baseUrl: string,
+  baseUrl: string
 ): string | null {
   const host = baseUrl.toLowerCase();
-  if (host.includes("api.anthropic.com") && kind !== "anthropic") {
-    return 'That endpoint is Anthropic\'s own API, but the wire format is set to OpenAI-compatible. Anthropic needs an x-api-key header and an anthropic-version, which the OpenAI shape does not send - set the wire format to Anthropic.';
+  if (host.includes('api.anthropic.com') && kind !== 'anthropic') {
+    return "That endpoint is Anthropic's own API, but the wire format is set to OpenAI-compatible. Anthropic needs an x-api-key header and an anthropic-version, which the OpenAI shape does not send - set the wire format to Anthropic.";
   }
-  if (kind === "anthropic" && (host.includes("openai.azure.com") || host.includes("api.openai.com"))) {
-    return "That endpoint speaks the OpenAI shape, but the wire format is set to Anthropic. Set it to OpenAI-compatible.";
+  if (
+    kind === 'anthropic' &&
+    (host.includes('openai.azure.com') || host.includes('api.openai.com'))
+  ) {
+    return 'That endpoint speaks the OpenAI shape, but the wire format is set to Anthropic. Set it to OpenAI-compatible.';
   }
   return null;
 }
@@ -548,21 +593,24 @@ export async function testProvider(organisationId: string): Promise<{
   model?: string;
 }> {
   const configured = await providerFor(organisationId);
-  if (!configured) return { ok: false, detail: "No model is configured." };
+  if (!configured) return { ok: false, detail: 'No model is configured.' };
 
   const unfilled = unresolvedPlaceholder(configured.config.baseUrl);
   if (unfilled) return { ok: false, detail: unfilled };
 
-  const mismatch = mismatchedWireFormat(configured.config.kind, configured.config.baseUrl);
+  const mismatch = mismatchedWireFormat(
+    configured.config.kind,
+    configured.config.baseUrl
+  );
   if (mismatch) return { ok: false, detail: mismatch };
 
   const result = await ask(configured.config, {
-    system: "Reply with the single word: ready",
-    turns: [{ role: "user", content: "Are you reachable?" }],
+    system: 'Reply with the single word: ready',
+    turns: [{ role: 'user', content: 'Are you reachable?' }],
     // Generous for a one-word answer, because a model that emits anything
     // before its text — a thinking block, a preamble — can exhaust a tighter
     // budget and return a truncated response with no text in it at all.
-    maxTokens: 256,
+    maxTokens: 256
   });
 
   if (!result.ok) {
@@ -571,17 +619,19 @@ export async function testProvider(organisationId: string): Promise<{
     // shown to somebody in the middle of an assessment.
     return {
       ok: false,
-      detail: result.detail ? `${result.reason} ${result.detail}` : result.reason,
+      detail: result.detail
+        ? `${result.reason} ${result.detail}`
+        : result.reason
     };
   }
   if (!result.text.trim()) {
     // Unreachable now: an empty answer is raised as a provider error naming
     // the blocks and the stop reason, which is a great deal more use.
-    return { ok: false, detail: "The endpoint answered, but with no text." };
+    return { ok: false, detail: 'The endpoint answered, but with no text.' };
   }
   return {
     ok: true,
     model: result.model,
-    detail: `Answered: “${result.text.trim().slice(0, 80)}”`,
+    detail: `Answered: “${result.text.trim().slice(0, 80)}”`
   };
 }

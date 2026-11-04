@@ -1,55 +1,61 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
-import { db, scoped } from "@/db/client";
-import { memberships, users } from "@/db/schema";
-import { Attachments } from "@/components/documents/Attachments";
-import { AgreementAdmin } from "@/components/thirdparty/AgreementAdmin";
-import { ReadAgreement } from "@/components/thirdparty/ReadAgreement";
-import { GapChips } from "@/components/GapChips";
-import { Discussion } from "@/components/Discussion";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { documentsFor } from "@/services/documents";
-import { agreementsFor } from "@/services/sharing-agreements";
-import { SUPPLIER_ROLES, SUPPLIER_ROLE_KEYS, isController } from "@/lib/dpa2018/sharing";
-import { extractionAvailable, latestExtraction } from "@/services/extraction";
-import { GAP_WORDS, HARD_GAPS, loadSupplier } from "@/services/third-party";
-import { StartAssessment } from "@/components/StartAssessment";
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { asc, eq } from 'drizzle-orm';
+
+import { Discussion } from '@/components/Discussion';
+import { Attachments } from '@/components/documents/Attachments';
+import { EditForm } from '@/components/EditForm';
+import { GapChips } from '@/components/GapChips';
+import { NotPermitted } from '@/components/NotPermitted';
+import { StartAssessment } from '@/components/StartAssessment';
+import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
+import { ReadAgreement } from '@/components/thirdparty/ReadAgreement';
+import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
+import { db, scoped } from '@/db/client';
+import { memberships, users } from '@/db/schema';
+import {
+  isController,
+  SUPPLIER_ROLE_KEYS,
+  SUPPLIER_ROLES
+} from '@/lib/dpa2018/sharing';
+import { can } from '@/lib/rbac';
+import { savedKey } from '@/lib/saved-key';
+import { getActiveSession } from '@/lib/session';
 import {
   AI_CONTRACT_TERMS,
   AI_GAP_WORDS,
   AI_INVOLVEMENT_LABEL,
-  RECOMMENDATION_LABEL,
-  SERIOUS_AI_GAPS,
   involvesAi,
   isRecommendation,
-  type AiInvolvement,
-} from "@/lib/thirdparty/ai-procurement";
-import { SupplierStandings } from "@/components/thirdparty/SupplierStandings";
+  RECOMMENDATION_LABEL,
+  SERIOUS_AI_GAPS,
+  type AiInvolvement
+} from '@/lib/thirdparty/ai-procurement';
+import { documentsFor } from '@/services/documents';
+import { extractionAvailable, latestExtraction } from '@/services/extraction';
+import { agreementsFor } from '@/services/sharing-agreements';
+import { GAP_WORDS, HARD_GAPS, loadSupplier } from '@/services/third-party';
+
 import {
   confirmSupplierAction,
   recordDpaAction,
   setAiInvolvementAction,
   setSupplierRoleAction,
-  updateSupplierAction,
-} from "../actions";
-import { savedKey } from "@/lib/saved-key";
-import { EditForm } from "@/components/EditForm";
+  updateSupplierAction
+} from '../actions';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 export default async function SupplierPage({
-  params,
+  params
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="The third-party register"
@@ -62,20 +68,22 @@ export default async function SupplierPage({
   if (!loaded) notFound();
 
   const { supplier, dpas, current, gaps, hardGaps, privacy, ai } = loaded;
-  const mayEdit = can(active.membership.grants, "record.write");
+  const mayEdit = can(active.membership.grants, 'record.write');
 
-  const colleagues = await scoped(active.membership.organisationId, () => db
-    .select({ id: users.id, email: users.email })
-    .from(memberships)
-    .innerJoin(users, eq(users.id, memberships.userId))
-    .where(eq(memberships.organisationId, active.membership.organisationId))
-    .orderBy(asc(users.email)));
+  const colleagues = await scoped(active.membership.organisationId, () =>
+    db
+      .select({ id: users.id, email: users.email })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(eq(memberships.organisationId, active.membership.organisationId))
+      .orderBy(asc(users.email))
+  );
 
   const org = active.membership.organisationId;
   const [sharing, supplierDocs, ...dpaDocs] = await Promise.all([
     agreementsFor(org, { supplierId: supplier.id }),
-    documentsFor(org, "supplier", supplier.id),
-    ...dpas.map((d) => documentsFor(org, "dpa", d.id)),
+    documentsFor(org, 'supplier', supplier.id),
+    ...dpas.map((d) => documentsFor(org, 'dpa', d.id))
   ]);
   const docsByDpa = new Map(dpas.map((d, i) => [d.id, dpaDocs[i] ?? []]));
 
@@ -83,7 +91,7 @@ export default async function SupplierPage({
   // whether asking is even on offer for this organisation.
   const [mayRead, ...readings] = await Promise.all([
     extractionAvailable(org),
-    ...dpas.map((d) => latestExtraction(org, d.id)),
+    ...dpas.map((d) => latestExtraction(org, d.id))
   ]);
   const readingByDpa = new Map(dpas.map((d, i) => [d.id, readings[i] ?? null]));
 
@@ -99,13 +107,13 @@ export default async function SupplierPage({
     {
       value: `supplier:${supplier.id}`,
       label: `${supplier.name} - not tied to one agreement`,
-      current: current === `supplier:${supplier.id}`,
+      current: current === `supplier:${supplier.id}`
     },
     ...dpas.map((d) => ({
       value: `dpa:${d.id}`,
-      label: d.title + (d.archivedAt ? " (archived)" : ""),
-      current: current === `dpa:${d.id}`,
-    })),
+      label: d.title + (d.archivedAt ? ' (archived)' : ''),
+      current: current === `dpa:${d.id}`
+    }))
   ];
 
   /**
@@ -116,31 +124,52 @@ export default async function SupplierPage({
    * that is invisible unless the files are named, so they are.
    */
   const readableFor = (dpaId: string) => [
-    ...(docsByDpa.get(dpaId) ?? []).map((d) => ({ name: d.filename, where: "this agreement" })),
-    ...supplierDocs.map((d) => ({ name: d.filename, where: supplier.name })),
+    ...(docsByDpa.get(dpaId) ?? []).map((d) => ({
+      name: d.filename,
+      where: 'this agreement'
+    })),
+    ...supplierDocs.map((d) => ({ name: d.filename, where: supplier.name }))
   ];
-  const mayConfigure = can(active.membership.grants, "org.manage");
+  const mayConfigure = can(active.membership.grants, 'org.manage');
   const here = `/app/third-parties/${supplier.id}`;
 
-  const needsConfirming = Boolean(supplier.sourceConnectionId && !supplier.reviewedAt);
+  const needsConfirming = Boolean(
+    supplier.sourceConnectionId && !supplier.reviewedAt
+  );
 
   return (
     <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
       <header className="space-y-3 border-b border-line pb-6">
-        <Link href="/app/third-parties" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app/third-parties"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← Third parties
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">{supplier.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {supplier.name}
+        </h1>
         <p className="text-xs text-ink-soft">
-          {supplier.sourceConnectionId ? "Reported by a connected tool" : "Recorded by a person"}
-          {supplier.reviewedAt ? ` · confirmed ${day(supplier.reviewedAt)}` : ""}
+          {supplier.sourceConnectionId
+            ? 'Reported by a connected tool'
+            : 'Recorded by a person'}
+          {supplier.reviewedAt
+            ? ` · confirmed ${day(supplier.reviewedAt)}`
+            : ''}
         </p>
-        <SupplierStandings privacy={privacy} ai={ai.standing} />
+        <SupplierStandings
+          privacy={privacy}
+          ai={ai.standing}
+        />
         <GapChips
           gaps={gaps}
           words={GAP_WORDS}
           serious={HARD_GAPS}
-          clear={supplier.role === "controller" ? "Nothing missing" : "Article 28 satisfied"}
+          clear={
+            supplier.role === 'controller'
+              ? 'Nothing missing'
+              : 'Article 28 satisfied'
+          }
         />
         {hardGaps.length > 0 ? (
           <p className="max-w-prose text-xs text-red-900">
@@ -191,7 +220,12 @@ export default async function SupplierPage({
                 className="rounded border border-line bg-ground px-3 py-2 text-sm"
               >
                 {SUPPLIER_ROLE_KEYS.map((r) => (
-                  <option key={r} value={r}>{SUPPLIER_ROLES[r]}</option>
+                  <option
+                    key={r}
+                    value={r}
+                  >
+                    {SUPPLIER_ROLES[r]}
+                  </option>
                 ))}
               </select>
             </label>
@@ -208,23 +242,38 @@ export default async function SupplierPage({
         {isController(supplier.role) ? (
           <div className="space-y-1.5 text-sm">
             <p className="max-w-prose text-xs text-ink-soft">
-              Sharing with another controller is governed by a data sharing agreement, not an Article 28 contract.
+              Sharing with another controller is governed by a data sharing
+              agreement, not an Article 28 contract.
             </p>
             {sharing.length > 0 ? (
               <ul className="space-y-0.5">
                 {sharing.map((a) => (
                   <li key={a.id}>
-                    <Link href={`/app/sharing-agreements/${a.id}`} className="hover:text-brand">
-                      <span className="font-mono text-xs text-ink-soft">{a.reference}</span> {a.title}
-                      {a.endedAt ? <span className="text-xs text-ink-soft"> (ended)</span> : null}
+                    <Link
+                      href={`/app/sharing-agreements/${a.id}`}
+                      className="hover:text-brand"
+                    >
+                      <span className="font-mono text-xs text-ink-soft">
+                        {a.reference}
+                      </span>{' '}
+                      {a.title}
+                      {a.endedAt ? (
+                        <span className="text-xs text-ink-soft"> (ended)</span>
+                      ) : null}
                     </Link>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-xs text-amber-900">
-                No data sharing agreement names them.{" "}
-                <Link href="/app/sharing-agreements" className="text-brand hover:underline">Record one</Link>.
+                No data sharing agreement names them.{' '}
+                <Link
+                  href="/app/sharing-agreements"
+                  className="text-brand hover:underline"
+                >
+                  Record one
+                </Link>
+                .
               </p>
             )}
           </div>
@@ -245,13 +294,20 @@ export default async function SupplierPage({
               </span>
               <select
                 name="aiInvolvement"
-                defaultValue={supplier.aiInvolvement ?? ""}
+                defaultValue={supplier.aiInvolvement ?? ''}
                 className="rounded border border-line bg-ground px-3 py-2 text-sm"
               >
                 <option value="">Not asked yet</option>
-                {(Object.keys(AI_INVOLVEMENT_LABEL) as AiInvolvement[]).map((v) => (
-                  <option key={v} value={v}>{AI_INVOLVEMENT_LABEL[v]}</option>
-                ))}
+                {(Object.keys(AI_INVOLVEMENT_LABEL) as AiInvolvement[]).map(
+                  (v) => (
+                    <option
+                      key={v}
+                      value={v}
+                    >
+                      {AI_INVOLVEMENT_LABEL[v]}
+                    </option>
+                  )
+                )}
               </select>
             </label>
             <button
@@ -265,57 +321,82 @@ export default async function SupplierPage({
           <p className="text-sm">
             {supplier.aiInvolvement
               ? AI_INVOLVEMENT_LABEL[supplier.aiInvolvement as AiInvolvement]
-              : "Not asked whether it uses AI."}
+              : 'Not asked whether it uses AI.'}
           </p>
         )}
         {ai.systems > 0 ? (
           <p className="text-xs text-ink-soft">
-            Supplies {ai.systems} AI system{ai.systems === 1 ? "" : "s"} on the{" "}
-            <Link href="/app/ai" className="text-brand hover:underline">AI register</Link>.
+            Supplies {ai.systems} AI system{ai.systems === 1 ? '' : 's'} on the{' '}
+            <Link
+              href="/app/ai"
+              className="text-brand hover:underline"
+            >
+              AI register
+            </Link>
+            .
           </p>
         ) : null}
         {ai.gaps.length > 0 ? (
-          <GapChips gaps={ai.gaps} words={AI_GAP_WORDS} serious={SERIOUS_AI_GAPS} clear="" />
+          <GapChips
+            gaps={ai.gaps}
+            words={AI_GAP_WORDS}
+            serious={SERIOUS_AI_GAPS}
+            clear=""
+          />
         ) : null}
         {ai.missingTerms.length > 0 ? (
           <div className="space-y-1 text-xs">
-            <p className="text-ink-soft">The contract, as last assessed, does not provide that:</p>
+            <p className="text-ink-soft">
+              The contract, as last assessed, does not provide that:
+            </p>
             <ul className="list-disc space-y-0.5 pl-5">
               {ai.missingTerms.map((t) => (
-                <li key={t}>{AI_CONTRACT_TERMS.find((x) => x.value === t)?.label}</li>
+                <li key={t}>
+                  {AI_CONTRACT_TERMS.find((x) => x.value === t)?.label}
+                </li>
               ))}
             </ul>
           </div>
         ) : null}
-        {ai.assessed?.approved && isRecommendation(ai.assessed.recommendation) ? (
+        {ai.assessed?.approved &&
+        isRecommendation(ai.assessed.recommendation) ? (
           <div
             className={`space-y-1 rounded border px-3 py-2 text-sm ${
-              ai.assessed.recommendation === "do_not_proceed"
-                ? "border-red-700 bg-red-50 text-red-900"
-                : ai.assessed.recommendation === "proceed_with_conditions"
-                  ? "border-amber-700 bg-amber-50 text-amber-900"
-                  : "border-emerald-700 bg-emerald-50 text-emerald-900"
+              ai.assessed.recommendation === 'do_not_proceed'
+                ? 'border-red-700 bg-red-50 text-red-900'
+                : ai.assessed.recommendation === 'proceed_with_conditions'
+                  ? 'border-amber-700 bg-amber-50 text-amber-900'
+                  : 'border-emerald-700 bg-emerald-50 text-emerald-900'
             }`}
           >
             <p>
-              <span className="font-semibold">AI assessment recommends:</span>{" "}
+              <span className="font-semibold">AI assessment recommends:</span>{' '}
               {RECOMMENDATION_LABEL[ai.assessed.recommendation]}
             </p>
             {ai.assessed.conditions ? (
-              <p className="whitespace-pre-line text-xs">{ai.assessed.conditions}</p>
+              <p className="whitespace-pre-line text-xs">
+                {ai.assessed.conditions}
+              </p>
             ) : null}
           </div>
         ) : null}
         {ai.assessed ? (
           <p className="text-xs text-ink-soft">
-            Last assessed in{" "}
-            <Link href={`/app/assessments/${ai.assessed.assessmentId}`} className="font-mono text-brand hover:underline">
+            Last assessed in{' '}
+            <Link
+              href={`/app/assessments/${ai.assessed.assessmentId}`}
+              className="font-mono text-brand hover:underline"
+            >
               {ai.assessed.reference}
             </Link>
-            {ai.assessed.approved ? "" : " - not yet approved, so its answers are not relied on yet"}
+            {ai.assessed.approved
+              ? ''
+              : ' - not yet approved, so its answers are not relied on yet'}
           </p>
         ) : null}
-        {(involvesAi(supplier.aiInvolvement as AiInvolvement | null) || ai.systems > 0) && mayEdit ? (
+        {(involvesAi(supplier.aiInvolvement as AiInvolvement | null) ||
+          ai.systems > 0) &&
+        mayEdit ? (
           <StartAssessment
             organisationId={org}
             subjectType="supplier"
@@ -329,7 +410,10 @@ export default async function SupplierPage({
         <h2 className="text-sm font-semibold">Agreements</h2>
         <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
           {dpas.map((d) => (
-            <li key={d.id} className="space-y-1 px-4 py-3 text-sm">
+            <li
+              key={d.id}
+              className="space-y-1 px-4 py-3 text-sm"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4">
                 <span className="font-medium">
                   {d.title}
@@ -345,19 +429,21 @@ export default async function SupplierPage({
                   ) : null}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
-                  {d.signedAt ? `signed ${day(d.signedAt)}` : "not signed"}
-                  {d.expiresAt ? ` → ${day(d.expiresAt)}` : " → no end date"}
+                  {d.signedAt ? `signed ${day(d.signedAt)}` : 'not signed'}
+                  {d.expiresAt ? ` → ${day(d.expiresAt)}` : ' → no end date'}
                 </span>
               </div>
-              <p className={`text-xs text-ink-soft${d.archivedAt ? " line-through" : ""}`}>
-                {d.documentRef ? `${d.documentRef} · ` : ""}
+              <p
+                className={`text-xs text-ink-soft${d.archivedAt ? ' line-through' : ''}`}
+              >
+                {d.documentRef ? `${d.documentRef} · ` : ''}
                 {d.transferMechanism
                   ? `transfers: ${d.transferMechanism}`
-                  : "no transfer mechanism recorded"}
-                {" · "}
+                  : 'no transfer mechanism recorded'}
+                {' · '}
                 {(d.subProcessors ?? []).length > 0
-                  ? `sub-processors: ${(d.subProcessors ?? []).join(", ")}`
-                  : "sub-processors not recorded"}
+                  ? `sub-processors: ${(d.subProcessors ?? []).join(', ')}`
+                  : 'sub-processors not recorded'}
               </p>
               <Attachments
                 subjectType="dpa"
@@ -379,7 +465,12 @@ export default async function SupplierPage({
                 mayConfigure={mayConfigure}
                 readable={readableFor(d.id)}
               />
-              {mayEdit ? <AgreementAdmin supplierId={supplier.id} dpa={d} /> : null}
+              {mayEdit ? (
+                <AgreementAdmin
+                  supplierId={supplier.id}
+                  dpa={d}
+                />
+              ) : null}
             </li>
           ))}
           {dpas.length === 0 ? (
@@ -422,11 +513,28 @@ export default async function SupplierPage({
               action={recordDpaAction.bind(null, supplier.id)}
               className="space-y-3 border-t border-line p-4"
             >
-              <Field label="Title" name="title" required />
-              <Field label="Document reference" name="documentRef" hint="where the signed copy lives" />
+              <Field
+                label="Title"
+                name="title"
+                required
+              />
+              <Field
+                label="Document reference"
+                name="documentRef"
+                hint="where the signed copy lives"
+              />
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Signed" name="signedAt" type="date" />
-                <Field label="Expires" name="expiresAt" type="date" hint="leave empty if perpetual" />
+                <Field
+                  label="Signed"
+                  name="signedAt"
+                  type="date"
+                />
+                <Field
+                  label="Expires"
+                  name="expiresAt"
+                  type="date"
+                  hint="leave empty if perpetual"
+                />
               </div>
               <Field
                 label="Transfer mechanism"
@@ -453,17 +561,21 @@ export default async function SupplierPage({
             className="space-y-4 rounded border border-line bg-surface p-5"
           >
             <h2 className="text-sm font-semibold">The third party</h2>
-            <Field label="Name" name="name" defaultValue={supplier.name} />
+            <Field
+              label="Name"
+              name="name"
+              defaultValue={supplier.name}
+            />
             <Area
               label="What they do for you"
               name="description"
-              defaultValue={supplier.description ?? ""}
+              defaultValue={supplier.description ?? ''}
               rows={2}
             />
             <Area
               label="Categories"
               name="categories"
-              defaultValue={(supplier.categories ?? []).join("\n")}
+              defaultValue={(supplier.categories ?? []).join('\n')}
             />
             <label className="block space-y-1">
               <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
@@ -474,12 +586,17 @@ export default async function SupplierPage({
               </span>
               <select
                 name="ownerId"
-                defaultValue={supplier.ownerId ?? ""}
+                defaultValue={supplier.ownerId ?? ''}
                 className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
               >
                 <option value="">Nobody yet</option>
                 {colleagues.map((c) => (
-                  <option key={c.id} value={c.id}>{c.email}</option>
+                  <option
+                    key={c.id}
+                    value={c.id}
+                  >
+                    {c.email}
+                  </option>
                 ))}
               </select>
             </label>
@@ -508,7 +625,9 @@ function Label({ text, hint }: { text: string; hint?: string }) {
     <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
       {text}
       {hint ? (
-        <span className="block font-normal normal-case tracking-normal">{hint}</span>
+        <span className="block font-normal normal-case tracking-normal">
+          {hint}
+        </span>
       ) : null}
     </span>
   );
@@ -518,9 +637,9 @@ function Field({
   label,
   name,
   hint,
-  type = "text",
+  type = 'text',
   required,
-  defaultValue,
+  defaultValue
 }: {
   label: string;
   name: string;
@@ -531,7 +650,10 @@ function Field({
 }) {
   return (
     <label className="block space-y-1">
-      <Label text={label} hint={hint} />
+      <Label
+        text={label}
+        hint={hint}
+      />
       <input
         name={name}
         type={type}
@@ -548,7 +670,7 @@ function Area({
   name,
   hint,
   defaultValue,
-  rows = 3,
+  rows = 3
 }: {
   label: string;
   name: string;
@@ -558,7 +680,10 @@ function Area({
 }) {
   return (
     <label className="block space-y-1">
-      <Label text={label} hint={hint} />
+      <Label
+        text={label}
+        hint={hint}
+      />
       <textarea
         name={name}
         rows={rows}

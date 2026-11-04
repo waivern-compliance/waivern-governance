@@ -1,16 +1,17 @@
-import { z } from "zod";
+import { z } from 'zod';
+
 import {
   ADM_SPECIAL_CONDITION_KEYS,
   type AdmRecord,
-  type AdmSafeguard,
-} from "@/lib/gdpr/automated-decisions";
+  type AdmSafeguard
+} from '@/lib/gdpr/automated-decisions';
 import {
   ANNEX2_CONDITION_KEYS,
   COMPATIBILITY_FACTOR_KEYS,
   COMPATIBILITY_ROUTE_KEYS,
   type FurtherProcessingRecord,
-  type ResearchSafeguard,
-} from "@/lib/gdpr/further-processing";
+  type ResearchSafeguard
+} from '@/lib/gdpr/further-processing';
 
 /**
  * The Integration API's shape for the Data (Use and Access) Act records:
@@ -23,29 +24,40 @@ import {
  * no view on it.
  */
 
-const confirmation = z.object({ confirmed: z.boolean(), note: z.string().max(2000).optional() });
+const confirmation = z.object({
+  confirmed: z.boolean(),
+  note: z.string().max(2000).optional()
+});
 const note = z.string().max(4000);
 
 const ADM_WIRE = {
-  information: "information",
-  representations: "representations",
-  humanIntervention: "human_intervention",
-  contest: "contest",
+  information: 'information',
+  representations: 'representations',
+  humanIntervention: 'human_intervention',
+  contest: 'contest'
 } as const satisfies Record<string, AdmSafeguard>;
 
 const RESEARCH_WIRE = {
-  noSubstantialHarm: "no_substantial_harm",
-  noIndividualDecisions: "no_individual_decisions",
-  dataMinimisation: "data_minimisation",
+  noSubstantialHarm: 'no_substantial_harm',
+  noIndividualDecisions: 'no_individual_decisions',
+  dataMinimisation: 'data_minimisation'
 } as const satisfies Record<string, ResearchSafeguard>;
 
-const enumOf = <T extends string>(keys: readonly T[]) => z.enum(keys as [T, ...T[]]);
+const enumOf = <T extends string>(keys: readonly T[]) =>
+  z.enum(keys as [T, ...T[]]);
 
 export const automatedDecisionsWire = z.object({
   solelyAutomated: z.boolean().nullable(),
   specialCategory: z.boolean().nullable().optional(),
   specialCondition: enumOf(ADM_SPECIAL_CONDITION_KEYS).nullable().optional(),
-  safeguards: z.object(Object.fromEntries(Object.keys(ADM_WIRE).map((k) => [k, confirmation.optional()]))).strict().optional(),
+  safeguards: z
+    .object(
+      Object.fromEntries(
+        Object.keys(ADM_WIRE).map((k) => [k, confirmation.optional()])
+      )
+    )
+    .strict()
+    .optional()
 });
 
 export const furtherProcessingWire = z.object({
@@ -55,16 +67,30 @@ export const furtherProcessingWire = z.object({
   route: enumOf(COMPATIBILITY_ROUTE_KEYS).nullable().optional(),
   annex2Condition: enumOf(ANNEX2_CONDITION_KEYS).nullable().optional(),
   consentUnobtainable: z.boolean().nullable().optional(),
-  factors: z.object(Object.fromEntries(COMPATIBILITY_FACTOR_KEYS.map((k) => [k, note.optional()]))).strict().optional(),
-  note: note.nullable().optional(),
+  factors: z
+    .object(
+      Object.fromEntries(
+        COMPATIBILITY_FACTOR_KEYS.map((k) => [k, note.optional()])
+      )
+    )
+    .strict()
+    .optional(),
+  note: note.nullable().optional()
 });
 
 export const researchWire = z.object({
   isResearch: z.boolean().nullable(),
-  safeguards: z.object(Object.fromEntries(Object.keys(RESEARCH_WIRE).map((k) => [k, confirmation.optional()]))).strict().optional(),
+  safeguards: z
+    .object(
+      Object.fromEntries(
+        Object.keys(RESEARCH_WIRE).map((k) => [k, confirmation.optional()])
+      )
+    )
+    .strict()
+    .optional(),
   approvedMedicalResearch: z.boolean().nullable().optional(),
   art13Exemption: z.boolean().nullable().optional(),
-  publicInformationUrl: z.url().max(2000).nullable().optional(),
+  publicInformationUrl: z.url().max(2000).nullable().optional()
 });
 
 export type AutomatedDecisionsWire = z.infer<typeof automatedDecisionsWire>;
@@ -75,7 +101,7 @@ type Confirmation = { confirmed: boolean; note?: string };
 
 function rename<W extends string, I extends string>(
   map: Record<W, I>,
-  given: Partial<Record<string, Confirmation | undefined>> | undefined,
+  given: Partial<Record<string, Confirmation | undefined>> | undefined
 ): Record<string, Confirmation> {
   const out: Record<string, Confirmation> = {};
   for (const [wire, internal] of Object.entries(map) as Array<[W, I]>) {
@@ -87,7 +113,7 @@ function rename<W extends string, I extends string>(
 
 function unrename<W extends string, I extends string>(
   map: Record<W, I>,
-  stored: Partial<Record<I, Confirmation>> | undefined,
+  stored: Partial<Record<I, Confirmation>> | undefined
 ): Partial<Record<W, Confirmation>> {
   const out: Partial<Record<W, Confirmation>> = {};
   for (const [wire, internal] of Object.entries(map) as Array<[W, I]>) {
@@ -103,7 +129,7 @@ export function admFromWire(w: AutomatedDecisionsWire) {
     automatedDecisions: w.solelyAutomated,
     admSpecialCategory: w.specialCategory ?? null,
     admSpecialCondition: w.specialCondition ?? null,
-    admSafeguards: rename(ADM_WIRE, w.safeguards),
+    admSafeguards: rename(ADM_WIRE, w.safeguards)
   };
 }
 
@@ -112,7 +138,7 @@ export function admToWire(r: AdmRecord): AutomatedDecisionsWire {
     solelyAutomated: r.automatedDecisions,
     specialCategory: r.admSpecialCategory,
     specialCondition: r.admSpecialCondition,
-    safeguards: unrename(ADM_WIRE, r.admSafeguards),
+    safeguards: unrename(ADM_WIRE, r.admSafeguards)
   };
 }
 
@@ -125,15 +151,17 @@ export function furtherFromWire(w: FurtherProcessingWire) {
     annex2Condition: w.annex2Condition ?? null,
     consentUnobtainable: w.consentUnobtainable ?? null,
     compatibilityFactors: Object.fromEntries(
-      Object.entries(w.factors ?? {}).filter((e): e is [string, string] => typeof e[1] === "string"),
+      Object.entries(w.factors ?? {}).filter(
+        (e): e is [string, string] => typeof e[1] === 'string'
+      )
     ),
-    compatibilityNote: w.note ?? null,
+    compatibilityNote: w.note ?? null
   };
 }
 
 export function furtherToWire(
   r: FurtherProcessingRecord,
-  original: { reference: string; externalRef: string | null } | null,
+  original: { reference: string; externalRef: string | null } | null
 ): FurtherProcessingWire & { originalReference: string | null } {
   return {
     isFurtherProcessing: r.furtherProcessing,
@@ -144,7 +172,7 @@ export function furtherToWire(
     annex2Condition: r.annex2Condition,
     consentUnobtainable: r.consentUnobtainable,
     factors: r.compatibilityFactors ?? {},
-    note: r.compatibilityNote,
+    note: r.compatibilityNote
   };
 }
 
@@ -154,7 +182,7 @@ export function researchFromWire(w: ResearchWire) {
     researchSafeguards: rename(RESEARCH_WIRE, w.safeguards),
     approvedMedicalResearch: w.approvedMedicalResearch ?? null,
     art13Exemption: w.art13Exemption ?? null,
-    publicInformationUrl: w.publicInformationUrl ?? null,
+    publicInformationUrl: w.publicInformationUrl ?? null
   };
 }
 
@@ -164,6 +192,6 @@ export function researchToWire(r: FurtherProcessingRecord): ResearchWire {
     safeguards: unrename(RESEARCH_WIRE, r.researchSafeguards),
     approvedMedicalResearch: r.approvedMedicalResearch,
     art13Exemption: r.art13Exemption,
-    publicInformationUrl: r.publicInformationUrl,
+    publicInformationUrl: r.publicInformationUrl
   };
 }

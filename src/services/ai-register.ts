@@ -1,9 +1,7 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db, type Db, withOrganisation } from "@/db/client";
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
-/** The database, or a transaction to run inside. */
-type Executor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+import { db, withOrganisation, type Db } from '@/db/client';
 import {
   aiChanges,
   aiUseCases,
@@ -11,21 +9,33 @@ import {
   assessments,
   referenceCounters,
   suppliers,
-  templateVersions,
   templates,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import type { AssuranceSummary } from "@/lib/ai/assurance";
-import { ADM_GAP_WORDS, admGaps, type AdmGap } from "@/lib/gdpr/automated-decisions";
-import { assuranceByUseCase } from "./ai-assurance";
-import { systemsWithUnresolvedHarm } from "./ai-incidents";
-import { lastMaterialChanges } from "./ai-lifecycle";
-import { systemsWithCurrentRecord } from "./atrs";
-import { aiSupplierAssessments } from "./third-party";
-import { trainedOwners as ownersWithTraining } from "./training";
-import type { Actor } from "./templates";
-import { assertEntityIn, assertMemberOf, assertRecordIn } from "./tenancy-guards";
+  templateVersions,
+  users
+} from '@/db/schema';
+import type { AssuranceSummary } from '@/lib/ai/assurance';
+import { appendAuditEvent } from '@/lib/audit';
+import {
+  ADM_GAP_WORDS,
+  admGaps,
+  type AdmGap
+} from '@/lib/gdpr/automated-decisions';
+
+import { assuranceByUseCase } from './ai-assurance';
+import { systemsWithUnresolvedHarm } from './ai-incidents';
+import { lastMaterialChanges } from './ai-lifecycle';
+import { systemsWithCurrentRecord } from './atrs';
+import type { Actor } from './templates';
+import {
+  assertEntityIn,
+  assertMemberOf,
+  assertRecordIn
+} from './tenancy-guards';
+import { aiSupplierAssessments } from './third-party';
+import { trainedOwners as ownersWithTraining } from './training';
+
+/** The database, or a transaction to run inside. */
+type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * The AI register.
@@ -36,35 +46,49 @@ import { assertEntityIn, assertMemberOf, assertRecordIn } from "./tenancy-guards
  * so rather than quietly showing the newer fact under the older judgement.
  */
 
-export type SystemType = "predictive" | "generative" | "agentic" | "hybrid";
-export type Provenance = "built_in_house" | "fine_tuned" | "third_party_api" | "embedded_vendor";
+export type SystemType = 'predictive' | 'generative' | 'agentic' | 'hybrid';
+export type Provenance =
+  | 'built_in_house'
+  | 'fine_tuned'
+  | 'third_party_api'
+  | 'embedded_vendor';
 export type LifecycleStage =
-  | "proposed" | "development" | "pilot" | "production" | "retiring" | "retired";
-export type TransparencyScope = "required" | "voluntary" | "not_in_scope";
+  | 'proposed'
+  | 'development'
+  | 'pilot'
+  | 'production'
+  | 'retiring'
+  | 'retired';
+export type TransparencyScope = 'required' | 'voluntary' | 'not_in_scope';
 export type DeploymentPattern =
-  | "public_web_app" | "embedded" | "public_api" | "privately_hosted" | "local" | "trained_here";
+  | 'public_web_app'
+  | 'embedded'
+  | 'public_api'
+  | 'privately_hosted'
+  | 'local'
+  | 'trained_here';
 
 export const SYSTEM_TYPE_LABEL: Record<SystemType, string> = {
-  predictive: "Predictive / classic ML",
-  generative: "Generative",
-  agentic: "Agentic",
-  hybrid: "Hybrid",
+  predictive: 'Predictive / classic ML',
+  generative: 'Generative',
+  agentic: 'Agentic',
+  hybrid: 'Hybrid'
 };
 
 export const PROVENANCE_LABEL: Record<Provenance, string> = {
-  built_in_house: "Built here",
-  fine_tuned: "Third-party model, adapted here",
-  third_party_api: "Third-party service",
-  embedded_vendor: "Embedded in a bought product",
+  built_in_house: 'Built here',
+  fine_tuned: 'Third-party model, adapted here',
+  third_party_api: 'Third-party service',
+  embedded_vendor: 'Embedded in a bought product'
 };
 
 export const STAGE_LABEL: Record<LifecycleStage, string> = {
-  proposed: "Proposed",
-  development: "In development",
-  pilot: "Piloting",
-  production: "In production",
-  retiring: "Being retired",
-  retired: "Retired",
+  proposed: 'Proposed',
+  development: 'In development',
+  pilot: 'Piloting',
+  production: 'In production',
+  retiring: 'Being retired',
+  retired: 'Retired'
 };
 
 /**
@@ -72,23 +96,23 @@ export const STAGE_LABEL: Record<LifecycleStage, string> = {
  * filling in the register would recognise their own system.
  */
 export const DEPLOYMENT_PATTERN_LABEL: Record<DeploymentPattern, string> = {
-  public_web_app: "Public AI app or website, used as-is",
-  embedded: "AI features inside software we bought",
+  public_web_app: 'Public AI app or website, used as-is',
+  embedded: 'AI features inside software we bought',
   public_api: "A provider's public API, called from our code",
-  privately_hosted: "A model hosted on infrastructure we control",
+  privately_hosted: 'A model hosted on infrastructure we control',
   local: "A model running on people's own devices",
-  trained_here: "A model trained or fine-tuned here",
+  trained_here: 'A model trained or fine-tuned here'
 };
 
 /** Whether the Algorithmic Transparency Recording Standard applies. */
 export const TRANSPARENCY_SCOPE_LABEL: Record<TransparencyScope, string> = {
-  required: "Required - we must publish an ATRS record",
-  voluntary: "Not required, but we publish one",
-  not_in_scope: "Not in scope",
+  required: 'Required - we must publish an ATRS record',
+  voluntary: 'Not required, but we publish one',
+  not_in_scope: 'Not in scope'
 };
 
 /** Stages where the system is actually touching people. */
-export const LIVE_STAGES: LifecycleStage[] = ["pilot", "production"];
+export const LIVE_STAGES: LifecycleStage[] = ['pilot', 'production'];
 
 /**
  * The question keys this reads out of an approved AI risk assessment.
@@ -100,11 +124,11 @@ export const LIVE_STAGES: LifecycleStage[] = ["pilot", "production"];
  * drifts from the judgement somebody actually signed.
  */
 const ASSESSMENT_KEYS = {
-  consequence: "consequence",
-  humanOversight: "human_oversight",
-  monitoring: "monitoring",
-  biasConsidered: "bias_considered",
-  contestability: "contestability",
+  consequence: 'consequence',
+  humanOversight: 'human_oversight',
+  monitoring: 'monitoring',
+  biasConsidered: 'bias_considered',
+  contestability: 'contestability'
 } as const;
 
 export type AssessedFacts = {
@@ -121,44 +145,45 @@ export type AssessedFacts = {
 
 /** Every reason a use case might need somebody's attention. */
 export type Gap =
-  | "never_assessed"
-  | "assessment_not_approved"
-  | "no_owner"
-  | "live_without_monitoring"
-  | "decides_without_oversight"
-  | "bias_not_assessed"
-  | "review_overdue"
-  | "transparency_record_missing"
-  | "changed_since_assessment"
-  | "never_tested"
-  | "not_independently_tested"
-  | "last_test_failed"
-  | "unresolved_harm"
-  | "supplier_unrecorded"
-  | "supplier_not_assessed"
-  | "supplier_advised_against"
-  | "owner_not_trained"
+  | 'never_assessed'
+  | 'assessment_not_approved'
+  | 'no_owner'
+  | 'live_without_monitoring'
+  | 'decides_without_oversight'
+  | 'bias_not_assessed'
+  | 'review_overdue'
+  | 'transparency_record_missing'
+  | 'changed_since_assessment'
+  | 'never_tested'
+  | 'not_independently_tested'
+  | 'last_test_failed'
+  | 'unresolved_harm'
+  | 'supplier_unrecorded'
+  | 'supplier_not_assessed'
+  | 'supplier_advised_against'
+  | 'owner_not_trained'
   | AdmGap;
 
 export const GAP_WORDS: Record<Gap, string> = {
-  never_assessed: "Never assessed",
-  assessment_not_approved: "Assessment not finished",
-  no_owner: "No named owner",
-  live_without_monitoring: "Live, nothing monitored",
-  decides_without_oversight: "Decides with no human oversight",
-  bias_not_assessed: "Bias never assessed",
-  review_overdue: "Review overdue",
-  transparency_record_missing: "No transparency record",
-  changed_since_assessment: "Changed since assessed",
-  never_tested: "Live, never tested",
-  not_independently_tested: "No independent testing",
-  last_test_failed: "Failed its last test",
-  unresolved_harm: "Reported harm unresolved",
-  supplier_unrecorded: "Bought in; supplier not on the register",
+  never_assessed: 'Never assessed',
+  assessment_not_approved: 'Assessment not finished',
+  no_owner: 'No named owner',
+  live_without_monitoring: 'Live, nothing monitored',
+  decides_without_oversight: 'Decides with no human oversight',
+  bias_not_assessed: 'Bias never assessed',
+  review_overdue: 'Review overdue',
+  transparency_record_missing: 'No transparency record',
+  changed_since_assessment: 'Changed since assessed',
+  never_tested: 'Live, never tested',
+  not_independently_tested: 'No independent testing',
+  last_test_failed: 'Failed its last test',
+  unresolved_harm: 'Reported harm unresolved',
+  supplier_unrecorded: 'Bought in; supplier not on the register',
   supplier_not_assessed: "Supplier's AI never assessed",
-  supplier_advised_against: "Supplier's AI assessment recommends not proceeding",
+  supplier_advised_against:
+    "Supplier's AI assessment recommends not proceeding",
   owner_not_trained: "Owner's AI learning not current",
-  ...ADM_GAP_WORDS,
+  ...ADM_GAP_WORDS
 };
 
 /**
@@ -167,11 +192,15 @@ export const GAP_WORDS: Record<Gap, string> = {
  * provenance is always set, and deployment may be known where provenance was
  * recorded loosely.
  */
-export function suppliedByThirdParty(useCase: typeof aiUseCases.$inferSelect): boolean {
+export function suppliedByThirdParty(
+  useCase: typeof aiUseCases.$inferSelect
+): boolean {
   return (
-    useCase.provenance === "third_party_api" ||
-    useCase.provenance === "embedded_vendor" ||
-    ["public_web_app", "embedded", "public_api"].includes(useCase.deploymentPattern ?? "")
+    useCase.provenance === 'third_party_api' ||
+    useCase.provenance === 'embedded_vendor' ||
+    ['public_web_app', 'embedded', 'public_api'].includes(
+      useCase.deploymentPattern ?? ''
+    )
   );
 }
 
@@ -183,12 +212,12 @@ export function suppliedByThirdParty(useCase: typeof aiUseCases.$inferSelect): b
  * they are unknowns, not prohibitions.
  */
 export const SERIOUS_GAPS: Gap[] = [
-  "never_assessed",
-  "live_without_monitoring",
-  "decides_without_oversight",
-  "last_test_failed",
-  "unresolved_harm",
-  "adm_special_no_condition",
+  'never_assessed',
+  'live_without_monitoring',
+  'decides_without_oversight',
+  'last_test_failed',
+  'unresolved_harm',
+  'adm_special_no_condition'
 ];
 
 export type RegisterEntry = {
@@ -198,7 +227,11 @@ export type RegisterEntry = {
   gaps: Gap[];
 };
 
-async function nextReference(organisationId: string, year: number, executor: Executor = db) {
+async function nextReference(
+  organisationId: string,
+  year: number,
+  executor: Executor = db
+) {
   const rows = await executor.execute<{ next_value: number | string }>(sql`
     insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
     values (${organisationId}, 'AI', ${year}, 1)
@@ -206,44 +239,63 @@ async function nextReference(organisationId: string, year: number, executor: Exe
       do update set next_value = ${referenceCounters}.next_value + 1
     returning next_value
   `);
-  return `AI-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, "0")}`;
+  return `AI-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
-export async function createUseCase(input: {
-  organisationId: string;
-  entityId: string;
-  name: string;
-  purpose: string;
-  description?: string;
-  systemType: SystemType;
-  provenance: Provenance;
-  lifecycleStage?: LifecycleStage;
-  deploymentPattern?: DeploymentPattern | null;
-  vendor?: string;
-  modelName?: string;
-  ownerId?: string | null;
-  governanceOfficerId?: string | null;
-  responsibleTeam?: string;
-  deployedIn?: string[];
-  processesPersonalData?: boolean;
-  nextReviewAt?: Date;
-  dataCategories?: string[];
-  supplierId?: string | null;
-  /** Where it came from, when an integration recorded it. */
-  source?: { connectionId: string; externalRef: string };
-  actor: Actor;
-}, executor: Executor = db) {
+export async function createUseCase(
+  input: {
+    organisationId: string;
+    entityId: string;
+    name: string;
+    purpose: string;
+    description?: string;
+    systemType: SystemType;
+    provenance: Provenance;
+    lifecycleStage?: LifecycleStage;
+    deploymentPattern?: DeploymentPattern | null;
+    vendor?: string;
+    modelName?: string;
+    ownerId?: string | null;
+    governanceOfficerId?: string | null;
+    responsibleTeam?: string;
+    deployedIn?: string[];
+    processesPersonalData?: boolean;
+    nextReviewAt?: Date;
+    dataCategories?: string[];
+    supplierId?: string | null;
+    /** Where it came from, when an integration recorded it. */
+    source?: { connectionId: string; externalRef: string };
+    actor: Actor;
+  },
+  executor: Executor = db
+) {
   return withOrganisation(input.organisationId, async () => {
-    const reference = await nextReference(input.organisationId, new Date().getUTCFullYear(), executor);
-    const stage = input.lifecycleStage ?? "proposed";
+    const reference = await nextReference(
+      input.organisationId,
+      new Date().getUTCFullYear(),
+      executor
+    );
+    const stage = input.lifecycleStage ?? 'proposed';
 
     // Nested inside a caller's transaction where one is passed, so registering
     // a system and recording why stand or fall together.
     return executor.transaction(async (tx) => {
       await assertEntityIn(input.organisationId, input.entityId, tx);
-      if (input.ownerId) await assertMemberOf(input.organisationId, input.ownerId, tx);
-      if (input.governanceOfficerId) await assertMemberOf(input.organisationId, input.governanceOfficerId, tx);
-      if (input.supplierId) await assertRecordIn(input.organisationId, "supplier", input.supplierId, tx);
+      if (input.ownerId)
+        await assertMemberOf(input.organisationId, input.ownerId, tx);
+      if (input.governanceOfficerId)
+        await assertMemberOf(
+          input.organisationId,
+          input.governanceOfficerId,
+          tx
+        );
+      if (input.supplierId)
+        await assertRecordIn(
+          input.organisationId,
+          'supplier',
+          input.supplierId,
+          tx
+        );
       const [row] = await tx
         .insert(aiUseCases)
         .values({
@@ -272,7 +324,7 @@ export async function createUseCase(input: {
           // Registered already live is the common case for an inventory being
           // built after the fact. The date is when it was recorded as live, not
           // a guess at when it started — the register says what it knows.
-          liveSince: LIVE_STAGES.includes(stage) ? new Date() : null,
+          liveSince: LIVE_STAGES.includes(stage) ? new Date() : null
         })
         .returning();
 
@@ -281,19 +333,19 @@ export async function createUseCase(input: {
         organisationId: input.organisationId,
         entityId: input.entityId,
         aiUseCaseId: row.id,
-        kind: "stage",
+        kind: 'stage',
         fromStage: null,
         toStage: stage,
-        summary: "Added to the register.",
+        summary: 'Added to the register.',
         recordedByUserId: input.actor.actorUserId ?? null,
-        recordedByLabel: input.actor.actorLabel,
+        recordedByLabel: input.actor.actorLabel
       });
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_use_case.registered",
-        subjectType: "ai_use_case",
+        action: 'ai_use_case.registered',
+        subjectType: 'ai_use_case',
         subjectId: row.id,
         entityId: input.entityId,
         after: {
@@ -301,8 +353,8 @@ export async function createUseCase(input: {
           name: row.name,
           systemType: row.systemType,
           lifecycleStage: row.lifecycleStage,
-          deploymentPattern: row.deploymentPattern,
-        },
+          deploymentPattern: row.deploymentPattern
+        }
       });
 
       return row;
@@ -312,27 +364,31 @@ export async function createUseCase(input: {
 
 /** Suppliers whose AI supply has an approved assessment, and those it advised against. */
 async function approvedAiSuppliers(organisationId: string) {
-  const assessed = [...(await aiSupplierAssessments(organisationId))].filter(([, a]) => a.approved);
+  const assessed = [...(await aiSupplierAssessments(organisationId))].filter(
+    ([, a]) => a.approved
+  );
   return {
     approved: new Set(assessed.map(([id]) => id)),
     advisedAgainst: new Set(
-      assessed.filter(([, a]) => a.recommendation === "do_not_proceed").map(([id]) => id),
-    ),
+      assessed
+        .filter(([, a]) => a.recommendation === 'do_not_proceed')
+        .map(([id]) => id)
+    )
   };
 }
 
 /** The fields an update may touch, and which of them the audit record shows. */
 const TRACKED_FIELDS = [
-  "deploymentPattern",
-  "ownerId",
-  "governanceOfficerId",
-  "responsibleTeam",
-  "vendor",
-  "supplierId",
-  "modelName",
-  "processesPersonalData",
-  "nextReviewAt",
-  "transparencyScope",
+  'deploymentPattern',
+  'ownerId',
+  'governanceOfficerId',
+  'responsibleTeam',
+  'vendor',
+  'supplierId',
+  'modelName',
+  'processesPersonalData',
+  'nextReviewAt',
+  'transparencyScope'
 ] as const;
 
 export async function updateUseCase(input: {
@@ -362,13 +418,18 @@ export async function updateUseCase(input: {
         .where(
           and(
             eq(aiUseCases.id, input.useCaseId),
-            eq(aiUseCases.organisationId, input.organisationId),
-          ),
+            eq(aiUseCases.organisationId, input.organisationId)
+          )
         );
-      if (!before) throw new Error("No such AI use case");
-      if (input.changes.ownerId) await assertMemberOf(input.organisationId, input.changes.ownerId, tx);
+      if (!before) throw new Error('No such AI use case');
+      if (input.changes.ownerId)
+        await assertMemberOf(input.organisationId, input.changes.ownerId, tx);
       if (input.changes.governanceOfficerId) {
-        await assertMemberOf(input.organisationId, input.changes.governanceOfficerId, tx);
+        await assertMemberOf(
+          input.organisationId,
+          input.changes.governanceOfficerId,
+          tx
+        );
       }
 
       // Another organisation's supplier would be a link nobody here can follow,
@@ -380,10 +441,10 @@ export async function updateUseCase(input: {
           .where(
             and(
               eq(suppliers.id, input.changes.supplierId),
-              eq(suppliers.organisationId, input.organisationId),
-            ),
+              eq(suppliers.organisationId, input.organisationId)
+            )
           );
-        if (!own) throw new Error("No such supplier");
+        if (!own) throw new Error('No such supplier');
       }
 
       const [after] = await tx
@@ -395,17 +456,19 @@ export async function updateUseCase(input: {
       // Only what actually moved, so the log reads as a list of changes rather
       // than a dump of the record with the change somewhere inside it.
       const changed = TRACKED_FIELDS.filter(
-        (f) => f in input.changes && String(before[f] ?? "") !== String(after[f] ?? ""),
+        (f) =>
+          f in input.changes &&
+          String(before[f] ?? '') !== String(after[f] ?? '')
       );
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_use_case.updated",
-        subjectType: "ai_use_case",
+        action: 'ai_use_case.updated',
+        subjectType: 'ai_use_case',
         subjectId: input.useCaseId,
         entityId: before.entityId,
         before: Object.fromEntries(changed.map((f) => [f, before[f]])),
-        after: Object.fromEntries(changed.map((f) => [f, after[f]])),
+        after: Object.fromEntries(changed.map((f) => [f, after[f]]))
       });
 
       return after;
@@ -414,12 +477,17 @@ export async function updateUseCase(input: {
 }
 
 /** The most recent assessment bound to this use case, and what it concluded. */
-async function latestAssessment(useCaseId: string): Promise<AssessedFacts | null> {
+async function latestAssessment(
+  useCaseId: string
+): Promise<AssessedFacts | null> {
   const [row] = await db
     .select({ assessment: assessments })
     .from(assessments)
     .where(
-      and(eq(assessments.subjectType, "ai_use_case"), eq(assessments.subjectId, useCaseId)),
+      and(
+        eq(assessments.subjectType, 'ai_use_case'),
+        eq(assessments.subjectId, useCaseId)
+      )
     )
     .orderBy(desc(assessments.updatedAt))
     .limit(1);
@@ -435,21 +503,23 @@ async function latestAssessment(useCaseId: string): Promise<AssessedFacts | null
   const answers = (snapshot?.answers ?? {}) as Record<string, unknown>;
   const read = (key: string) => {
     const v = answers[key];
-    return typeof v === "string" ? v : null;
+    return typeof v === 'string' ? v : null;
   };
 
   return {
     reference: row.assessment.reference,
     approvedAt: row.assessment.completedAt,
-    tier: row.assessment.status === "approved" ? row.assessment.scoreTier : null,
-    band: row.assessment.status === "approved" ? row.assessment.scoreBand : null,
+    tier:
+      row.assessment.status === 'approved' ? row.assessment.scoreTier : null,
+    band:
+      row.assessment.status === 'approved' ? row.assessment.scoreBand : null,
     consequence: read(ASSESSMENT_KEYS.consequence),
     humanOversight: read(ASSESSMENT_KEYS.humanOversight),
     monitoring: Array.isArray(answers[ASSESSMENT_KEYS.monitoring])
       ? (answers[ASSESSMENT_KEYS.monitoring] as string[])
       : null,
     biasConsidered: read(ASSESSMENT_KEYS.biasConsidered),
-    contestability: read(ASSESSMENT_KEYS.contestability),
+    contestability: read(ASSESSMENT_KEYS.contestability)
   };
 }
 
@@ -479,7 +549,7 @@ export function gapsFor(
     advisedAgainstSuppliers?: ReadonlySet<string>;
     /** Owners whose owner-level AI learning is current. */
     trainedOwners?: ReadonlySet<string>;
-  } = {},
+  } = {}
 ): Gap[] {
   const {
     transparency,
@@ -488,39 +558,46 @@ export function gapsFor(
     unresolvedHarm,
     assessedSuppliers,
     advisedAgainstSuppliers,
-    trainedOwners,
+    trainedOwners
   } = context;
   const gaps: Gap[] = [];
   const live = LIVE_STAGES.includes(useCase.lifecycleStage as LifecycleStage);
-  const retired = useCase.lifecycleStage === "retired";
+  const retired = useCase.lifecycleStage === 'retired';
 
   // A retired system needs nothing. Reporting gaps against it is noise that
   // trains people to ignore the list.
   if (retired) return gaps;
 
-  if (!assessed) gaps.push("never_assessed");
-  else if (!assessed.approvedAt) gaps.push("assessment_not_approved");
+  if (!assessed) gaps.push('never_assessed');
+  else if (!assessed.approvedAt) gaps.push('assessment_not_approved');
 
-  if (!useCase.ownerId) gaps.push("no_owner");
+  if (!useCase.ownerId) gaps.push('no_owner');
   // The Playbook asks the senior responsible owners of AI systems to understand
   // its risks. Untidy rather than serious: the system may be well run anyway.
-  else if (trainedOwners && !trainedOwners.has(useCase.ownerId)) gaps.push("owner_not_trained");
+  else if (trainedOwners && !trainedOwners.has(useCase.ownerId))
+    gaps.push('owner_not_trained');
 
   if (live && assessed) {
-    const monitored = assessed.monitoring?.filter((m) => m !== "none") ?? [];
-    if (monitored.length === 0) gaps.push("live_without_monitoring");
+    const monitored = assessed.monitoring?.filter((m) => m !== 'none') ?? [];
+    if (monitored.length === 0) gaps.push('live_without_monitoring');
   }
 
-  if (assessed?.consequence === "decides" && assessed.humanOversight === "none") {
-    gaps.push("decides_without_oversight");
+  if (
+    assessed?.consequence === 'decides' &&
+    assessed.humanOversight === 'none'
+  ) {
+    gaps.push('decides_without_oversight');
   }
 
-  if (assessed && ["not_done", "planned"].includes(assessed.biasConsidered ?? "")) {
-    gaps.push("bias_not_assessed");
+  if (
+    assessed &&
+    ['not_done', 'planned'].includes(assessed.biasConsidered ?? '')
+  ) {
+    gaps.push('bias_not_assessed');
   }
 
   if (useCase.nextReviewAt && useCase.nextReviewAt.getTime() <= Date.now()) {
-    gaps.push("review_overdue");
+    gaps.push('review_overdue');
   }
 
   // The model, its data or its use changed after the judgement was made, so the
@@ -530,18 +607,20 @@ export function gapsFor(
     assessed?.approvedAt &&
     lastMaterialChangeAt.getTime() > assessed.approvedAt.getTime()
   ) {
-    gaps.push("changed_since_assessment");
+    gaps.push('changed_since_assessment');
   }
 
   // Testing gaps, once testing records are known. The toolkit asks for
   // independent testing; asked of every system it would be noise, so it is
   // asked of the ones rated high or critical.
   if (assurance !== undefined && live) {
-    if (!assurance?.tested) gaps.push("never_tested");
+    if (!assurance?.tested) gaps.push('never_tested');
     else {
-      const serious = assessed?.tier === "high" || assessed?.tier === "critical";
-      if (serious && !assurance.independentlyTested) gaps.push("not_independently_tested");
-      if (assurance.failing.length > 0) gaps.push("last_test_failed");
+      const serious =
+        assessed?.tier === 'high' || assessed?.tier === 'critical';
+      if (serious && !assurance.independentlyTested)
+        gaps.push('not_independently_tested');
+      if (assurance.failing.length > 0) gaps.push('last_test_failed');
     }
   }
 
@@ -551,16 +630,18 @@ export function gapsFor(
   gaps.push(...admGaps(useCase));
 
   // Somebody reported actual harm and nobody has said how it was put right.
-  if (unresolvedHarm) gaps.push("unresolved_harm");
+  if (unresolvedHarm) gaps.push('unresolved_harm');
 
   // A bought-in system is only as well governed as the supplier behind it. The
   // Playbook and the toolkit both put the supplier's data use, testing and
   // contract inside the buyer's risk, so a system whose supplier nobody has
   // looked at is not fully examined however good its own assessment.
   if (assessedSuppliers && suppliedByThirdParty(useCase)) {
-    if (!useCase.supplierId) gaps.push("supplier_unrecorded");
-    else if (!assessedSuppliers.has(useCase.supplierId)) gaps.push("supplier_not_assessed");
-    else if (advisedAgainstSuppliers?.has(useCase.supplierId)) gaps.push("supplier_advised_against");
+    if (!useCase.supplierId) gaps.push('supplier_unrecorded');
+    else if (!assessedSuppliers.has(useCase.supplierId))
+      gaps.push('supplier_not_assessed');
+    else if (advisedAgainstSuppliers?.has(useCase.supplierId))
+      gaps.push('supplier_advised_against');
   }
 
   // Only where a record is required and the system is reaching people. A
@@ -568,11 +649,11 @@ export function gapsFor(
   // a system still in development is not due until it goes live.
   if (
     transparency &&
-    useCase.transparencyScope === "required" &&
+    useCase.transparencyScope === 'required' &&
     live &&
     !transparency.hasCurrentRecord
   ) {
-    gaps.push("transparency_record_missing");
+    gaps.push('transparency_record_missing');
   }
 
   return gaps;
@@ -580,7 +661,7 @@ export function gapsFor(
 
 export async function listRegister(
   organisationId: string,
-  entityIds: string[] | null,
+  entityIds: string[] | null
 ): Promise<RegisterEntry[]> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
@@ -592,18 +673,19 @@ export async function listRegister(
           ? eq(aiUseCases.organisationId, organisationId)
           : and(
               eq(aiUseCases.organisationId, organisationId),
-              inArray(aiUseCases.entityId, entityIds),
-            ),
+              inArray(aiUseCases.entityId, entityIds)
+            )
       )
       .orderBy(aiUseCases.reference);
-    const [recorded, changed, tested, harmed, verdicts, trainedOwners] = await Promise.all([
-      systemsWithCurrentRecord(organisationId),
-      lastMaterialChanges(organisationId),
-      assuranceByUseCase(organisationId),
-      systemsWithUnresolvedHarm(organisationId),
-      approvedAiSuppliers(organisationId),
-      ownersWithTraining(organisationId),
-    ]);
+    const [recorded, changed, tested, harmed, verdicts, trainedOwners] =
+      await Promise.all([
+        systemsWithCurrentRecord(organisationId),
+        lastMaterialChanges(organisationId),
+        assuranceByUseCase(organisationId),
+        systemsWithUnresolvedHarm(organisationId),
+        approvedAiSuppliers(organisationId),
+        ownersWithTraining(organisationId)
+      ]);
 
     return Promise.all(
       rows.map(async ({ useCase, ownerEmail }) => {
@@ -619,40 +701,59 @@ export async function listRegister(
             unresolvedHarm: harmed.has(useCase.id),
             assessedSuppliers: verdicts.approved,
             advisedAgainstSuppliers: verdicts.advisedAgainst,
-            trainedOwners,
-          }),
+            trainedOwners
+          })
         };
-      }),
+      })
     );
   });
 }
 
 export async function loadUseCase(useCaseId: string, organisationId: string) {
   return withOrganisation(organisationId, async () => {
-    const officers = alias(users, "governance_officer");
+    const officers = alias(users, 'governance_officer');
     const [row] = await db
-      .select({ useCase: aiUseCases, ownerEmail: users.email, officerEmail: officers.email })
+      .select({
+        useCase: aiUseCases,
+        ownerEmail: users.email,
+        officerEmail: officers.email
+      })
       .from(aiUseCases)
       .leftJoin(users, eq(users.id, aiUseCases.ownerId))
       .leftJoin(officers, eq(officers.id, aiUseCases.governanceOfficerId))
       .where(
-        and(eq(aiUseCases.id, useCaseId), eq(aiUseCases.organisationId, organisationId)),
+        and(
+          eq(aiUseCases.id, useCaseId),
+          eq(aiUseCases.organisationId, organisationId)
+        )
       );
     if (!row) return null;
 
-    const [assessed, related, recorded, changed, tested, harmed, verdicts, supplier, trainedOwners] =
-      await Promise.all([
+    const [
+      assessed,
+      related,
+      recorded,
+      changed,
+      tested,
+      harmed,
+      verdicts,
+      supplier,
+      trainedOwners
+    ] = await Promise.all([
       latestAssessment(useCaseId),
       db
         .select({ assessment: assessments, kind: templates.kind })
         .from(assessments)
-        .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+        .innerJoin(
+          templateVersions,
+          eq(templateVersions.id, assessments.templateVersionId)
+        )
         .innerJoin(templates, eq(templates.id, templateVersions.templateId))
         .where(
           and(
-            eq(assessments.subjectType, "ai_use_case"),
-            eq(assessments.subjectId, useCaseId),
-          ),
+            eq(assessments.subjectType, 'ai_use_case'),
+            eq(assessments.subjectId, useCaseId)
+          )
         )
         .orderBy(desc(assessments.createdAt)),
       systemsWithCurrentRecord(organisationId),
@@ -667,7 +768,7 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
             .where(eq(suppliers.id, row.useCase.supplierId))
             .then((r) => r[0] ?? null)
         : null,
-      ownersWithTraining(organisationId),
+      ownersWithTraining(organisationId)
     ]);
 
     return {
@@ -684,8 +785,8 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
         unresolvedHarm: harmed.has(useCaseId),
         assessedSuppliers: verdicts.approved,
         advisedAgainstSuppliers: verdicts.advisedAgainst,
-        trainedOwners,
-      }),
+        trainedOwners
+      })
     };
   });
 }
@@ -693,11 +794,13 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
 /** The headline an AI governance lead wants: what is running, and what is unexamined. */
 export async function registerSummary(
   organisationId: string,
-  entityIds: string[] | null,
+  entityIds: string[] | null
 ) {
   return withOrganisation(organisationId, async () => {
     const entries = await listRegister(organisationId, entityIds);
-    const active = entries.filter((e) => e.useCase.lifecycleStage !== "retired");
+    const active = entries.filter(
+      (e) => e.useCase.lifecycleStage !== 'retired'
+    );
 
     return {
       // Active only. A retired system is history: counting it under a heading
@@ -706,12 +809,15 @@ export async function registerSummary(
       total: active.length,
       retired: entries.length - active.length,
       live: active.filter((e) =>
-        LIVE_STAGES.includes(e.useCase.lifecycleStage as LifecycleStage),
+        LIVE_STAGES.includes(e.useCase.lifecycleStage as LifecycleStage)
       ).length,
-      neverAssessed: active.filter((e) => e.gaps.includes("never_assessed")).length,
-      serious: active.filter((e) => e.gaps.some((g) => SERIOUS_GAPS.includes(g))).length,
+      neverAssessed: active.filter((e) => e.gaps.includes('never_assessed'))
+        .length,
+      serious: active.filter((e) =>
+        e.gaps.some((g) => SERIOUS_GAPS.includes(g))
+      ).length,
       withGaps: active.filter((e) => e.gaps.length > 0).length,
-      entries: active,
+      entries: active
     };
   });
 }

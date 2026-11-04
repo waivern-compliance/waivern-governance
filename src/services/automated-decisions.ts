@@ -1,17 +1,19 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { aiUseCases, processingActivities, recordLinks } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
+import { and, asc, eq, inArray } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import { aiUseCases, processingActivities, recordLinks } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import type { Regime } from '@/lib/dpa2018/part3';
 import {
   admMismatch,
   admOf,
   cleanAdm,
   type AdmMismatch,
-  type AdmRecord,
-} from "@/lib/gdpr/automated-decisions";
-import type { LawfulBasis } from "@/lib/gdpr/lawful-basis";
-import type { Regime } from "@/lib/dpa2018/part3";
-import type { Actor } from "./templates";
+  type AdmRecord
+} from '@/lib/gdpr/automated-decisions';
+import type { LawfulBasis } from '@/lib/gdpr/lawful-basis';
+
+import type { Actor } from './templates';
 
 /**
  * The automated-decision record (Articles 22A–22C), kept on a processing
@@ -29,33 +31,47 @@ import type { Actor } from "./templates";
  * activity it is linked to is (ss.50A–50D), otherwise the UK GDPR.
  */
 
-export type AdmSide = "processing_activity" | "ai_use_case";
+export type AdmSide = 'processing_activity' | 'ai_use_case';
 
 /** The link: this AI system is used in this processing. */
-const RELATION = "used_in";
+const RELATION = 'used_in';
 
-const TABLE = { processing_activity: processingActivities, ai_use_case: aiUseCases } as const;
+const TABLE = {
+  processing_activity: processingActivities,
+  ai_use_case: aiUseCases
+} as const;
 
 async function loadSide(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   organisationId: string,
   side: AdmSide,
-  id: string,
+  id: string
 ) {
   const table = TABLE[side];
   const [row] = await tx
     .select()
     .from(table)
     .where(and(eq(table.id, id), eq(table.organisationId, organisationId)));
-  if (!row) throw new Error(side === "ai_use_case" ? "No such AI use case" : "No such processing activity");
-  return row as typeof row & AdmRecord & { id: string; reference: string; entityId: string; regime?: Regime };
+  if (!row)
+    throw new Error(
+      side === 'ai_use_case'
+        ? 'No such AI use case'
+        : 'No such processing activity'
+    );
+  return row as typeof row &
+    AdmRecord & {
+      id: string;
+      reference: string;
+      entityId: string;
+      regime?: Regime;
+    };
 }
 
 async function linked(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   organisationId: string,
   useCaseId: string,
-  activityId: string,
+  activityId: string
 ) {
   const [row] = await tx
     .select({ id: recordLinks.id })
@@ -63,40 +79,48 @@ async function linked(
     .where(
       and(
         eq(recordLinks.organisationId, organisationId),
-        eq(recordLinks.fromType, "ai_use_case"),
+        eq(recordLinks.fromType, 'ai_use_case'),
         eq(recordLinks.fromId, useCaseId),
-        eq(recordLinks.toType, "processing_activity"),
+        eq(recordLinks.toType, 'processing_activity'),
         eq(recordLinks.toId, activityId),
-        eq(recordLinks.relation, RELATION),
-      ),
+        eq(recordLinks.relation, RELATION)
+      )
     );
   return row ?? null;
 }
 
 /** An AI use case's regime, from the processing activities it is linked to. */
-export function regimeOfUseCase(activities: ReadonlyArray<{ regime: Regime }>): Regime {
-  return activities.length > 0 && activities.every((a) => a.regime === "dpa_part3") ? "dpa_part3" : "uk_gdpr";
+export function regimeOfUseCase(
+  activities: ReadonlyArray<{ regime: Regime }>
+): Regime {
+  return activities.length > 0 &&
+    activities.every((a) => a.regime === 'dpa_part3')
+    ? 'dpa_part3'
+    : 'uk_gdpr';
 }
 
 async function regimeOf(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   organisationId: string,
   side: AdmSide,
-  row: { id: string; regime?: Regime },
+  row: { id: string; regime?: Regime }
 ): Promise<Regime> {
-  if (side === "processing_activity") return row.regime ?? "uk_gdpr";
+  if (side === 'processing_activity') return row.regime ?? 'uk_gdpr';
   const activities = await tx
     .select({ regime: processingActivities.regime })
     .from(recordLinks)
-    .innerJoin(processingActivities, eq(processingActivities.id, recordLinks.toId))
+    .innerJoin(
+      processingActivities,
+      eq(processingActivities.id, recordLinks.toId)
+    )
     .where(
       and(
         eq(recordLinks.organisationId, organisationId),
-        eq(recordLinks.fromType, "ai_use_case"),
+        eq(recordLinks.fromType, 'ai_use_case'),
         eq(recordLinks.fromId, row.id),
-        eq(recordLinks.toType, "processing_activity"),
-        eq(recordLinks.relation, RELATION),
-      ),
+        eq(recordLinks.toType, 'processing_activity'),
+        eq(recordLinks.relation, RELATION)
+      )
     );
   return regimeOfUseCase(activities);
 }
@@ -111,28 +135,39 @@ export async function linkUseCaseToActivity(input: {
     db.transaction(async (tx) => {
       // Both checked against this organisation: a link to another's record
       // would be one nobody here could follow, and would leak its name.
-      const useCase = await loadSide(tx, input.organisationId, "ai_use_case", input.useCaseId);
-      const activity = await loadSide(tx, input.organisationId, "processing_activity", input.activityId);
-      if (await linked(tx, input.organisationId, useCase.id, activity.id)) return;
+      const useCase = await loadSide(
+        tx,
+        input.organisationId,
+        'ai_use_case',
+        input.useCaseId
+      );
+      const activity = await loadSide(
+        tx,
+        input.organisationId,
+        'processing_activity',
+        input.activityId
+      );
+      if (await linked(tx, input.organisationId, useCase.id, activity.id))
+        return;
 
       await tx.insert(recordLinks).values({
         organisationId: input.organisationId,
-        fromType: "ai_use_case",
+        fromType: 'ai_use_case',
         fromId: useCase.id,
-        toType: "processing_activity",
+        toType: 'processing_activity',
         toId: activity.id,
-        relation: RELATION,
+        relation: RELATION
       });
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_use_case.activity_linked",
-        subjectType: "ai_use_case",
+        action: 'ai_use_case.activity_linked',
+        subjectType: 'ai_use_case',
         subjectId: useCase.id,
         entityId: useCase.entityId,
-        after: { activity: activity.reference },
+        after: { activity: activity.reference }
       });
-    }),
+    })
   );
 }
 
@@ -144,22 +179,37 @@ export async function unlinkUseCaseFromActivity(input: {
 }) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
-      const useCase = await loadSide(tx, input.organisationId, "ai_use_case", input.useCaseId);
-      const activity = await loadSide(tx, input.organisationId, "processing_activity", input.activityId);
-      const link = await linked(tx, input.organisationId, useCase.id, activity.id);
+      const useCase = await loadSide(
+        tx,
+        input.organisationId,
+        'ai_use_case',
+        input.useCaseId
+      );
+      const activity = await loadSide(
+        tx,
+        input.organisationId,
+        'processing_activity',
+        input.activityId
+      );
+      const link = await linked(
+        tx,
+        input.organisationId,
+        useCase.id,
+        activity.id
+      );
       if (!link) return;
 
       await tx.delete(recordLinks).where(eq(recordLinks.id, link.id));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "ai_use_case.activity_unlinked",
-        subjectType: "ai_use_case",
+        action: 'ai_use_case.activity_unlinked',
+        subjectType: 'ai_use_case',
         subjectId: useCase.id,
         entityId: useCase.entityId,
-        before: { activity: activity.reference },
+        before: { activity: activity.reference }
       });
-    }),
+    })
   );
 }
 
@@ -172,10 +222,21 @@ export async function setAutomatedDecisions(input: {
 }) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
-      const before = await loadSide(tx, input.organisationId, input.side, input.id);
-      const record = cleanAdm(input.record, await regimeOf(tx, input.organisationId, input.side, before));
+      const before = await loadSide(
+        tx,
+        input.organisationId,
+        input.side,
+        input.id
+      );
+      const record = cleanAdm(
+        input.record,
+        await regimeOf(tx, input.organisationId, input.side, before)
+      );
       const table = TABLE[input.side];
-      await tx.update(table).set({ ...record, updatedAt: new Date() }).where(eq(table.id, input.id));
+      await tx
+        .update(table)
+        .set({ ...record, updatedAt: new Date() })
+        .where(eq(table.id, input.id));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -184,10 +245,10 @@ export async function setAutomatedDecisions(input: {
         subjectId: input.id,
         entityId: before.entityId,
         before: admOf(before),
-        after: record,
+        after: record
       });
       return record;
-    }),
+    })
   );
 }
 
@@ -206,22 +267,51 @@ export async function copyAutomatedDecisions(input: {
 }) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
-      if (!(await linked(tx, input.organisationId, input.useCaseId, input.activityId))) {
-        throw new Error("Those two records are not linked, so there is nothing to copy between them.");
+      if (
+        !(await linked(
+          tx,
+          input.organisationId,
+          input.useCaseId,
+          input.activityId
+        ))
+      ) {
+        throw new Error(
+          'Those two records are not linked, so there is nothing to copy between them.'
+        );
       }
-      const fromSide: AdmSide = input.to === "ai_use_case" ? "processing_activity" : "ai_use_case";
-      const source = await loadSide(tx, input.organisationId, fromSide, fromSide === "ai_use_case" ? input.useCaseId : input.activityId);
-      const targetId = input.to === "ai_use_case" ? input.useCaseId : input.activityId;
-      const target = await loadSide(tx, input.organisationId, input.to, targetId);
+      const fromSide: AdmSide =
+        input.to === 'ai_use_case' ? 'processing_activity' : 'ai_use_case';
+      const source = await loadSide(
+        tx,
+        input.organisationId,
+        fromSide,
+        fromSide === 'ai_use_case' ? input.useCaseId : input.activityId
+      );
+      const targetId =
+        input.to === 'ai_use_case' ? input.useCaseId : input.activityId;
+      const target = await loadSide(
+        tx,
+        input.organisationId,
+        input.to,
+        targetId
+      );
       if (source.automatedDecisions === null) {
-        throw new Error(`${source.reference} has no automated-decision record to copy.`);
+        throw new Error(
+          `${source.reference} has no automated-decision record to copy.`
+        );
       }
 
       // Checked against the regime it is going to: a Part 3 condition or set-aside
       // cannot land on a UK GDPR record, nor a contract condition on a Part 3 one.
-      const record = cleanAdm(admOf(source), await regimeOf(tx, input.organisationId, input.to, target));
+      const record = cleanAdm(
+        admOf(source),
+        await regimeOf(tx, input.organisationId, input.to, target)
+      );
       const table = TABLE[input.to];
-      await tx.update(table).set({ ...record, updatedAt: new Date() }).where(eq(table.id, targetId));
+      await tx
+        .update(table)
+        .set({ ...record, updatedAt: new Date() })
+        .where(eq(table.id, targetId));
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -230,10 +320,10 @@ export async function copyAutomatedDecisions(input: {
         subjectId: targetId,
         entityId: target.entityId,
         before: admOf(target),
-        after: { ...record, copiedFrom: source.reference },
+        after: { ...record, copiedFrom: source.reference }
       });
       return record;
-    }),
+    })
   );
 }
 
@@ -251,7 +341,10 @@ export type LinkedRecord = {
 };
 
 /** The processing activities an AI use case is linked to, with how their records compare. */
-export async function linkedActivitiesOf(organisationId: string, useCase: AdmRecord & { id: string }): Promise<LinkedRecord[]> {
+export async function linkedActivitiesOf(
+  organisationId: string,
+  useCase: AdmRecord & { id: string }
+): Promise<LinkedRecord[]> {
   return withOrganisation(organisationId, async () => {
     const links = await db
       .select({ id: recordLinks.toId })
@@ -259,11 +352,11 @@ export async function linkedActivitiesOf(organisationId: string, useCase: AdmRec
       .where(
         and(
           eq(recordLinks.organisationId, organisationId),
-          eq(recordLinks.fromType, "ai_use_case"),
+          eq(recordLinks.fromType, 'ai_use_case'),
           eq(recordLinks.fromId, useCase.id),
-          eq(recordLinks.toType, "processing_activity"),
-          eq(recordLinks.relation, RELATION),
-        ),
+          eq(recordLinks.toType, 'processing_activity'),
+          eq(recordLinks.relation, RELATION)
+        )
       );
     if (links.length === 0) return [];
     const rows = await db
@@ -272,8 +365,11 @@ export async function linkedActivitiesOf(organisationId: string, useCase: AdmRec
       .where(
         and(
           eq(processingActivities.organisationId, organisationId),
-          inArray(processingActivities.id, links.map((l) => l.id)),
-        ),
+          inArray(
+            processingActivities.id,
+            links.map((l) => l.id)
+          )
+        )
       )
       .orderBy(asc(processingActivities.reference));
     return rows.map((a) => ({
@@ -283,13 +379,16 @@ export async function linkedActivitiesOf(organisationId: string, useCase: AdmRec
       record: admOf(a),
       lawfulBases: a.lawfulBases,
       regime: a.regime,
-      mismatch: admMismatch(useCase, a),
+      mismatch: admMismatch(useCase, a)
     }));
   });
 }
 
 /** The AI use cases linked to a processing activity, with how their records compare. */
-export async function linkedUseCasesOf(organisationId: string, activity: AdmRecord & { id: string }): Promise<LinkedRecord[]> {
+export async function linkedUseCasesOf(
+  organisationId: string,
+  activity: AdmRecord & { id: string }
+): Promise<LinkedRecord[]> {
   return withOrganisation(organisationId, async () => {
     const links = await db
       .select({ id: recordLinks.fromId })
@@ -297,24 +396,32 @@ export async function linkedUseCasesOf(organisationId: string, activity: AdmReco
       .where(
         and(
           eq(recordLinks.organisationId, organisationId),
-          eq(recordLinks.fromType, "ai_use_case"),
-          eq(recordLinks.toType, "processing_activity"),
+          eq(recordLinks.fromType, 'ai_use_case'),
+          eq(recordLinks.toType, 'processing_activity'),
           eq(recordLinks.toId, activity.id),
-          eq(recordLinks.relation, RELATION),
-        ),
+          eq(recordLinks.relation, RELATION)
+        )
       );
     if (links.length === 0) return [];
     const rows = await db
       .select()
       .from(aiUseCases)
-      .where(and(eq(aiUseCases.organisationId, organisationId), inArray(aiUseCases.id, links.map((l) => l.id))))
+      .where(
+        and(
+          eq(aiUseCases.organisationId, organisationId),
+          inArray(
+            aiUseCases.id,
+            links.map((l) => l.id)
+          )
+        )
+      )
       .orderBy(asc(aiUseCases.reference));
     return rows.map((u) => ({
       id: u.id,
       reference: u.reference,
       name: u.name,
       record: admOf(u),
-      mismatch: admMismatch(activity, u),
+      mismatch: admMismatch(activity, u)
     }));
   });
 }

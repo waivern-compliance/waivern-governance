@@ -1,16 +1,17 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { kindsFor, type AppRole } from "@/lib/rbac";
-import { requireCapability } from "@/lib/session";
+import { revalidatePath } from 'next/cache';
+
+import { kindsFor, type AppRole } from '@/lib/rbac';
+import { requireCapability } from '@/lib/session';
+import type { RoutingCondition } from '@/lib/workflow/routing';
 import {
-  RoutingRefused,
   addStage,
   installShippedWorkflows,
   resetWorkflow,
-  updateStage,
-} from "@/services/approval-routing";
-import type { RoutingCondition } from "@/lib/workflow/routing";
+  RoutingRefused,
+  updateStage
+} from '@/services/approval-routing';
 
 export type RoutingResult = { ok: boolean; message: string } | null;
 
@@ -22,28 +23,35 @@ export type RoutingResult = { ok: boolean; message: string } | null;
  * somebody to replace a rule they did not fully read.
  */
 function conditionFrom(formData: FormData): RoutingCondition | undefined {
-  const op = String(formData.get("conditionOp") ?? "");
-  if (!op || op === "keep") return undefined;
+  const op = String(formData.get('conditionOp') ?? '');
+  if (!op || op === 'keep') return undefined;
 
   switch (op) {
-    case "always":
-      return { op: "always" };
-    case "specialCategoryData":
-      return { op: "specialCategoryData" };
-    case "transferToNonAdequate":
-      return { op: "transferToNonAdequate" };
-    case "scoreAtLeast":
-      return { op: "scoreAtLeast", value: Number(formData.get("conditionScore") ?? 0) };
-    case "tierAtLeast":
+    case 'always':
+      return { op: 'always' };
+    case 'specialCategoryData':
+      return { op: 'specialCategoryData' };
+    case 'transferToNonAdequate':
+      return { op: 'transferToNonAdequate' };
+    case 'scoreAtLeast':
       return {
-        op: "tierAtLeast",
-        value: String(formData.get("conditionTier") ?? "high") as "low" | "medium" | "high" | "critical",
+        op: 'scoreAtLeast',
+        value: Number(formData.get('conditionScore') ?? 0)
       };
-    case "answerAtLeast":
+    case 'tierAtLeast':
       return {
-        op: "answerAtLeast",
-        question: String(formData.get("conditionQuestion") ?? "").trim(),
-        value: Number(formData.get("conditionNumber") ?? 0),
+        op: 'tierAtLeast',
+        value: String(formData.get('conditionTier') ?? 'high') as
+          | 'low'
+          | 'medium'
+          | 'high'
+          | 'critical'
+      };
+    case 'answerAtLeast':
+      return {
+        op: 'answerAtLeast',
+        question: String(formData.get('conditionQuestion') ?? '').trim(),
+        value: Number(formData.get('conditionNumber') ?? 0)
       };
     default:
       return undefined;
@@ -53,35 +61,42 @@ function conditionFrom(formData: FormData): RoutingCondition | undefined {
 export async function updateStageAction(
   stageId: string,
   _prev: RoutingResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<RoutingResult> {
-  const active = await requireCapability("workflow.configure");
+  const active = await requireCapability('workflow.configure');
 
-  const sla = String(formData.get("slaHours") ?? "").trim();
+  const sla = String(formData.get('slaHours') ?? '').trim();
   try {
     const { redirected } = await updateStage({
       organisationId: active.membership.organisationId,
-      kinds: kindsFor(active.membership.grants, "workflow.configure"),
+      kinds: kindsFor(active.membership.grants, 'workflow.configure'),
       stageId,
-      name: String(formData.get("name") ?? ""),
-      requiredRole: String(formData.get("requiredRole") ?? "") as AppRole,
-      slaHours: sla === "" ? null : Number(sla),
+      name: String(formData.get('name') ?? ''),
+      requiredRole: String(formData.get('requiredRole') ?? '') as AppRole,
+      slaHours: sla === '' ? null : Number(sla),
       condition: conditionFrom(formData),
-      boardName: formData.has("boardName") ? String(formData.get("boardName")) : undefined,
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      boardName: formData.has('boardName')
+        ? String(formData.get('boardName'))
+        : undefined,
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
-    revalidatePath("/app/admin/workflows");
+    revalidatePath('/app/admin/workflows');
     return {
       ok: true,
       message:
         redirected === 0
-          ? "Saved."
-          : `Saved. ${redirected} approval${redirected === 1 ? "" : "s"} already waiting ${
-              redirected === 1 ? "was" : "were"
-            } redirected to the new role.`,
+          ? 'Saved.'
+          : `Saved. ${redirected} approval${redirected === 1 ? '' : 's'} already waiting ${
+              redirected === 1 ? 'was' : 'were'
+            } redirected to the new role.`
     };
   } catch (error) {
-    if (error instanceof RoutingRefused) return { ok: false, message: error.message };
+    if (error instanceof RoutingRefused)
+      return { ok: false, message: error.message };
     throw error;
   }
 }
@@ -89,52 +104,71 @@ export async function updateStageAction(
 export async function addStageAction(
   workflowDefinitionId: string,
   _prev: RoutingResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<RoutingResult> {
-  const active = await requireCapability("workflow.configure");
-  const sla = String(formData.get("slaHours") ?? "").trim();
+  const active = await requireCapability('workflow.configure');
+  const sla = String(formData.get('slaHours') ?? '').trim();
   const condition = conditionFrom(formData);
-  if (!condition) return { ok: false, message: "Say when the stage applies." };
-  if (condition.op === "answerAtLeast" && !condition.question) {
-    return { ok: false, message: "Name the question whose answer is compared." };
+  if (!condition) return { ok: false, message: 'Say when the stage applies.' };
+  if (condition.op === 'answerAtLeast' && !condition.question) {
+    return {
+      ok: false,
+      message: 'Name the question whose answer is compared.'
+    };
   }
   try {
     await addStage({
       organisationId: active.membership.organisationId,
-      kinds: kindsFor(active.membership.grants, "workflow.configure"),
+      kinds: kindsFor(active.membership.grants, 'workflow.configure'),
       workflowDefinitionId,
-      name: String(formData.get("name") ?? ""),
-      requiredRole: String(formData.get("requiredRole") ?? "") as AppRole,
+      name: String(formData.get('name') ?? ''),
+      requiredRole: String(formData.get('requiredRole') ?? '') as AppRole,
       condition,
-      boardName: String(formData.get("boardName") ?? ""),
-      slaHours: sla === "" ? null : Number(sla),
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      boardName: String(formData.get('boardName') ?? ''),
+      slaHours: sla === '' ? null : Number(sla),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
   } catch (error) {
-    if (error instanceof RoutingRefused) return { ok: false, message: error.message };
+    if (error instanceof RoutingRefused)
+      return { ok: false, message: error.message };
     throw error;
   }
-  revalidatePath("/app/admin/workflows");
-  return { ok: true, message: "Added. It applies to assessments submitted from now on." };
+  revalidatePath('/app/admin/workflows');
+  return {
+    ok: true,
+    message: 'Added. It applies to assessments submitted from now on.'
+  };
 }
 
 export async function resetWorkflowAction(templateKind: string) {
-  const active = await requireCapability("workflow.configure");
+  const active = await requireCapability('workflow.configure');
   await resetWorkflow({
     organisationId: active.membership.organisationId,
-    kinds: kindsFor(active.membership.grants, "workflow.configure"),
+    kinds: kindsFor(active.membership.grants, 'workflow.configure'),
     templateKind,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
-  revalidatePath("/app/admin/workflows");
+  revalidatePath('/app/admin/workflows');
 }
 
 export async function installWorkflowsAction() {
-  const active = await requireCapability("workflow.configure");
+  const active = await requireCapability('workflow.configure');
   await installShippedWorkflows({
     organisationId: active.membership.organisationId,
-    kinds: kindsFor(active.membership.grants, "workflow.configure"),
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    kinds: kindsFor(active.membership.grants, 'workflow.configure'),
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
-  revalidatePath("/app/admin/workflows");
+  revalidatePath('/app/admin/workflows');
 }

@@ -1,4 +1,4 @@
-import { appRole } from "@/db/schema";
+import { appRole } from '@/db/schema';
 
 export type AppRole = (typeof appRole.enumValues)[number];
 
@@ -11,26 +11,27 @@ export type AppRole = (typeof appRole.enumValues)[number];
  * identifiers is how the wrong person ends up holding a gate.
  */
 export const ROLE_LABEL: Record<AppRole, string> = {
-  owner: "Owner",
-  privacy_admin: "Privacy administrator",
-  privacy_analyst: "Privacy analyst",
-  ai_governance: "AI governance",
-  ai_governance_lead: "AI governance lead",
-  approver: "Approver",
-  contributor: "Contributor",
-  auditor: "Auditor",
+  owner: 'Owner',
+  privacy_admin: 'Privacy administrator',
+  privacy_analyst: 'Privacy analyst',
+  ai_governance: 'AI governance',
+  ai_governance_lead: 'AI governance lead',
+  approver: 'Approver',
+  contributor: 'Contributor',
+  auditor: 'Auditor'
 };
 
 /** The same wording the people screen has always used, now shared rather than copied. */
 export const ROLE_BLURB: Record<AppRole, string> = {
-  owner: "Everything, including managing people",
-  privacy_admin: "Registers, templates and workflow configuration",
-  privacy_analyst: "Day-to-day assessment and risk work",
-  ai_governance: "The AI register and assessments over it",
-  ai_governance_lead: "AI governance, plus the AI risk, supplier and equality templates and workflows",
-  approver: "Decides approvals and accepts risk",
-  contributor: "Answers what is asked of them",
-  auditor: "Reads everything, changes nothing, exports the log",
+  owner: 'Everything, including managing people',
+  privacy_admin: 'Registers, templates and workflow configuration',
+  privacy_analyst: 'Day-to-day assessment and risk work',
+  ai_governance: 'The AI register and assessments over it',
+  ai_governance_lead:
+    'AI governance, plus the AI risk, supplier and equality templates and workflows',
+  approver: 'Decides approvals and accepts risk',
+  contributor: 'Answers what is asked of them',
+  auditor: 'Reads everything, changes nothing, exports the log'
 };
 
 /** Every role, in the order they are offered — which is the order of the enum. */
@@ -42,26 +43,26 @@ export const ROLES = appRole.enumValues;
  * permission models drift out of step with what the buttons actually do.
  */
 export const CAPABILITIES = [
-  "org.manage",
-  "entity.manage",
-  "member.manage",
-  "retention.manage",
-  "template.author",
-  "template.publish",
-  "workflow.configure",
-  "record.read",
-  "record.write",
-  "assessment.create",
-  "assessment.answer",
-  "assessment.submit",
-  "approval.decide",
-  "risk.manage",
-  "risk.accept",
-  "schedule.manage",
-  "audit.read",
-  "audit.export",
+  'org.manage',
+  'entity.manage',
+  'member.manage',
+  'retention.manage',
+  'template.author',
+  'template.publish',
+  'workflow.configure',
+  'record.read',
+  'record.write',
+  'assessment.create',
+  'assessment.answer',
+  'assessment.submit',
+  'approval.decide',
+  'risk.manage',
+  'risk.accept',
+  'schedule.manage',
+  'audit.read',
+  'audit.export',
   /** See who raised a confidential concern. Whistleblowing depends on few people holding this. */
-  "concern.confidential",
+  'concern.confidential',
   /**
    * Read and handle requests and complaints from data subjects. Separate from
    * `record.read` because each is the person's own personal data — sometimes
@@ -70,7 +71,7 @@ export const CAPABILITIES = [
    * because a complaint is often about a request and the same people answer
    * them.
    */
-  "dsr.handle",
+  'dsr.handle'
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -78,62 +79,62 @@ export type Capability = (typeof CAPABILITIES)[number];
 const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
   owner: CAPABILITIES,
   privacy_admin: [
-    "entity.manage",
-    "member.manage",
-    "retention.manage",
-    "template.author",
-    "template.publish",
-    "workflow.configure",
-    "record.read",
-    "record.write",
-    "assessment.create",
-    "assessment.answer",
-    "assessment.submit",
-    "risk.manage",
-    "schedule.manage",
-    "audit.read",
-    "audit.export",
-    "concern.confidential",
-    "dsr.handle",
+    'entity.manage',
+    'member.manage',
+    'retention.manage',
+    'template.author',
+    'template.publish',
+    'workflow.configure',
+    'record.read',
+    'record.write',
+    'assessment.create',
+    'assessment.answer',
+    'assessment.submit',
+    'risk.manage',
+    'schedule.manage',
+    'audit.read',
+    'audit.export',
+    'concern.confidential',
+    'dsr.handle'
   ],
   privacy_analyst: [
-    "record.read",
-    "record.write",
-    "assessment.create",
-    "assessment.answer",
-    "assessment.submit",
-    "risk.manage",
-    "schedule.manage",
-    "dsr.handle",
+    'record.read',
+    'record.write',
+    'assessment.create',
+    'assessment.answer',
+    'assessment.submit',
+    'risk.manage',
+    'schedule.manage',
+    'dsr.handle'
   ],
   ai_governance: [
-    "record.read",
-    "record.write",
-    "assessment.create",
-    "assessment.answer",
-    "assessment.submit",
-    "risk.manage",
-    "schedule.manage",
+    'record.read',
+    'record.write',
+    'assessment.create',
+    'assessment.answer',
+    'assessment.submit',
+    'risk.manage',
+    'schedule.manage'
   ],
   ai_governance_lead: [
-    "record.read",
-    "record.write",
-    "assessment.create",
-    "assessment.answer",
-    "assessment.submit",
-    "risk.manage",
-    "schedule.manage",
+    'record.read',
+    'record.write',
+    'assessment.create',
+    'assessment.answer',
+    'assessment.submit',
+    'risk.manage',
+    'schedule.manage',
     // Limited to KIND_LIMITS below: the AI kinds only.
-    "template.author",
-    "template.publish",
-    "workflow.configure",
+    'template.author',
+    'template.publish',
+    'workflow.configure'
   ],
   // Deciding an approval and accepting a risk are the two acts that carry
   // personal accountability, so they sit on their own role rather than being
   // bundled into an administrative one.
-  approver: ["record.read", "approval.decide", "risk.accept"],
-  contributor: ["assessment.answer"],
-  auditor: ["record.read", "audit.read", "audit.export"],
+  approver: ['record.read', 'approval.decide', 'risk.accept'],
+  contributor: ['assessment.answer'],
+  auditor: ['record.read', 'audit.read', 'audit.export']
 };
 
 /**
@@ -146,18 +147,22 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
  * and splitting a kind's workflow between two owners would leave each stage
  * with nobody clearly answerable for it.
  */
-export const AI_LEAD_KINDS = ["ai_risk", "supplier_record", "eia"] as const;
+export const AI_LEAD_KINDS = ['ai_risk', 'supplier_record', 'eia'] as const;
 
 /** Capabilities that apply per template kind, and which roles hold them for only some kinds. */
-const KIND_CAPABILITIES: readonly Capability[] = ["template.author", "template.publish", "workflow.configure"];
+const KIND_CAPABILITIES: readonly Capability[] = [
+  'template.author',
+  'template.publish',
+  'workflow.configure'
+];
 const KIND_LIMITS: Partial<Record<AppRole, readonly string[]>> = {
-  ai_governance_lead: AI_LEAD_KINDS,
+  ai_governance_lead: AI_LEAD_KINDS
 };
 
 /** One role grant: organisation-wide, or confined to a single legal entity. */
 export type Grant =
-  | { role: AppRole; scope: "organisation" }
-  | { role: AppRole; scope: "entity"; entityId: string };
+  | { role: AppRole; scope: 'organisation' }
+  | { role: AppRole; scope: 'entity'; entityId: string };
 
 /**
  * Does this set of grants permit `capability`?
@@ -171,11 +176,11 @@ export type Grant =
 export function can(
   grants: readonly Grant[],
   capability: Capability,
-  entityId?: string,
+  entityId?: string
 ): boolean {
   return grants.some((g) => {
     if (!ROLE_CAPABILITIES[g.role].includes(capability)) return false;
-    if (g.scope === "organisation") return true;
+    if (g.scope === 'organisation') return true;
     return entityId === undefined || g.entityId === entityId;
   });
 }
@@ -190,7 +195,7 @@ export function can(
  * Waivern's to approve (`lib/platform.ts`).
  */
 export function mayManageEntities(grants: readonly Grant[]): boolean {
-  return grants.some((g) => g.role === "owner" && g.scope === "organisation");
+  return grants.some((g) => g.role === 'owner' && g.scope === 'organisation');
 }
 
 /**
@@ -202,7 +207,11 @@ export function mayManageEntities(grants: readonly Grant[]): boolean {
  * so a grant confined to one entity is not enough, as it is not for appetite.
  */
 export function mayChooseAiFramework(grants: readonly Grant[]): boolean {
-  return grants.some((g) => g.scope === "organisation" && canForKind([g], "workflow.configure", "ai_risk"));
+  return grants.some(
+    (g) =>
+      g.scope === 'organisation' &&
+      canForKind([g], 'workflow.configure', 'ai_risk')
+  );
 }
 
 /**
@@ -218,9 +227,9 @@ export function mayChooseAiFramework(grants: readonly Grant[]): boolean {
 export function mayConfigureRequests(grants: readonly Grant[]): boolean {
   return grants.some(
     (g) =>
-      g.scope === "organisation" &&
-      ROLE_CAPABILITIES[g.role].includes("dsr.handle") &&
-      ROLE_CAPABILITIES[g.role].includes("workflow.configure"),
+      g.scope === 'organisation' &&
+      ROLE_CAPABILITIES[g.role].includes('dsr.handle') &&
+      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
   );
 }
 
@@ -232,7 +241,11 @@ export function mayConfigureRequests(grants: readonly Grant[]): boolean {
  * scan credits, so it is not for a grant confined to one entity.
  */
 export function mayConfigureAnalyser(grants: readonly Grant[]): boolean {
-  return grants.some((g) => g.scope === "organisation" && ROLE_CAPABILITIES[g.role].includes("workflow.configure"));
+  return grants.some(
+    (g) =>
+      g.scope === 'organisation' &&
+      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+  );
 }
 
 /**
@@ -243,8 +256,15 @@ export function mayConfigureAnalyser(grants: readonly Grant[]): boolean {
  * profile speaks for all of it. Everyone who can read records can see it.
  */
 export function mayEditAiProfile(grants: readonly Grant[]): boolean {
-  const roles: readonly AppRole[] = ["owner", "privacy_admin", "ai_governance_lead", "ai_governance"];
-  return grants.some((g) => g.scope === "organisation" && roles.includes(g.role));
+  const roles: readonly AppRole[] = [
+    'owner',
+    'privacy_admin',
+    'ai_governance_lead',
+    'ai_governance'
+  ];
+  return grants.some(
+    (g) => g.scope === 'organisation' && roles.includes(g.role)
+  );
 }
 
 /**
@@ -255,8 +275,11 @@ export function mayEditAiProfile(grants: readonly Grant[]): boolean {
  * gate; the decision itself checked only the named role, so an owner was shown
  * as an approver and then refused.
  */
-export function mayDecideStage(roles: readonly string[], requiredRole: string): boolean {
-  return actingAs(roles).includes(requiredRole) || roles.includes("owner");
+export function mayDecideStage(
+  roles: readonly string[],
+  requiredRole: string
+): boolean {
+  return actingAs(roles).includes(requiredRole) || roles.includes('owner');
 }
 
 /**
@@ -265,23 +288,31 @@ export function mayDecideStage(roles: readonly string[], requiredRole: string): 
  * review stages and their tasks are theirs too, without a second grant.
  */
 const ALSO_ACTS_AS: Partial<Record<AppRole, readonly AppRole[]>> = {
-  ai_governance_lead: ["ai_governance"],
+  ai_governance_lead: ['ai_governance']
 };
 
 /** The roles held, plus any they stand in for. */
 export function actingAs(roles: readonly string[]): string[] {
-  return [...new Set(roles.flatMap((r) => [r, ...(ALSO_ACTS_AS[r as AppRole] ?? [])]))];
+  return [
+    ...new Set(roles.flatMap((r) => [r, ...(ALSO_ACTS_AS[r as AppRole] ?? [])]))
+  ];
 }
 
 /** Grants widened the same way, keeping each one's scope. */
 export function actingGrants(grants: readonly Grant[]): Grant[] {
-  return grants.flatMap((g) => [g, ...(ALSO_ACTS_AS[g.role] ?? []).map((role) => ({ ...g, role }))]);
+  return grants.flatMap((g) => [
+    g,
+    ...(ALSO_ACTS_AS[g.role] ?? []).map((role) => ({ ...g, role }))
+  ]);
 }
 
 /** Roles held on one entity: its own grants and the organisation-wide ones. */
-export function rolesOn(grants: readonly Grant[], entityId: string | null): AppRole[] {
+export function rolesOn(
+  grants: readonly Grant[],
+  entityId: string | null
+): AppRole[] {
   return grants
-    .filter((g) => g.scope === "organisation" || g.entityId === entityId)
+    .filter((g) => g.scope === 'organisation' || g.entityId === entityId)
     .map((g) => g.role);
 }
 
@@ -293,15 +324,25 @@ export function rolesOn(grants: readonly Grant[], entityId: string | null): AppR
  * templates and workflows screens are shown. This answers the narrower
  * question every write has to ask: on this kind?
  */
-export function kindsFor(grants: readonly Grant[], capability: Capability): string[] | null {
-  const holding = grants.filter((g) => ROLE_CAPABILITIES[g.role].includes(capability));
-  if (!KIND_CAPABILITIES.includes(capability)) return holding.length > 0 ? null : [];
+export function kindsFor(
+  grants: readonly Grant[],
+  capability: Capability
+): string[] | null {
+  const holding = grants.filter((g) =>
+    ROLE_CAPABILITIES[g.role].includes(capability)
+  );
+  if (!KIND_CAPABILITIES.includes(capability))
+    return holding.length > 0 ? null : [];
   if (holding.some((g) => !KIND_LIMITS[g.role])) return null;
   return [...new Set(holding.flatMap((g) => KIND_LIMITS[g.role] ?? []))];
 }
 
 /** Does `capability` reach template kind `kind`? */
-export function canForKind(grants: readonly Grant[], capability: Capability, kind: string): boolean {
+export function canForKind(
+  grants: readonly Grant[],
+  capability: Capability,
+  kind: string
+): boolean {
   const kinds = kindsFor(grants, capability);
   return kinds === null || kinds.includes(kind);
 }
@@ -309,12 +350,16 @@ export function canForKind(grants: readonly Grant[], capability: Capability, kin
 /** Entities the grants reach for a capability; `null` means every entity. */
 export function scopedEntityIds(
   grants: readonly Grant[],
-  capability: Capability,
+  capability: Capability
 ): string[] | null {
-  const relevant = grants.filter((g) => ROLE_CAPABILITIES[g.role].includes(capability));
-  if (relevant.some((g) => g.scope === "organisation")) return null;
+  const relevant = grants.filter((g) =>
+    ROLE_CAPABILITIES[g.role].includes(capability)
+  );
+  if (relevant.some((g) => g.scope === 'organisation')) return null;
   return [
-    ...new Set(relevant.flatMap((g) => (g.scope === "entity" ? [g.entityId] : []))),
+    ...new Set(
+      relevant.flatMap((g) => (g.scope === 'entity' ? [g.entityId] : []))
+    )
   ];
 }
 

@@ -1,4 +1,4 @@
-import type { HelpTopic } from "./types";
+import type { HelpTopic } from './types';
 
 /**
  * Find help.
@@ -28,7 +28,8 @@ function scoreTopic(topic: HelpTopic, term: string): number {
   if (has(topic.summary)) score += WEIGHT.summary;
   for (const section of topic.sections) {
     if (has(section.heading)) score += WEIGHT.heading;
-    if (section.body.some(has) || section.points?.some(has)) score += WEIGHT.body;
+    if (section.body.some(has) || section.points?.some(has))
+      score += WEIGHT.body;
   }
   return score;
 }
@@ -52,7 +53,10 @@ export type HelpHit = {
  * search being fussy. So a strict pass runs first, and only when it comes back
  * empty does a looser one run, ranked by how much of the query each topic met.
  */
-export function searchHelp(topics: readonly HelpTopic[], query: string): HelpHit[] {
+export function searchHelp(
+  topics: readonly HelpTopic[],
+  query: string
+): HelpHit[] {
   const words = terms(query);
   if (words.length === 0) return [];
 
@@ -62,7 +66,7 @@ export function searchHelp(topics: readonly HelpTopic[], query: string): HelpHit
       topic,
       perWord,
       matched: perWord.filter((s) => s > 0).length,
-      score: perWord.reduce((a, b) => a + b, 0),
+      score: perWord.reduce((a, b) => a + b, 0)
     };
   });
 
@@ -74,15 +78,18 @@ export function searchHelp(topics: readonly HelpTopic[], query: string): HelpHit
   const strict = scored.filter((s) => s.matched === words.length);
   const pool = strict.length > 0 ? strict : scored.filter((s) => s.matched > 0);
 
-  return pool
-    .sort(rank)
-    .map(({ topic, score, matched }) => ({ topic, score, matched, typed: words.length }));
+  return pool.sort(rank).map(({ topic, score, matched }) => ({
+    topic,
+    score,
+    matched,
+    typed: words.length
+  }));
 }
 
 /** The topic covering a screen, for contextual help. */
 export function topicForPath(
   topics: readonly HelpTopic[],
-  path: string,
+  path: string
 ): HelpTopic | null {
   // Longest match wins, so /app/ai/graph does not answer with /app/ai.
   const matches = topics

@@ -24,15 +24,26 @@
  *   minimisation requirement.
  */
 
-import type { ResearchSafeguard } from "@/lib/gdpr/further-processing";
+import type { ResearchSafeguard } from '@/lib/gdpr/further-processing';
 
 /** The two s.41(2) limits, keyed as the UK GDPR research safeguards are so one record holds both. */
-export const PART3_RESEARCH_SAFEGUARDS: Partial<Record<ResearchSafeguard, { label: string; point: string }>> = {
-  no_individual_decisions: { label: "Not for measures or decisions about a particular person", point: "Section 41(2)(a)" },
-  no_substantial_harm: { label: "Not likely to cause anyone substantial damage or substantial distress", point: "Section 41(2)(b)" },
+export const PART3_RESEARCH_SAFEGUARDS: Partial<
+  Record<ResearchSafeguard, { label: string; point: string }>
+> = {
+  no_individual_decisions: {
+    label: 'Not for measures or decisions about a particular person',
+    point: 'Section 41(2)(a)'
+  },
+  no_substantial_harm: {
+    label:
+      'Not likely to cause anyone substantial damage or substantial distress',
+    point: 'Section 41(2)(b)'
+  }
 };
 
-export const PART3_RESEARCH_SAFEGUARD_KEYS = Object.keys(PART3_RESEARCH_SAFEGUARDS) as ResearchSafeguard[];
+export const PART3_RESEARCH_SAFEGUARD_KEYS = Object.keys(
+  PART3_RESEARCH_SAFEGUARDS
+) as ResearchSafeguard[];
 
 /** What a Part 3 record holds about further processing and research. */
 export type Part3FurtherRecord = {
@@ -43,41 +54,58 @@ export type Part3FurtherRecord = {
   /** Section 36(3)(b). */
   furtherNecessaryProportionate: boolean | null;
   research: boolean | null;
-  researchSafeguards: Partial<Record<ResearchSafeguard, { confirmed: boolean; note?: string }>>;
+  researchSafeguards: Partial<
+    Record<ResearchSafeguard, { confirmed: boolean; note?: string }>
+  >;
 };
 
 export type Part3FurtherGap =
-  | "part3_further_unauthorised"
-  | "part3_further_not_proportionate"
-  | "part3_further_unconfirmed"
-  | "part3_research_safeguards"
-  | "part3_reuse_unauthorised";
+  | 'part3_further_unauthorised'
+  | 'part3_further_not_proportionate'
+  | 'part3_further_unconfirmed'
+  | 'part3_research_safeguards'
+  | 'part3_reuse_unauthorised';
 
 export const PART3_FURTHER_GAP_WORDS: Record<Part3FurtherGap, string> = {
-  part3_further_unauthorised: "Further law enforcement processing with no law authorising it (s.36(3)(a))",
-  part3_further_not_proportionate: "Further law enforcement processing recorded as not necessary and proportionate (s.36(3)(b))",
-  part3_further_unconfirmed: "Further law enforcement processing: necessity and proportionality not confirmed (s.36(3)(b))",
-  part3_research_safeguards: "Law enforcement research, archiving or statistics with the s.41(2) limits unconfirmed",
-  part3_reuse_unauthorised: "Reuses data collected for law enforcement with no law authorising it (s.36(4))",
+  part3_further_unauthorised:
+    'Further law enforcement processing with no law authorising it (s.36(3)(a))',
+  part3_further_not_proportionate:
+    'Further law enforcement processing recorded as not necessary and proportionate (s.36(3)(b))',
+  part3_further_unconfirmed:
+    'Further law enforcement processing: necessity and proportionality not confirmed (s.36(3)(b))',
+  part3_research_safeguards:
+    'Law enforcement research, archiving or statistics with the s.41(2) limits unconfirmed',
+  part3_reuse_unauthorised:
+    'Reuses data collected for law enforcement with no law authorising it (s.36(4))'
 };
 
 /** The ones the Act puts as "only if": processing the record itself shows is not allowed, or not shown to be. */
 export const HARD_PART3_FURTHER_GAPS: Part3FurtherGap[] = [
-  "part3_further_unauthorised",
-  "part3_further_not_proportionate",
-  "part3_reuse_unauthorised",
+  'part3_further_unauthorised',
+  'part3_further_not_proportionate',
+  'part3_reuse_unauthorised'
 ];
 
 /** On a record under Part 3: s.36(3) where it is further processing, s.41(2) where it is research. */
-export function part3FurtherGaps(record: Part3FurtherRecord): Part3FurtherGap[] {
+export function part3FurtherGaps(
+  record: Part3FurtherRecord
+): Part3FurtherGap[] {
   const gaps: Part3FurtherGap[] = [];
   if (record.furtherProcessing) {
-    if (!record.furtherAuthorisedBy?.trim()) gaps.push("part3_further_unauthorised");
-    if (record.furtherNecessaryProportionate === false) gaps.push("part3_further_not_proportionate");
-    else if (record.furtherNecessaryProportionate !== true) gaps.push("part3_further_unconfirmed");
+    if (!record.furtherAuthorisedBy?.trim())
+      gaps.push('part3_further_unauthorised');
+    if (record.furtherNecessaryProportionate === false)
+      gaps.push('part3_further_not_proportionate');
+    else if (record.furtherNecessaryProportionate !== true)
+      gaps.push('part3_further_unconfirmed');
   }
-  if (record.research && PART3_RESEARCH_SAFEGUARD_KEYS.some((k) => !record.researchSafeguards?.[k]?.confirmed)) {
-    gaps.push("part3_research_safeguards");
+  if (
+    record.research &&
+    PART3_RESEARCH_SAFEGUARD_KEYS.some(
+      (k) => !record.researchSafeguards?.[k]?.confirmed
+    )
+  ) {
+    gaps.push('part3_research_safeguards');
   }
   return gaps;
 }
@@ -87,20 +115,29 @@ export function part3FurtherGaps(record: Part3FurtherRecord): Part3FurtherGap[] 
  * Only where the original activity is linked and known to be under Part 3.
  */
 export function part3ReuseGaps(
-  record: Pick<Part3FurtherRecord, "furtherProcessing" | "furtherAuthorisedBy">,
-  originalIsPart3: boolean,
+  record: Pick<Part3FurtherRecord, 'furtherProcessing' | 'furtherAuthorisedBy'>,
+  originalIsPart3: boolean
 ): Part3FurtherGap[] {
-  return record.furtherProcessing && originalIsPart3 && !record.furtherAuthorisedBy?.trim() ? ["part3_reuse_unauthorised"] : [];
+  return record.furtherProcessing &&
+    originalIsPart3 &&
+    !record.furtherAuthorisedBy?.trim()
+    ? ['part3_reuse_unauthorised']
+    : [];
 }
 
 /** One line, for a list or a read-only page. */
 export function describePart3Further(record: Part3FurtherRecord): string {
   const parts: string[] = [];
   if (record.furtherProcessing === true) {
-    parts.push(record.furtherAuthorisedBy ? `Further processing, authorised by ${record.furtherAuthorisedBy}` : "Further processing, no authorising law recorded");
-  } else if (record.furtherProcessing === false) parts.push("Not further processing");
-  if (record.research === true) parts.push("research, archiving or statistics");
-  return parts.join(" · ") || "Not yet known";
+    parts.push(
+      record.furtherAuthorisedBy
+        ? `Further processing, authorised by ${record.furtherAuthorisedBy}`
+        : 'Further processing, no authorising law recorded'
+    );
+  } else if (record.furtherProcessing === false)
+    parts.push('Not further processing');
+  if (record.research === true) parts.push('research, archiving or statistics');
+  return parts.join(' · ') || 'Not yet known';
 }
 
 export class Part3FurtherRefused extends Error {}
@@ -120,29 +157,40 @@ export function cleanPart3Further(
     research?: boolean | null;
     researchSafeguards?: Record<string, { confirmed: boolean; note?: string }>;
   },
-  existingSafeguards: Part3FurtherRecord["researchSafeguards"] = {},
+  existingSafeguards: Part3FurtherRecord['researchSafeguards'] = {}
 ): Part3FurtherRecord {
   // The form posts every research safeguard key; only s.41(2)'s are read, and
   // anything that is no safeguard at all is refused.
-  const unknown = Object.keys(input.researchSafeguards ?? {}).filter((k) => !(k in PART3_RESEARCH_SAFEGUARDS) && k !== "data_minimisation");
-  if (unknown.length > 0) throw new Part3FurtherRefused(`Not a section 41(2) limit: ${unknown.join(", ")}.`);
+  const unknown = Object.keys(input.researchSafeguards ?? {}).filter(
+    (k) => !(k in PART3_RESEARCH_SAFEGUARDS) && k !== 'data_minimisation'
+  );
+  if (unknown.length > 0)
+    throw new Part3FurtherRefused(
+      `Not a section 41(2) limit: ${unknown.join(', ')}.`
+    );
   const further = input.furtherProcessing ?? null;
   const research = input.research ?? null;
-  const safeguards: Part3FurtherRecord["researchSafeguards"] = {};
+  const safeguards: Part3FurtherRecord['researchSafeguards'] = {};
   if (research) {
     for (const k of PART3_RESEARCH_SAFEGUARD_KEYS) {
       const s = input.researchSafeguards?.[k];
       const note = s?.note?.trim();
-      if (s && (s.confirmed || note)) safeguards[k] = { confirmed: s.confirmed, ...(note ? { note } : {}) };
+      if (s && (s.confirmed || note))
+        safeguards[k] = { confirmed: s.confirmed, ...(note ? { note } : {}) };
     }
-    if (existingSafeguards.data_minimisation) safeguards.data_minimisation = existingSafeguards.data_minimisation;
+    if (existingSafeguards.data_minimisation)
+      safeguards.data_minimisation = existingSafeguards.data_minimisation;
   }
   return {
     furtherProcessing: further,
     originalActivityId: further ? input.originalActivityId || null : null,
-    furtherAuthorisedBy: further ? input.furtherAuthorisedBy?.trim() || null : null,
-    furtherNecessaryProportionate: further ? (input.furtherNecessaryProportionate ?? null) : null,
+    furtherAuthorisedBy: further
+      ? input.furtherAuthorisedBy?.trim() || null
+      : null,
+    furtherNecessaryProportionate: further
+      ? (input.furtherNecessaryProportionate ?? null)
+      : null,
     research,
-    researchSafeguards: research ? safeguards : {},
+    researchSafeguards: research ? safeguards : {}
   };
 }

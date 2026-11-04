@@ -9,14 +9,14 @@
  */
 
 /** The full name, wherever it is written out. */
-export const PRODUCT_NAME = "Waivern Governance Tool";
+export const PRODUCT_NAME = 'Waivern Governance Tool';
 
 /**
  * The two halves, for the wordmark and anywhere the vendor is set apart from
  * the product. Kept derived from the name above so they cannot drift from it.
  */
-export const PRODUCT_VENDOR = "Waivern";
+export const PRODUCT_VENDOR = 'Waivern';
 export const PRODUCT_SUFFIX = PRODUCT_NAME.slice(PRODUCT_VENDOR.length).trim();
 
 /** One line describing it, used in metadata and on the sign-in page. */
-export const PRODUCT_DESCRIPTION = "Privacy and AI governance workflow";
+export const PRODUCT_DESCRIPTION = 'Privacy and AI governance workflow';

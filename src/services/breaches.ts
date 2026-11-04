@@ -1,14 +1,15 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   assessments,
   breachDecisions,
   breaches,
   entities,
   referenceCounters,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
+  users
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
 import {
   clockFor,
   missingContent,
@@ -17,11 +18,16 @@ import {
   pecrObligationsFor,
   reg5aApplies,
   type ControllerRole,
-  type RiskLevel,
-} from "@/lib/breach/statutory";
-import { isRegime, type Regime } from "@/lib/dpa2018/part3";
-import type { Actor } from "./templates";
-import { assertEntityIn, assertMemberOf, assertRecordIn } from "./tenancy-guards";
+  type RiskLevel
+} from '@/lib/breach/statutory';
+import { isRegime, type Regime } from '@/lib/dpa2018/part3';
+
+import type { Actor } from './templates';
+import {
+  assertEntityIn,
+  assertMemberOf,
+  assertRecordIn
+} from './tenancy-guards';
 
 /**
  * The breach register, and the decisions taken about each entry.
@@ -40,14 +46,14 @@ export type BreachDecision = typeof breachDecisions.$inferSelect;
 
 /** The risk judgement, read off the decisions a person has recorded. */
 function riskFrom(decisions: readonly BreachDecision[]): RiskLevel | null {
-  const authority = decisions.find((d) => d.kind === "supervisory_authority");
-  const subjects = decisions.find((d) => d.kind === "data_subjects");
+  const authority = decisions.find((d) => d.kind === 'supervisory_authority');
+  const subjects = decisions.find((d) => d.kind === 'data_subjects');
 
   // High risk is evidenced by a data-subject decision existing at all: the
   // question is only reached under Article 34(1).
-  if (subjects && subjects.outcome !== "pending") return "high_risk";
-  if (!authority || authority.outcome === "pending") return null;
-  return authority.outcome === "not_required" ? "none" : "risk";
+  if (subjects && subjects.outcome !== 'pending') return 'high_risk';
+  if (!authority || authority.outcome === 'pending') return null;
+  return authority.outcome === 'not_required' ? 'none' : 'risk';
 }
 
 export type LoadedBreach = {
@@ -62,14 +68,29 @@ export type LoadedBreach = {
   /** Whether the entity is a public communications provider at all. */
   publicCommsProvider: boolean;
   /** PECR reg 5A, where it applies to this breach. */
-  pecr: { obligations: ReturnType<typeof pecrObligationsFor>; clock: ReturnType<typeof pecrClockFor> } | null;
+  pecr: {
+    obligations: ReturnType<typeof pecrObligationsFor>;
+    clock: ReturnType<typeof pecrClockFor>;
+  } | null;
 };
 
 /** The reg 5A clock for a breach, or null where reg 5A does not apply. */
-function pecrClockOf(breach: Breach, provider: boolean, decisions: readonly BreachDecision[], now: Date) {
-  if (!reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach })) return null;
-  const told = decisions.find((d) => d.kind === "pecr_commissioner" && d.outcome === "done");
-  return pecrClockFor({ discoveredAt: breach.discoveredAt, notifiedAt: told?.completedAt ?? null, now });
+function pecrClockOf(
+  breach: Breach,
+  provider: boolean,
+  decisions: readonly BreachDecision[],
+  now: Date
+) {
+  if (!reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach }))
+    return null;
+  const told = decisions.find(
+    (d) => d.kind === 'pecr_commissioner' && d.outcome === 'done'
+  );
+  return pecrClockFor({
+    discoveredAt: breach.discoveredAt,
+    notifiedAt: told?.completedAt ?? null,
+    now
+  });
 }
 
 function assemble(
@@ -78,16 +99,16 @@ function assemble(
   ownerEmail: string | null,
   decisions: Array<BreachDecision & { decidedByEmail: string | null }>,
   provider: boolean,
-  now = new Date(),
+  now = new Date()
 ): LoadedBreach {
   const pecrClock = pecrClockOf(breach, provider, decisions, now);
   const risk = riskFrom(decisions);
   const role = breach.controllerRole as ControllerRole;
   const notified = decisions.find(
-    (d) => d.kind === "supervisory_authority" && d.outcome === "done",
+    (d) => d.kind === 'supervisory_authority' && d.outcome === 'done'
   );
   const notRequired = decisions.some(
-    (d) => d.kind === "supervisory_authority" && d.outcome === "not_required",
+    (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
   );
 
   return {
@@ -101,7 +122,7 @@ function assemble(
       risk,
       discoveredAt: breach.discoveredAt,
       dataUnintelligible: breach.dataUnintelligible,
-      regime: breach.regime,
+      regime: breach.regime
     }),
     clock: clockFor({
       role,
@@ -109,11 +130,18 @@ function assemble(
       notifiedAt: notified?.completedAt ?? null,
       notRequired,
       now,
-      regime: breach.regime,
+      regime: breach.regime
     }),
     outstandingContent: missingContent(breach),
     publicCommsProvider: provider,
-    pecr: pecrClock ? { obligations: pecrObligationsFor({ discoveredAt: breach.discoveredAt }), clock: pecrClock } : null,
+    pecr: pecrClock
+      ? {
+          obligations: pecrObligationsFor({
+            discoveredAt: breach.discoveredAt
+          }),
+          clock: pecrClock
+        }
+      : null
   };
 }
 
@@ -125,19 +153,29 @@ async function nextReference(organisationId: string, year: number) {
       do update set next_value = ${referenceCounters}.next_value + 1
     returning next_value
   `);
-  return `BR-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, "0")}`;
+  return `BR-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 /** Part 3 only on a competent authority's entity; the default follows the entity. */
-async function checkedRegime(executor: Pick<typeof db, "select">, entityId: string, regime: string | undefined): Promise<Regime> {
+async function checkedRegime(
+  executor: Pick<typeof db, 'select'>,
+  entityId: string,
+  regime: string | undefined
+): Promise<Regime> {
   const [entity] = await executor
-    .select({ competentAuthority: entities.competentAuthority, defaultRegime: entities.defaultRegime })
+    .select({
+      competentAuthority: entities.competentAuthority,
+      defaultRegime: entities.defaultRegime
+    })
     .from(entities)
     .where(eq(entities.id, entityId));
-  const chosen = regime ?? (entity?.competentAuthority ? entity.defaultRegime : "uk_gdpr");
-  if (!isRegime(chosen)) throw new Error("Choose the regime.");
-  if (chosen === "dpa_part3" && !entity?.competentAuthority) {
-    throw new Error("Part 3 is for a competent authority. Mark the entity as one on the Organisation page first.");
+  const chosen =
+    regime ?? (entity?.competentAuthority ? entity.defaultRegime : 'uk_gdpr');
+  if (!isRegime(chosen)) throw new Error('Choose the regime.');
+  if (chosen === 'dpa_part3' && !entity?.competentAuthority) {
+    throw new Error(
+      'Part 3 is for a competent authority. Mark the entity as one on the Organisation page first.'
+    );
   }
   return chosen;
 }
@@ -159,9 +197,13 @@ export async function recordBreach(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
-    if (input.ownerId) await assertMemberOf(input.organisationId, input.ownerId);
+    if (input.ownerId)
+      await assertMemberOf(input.organisationId, input.ownerId);
     const regime = await checkedRegime(db, input.entityId, input.regime);
-    const reference = await nextReference(input.organisationId, new Date().getUTCFullYear());
+    const reference = await nextReference(
+      input.organisationId,
+      new Date().getUTCFullYear()
+    );
 
     return db.transaction(async (tx) => {
       const [row] = await tx
@@ -172,12 +214,12 @@ export async function recordBreach(input: {
           reference,
           title: input.title,
           description: input.description,
-          controllerRole: input.controllerRole ?? "controller",
+          controllerRole: input.controllerRole ?? 'controller',
           regime,
           discoveredAt: input.discoveredAt,
           occurredAt: input.occurredAt ?? null,
           categories: input.categories ?? [],
-          ownerId: input.ownerId ?? null,
+          ownerId: input.ownerId ?? null
         })
         .returning();
 
@@ -185,14 +227,14 @@ export async function recordBreach(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId,
-        action: "breach.recorded",
-        subjectType: "breach",
+        action: 'breach.recorded',
+        subjectType: 'breach',
         subjectId: row.id,
         after: {
           reference,
           discoveredAt: input.discoveredAt.toISOString(),
-          role: row.controllerRole,
-        },
+          role: row.controllerRole
+        }
       });
       return row;
     });
@@ -218,7 +260,7 @@ export async function updateBreach(input: {
     measuresTaken: string;
     dataUnintelligible: boolean | null;
     pecrServiceBreach: boolean | null;
-    status: Breach["status"];
+    status: Breach['status'];
     ownerId: string | null;
     regime: string;
   }>;
@@ -226,19 +268,26 @@ export async function updateBreach(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     if (input.changes.title !== undefined && !input.changes.title.trim()) {
-      throw new Error("Say what happened: a breach needs a title.");
+      throw new Error('Say what happened: a breach needs a title.');
     }
-    if (input.changes.ownerId) await assertMemberOf(input.organisationId, input.changes.ownerId);
+    if (input.changes.ownerId)
+      await assertMemberOf(input.organisationId, input.changes.ownerId);
     return db.transaction(async (tx) => {
       const [before] = await tx
         .select()
         .from(breaches)
         .where(
-          and(eq(breaches.id, input.breachId), eq(breaches.organisationId, input.organisationId)),
+          and(
+            eq(breaches.id, input.breachId),
+            eq(breaches.organisationId, input.organisationId)
+          )
         );
-      if (!before) throw new Error("No such breach");
+      if (!before) throw new Error('No such breach');
       const { regime: regimeChange, ...rest } = input.changes;
-      const regime = regimeChange !== undefined ? await checkedRegime(tx, before.entityId, regimeChange) : undefined;
+      const regime =
+        regimeChange !== undefined
+          ? await checkedRegime(tx, before.entityId, regimeChange)
+          : undefined;
 
       const [after] = await tx
         .update(breaches)
@@ -250,11 +299,19 @@ export async function updateBreach(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: before.entityId,
-        action: "breach.updated",
-        subjectType: "breach",
+        action: 'breach.updated',
+        subjectType: 'breach',
         subjectId: input.breachId,
-        before: { changed: Object.keys(input.changes), ...(regime && regime !== before.regime ? { regime: before.regime } : {}) },
-        after: { reference: after.reference, ...(regime && regime !== before.regime ? { regime } : {}) },
+        before: {
+          changed: Object.keys(input.changes),
+          ...(regime && regime !== before.regime
+            ? { regime: before.regime }
+            : {})
+        },
+        after: {
+          reference: after.reference,
+          ...(regime && regime !== before.regime ? { regime } : {})
+        }
       });
       return after;
     });
@@ -263,8 +320,8 @@ export async function updateBreach(input: {
 
 export class RationaleRequired extends Error {
   constructor() {
-    super("A breach decision needs its reasoning recorded");
-    this.name = "RationaleRequired";
+    super('A breach decision needs its reasoning recorded');
+    this.name = 'RationaleRequired';
   }
 }
 
@@ -279,8 +336,8 @@ export class RationaleRequired extends Error {
 export async function recordDecision(input: {
   organisationId: string;
   breachId: string;
-  kind: BreachDecision["kind"];
-  outcome: BreachDecision["outcome"];
+  kind: BreachDecision['kind'];
+  outcome: BreachDecision['outcome'];
   statutoryBasis?: string | null;
   rationale: string;
   recipient?: string | null;
@@ -299,9 +356,12 @@ export async function recordDecision(input: {
         .select()
         .from(breaches)
         .where(
-          and(eq(breaches.id, input.breachId), eq(breaches.organisationId, input.organisationId)),
+          and(
+            eq(breaches.id, input.breachId),
+            eq(breaches.organisationId, input.organisationId)
+          )
         );
-      if (!breach) throw new Error("No such breach");
+      if (!breach) throw new Error('No such breach');
 
       const [row] = await tx
         .insert(breachDecisions)
@@ -318,16 +378,20 @@ export async function recordDecision(input: {
           completedAt: input.completedAt ?? null,
           lateReason: input.lateReason ?? null,
           decidedBy: input.actor.actorUserId ?? null,
-          decidedByLabel: input.actor.actorLabel,
+          decidedByLabel: input.actor.actorLabel
         })
         .returning();
 
       // Once the authority has been told, under either regime, the breach is
       // past assessment.
-      if ((input.kind === "supervisory_authority" || input.kind === "pecr_commissioner") && input.outcome === "done") {
+      if (
+        (input.kind === 'supervisory_authority' ||
+          input.kind === 'pecr_commissioner') &&
+        input.outcome === 'done'
+      ) {
         await tx
           .update(breaches)
-          .set({ status: "notified", updatedAt: new Date() })
+          .set({ status: 'notified', updatedAt: new Date() })
           .where(eq(breaches.id, input.breachId));
       }
 
@@ -335,8 +399,8 @@ export async function recordDecision(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: breach.entityId,
-        action: "breach.decision_recorded",
-        subjectType: "breach",
+        action: 'breach.decision_recorded',
+        subjectType: 'breach',
         subjectId: input.breachId,
         after: {
           decision: row.id,
@@ -345,8 +409,8 @@ export async function recordDecision(input: {
           basis: input.statutoryBasis ?? null,
           // The reasoning goes in the chain, not only the outcome: a regulator
           // asking why will be asking about this sentence.
-          rationale,
-        },
+          rationale
+        }
       });
       return row;
     });
@@ -368,13 +432,20 @@ export async function closeBreach(input: {
         .select()
         .from(breaches)
         .where(
-          and(eq(breaches.id, input.breachId), eq(breaches.organisationId, input.organisationId)),
+          and(
+            eq(breaches.id, input.breachId),
+            eq(breaches.organisationId, input.organisationId)
+          )
         );
-      if (!breach) throw new Error("No such breach");
+      if (!breach) throw new Error('No such breach');
 
       const [after] = await tx
         .update(breaches)
-        .set({ status: "closed", closedAt: new Date(), closureRationale: rationale })
+        .set({
+          status: 'closed',
+          closedAt: new Date(),
+          closureRationale: rationale
+        })
         .where(eq(breaches.id, input.breachId))
         .returning();
 
@@ -382,10 +453,10 @@ export async function closeBreach(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: breach.entityId,
-        action: "breach.closed",
-        subjectType: "breach",
+        action: 'breach.closed',
+        subjectType: 'breach',
         subjectId: input.breachId,
-        after: { reference: after.reference, rationale },
+        after: { reference: after.reference, rationale }
       });
       return after;
     });
@@ -404,7 +475,7 @@ async function decisionsFor(breachIds: string[]) {
 
 export async function loadBreach(
   breachId: string,
-  organisationId: string,
+  organisationId: string
 ): Promise<(LoadedBreach & { competentAuthority: boolean }) | null> {
   return withOrganisation(organisationId, async () => {
     const [row] = await db
@@ -413,30 +484,49 @@ export async function loadBreach(
         entityName: entities.name,
         provider: entities.publicCommsProvider,
         competentAuthority: entities.competentAuthority,
-        ownerEmail: users.email,
+        ownerEmail: users.email
       })
       .from(breaches)
       .innerJoin(entities, eq(entities.id, breaches.entityId))
       .leftJoin(users, eq(users.id, breaches.ownerId))
-      .where(and(eq(breaches.id, breachId), eq(breaches.organisationId, organisationId)));
+      .where(
+        and(
+          eq(breaches.id, breachId),
+          eq(breaches.organisationId, organisationId)
+        )
+      );
     if (!row) return null;
 
     const decisions = (await decisionsFor([breachId])).map((d) => ({
       ...d.decision,
-      decidedByEmail: d.decidedByEmail,
+      decidedByEmail: d.decidedByEmail
     }));
     return {
-      ...assemble(row.breach, row.entityName, row.ownerEmail, decisions, row.provider),
+      ...assemble(
+        row.breach,
+        row.entityName,
+        row.ownerEmail,
+        decisions,
+        row.provider
+      ),
       // Whether Part 3 can be chosen for this breach.
-      competentAuthority: row.competentAuthority,
+      competentAuthority: row.competentAuthority
     };
   });
 }
 
-export async function breachRegister(organisationId: string, entityIds: string[] | null) {
+export async function breachRegister(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
-      .select({ breach: breaches, entityName: entities.name, provider: entities.publicCommsProvider, ownerEmail: users.email })
+      .select({
+        breach: breaches,
+        entityName: entities.name,
+        provider: entities.publicCommsProvider,
+        ownerEmail: users.email
+      })
       .from(breaches)
       .innerJoin(entities, eq(entities.id, breaches.entityId))
       .leftJoin(users, eq(users.id, breaches.ownerId))
@@ -445,13 +535,16 @@ export async function breachRegister(organisationId: string, entityIds: string[]
           ? eq(breaches.organisationId, organisationId)
           : and(
               eq(breaches.organisationId, organisationId),
-              inArray(breaches.entityId, entityIds),
-            ),
+              inArray(breaches.entityId, entityIds)
+            )
       )
       .orderBy(desc(breaches.discoveredAt));
 
     const all = await decisionsFor(rows.map((r) => r.breach.id));
-    const byBreach = new Map<string, Array<BreachDecision & { decidedByEmail: string | null }>>();
+    const byBreach = new Map<
+      string,
+      Array<BreachDecision & { decidedByEmail: string | null }>
+    >();
     for (const { decision, decidedByEmail } of all) {
       const list = byBreach.get(decision.breachId) ?? [];
       list.push({ ...decision, decidedByEmail });
@@ -460,21 +553,37 @@ export async function breachRegister(organisationId: string, entityIds: string[]
 
     const now = new Date();
     const loaded = rows.map((r) =>
-      assemble(r.breach, r.entityName, r.ownerEmail, byBreach.get(r.breach.id) ?? [], r.provider, now),
+      assemble(
+        r.breach,
+        r.entityName,
+        r.ownerEmail,
+        byBreach.get(r.breach.id) ?? [],
+        r.provider,
+        now
+      )
     );
 
     return {
       total: loaded.length,
-      open: loaded.filter((b) => b.breach.status !== "closed").length,
+      open: loaded.filter((b) => b.breach.status !== 'closed').length,
       // The number that matters at a glance: a clock running out.
       urgent: loaded.filter((b) =>
-        [b.clock.state, b.pecr?.clock.state].some((s) => s === "overdue" || s === "due_soon"),
+        [b.clock.state, b.pecr?.clock.state].some(
+          (s) => s === 'overdue' || s === 'due_soon'
+        )
       ).length,
-      unassessed: loaded.filter((b) => b.risk === null && b.breach.status !== "closed").length,
+      unassessed: loaded.filter(
+        (b) => b.risk === null && b.breach.status !== 'closed'
+      ).length,
       notified: loaded.filter((b) =>
-        b.decisions.some((d) => (d.kind === "supervisory_authority" || d.kind === "pecr_commissioner") && d.outcome === "done"),
+        b.decisions.some(
+          (d) =>
+            (d.kind === 'supervisory_authority' ||
+              d.kind === 'pecr_commissioner') &&
+            d.outcome === 'done'
+        )
       ).length,
-      rows: loaded,
+      rows: loaded
     };
   });
 }
@@ -488,14 +597,18 @@ export async function breachRegister(organisationId: string, entityIds: string[]
 export async function breachesNeedingAttention(organisationId: string) {
   return withOrganisation(organisationId, async () => {
     const open = await db
-      .select({ breach: breaches, entityName: entities.name, provider: entities.publicCommsProvider })
+      .select({
+        breach: breaches,
+        entityName: entities.name,
+        provider: entities.publicCommsProvider
+      })
       .from(breaches)
       .innerJoin(entities, eq(entities.id, breaches.entityId))
       .where(
         and(
           eq(breaches.organisationId, organisationId),
-          isNull(breaches.closedAt),
-        ),
+          isNull(breaches.closedAt)
+        )
       );
     if (open.length === 0) return [];
 
@@ -512,27 +625,35 @@ export async function breachesNeedingAttention(organisationId: string) {
       .flatMap(({ breach, entityName, provider }) => {
         const decisions = byBreach.get(breach.id) ?? [];
         const notified = decisions.find(
-          (d) => d.kind === "supervisory_authority" && d.outcome === "done",
+          (d) => d.kind === 'supervisory_authority' && d.outcome === 'done'
         );
         const notRequired = decisions.some(
-          (d) => d.kind === "supervisory_authority" && d.outcome === "not_required",
+          (d) =>
+            d.kind === 'supervisory_authority' && d.outcome === 'not_required'
         );
         const article33 = {
           breach,
           entityName,
-          regime: "article_33" as const,
+          regime: 'article_33' as const,
           clock: clockFor({
             role: breach.controllerRole as ControllerRole,
             discoveredAt: breach.discoveredAt,
             notifiedAt: notified?.completedAt ?? null,
             notRequired,
-            now,
-          }),
+            now
+          })
         };
         const pecr = pecrClockOf(breach, provider, decisions, now);
-        return pecr ? [article33, { breach, entityName, regime: "pecr_5a" as const, clock: pecr }] : [article33];
+        return pecr
+          ? [
+              article33,
+              { breach, entityName, regime: 'pecr_5a' as const, clock: pecr }
+            ]
+          : [article33];
       })
-      .filter((b) => b.clock.state === "overdue" || b.clock.state === "due_soon");
+      .filter(
+        (b) => b.clock.state === 'overdue' || b.clock.state === 'due_soon'
+      );
   });
 }
 
@@ -560,10 +681,19 @@ export async function linkAssessment(input: {
         .select()
         .from(breaches)
         .where(
-          and(eq(breaches.id, input.breachId), eq(breaches.organisationId, input.organisationId)),
+          and(
+            eq(breaches.id, input.breachId),
+            eq(breaches.organisationId, input.organisationId)
+          )
         );
-      if (!breach) throw new Error("No such breach");
-      if (input.assessmentId) await assertRecordIn(input.organisationId, "assessment", input.assessmentId, tx);
+      if (!breach) throw new Error('No such breach');
+      if (input.assessmentId)
+        await assertRecordIn(
+          input.organisationId,
+          'assessment',
+          input.assessmentId,
+          tx
+        );
 
       await tx
         .update(breaches)
@@ -571,10 +701,10 @@ export async function linkAssessment(input: {
           assessmentId: input.assessmentId,
           // Recording an assessment is the act of assessing, so the status
           // follows unless it has already moved past that.
-          ...(input.assessmentId && breach.status === "discovered"
-            ? { status: "assessing" as const }
+          ...(input.assessmentId && breach.status === 'discovered'
+            ? { status: 'assessing' as const }
             : {}),
-          updatedAt: new Date(),
+          updatedAt: new Date()
         })
         .where(eq(breaches.id, input.breachId));
 
@@ -582,10 +712,12 @@ export async function linkAssessment(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: breach.entityId,
-        action: input.assessmentId ? "breach.assessment_linked" : "breach.assessment_unlinked",
-        subjectType: "breach",
+        action: input.assessmentId
+          ? 'breach.assessment_linked'
+          : 'breach.assessment_unlinked',
+        subjectType: 'breach',
         subjectId: input.breachId,
-        after: { assessment: input.assessmentId },
+        after: { assessment: input.assessmentId }
       });
     });
   });
@@ -607,14 +739,14 @@ export async function severitySuggestion(breach: Breach) {
       status: assessments.status,
       band: assessments.scoreBand,
       tier: assessments.scoreTier,
-      score: assessments.scoreValue,
+      score: assessments.scoreValue
     })
     .from(assessments)
     .where(
       and(
         eq(assessments.id, breach.assessmentId),
-        eq(assessments.organisationId, breach.organisationId),
-      ),
+        eq(assessments.organisationId, breach.organisationId)
+      )
     );
   if (!row) return null;
 
@@ -622,11 +754,11 @@ export async function severitySuggestion(breach: Breach) {
   const suggests: RiskLevel | null =
     row.tier === null
       ? null
-      : row.tier === "low"
-        ? "none"
-        : row.tier === "medium"
-          ? "risk"
-          : "high_risk";
+      : row.tier === 'low'
+        ? 'none'
+        : row.tier === 'medium'
+          ? 'risk'
+          : 'high_risk';
 
   return { ...row, suggests };
 }

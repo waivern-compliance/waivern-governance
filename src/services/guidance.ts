@@ -1,5 +1,17 @@
-import { and, count, eq, isNotNull, isNull, lt, lte, ne, notExists, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import {
+  and,
+  count,
+  eq,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  notExists,
+  sql
+} from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
   assessments,
@@ -10,12 +22,13 @@ import {
   suppliers,
   tasks,
   templates,
-  templateVersions,
-} from "@/db/schema";
-import { STEPS, type Stage, type Step } from "@/lib/guidance/steps";
-import { requireSession } from "@/lib/session";
-import { EXPIRING_WITHIN_DAYS } from "./third-party";
-import { anyEntityUnderUkLaw } from "./entities";
+  templateVersions
+} from '@/db/schema';
+import { STEPS, type Stage, type Step } from '@/lib/guidance/steps';
+import { requireSession } from '@/lib/session';
+
+import { anyEntityUnderUkLaw } from './entities';
+import { EXPIRING_WITHIN_DAYS } from './third-party';
 
 /**
  * The guide, and how far through it this organisation actually is.
@@ -27,7 +40,7 @@ import { anyEntityUnderUkLaw } from "./entities";
  * that congratulates them for a box they ticked would be worse than none.
  */
 
-export type Mode = "off" | Stage;
+export type Mode = 'off' | Stage;
 
 export type StepState = Step & {
   done: boolean;
@@ -55,7 +68,8 @@ export type Guidance = {
 async function tally(organisationId: string) {
   const now = new Date();
   const horizon = new Date(now.getTime() + EXPIRING_WITHIN_DAYS * 86_400_000);
-  const rows = async (query: Promise<Array<{ n: number }>>) => (await query)[0]?.n ?? 0;
+  const rows = async (query: Promise<Array<{ n: number }>>) =>
+    (await query)[0]?.n ?? 0;
   const n = { n: count() };
 
   const [
@@ -74,31 +88,51 @@ async function tally(organisationId: string) {
     scheduled,
     overdueReviews,
     overdueTasks,
-    openTasks,
+    openTasks
   ] = await Promise.all([
-    rows(db.select(n).from(entities).where(eq(entities.organisationId, organisationId))),
-    rows(db.select(n).from(memberships).where(eq(memberships.organisationId, organisationId))),
+    rows(
+      db
+        .select(n)
+        .from(entities)
+        .where(eq(entities.organisationId, organisationId))
+    ),
+    rows(
+      db
+        .select(n)
+        .from(memberships)
+        .where(eq(memberships.organisationId, organisationId))
+    ),
     rows(
       db
         .select(n)
         .from(templateVersions)
         .innerJoin(templates, eq(templates.id, templateVersions.templateId))
         .where(
-          and(eq(templates.organisationId, organisationId), eq(templateVersions.status, "published")),
-        ),
+          and(
+            eq(templates.organisationId, organisationId),
+            eq(templateVersions.status, 'published')
+          )
+        )
     ),
     rows(
       db
         .select(n)
         .from(processingActivities)
-        .where(eq(processingActivities.organisationId, organisationId)),
+        .where(eq(processingActivities.organisationId, organisationId))
     ),
-    rows(db.select(n).from(suppliers).where(eq(suppliers.organisationId, organisationId))),
+    rows(
+      db
+        .select(n)
+        .from(suppliers)
+        .where(eq(suppliers.organisationId, organisationId))
+    ),
     rows(
       db
         .select(n)
         .from(dpas)
-        .where(and(eq(dpas.organisationId, organisationId), isNull(dpas.archivedAt))),
+        .where(
+          and(eq(dpas.organisationId, organisationId), isNull(dpas.archivedAt))
+        )
     ),
     // A third party with no live agreement is the Article 28 gap this step is
     // really about, so it is counted rather than inferred from two totals.
@@ -113,10 +147,15 @@ async function tally(organisationId: string) {
               db
                 .select({ one: sql`1` })
                 .from(dpas)
-                .where(and(eq(dpas.supplierId, suppliers.id), isNull(dpas.archivedAt))),
-            ),
-          ),
-        ),
+                .where(
+                  and(
+                    eq(dpas.supplierId, suppliers.id),
+                    isNull(dpas.archivedAt)
+                  )
+                )
+            )
+          )
+        )
     ),
     rows(
       db
@@ -126,9 +165,9 @@ async function tally(organisationId: string) {
           and(
             eq(suppliers.organisationId, organisationId),
             isNotNull(suppliers.sourceConnectionId),
-            isNull(suppliers.reviewedAt),
-          ),
-        ),
+            isNull(suppliers.reviewedAt)
+          )
+        )
     ),
     rows(
       db
@@ -139,31 +178,21 @@ async function tally(organisationId: string) {
             eq(dpas.organisationId, organisationId),
             isNull(dpas.archivedAt),
             isNotNull(dpas.expiresAt),
-            lte(dpas.expiresAt, horizon),
-          ),
-        ),
+            lte(dpas.expiresAt, horizon)
+          )
+        )
     ),
-    rows(db.select(n).from(aiUseCases).where(eq(aiUseCases.organisationId, organisationId))),
-    rows(db.select(n).from(assessments).where(eq(assessments.organisationId, organisationId))),
     rows(
       db
         .select(n)
-        .from(assessments)
-        .where(
-          and(eq(assessments.organisationId, organisationId), eq(assessments.status, "approved")),
-        ),
+        .from(aiUseCases)
+        .where(eq(aiUseCases.organisationId, organisationId))
     ),
     rows(
       db
         .select(n)
         .from(assessments)
-        .where(
-          and(
-            eq(assessments.organisationId, organisationId),
-            eq(assessments.status, "approved"),
-            isNotNull(assessments.reviewDueAt),
-          ),
-        ),
+        .where(eq(assessments.organisationId, organisationId))
     ),
     rows(
       db
@@ -172,10 +201,33 @@ async function tally(organisationId: string) {
         .where(
           and(
             eq(assessments.organisationId, organisationId),
-            eq(assessments.status, "approved"),
-            lt(assessments.reviewDueAt, now),
-          ),
-        ),
+            eq(assessments.status, 'approved')
+          )
+        )
+    ),
+    rows(
+      db
+        .select(n)
+        .from(assessments)
+        .where(
+          and(
+            eq(assessments.organisationId, organisationId),
+            eq(assessments.status, 'approved'),
+            isNotNull(assessments.reviewDueAt)
+          )
+        )
+    ),
+    rows(
+      db
+        .select(n)
+        .from(assessments)
+        .where(
+          and(
+            eq(assessments.organisationId, organisationId),
+            eq(assessments.status, 'approved'),
+            lt(assessments.reviewDueAt, now)
+          )
+        )
     ),
     rows(
       db
@@ -184,17 +236,22 @@ async function tally(organisationId: string) {
         .where(
           and(
             eq(tasks.organisationId, organisationId),
-            ne(tasks.status, "done"),
-            lt(tasks.dueAt, now),
-          ),
-        ),
+            ne(tasks.status, 'done'),
+            lt(tasks.dueAt, now)
+          )
+        )
     ),
     rows(
       db
         .select(n)
         .from(tasks)
-        .where(and(eq(tasks.organisationId, organisationId), ne(tasks.status, "done"))),
-    ),
+        .where(
+          and(
+            eq(tasks.organisationId, organisationId),
+            ne(tasks.status, 'done')
+          )
+        )
+    )
   ]);
 
   return {
@@ -213,13 +270,14 @@ async function tally(organisationId: string) {
     scheduled,
     overdueReviews,
     overdueTasks,
-    openTasks,
+    openTasks
   };
 }
 
 type Tally = Awaited<ReturnType<typeof tally>>;
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many = `${one}s`) =>
+  `${n} ${n === 1 ? one : many}`;
 
 /**
  * Whether each step is finished, and the sentence that says why.
@@ -230,79 +288,100 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  */
 function measure(step: Step, t: Tally): { done: boolean; measure: string } {
   switch (step.id) {
-    case "entities":
-      return { done: t.entities > 0, measure: `${plural(t.entities, "entity", "entities")} recorded` };
-    case "people":
-      return { done: t.people > 1, measure: `${plural(t.people, "person", "people")} with access` };
-    case "templates":
-      return { done: t.published > 0, measure: `${plural(t.published, "template")} published` };
-    case "activities":
-      return { done: t.activities > 0, measure: `${plural(t.activities, "activity", "activities")} recorded` };
-    case "third-parties":
+    case 'entities':
+      return {
+        done: t.entities > 0,
+        measure: `${plural(t.entities, 'entity', 'entities')} recorded`
+      };
+    case 'people':
+      return {
+        done: t.people > 1,
+        measure: `${plural(t.people, 'person', 'people')} with access`
+      };
+    case 'templates':
+      return {
+        done: t.published > 0,
+        measure: `${plural(t.published, 'template')} published`
+      };
+    case 'activities':
+      return {
+        done: t.activities > 0,
+        measure: `${plural(t.activities, 'activity', 'activities')} recorded`
+      };
+    case 'third-parties':
       return {
         done: t.suppliers > 0 && t.uncovered === 0,
         measure:
           t.suppliers === 0
-            ? "no third parties recorded"
-            : `${plural(t.suppliers, "third party", "third parties")}, ${t.uncovered} without an agreement`,
+            ? 'no third parties recorded'
+            : `${plural(t.suppliers, 'third party', 'third parties')}, ${t.uncovered} without an agreement`
       };
-    case "ai":
-      return { done: t.ai > 0, measure: `${plural(t.ai, "AI system")} recorded` };
-    case "assessments":
+    case 'ai':
+      return {
+        done: t.ai > 0,
+        measure: `${plural(t.ai, 'AI system')} recorded`
+      };
+    case 'assessments':
       return {
         done: t.approved > 0,
-        measure: `${plural(t.assessments, "assessment")}, ${t.approved} approved`,
+        measure: `${plural(t.assessments, 'assessment')}, ${t.approved} approved`
       };
-    case "reviews":
+    case 'reviews':
       return {
         done: t.approved > 0 && t.scheduled === t.approved,
         measure:
           t.approved === 0
-            ? "nothing approved yet"
-            : `${t.scheduled} of ${plural(t.approved, "approved assessment")} have a review date`,
+            ? 'nothing approved yet'
+            : `${t.scheduled} of ${plural(t.approved, 'approved assessment')} have a review date`
       };
 
-    case "tasks":
+    case 'tasks':
       return {
         done: t.overdueTasks === 0,
-        measure: `${plural(t.openTasks, "open task")}, ${t.overdueTasks} overdue`,
+        measure: `${plural(t.openTasks, 'open task')}, ${t.overdueTasks} overdue`
       };
-    case "due-reviews":
+    case 'due-reviews':
       return {
         done: t.overdueReviews === 0,
-        measure: `${plural(t.overdueReviews, "assessment")} past a review date`,
+        measure: `${plural(t.overdueReviews, 'assessment')} past a review date`
       };
-    case "expiring":
+    case 'expiring':
       return {
         done: t.expiring === 0,
-        measure: `${plural(t.expiring, "agreement")} expiring within six months`,
+        measure: `${plural(t.expiring, 'agreement')} expiring within six months`
       };
-    case "untriaged":
+    case 'untriaged':
       return {
         done: t.untriaged === 0,
-        measure: `${plural(t.untriaged, "third party", "third parties")} never reviewed`,
+        measure: `${plural(t.untriaged, 'third party', 'third parties')} never reviewed`
       };
-    case "records-current":
+    case 'records-current':
       return {
         done: t.activities > 0,
-        measure: `${plural(t.activities, "activity", "activities")} recorded`,
+        measure: `${plural(t.activities, 'activity', 'activities')} recorded`
       };
-    case "risks":
+    case 'risks':
       // Deliberately never marked done: "no open risk" is a snapshot, and a
       // tick would suggest risk work is a thing you finish.
-      return { done: false, measure: "an ongoing judgement, not a box to tick" };
-    case "breach":
-    case "requests":
-    case "complaints":
-      return { done: false, measure: "read it before you need it" };
-    case "cookies":
-      return { done: false, measure: "kept current as the sites change" };
-    case "marketing":
-      return { done: false, measure: "kept current as campaigns start and stop" };
-    case "evidence":
-      return { done: false, measure: "worth doing before somebody asks" };
+      return {
+        done: false,
+        measure: 'an ongoing judgement, not a box to tick'
+      };
+    case 'breach':
+    case 'requests':
+    case 'complaints':
+      return { done: false, measure: 'read it before you need it' };
+    case 'cookies':
+      return { done: false, measure: 'kept current as the sites change' };
+    case 'marketing':
+      return {
+        done: false,
+        measure: 'kept current as campaigns start and stop'
+      };
+    case 'evidence':
+      return { done: false, measure: 'worth doing before somebody asks' };
     default:
-      return { done: false, measure: "" };
+      return { done: false, measure: '' };
   }
 }
 
@@ -313,8 +392,8 @@ function measure(step: Step, t: Tally): { done: boolean; measure: string } {
  * organisation should be guided without somebody first discovering that a
  * guide exists.
  */
-export function derivedStage(t: Pick<Tally, "activities" | "approved">): Stage {
-  return t.activities > 0 && t.approved > 0 ? "maintain" : "setup";
+export function derivedStage(t: Pick<Tally, 'activities' | 'approved'>): Stage {
+  return t.activities > 0 && t.approved > 0 ? 'maintain' : 'setup';
 }
 
 export async function guidanceFor(input: {
@@ -322,23 +401,30 @@ export async function guidanceFor(input: {
   chosen: Mode | null;
 }): Promise<Guidance> {
   return withOrganisation(input.organisationId, async () => {
-    const [t, ukLaw] = await Promise.all([tally(input.organisationId), anyEntityUnderUkLaw(input.organisationId)]);
-    const stage = input.chosen && input.chosen !== "off" ? input.chosen : derivedStage(t);
-    const steps = STEPS[stage].filter((step) => ukLaw || !step.ukLaw).map((step) => ({ ...step, ...measure(step, t) }));
+    const [t, ukLaw] = await Promise.all([
+      tally(input.organisationId),
+      anyEntityUnderUkLaw(input.organisationId)
+    ]);
+    const stage =
+      input.chosen && input.chosen !== 'off' ? input.chosen : derivedStage(t);
+    const steps = STEPS[stage]
+      .filter((step) => ukLaw || !step.ukLaw)
+      .map((step) => ({ ...step, ...measure(step, t) }));
 
     return {
       mode: input.chosen ?? stage,
       chosen: input.chosen !== null,
       stage,
       steps,
-      remaining: steps.filter((s) => !s.done).length,
+      remaining: steps.filter((s) => !s.done).length
     };
   });
 }
 
 /** A person's own choice. Grants nothing, so it needs no capability. */
 export async function setOwnGuidance(mode: Mode) {
-  if (!["off", "setup", "maintain"].includes(mode)) throw new Error("No such guidance mode");
+  if (!['off', 'setup', 'maintain'].includes(mode))
+    throw new Error('No such guidance mode');
   const active = await requireSession();
 
   await db
@@ -347,7 +433,7 @@ export async function setOwnGuidance(mode: Mode) {
     .where(
       and(
         eq(memberships.organisationId, active.membership.organisationId),
-        eq(memberships.userId, active.userId),
-      ),
+        eq(memberships.userId, active.userId)
+      )
     );
 }
