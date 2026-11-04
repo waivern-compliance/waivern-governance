@@ -2,3 +2,8 @@ ignoredBuiltDependencies:
   - esbuild
   - sharp
   - unrs-resolver
+
+overrides:
+  # drizzle-kit's legacy loader pins esbuild 0.18 (GHSA-67mh-4wv8-2f99). It only
+  # calls the transform API, which 0.25 keeps.
+  '@esbuild-kit/core-utils>esbuild': ^0.25.0
