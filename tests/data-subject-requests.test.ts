@@ -471,11 +471,7 @@ describe('who may handle requests', () => {
   it('is the privacy team, not auditors or approvers', () => {
     const org = (
       role:
-        | 'privacy_admin'
-        | 'privacy_analyst'
-        | 'auditor'
-        | 'approver'
-        | 'owner'
+        'privacy_admin' | 'privacy_analyst' | 'auditor' | 'approver' | 'owner'
     ) => can([{ role, scope: 'organisation' }], 'dsr.handle');
     assert.deepEqual(
       [

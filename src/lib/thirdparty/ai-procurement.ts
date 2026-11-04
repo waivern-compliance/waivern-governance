@@ -144,9 +144,7 @@ export function isAiSupplierDefinition(definition: {
 }
 
 export type AiRecommendation =
-  | 'proceed'
-  | 'proceed_with_conditions'
-  | 'do_not_proceed';
+  'proceed' | 'proceed_with_conditions' | 'do_not_proceed';
 
 export function isRecommendation(value: unknown): value is AiRecommendation {
   return (

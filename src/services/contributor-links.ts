@@ -108,11 +108,7 @@ export type RedeemedLink = {
 };
 
 export type RedemptionFailure =
-  | 'not_found'
-  | 'expired'
-  | 'revoked'
-  | 'completed'
-  | 'assessment_closed';
+  'not_found' | 'expired' | 'revoked' | 'completed' | 'assessment_closed';
 
 /**
  * Exchange a token for scoped access.

@@ -71,8 +71,7 @@ export function missingEmailSettings(
 }
 
 export type SendOutcome =
-  | { sent: true; messageId: string }
-  | { sent: false; reason: string };
+  { sent: true; messageId: string } | { sent: false; reason: string };
 
 /** Send one email. Resolves with what happened; never rejects. */
 export async function sendEmail(

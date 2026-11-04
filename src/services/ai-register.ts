@@ -48,17 +48,9 @@ type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export type SystemType = 'predictive' | 'generative' | 'agentic' | 'hybrid';
 export type Provenance =
-  | 'built_in_house'
-  | 'fine_tuned'
-  | 'third_party_api'
-  | 'embedded_vendor';
+  'built_in_house' | 'fine_tuned' | 'third_party_api' | 'embedded_vendor';
 export type LifecycleStage =
-  | 'proposed'
-  | 'development'
-  | 'pilot'
-  | 'production'
-  | 'retiring'
-  | 'retired';
+  'proposed' | 'development' | 'pilot' | 'production' | 'retiring' | 'retired';
 export type TransparencyScope = 'required' | 'voluntary' | 'not_in_scope';
 export type DeploymentPattern =
   | 'public_web_app'

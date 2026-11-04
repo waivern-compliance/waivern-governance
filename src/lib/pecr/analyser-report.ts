@@ -32,8 +32,7 @@ export type AnalyserReport = {
 };
 
 export type Validation =
-  | { ok: true; report: AnalyserReport }
-  | { ok: false; reason: string };
+  { ok: true; report: AnalyserReport } | { ok: false; reason: string };
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -117,12 +116,7 @@ export type ObservedItem = {
   key: string;
   name: string;
   kind:
-    | 'cookie'
-    | 'local_storage'
-    | 'session_storage'
-    | 'pixel'
-    | 'sdk'
-    | 'other';
+    'cookie' | 'local_storage' | 'session_storage' | 'pixel' | 'sdk' | 'other';
   domain: string | null;
   party: 'first' | 'third' | 'unknown';
   expiry: string | null;

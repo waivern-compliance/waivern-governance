@@ -8,10 +8,7 @@
  */
 
 export type AdequacyStatus =
-  | 'adequate'
-  | 'partial'
-  | 'not_adequate'
-  | 'under_review';
+  'adequate' | 'partial' | 'not_adequate' | 'under_review';
 export type RiskLevel = 'low' | 'moderate' | 'high' | 'unknown';
 export type Regime = 'uk' | 'eu';
 

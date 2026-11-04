@@ -164,9 +164,7 @@ export async function decideAction(
       approvalId,
       organisationId: session.membership.organisationId,
       decision: formData.get('decision') as
-        | 'approved'
-        | 'rejected'
-        | 'returned',
+        'approved' | 'rejected' | 'returned',
       rationale: String(formData.get('rationale') ?? ''),
       boardReference: String(formData.get('boardReference') ?? ''),
       callerRoles: rolesHere,

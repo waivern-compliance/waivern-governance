@@ -35,10 +35,7 @@ import type { LawfulBasis } from './lawful-basis';
 
 /** Article 22C(2): what the safeguards must include. */
 export type AdmSafeguard =
-  | 'information'
-  | 'representations'
-  | 'human_intervention'
-  | 'contest';
+  'information' | 'representations' | 'human_intervention' | 'contest';
 
 export const ADM_SAFEGUARDS: Record<
   AdmSafeguard,
@@ -84,9 +81,7 @@ export function admSafeguardPoint(
  * data (sensitive processing, under Part 3) may be behind the decision.
  */
 export type AdmSpecialCondition =
-  | 'explicit_consent'
-  | 'contract_or_law'
-  | 'required_by_law';
+  'explicit_consent' | 'contract_or_law' | 'required_by_law';
 
 export const ADM_SPECIAL_CONDITIONS: Record<
   AdmSpecialCondition,

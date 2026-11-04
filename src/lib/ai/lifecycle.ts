@@ -14,12 +14,7 @@
  */
 
 export type Stage =
-  | 'proposed'
-  | 'development'
-  | 'pilot'
-  | 'production'
-  | 'retiring'
-  | 'retired';
+  'proposed' | 'development' | 'pilot' | 'production' | 'retiring' | 'retired';
 
 export const STAGE_ORDER: readonly Stage[] = [
   'proposed',

@@ -106,8 +106,7 @@ export async function recordRequestAction(
       controllerRole: (text(formData.get('controllerRole')) ||
         'controller') as ControllerRole,
       jurisdiction: (text(formData.get('jurisdiction')) || undefined) as
-        | Jurisdiction
-        | undefined,
+        Jurisdiction | undefined,
       regime: (text(formData.get('regime')) || undefined) as Regime | undefined,
       subjectCategories: lines(formData.get('subjectCategories')),
       ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
@@ -303,9 +302,7 @@ export async function respondAction(
       requestId,
       organisationId: active.membership.organisationId,
       outcome: (text(formData.get('outcome')) || 'complied') as
-        | 'complied'
-        | 'partly'
-        | 'refused',
+        'complied' | 'partly' | 'refused',
       respondedAt: when(formData.get('respondedAt')) ?? undefined,
       channel: text(formData.get('channel')) || 'email',
       summary: text(formData.get('summary')),

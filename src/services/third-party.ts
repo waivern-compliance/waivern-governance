@@ -178,10 +178,7 @@ export function article28Gaps(
  * pass one and fail the other.
  */
 export type PrivacyStanding =
-  | 'not_met'
-  | 'met_with_gaps'
-  | 'met'
-  | 'controller';
+  'not_met' | 'met_with_gaps' | 'met' | 'controller';
 
 export const PRIVACY_STANDING_LABEL: Record<PrivacyStanding, string> = {
   controller: 'Another controller: Article 28 does not apply',

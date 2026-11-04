@@ -34,8 +34,8 @@ const PRIVATE_HOST = /@[^@/]*\.railway\.internal[:/]/i;
 export function insideRailway(env: Env = process.env): boolean {
   return Boolean(
     env.RAILWAY_ENVIRONMENT_NAME ??
-      env.RAILWAY_SERVICE_NAME ??
-      env.RAILWAY_PROJECT_ID
+    env.RAILWAY_SERVICE_NAME ??
+    env.RAILWAY_PROJECT_ID
   );
 }
 
