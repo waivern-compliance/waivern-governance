@@ -23,12 +23,7 @@ export const ATRS_GUIDANCE_URL =
 export const ATRS_SUBMISSION_EMAIL = 'algorithmic-transparency@dsit.gov.uk';
 
 export type AtrsFieldType =
-  | 'text'
-  | 'long'
-  | 'select'
-  | 'yesno'
-  | 'url'
-  | 'email';
+  'text' | 'long' | 'select' | 'yesno' | 'url' | 'email';
 
 export type AtrsField = {
   /** The template's own reference, e.g. "2.1.3". */

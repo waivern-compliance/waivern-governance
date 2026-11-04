@@ -42,10 +42,7 @@ function conditionFrom(formData: FormData): RoutingCondition | undefined {
       return {
         op: 'tierAtLeast',
         value: String(formData.get('conditionTier') ?? 'high') as
-          | 'low'
-          | 'medium'
-          | 'high'
-          | 'critical'
+          'low' | 'medium' | 'high' | 'critical'
       };
     case 'answerAtLeast':
       return {

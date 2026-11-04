@@ -76,10 +76,7 @@ export const COMPLAINT_SUBJECT_KEYS = Object.keys(
 ) as ComplaintSubject[];
 
 export type ComplaintOutcome =
-  | 'upheld'
-  | 'partly_upheld'
-  | 'not_upheld'
-  | 'passed_to_controller';
+  'upheld' | 'partly_upheld' | 'not_upheld' | 'passed_to_controller';
 
 export const OUTCOME_LABEL: Record<ComplaintOutcome, string> = {
   upheld: 'Upheld',

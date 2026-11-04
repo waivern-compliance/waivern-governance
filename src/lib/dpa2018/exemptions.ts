@@ -43,10 +43,7 @@ const LISTED: readonly Right[] = [
 const ACCESS: readonly Right[] = ['access'];
 
 type Extra =
-  | 'immigration'
-  | 'health_opinion'
-  | 'parent_request'
-  | 'child_abuse';
+  'immigration' | 'health_opinion' | 'parent_request' | 'child_abuse';
 
 type Exemption = {
   schedule: 2 | 3;

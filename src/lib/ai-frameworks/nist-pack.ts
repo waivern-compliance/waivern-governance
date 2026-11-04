@@ -28,9 +28,7 @@ import type { AiFrameworkPack, RiskCategoryDef } from './types';
  */
 
 type NistCategory =
-  | TrustworthyCharacteristic
-  | 'financial'
-  | 'legal_regulatory';
+  TrustworthyCharacteristic | 'financial' | 'legal_regulatory';
 
 const kept = (value: 'financial' | 'legal_regulatory') =>
   AI_RISK_CATEGORIES.find((c) => c.value === value)!;

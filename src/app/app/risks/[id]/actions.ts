@@ -90,11 +90,7 @@ export async function mitigationStatusAction(
       mitigationId,
       organisationId: active.membership.organisationId,
       status: formData.get('status') as
-        | 'planned'
-        | 'in_progress'
-        | 'implemented'
-        | 'verified'
-        | 'abandoned',
+        'planned' | 'in_progress' | 'implemented' | 'verified' | 'abandoned',
       evidenceRef: String(formData.get('evidenceRef') ?? '') || undefined,
       actor: actorOf(active)
     });

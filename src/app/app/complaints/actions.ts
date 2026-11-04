@@ -94,8 +94,7 @@ export async function recordComplaintAction(
       controllerRole: (text(formData.get('controllerRole')) ||
         'controller') as ControllerRole,
       jurisdiction: (text(formData.get('jurisdiction')) || undefined) as
-        | Jurisdiction
-        | undefined,
+        Jurisdiction | undefined,
       requestId: text(formData.get('requestId')) || null,
       ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
       actor: actorOf(active)
@@ -172,10 +171,7 @@ export async function complaintEventAction(
 ): Promise<RequestResult> {
   const active = await requireCapability('dsr.handle');
   const kind = text(formData.get('kind')) as
-    | 'acknowledged'
-    | 'enquiry'
-    | 'progress_update'
-    | 'regulator_contact';
+    'acknowledged' | 'enquiry' | 'progress_update' | 'regulator_contact';
   const result = await refused(
     async () => {
       await recordComplaintEvent({

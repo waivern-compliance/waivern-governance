@@ -30,18 +30,10 @@ import { raiseTask } from './workflow';
 
 export type IncidentKind = 'incident' | 'harm' | 'challenge' | 'concern';
 export type IncidentSource =
-  | 'staff'
-  | 'public'
-  | 'monitoring'
-  | 'supplier'
-  | 'other';
+  'staff' | 'public' | 'monitoring' | 'supplier' | 'other';
 export type Harm = 'none_known' | 'potential' | 'actual';
 export type IncidentStatus =
-  | 'reported'
-  | 'triaged'
-  | 'investigating'
-  | 'resolved'
-  | 'closed';
+  'reported' | 'triaged' | 'investigating' | 'resolved' | 'closed';
 
 export const KIND_LABEL: Record<IncidentKind, string> = {
   incident: 'Incident - it failed or misbehaved',

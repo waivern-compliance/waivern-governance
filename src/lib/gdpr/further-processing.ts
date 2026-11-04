@@ -25,12 +25,7 @@
 
 /** Article 8A(3): the cases deemed compatible, and an assessment under 8A(2). */
 export type CompatibilityRoute =
-  | 'consent'
-  | 'research'
-  | 'compliance'
-  | 'annex2'
-  | 'article23'
-  | 'assessed';
+  'consent' | 'research' | 'compliance' | 'annex2' | 'article23' | 'assessed';
 
 export const COMPATIBILITY_ROUTES: Record<
   CompatibilityRoute,
@@ -124,11 +119,7 @@ export const ANNEX2_CONDITION_KEYS = Object.keys(
 
 /** Article 8A(2): what to weigh when no deemed case applies. */
 export type CompatibilityFactor =
-  | 'link'
-  | 'context'
-  | 'nature'
-  | 'consequences'
-  | 'safeguards';
+  'link' | 'context' | 'nature' | 'consequences' | 'safeguards';
 
 export const COMPATIBILITY_FACTORS: Record<
   CompatibilityFactor,
@@ -164,9 +155,7 @@ export const COMPATIBILITY_FACTOR_KEYS = Object.keys(
 
 /** Article 84C: what the Article 84B(2) safeguards require. */
 export type ResearchSafeguard =
-  | 'no_substantial_harm'
-  | 'no_individual_decisions'
-  | 'data_minimisation';
+  'no_substantial_harm' | 'no_individual_decisions' | 'data_minimisation';
 
 export const RESEARCH_SAFEGUARDS: Record<
   ResearchSafeguard,

@@ -150,11 +150,7 @@ export const BASIS_KEYS = Object.keys(BASES) as StorageBasis[];
 
 /** The categories a scanner may suggest. Kept only as a suggestion. */
 export type SuggestedCategory =
-  | 'strictly_necessary'
-  | 'functional'
-  | 'analytics'
-  | 'advertising'
-  | 'unknown';
+  'strictly_necessary' | 'functional' | 'analytics' | 'advertising' | 'unknown';
 
 /**
  * The basis a scanner's category points towards, if any. Shown to the person
