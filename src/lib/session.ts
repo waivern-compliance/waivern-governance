@@ -1,11 +1,13 @@
-import { cookies } from "next/headers";
-import { auth, loadMemberships, type SessionMembership } from "@/auth";
-import { can, scopedEntityIds, type Capability } from "./rbac";
-import { resolvePersona, type Persona } from "./persona";
+import { cookies } from 'next/headers';
+
+import { auth, loadMemberships, type SessionMembership } from '@/auth';
+
+import { resolvePersona, type Persona } from './persona';
+import { can, scopedEntityIds, type Capability } from './rbac';
 
 export class NotAuthenticated extends Error {
   constructor() {
-    super("Not signed in");
+    super('Not signed in');
   }
 }
 
@@ -14,7 +16,7 @@ export class NotPermitted extends Error {
     super(
       entityId
         ? `Missing ${capability} on entity ${entityId}`
-        : `Missing ${capability}`,
+        : `Missing ${capability}`
     );
   }
 }
@@ -40,19 +42,26 @@ export type ActiveSession = {
  * active membership of that organisation, and a cookie naming one they do not
  * belong to — stale, or edited — is ignored.
  */
-export const ORGANISATION_COOKIE = "govern-organisation";
+export const ORGANISATION_COOKIE = 'govern-organisation';
 
 /**
  * Which membership a request acts through: the one preferred, if the person
  * still has it, otherwise the first by name — so the default is the same every
  * time, not whichever row the database happened to return first.
  */
-export function chooseMembership<M extends { organisationId: string; organisationName: string }>(
-  memberships: readonly M[],
-  preferred?: string | null,
-): M | null {
-  const ordered = [...memberships].sort((a, b) => a.organisationName.localeCompare(b.organisationName));
-  return (preferred ? ordered.find((m) => m.organisationId === preferred) : undefined) ?? ordered[0] ?? null;
+export function chooseMembership<
+  M extends { organisationId: string; organisationName: string }
+>(memberships: readonly M[], preferred?: string | null): M | null {
+  const ordered = [...memberships].sort((a, b) =>
+    a.organisationName.localeCompare(b.organisationName)
+  );
+  return (
+    (preferred
+      ? ordered.find((m) => m.organisationId === preferred)
+      : undefined) ??
+    ordered[0] ??
+    null
+  );
 }
 
 async function preferredOrganisation(): Promise<string | null> {
@@ -73,7 +82,7 @@ async function preferredOrganisation(): Promise<string | null> {
  * first by name.
  */
 export async function getActiveSession(
-  organisationId?: string,
+  organisationId?: string
 ): Promise<ActiveSession | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
@@ -90,15 +99,17 @@ export async function getActiveSession(
 
   return {
     userId: session.user.id,
-    email: session.user.email ?? "",
+    email: session.user.email ?? '',
     name: session.user.name ?? null,
     membership,
     persona: resolvePersona(membership.persona, membership.grants),
-    organisations: chooseMembershipOrder(memberships),
+    organisations: chooseMembershipOrder(memberships)
   };
 }
 
-export async function requireSession(organisationId?: string): Promise<ActiveSession> {
+export async function requireSession(
+  organisationId?: string
+): Promise<ActiveSession> {
   const active = await getActiveSession(organisationId);
   if (!active) throw new NotAuthenticated();
   return active;
@@ -113,7 +124,7 @@ export async function requireSession(organisationId?: string): Promise<ActiveSes
  */
 export async function requireCapability(
   capability: Capability,
-  opts: { organisationId?: string; entityId?: string } = {},
+  opts: { organisationId?: string; entityId?: string } = {}
 ): Promise<ActiveSession> {
   const active = await requireSession(opts.organisationId);
   if (!can(active.membership.grants, capability, opts.entityId)) {
@@ -125,7 +136,7 @@ export async function requireCapability(
 /** Entities this caller may exercise a capability over; `null` means all. */
 export function visibleEntityIds(
   active: ActiveSession,
-  capability: Capability = "record.read",
+  capability: Capability = 'record.read'
 ): string[] | null {
   return scopedEntityIds(active.membership.grants, capability);
 }
@@ -133,5 +144,8 @@ export function visibleEntityIds(
 function chooseMembershipOrder(memberships: readonly SessionMembership[]) {
   return [...memberships]
     .sort((a, b) => a.organisationName.localeCompare(b.organisationName))
-    .map(({ organisationId, organisationName }) => ({ organisationId, organisationName }));
+    .map(({ organisationId, organisationName }) => ({
+      organisationId,
+      organisationName
+    }));
 }

@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * Where a sign-in form may send the browser. A server action that calls
@@ -11,12 +11,14 @@ function identityProviderOrigins(): string[] {
   if (process.env.AUTH_MICROSOFT_ENTRA_ID_ID) {
     const issuer = process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER;
     try {
-      origins.push(issuer ? new URL(issuer).origin : "https://login.microsoftonline.com");
+      origins.push(
+        issuer ? new URL(issuer).origin : 'https://login.microsoftonline.com'
+      );
     } catch {
-      origins.push("https://login.microsoftonline.com");
+      origins.push('https://login.microsoftonline.com');
     }
   }
-  if (process.env.AUTH_GOOGLE_ID) origins.push("https://accounts.google.com");
+  if (process.env.AUTH_GOOGLE_ID) origins.push('https://accounts.google.com');
   return origins;
 }
 
@@ -37,29 +39,32 @@ function identityProviderOrigins(): string[] {
 export function contentSecurityPolicy(nonce: string, isDev: boolean): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    ["form-action 'self'", ...identityProviderOrigins()].join(" "),
+    ["form-action 'self'", ...identityProviderOrigins()].join(' '),
     "frame-ancestors 'none'",
-    ...(isDev ? [] : ["upgrade-insecure-requests"]),
-  ].join("; ");
+    ...(isDev ? [] : ['upgrade-insecure-requests'])
+  ].join('; ');
 }
 
 export function proxy(request: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const csp = contentSecurityPolicy(nonce, process.env.NODE_ENV === "development");
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const csp = contentSecurityPolicy(
+    nonce,
+    process.env.NODE_ENV === 'development'
+  );
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", csp);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
-  response.headers.set("Content-Security-Policy", csp);
+  response.headers.set('Content-Security-Policy', csp);
   return response;
 }
 
@@ -68,11 +73,12 @@ export const config = {
     // Pages only. API routes, build assets and icons render no HTML, and a
     // prefetch is a data payload rather than a document.
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico|icon|apple-icon).*)",
+      source:
+        '/((?!api|_next/static|_next/image|favicon.ico|icon|apple-icon).*)',
       missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
-    },
-  ],
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' }
+      ]
+    }
+  ]
 };

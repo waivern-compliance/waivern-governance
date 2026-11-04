@@ -1,34 +1,39 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { Mark } from "@/components/Wordmark";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { auth, authConfig, signIn } from '@/auth';
+import { Mark } from '@/components/Wordmark';
 import {
   PRODUCT_DESCRIPTION,
   PRODUCT_SUFFIX,
-  PRODUCT_VENDOR,
-} from "@/lib/product";
-import { auth, authConfig, signIn } from "@/auth";
-import { getActiveSession } from "@/lib/session";
+  PRODUCT_VENDOR
+} from '@/lib/product';
+import { getActiveSession } from '@/lib/session';
 
 export default async function SignIn({
-  searchParams,
+  searchParams
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  if (await getActiveSession()) redirect("/app");
+  if (await getActiveSession()) redirect('/app');
   // Signed in, but a member of no organisation yet: somewhere to ask for one.
-  if ((await auth())?.user?.id) redirect("/welcome");
+  if ((await auth())?.user?.id) redirect('/welcome');
   const { error } = await searchParams;
   // Auth.js reports a thrown callback as "Configuration". Here that means the
   // membership lookup failed rather than refused — usually the database being
   // unreachable — and saying "your account lacks access" would be wrong.
-  const isFault = error === "Configuration";
+  const isFault = error === 'Configuration';
 
   const providers = authConfig.providers.map((p) => {
-    const cfg = typeof p === "function" ? p() : p;
-    return { id: cfg.id as string, name: cfg.name as string, type: cfg.type as string };
+    const cfg = typeof p === 'function' ? p() : p;
+    return {
+      id: cfg.id as string,
+      name: cfg.name as string,
+      type: cfg.type as string
+    };
   });
-  const sso = providers.filter((p) => p.type !== "credentials");
-  const dev = providers.find((p) => p.type === "credentials");
+  const sso = providers.filter((p) => p.type !== 'credentials');
+  const dev = providers.find((p) => p.type === 'credentials');
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-8 px-6">
@@ -36,7 +41,7 @@ export default async function SignIn({
         <Mark className="h-12 w-12 text-navy" />
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">
-            {PRODUCT_VENDOR}{" "}
+            {PRODUCT_VENDOR}{' '}
             <span className="font-normal text-ink-soft">{PRODUCT_SUFFIX}</span>
           </h1>
           <p className="text-sm text-ink-soft">{PRODUCT_DESCRIPTION}</p>
@@ -50,8 +55,10 @@ export default async function SignIn({
         >
           {isFault ? (
             <>
-              <strong className="block">Sign-in is not working right now.</strong>
-              This is a fault on our side, not a problem with your account —
+              <strong className="block">
+                Sign-in is not working right now.
+              </strong>
+              This is a fault on our side, not a problem with your account -
               whether you have access was never established. An administrator
               should check the server log; the cause is recorded there.
             </>
@@ -61,7 +68,7 @@ export default async function SignIn({
               Access is granted per email address, and the one your identity
               provider just presented is not registered here. The usual cause is
               signing in with a different account from the one that was granted
-              — check which account you used. If it is the right one, ask an
+              - check which account you used. If it is the right one, ask an
               administrator to add it.
             </>
           )}
@@ -74,8 +81,8 @@ export default async function SignIn({
             <form
               key={p.id}
               action={async () => {
-                "use server";
-                await signIn(p.id, { redirectTo: "/app" });
+                'use server';
+                await signIn(p.id, { redirectTo: '/app' });
               }}
             >
               <button
@@ -97,15 +104,18 @@ export default async function SignIn({
       {dev ? (
         <form
           action={async (formData: FormData) => {
-            "use server";
-            await signIn("credentials", {
-              email: String(formData.get("email") ?? ""),
-              redirectTo: "/app",
+            'use server';
+            await signIn('credentials', {
+              email: String(formData.get('email') ?? ''),
+              redirectTo: '/app'
             });
           }}
           className="space-y-2 rounded border border-dashed border-line p-4"
         >
-          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
+          <label
+            htmlFor="email"
+            className="block text-xs font-medium uppercase tracking-wider text-ink-soft"
+          >
             Development sign-in
           </label>
           <input
@@ -129,7 +139,10 @@ export default async function SignIn({
       ) : null}
 
       <p className="text-sm text-ink-soft">
-        <Link href="/security" className="underline underline-offset-2 hover:text-brand">
+        <Link
+          href="/security"
+          className="underline underline-offset-2 hover:text-brand"
+        >
           Security and backups
         </Link>
       </p>

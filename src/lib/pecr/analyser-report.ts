@@ -31,29 +31,46 @@ export type AnalyserReport = {
   storage?: Array<Record<string, unknown>>;
 };
 
-export type Validation = { ok: true; report: AnalyserReport } | { ok: false; reason: string };
+export type Validation =
+  | { ok: true; report: AnalyserReport }
+  | { ok: false; reason: string };
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Accept what the analyser itself accepts, and refuse a scan that never saw the site. */
 export function validateReport(input: unknown): Validation {
-  if (!isObject(input)) return { ok: false, reason: "That is not a Consent Analyser report: it is not a JSON object." };
-  const version = input.schema_version;
-  if (version !== "2.0" && version !== "2.1") {
+  if (!isObject(input))
     return {
       ok: false,
-      reason: `That is not a Consent Analyser report Govern can read (schema_version ${JSON.stringify(version ?? null)}; expected "2.0" or "2.1").`,
+      reason: 'That is not a Consent Analyser report: it is not a JSON object.'
+    };
+  const version = input.schema_version;
+  if (version !== '2.0' && version !== '2.1') {
+    return {
+      ok: false,
+      reason: `That is not a Consent Analyser report Govern can read (schema_version ${JSON.stringify(version ?? null)}; expected "2.0" or "2.1").`
     };
   }
-  if (!Array.isArray(input.checklist) || !isObject(input.summary) || !isObject(input.metadata)) {
-    return { ok: false, reason: "That report is incomplete: it needs metadata, a summary and a checklist." };
-  }
-  if (input.metadata.bot_blocked === true) {
-    const by = typeof input.metadata.bot_blocker_name === "string" ? ` by ${input.metadata.bot_blocker_name}` : "";
+  if (
+    !Array.isArray(input.checklist) ||
+    !isObject(input.summary) ||
+    !isObject(input.metadata)
+  ) {
     return {
       ok: false,
-      reason: `The scan was blocked${by}, so it saw a block page rather than the site. Scan again, or allow the analyser through.`,
+      reason:
+        'That report is incomplete: it needs metadata, a summary and a checklist.'
+    };
+  }
+  if (input.metadata.bot_blocked === true) {
+    const by =
+      typeof input.metadata.bot_blocker_name === 'string'
+        ? ` by ${input.metadata.bot_blocker_name}`
+        : '';
+    return {
+      ok: false,
+      reason: `The scan was blocked${by}, so it saw a block page rather than the site. Scan again, or allow the analyser through.`
     };
   }
   return { ok: true, report: input as unknown as AnalyserReport };
@@ -79,8 +96,8 @@ export function stripReport(report: AnalyserReport): AnalyserReport {
       ...item,
       evidence: Array.isArray(item.evidence)
         ? item.evidence.map((e) => (isObject(e) ? withoutValues(e) : e))
-        : item.evidence,
-    })),
+        : item.evidence
+    }))
   };
   if (report.storage) kept.storage = report.storage.map(withoutValues);
   return kept;
@@ -89,7 +106,8 @@ export function stripReport(report: AnalyserReport): AnalyserReport {
 function withoutValues(e: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(e)) {
-    if (k === "value" || k === "value_snippet" || k === "set_cookie_header") continue;
+    if (k === 'value' || k === 'value_snippet' || k === 'set_cookie_header')
+      continue;
     out[k] = v;
   }
   return out;
@@ -98,9 +116,15 @@ function withoutValues(e: Record<string, unknown>): Record<string, unknown> {
 export type ObservedItem = {
   key: string;
   name: string;
-  kind: "cookie" | "local_storage" | "session_storage" | "pixel" | "sdk" | "other";
+  kind:
+    | 'cookie'
+    | 'local_storage'
+    | 'session_storage'
+    | 'pixel'
+    | 'sdk'
+    | 'other';
   domain: string | null;
-  party: "first" | "third" | "unknown";
+  party: 'first' | 'third' | 'unknown';
   expiry: string | null;
   category: string | null;
   seenBeforeConsent: boolean;
@@ -108,14 +132,31 @@ export type ObservedItem = {
 };
 
 /** Public suffixes with two labels that matter for UK sites. Enough for a suggestion. */
-const TWO_LABEL_SUFFIXES = new Set(["co.uk", "org.uk", "ac.uk", "gov.uk", "ltd.uk", "plc.uk", "me.uk", "nhs.uk", "com.au", "co.nz", "co.jp"]);
+const TWO_LABEL_SUFFIXES = new Set([
+  'co.uk',
+  'org.uk',
+  'ac.uk',
+  'gov.uk',
+  'ltd.uk',
+  'plc.uk',
+  'me.uk',
+  'nhs.uk',
+  'com.au',
+  'co.nz',
+  'co.jp'
+]);
 
 /** The registrable part of a host: `www.shop.example.co.uk` → `example.co.uk`. */
 export function registrable(host: string): string {
-  const labels = host.toLowerCase().replace(/^\./, "").replace(/\.$/, "").split(".").filter(Boolean);
-  if (labels.length <= 2) return labels.join(".");
-  const lastTwo = labels.slice(-2).join(".");
-  return TWO_LABEL_SUFFIXES.has(lastTwo) ? labels.slice(-3).join(".") : lastTwo;
+  const labels = host
+    .toLowerCase()
+    .replace(/^\./, '')
+    .replace(/\.$/, '')
+    .split('.')
+    .filter(Boolean);
+  if (labels.length <= 2) return labels.join('.');
+  const lastTwo = labels.slice(-2).join('.');
+  return TWO_LABEL_SUFFIXES.has(lastTwo) ? labels.slice(-3).join('.') : lastTwo;
 }
 
 function hostOf(url: string): string | null {
@@ -126,26 +167,40 @@ function hostOf(url: string): string | null {
   }
 }
 
-export function partyOf(domain: string | null, targetUrl: string | null): ObservedItem["party"] {
+export function partyOf(
+  domain: string | null,
+  targetUrl: string | null
+): ObservedItem['party'] {
   const host = targetUrl ? hostOf(targetUrl) : null;
-  if (!domain || !host) return "unknown";
-  return registrable(domain) === registrable(host) ? "first" : "third";
+  if (!domain || !host) return 'unknown';
+  return registrable(domain) === registrable(host) ? 'first' : 'third';
 }
 
 /** The inventory key: one row per kind, registrable domain and name. */
-export function itemKey(kind: string, domain: string | null, name: string): string {
-  return `${kind}:${domain ? registrable(domain) : "?"}:${name}`;
+export function itemKey(
+  kind: string,
+  domain: string | null,
+  name: string
+): string {
+  return `${kind}:${domain ? registrable(domain) : '?'}:${name}`;
 }
 
-const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+const text = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim() : null;
 
 function expiryOf(v: unknown): string | null {
-  if (v === "session") return "session";
-  if (typeof v === "number" && Number.isFinite(v)) return v < 1 ? "under a day" : `${Math.round(v)} day${Math.round(v) === 1 ? "" : "s"}`;
+  if (v === 'session') return 'session';
+  if (typeof v === 'number' && Number.isFinite(v))
+    return v < 1
+      ? 'under a day'
+      : `${Math.round(v)} day${Math.round(v) === 1 ? '' : 's'}`;
   return text(v);
 }
 
-function evidenceOf(report: AnalyserReport, itemId: string): Array<Record<string, unknown>> {
+function evidenceOf(
+  report: AnalyserReport,
+  itemId: string
+): Array<Record<string, unknown>> {
   const check = report.checklist.find((c) => c.item_id === itemId);
   return Array.isArray(check?.evidence) ? check.evidence.filter(isObject) : [];
 }
@@ -179,16 +234,16 @@ export function observedStorage(report: AnalyserReport): ObservedItem[] {
 
   const upsert = (raw: {
     name: string | null;
-    kind?: ObservedItem["kind"];
+    kind?: ObservedItem['kind'];
     domain: string | null;
-    party?: ObservedItem["party"];
+    party?: ObservedItem['party'];
     expiry?: string | null;
     category?: string | null;
     beforeConsent?: boolean;
     afterReject?: boolean;
   }) => {
     if (!raw.name) return;
-    const kind = raw.kind ?? "cookie";
+    const kind = raw.kind ?? 'cookie';
     const key = itemKey(kind, raw.domain, raw.name);
     const was = items.get(key);
     items.set(key, {
@@ -196,43 +251,85 @@ export function observedStorage(report: AnalyserReport): ObservedItem[] {
       name: raw.name,
       kind,
       domain: raw.domain ?? was?.domain ?? null,
-      party: raw.party && raw.party !== "unknown" ? raw.party : was?.party ?? partyOf(raw.domain, target),
+      party:
+        raw.party && raw.party !== 'unknown'
+          ? raw.party
+          : (was?.party ?? partyOf(raw.domain, target)),
       expiry: raw.expiry ?? was?.expiry ?? null,
-      category: categories.get(raw.name) ?? raw.category ?? was?.category ?? null,
+      category:
+        categories.get(raw.name) ?? raw.category ?? was?.category ?? null,
       seenBeforeConsent: Boolean(was?.seenBeforeConsent || raw.beforeConsent),
-      seenAfterReject: Boolean(was?.seenAfterReject || raw.afterReject),
+      seenAfterReject: Boolean(was?.seenAfterReject || raw.afterReject)
     });
   };
 
   if (Array.isArray(report.storage)) {
     for (const s of report.storage) {
       const phases = Array.isArray(s.phases) ? s.phases.map(String) : [];
-      const party = s.party === "first" || s.party === "first-party" ? "first" : s.party === "third" || s.party === "third-party" ? "third" : undefined;
+      const party =
+        s.party === 'first' || s.party === 'first-party'
+          ? 'first'
+          : s.party === 'third' || s.party === 'third-party'
+            ? 'third'
+            : undefined;
       upsert({
         name: text(s.name),
-        kind: (["cookie", "local_storage", "session_storage", "pixel", "sdk"].includes(String(s.kind)) ? s.kind : s.kind ? "other" : "cookie") as ObservedItem["kind"],
+        kind: ([
+          'cookie',
+          'local_storage',
+          'session_storage',
+          'pixel',
+          'sdk'
+        ].includes(String(s.kind))
+          ? s.kind
+          : s.kind
+            ? 'other'
+            : 'cookie') as ObservedItem['kind'],
         domain: text(s.domain),
         party,
         expiry: expiryOf(s.expiry ?? s.expires_days),
         category: text(s.category),
-        beforeConsent: phases.includes("before_consent"),
-        afterReject: phases.includes("after_reject"),
+        beforeConsent: phases.includes('before_consent'),
+        afterReject: phases.includes('after_reject')
       });
     }
     return [...items.values()];
   }
 
-  for (const e of evidenceOf(report, "G.1")) {
-    upsert({ name: text(e.name), domain: text(e.domain), party: "first", expiry: expiryOf(e.expires_days), category: legacyCategory(e.classification) });
+  for (const e of evidenceOf(report, 'G.1')) {
+    upsert({
+      name: text(e.name),
+      domain: text(e.domain),
+      party: 'first',
+      expiry: expiryOf(e.expires_days),
+      category: legacyCategory(e.classification)
+    });
   }
-  for (const e of evidenceOf(report, "B.2")) {
-    upsert({ name: text(e.name), domain: text(e.domain), category: legacyCategory("AD"), beforeConsent: true });
+  for (const e of evidenceOf(report, 'B.2')) {
+    upsert({
+      name: text(e.name),
+      domain: text(e.domain),
+      category: legacyCategory('AD'),
+      beforeConsent: true
+    });
   }
-  for (const e of evidenceOf(report, "F.1")) {
+  for (const e of evidenceOf(report, 'F.1')) {
     // `suppressed` and `dormant` cookies are present but not collecting after Reject.
-    const collecting = e.disposition === undefined || e.disposition === "fail";
-    const party = e.party === "first-party" ? "first" : e.party === "third-party" ? "third" : undefined;
-    upsert({ name: text(e.name), domain: text(e.domain), party, expiry: expiryOf(e.expires_days), category: legacyCategory("AD"), afterReject: collecting });
+    const collecting = e.disposition === undefined || e.disposition === 'fail';
+    const party =
+      e.party === 'first-party'
+        ? 'first'
+        : e.party === 'third-party'
+          ? 'third'
+          : undefined;
+    upsert({
+      name: text(e.name),
+      domain: text(e.domain),
+      party,
+      expiry: expiryOf(e.expires_days),
+      category: legacyCategory('AD'),
+      afterReject: collecting
+    });
   }
   return [...items.values()];
 }
@@ -243,22 +340,22 @@ export function observedStorage(report: AnalyserReport): ObservedItem[] {
  * kept as both rather than guessed at.
  */
 function legacyCategory(v: unknown): string | null {
-  if (v === "ESSENTIAL") return "strictly_necessary";
-  if (v === "AD") return "advertising_or_analytics";
+  if (v === 'ESSENTIAL') return 'strictly_necessary';
+  if (v === 'AD') return 'advertising_or_analytics';
   return null;
 }
 
 /** Checks that failed or only partly passed, for the findings list. */
 export function failingChecks(report: AnalyserReport) {
   return report.checklist
-    .filter((c) => c.result === "FAIL" || c.result === "PARTIAL")
+    .filter((c) => c.result === 'FAIL' || c.result === 'PARTIAL')
     .map((c) => ({
-      itemId: text(c.item_id) ?? "?",
+      itemId: text(c.item_id) ?? '?',
       section: text(c.section),
-      description: text(c.description) ?? "Check",
+      description: text(c.description) ?? 'Check',
       result: String(c.result),
       notes: text(c.notes),
-      recommendation: text(c.recommendation),
+      recommendation: text(c.recommendation)
     }));
 }
 
@@ -271,7 +368,7 @@ export function failingChecks(report: AnalyserReport) {
  */
 function probeLocationOf(v: unknown): string | null {
   if (isObject(v)) {
-    if (text(v.country_code)?.toUpperCase() === "GB") return "uk";
+    if (text(v.country_code)?.toUpperCase() === 'GB') return 'uk';
     return text(v.country) ?? text(v.country_code);
   }
   return text(v);
@@ -279,7 +376,7 @@ function probeLocationOf(v: unknown): string | null {
 
 export type CheckToLookAt = {
   itemId: string;
-  result: "FAIL" | "PARTIAL" | "MANUAL";
+  result: 'FAIL' | 'PARTIAL' | 'MANUAL';
   description: string;
   notes: string | null;
   recommendation: string | null;
@@ -291,22 +388,26 @@ export type CheckToLookAt = {
  * analyser could not decide and left to be checked by hand.
  */
 export function checkOutcome(report: AnalyserReport) {
-  const count = (r: string) => report.checklist.filter((c) => c.result === r).length;
+  const count = (r: string) =>
+    report.checklist.filter((c) => c.result === r).length;
   const toLookAt: CheckToLookAt[] = report.checklist
-    .filter((c) => c.result === "FAIL" || c.result === "PARTIAL" || c.result === "MANUAL")
+    .filter(
+      (c) =>
+        c.result === 'FAIL' || c.result === 'PARTIAL' || c.result === 'MANUAL'
+    )
     .map((c) => ({
-      itemId: text(c.item_id) ?? "?",
-      result: c.result as CheckToLookAt["result"],
-      description: text(c.description) ?? "Check",
+      itemId: text(c.item_id) ?? '?',
+      result: c.result as CheckToLookAt['result'],
+      description: text(c.description) ?? 'Check',
       notes: text(c.notes),
-      recommendation: text(c.recommendation),
+      recommendation: text(c.recommendation)
     }));
   return {
-    passed: count("PASS"),
-    failed: count("FAIL") + count("PARTIAL"),
-    manual: count("MANUAL"),
-    info: count("INFO"),
-    toLookAt,
+    passed: count('PASS'),
+    failed: count('FAIL') + count('PARTIAL'),
+    manual: count('MANUAL'),
+    info: count('INFO'),
+    toLookAt
   };
 }
 
@@ -324,16 +425,16 @@ export function reportSummary(report: AnalyserReport) {
     mode: text(m.analysis_mode),
     probeLocation: probeLocationOf(m.probe_location),
     overall: text(s.overall),
-    passCount: typeof s.pass_count === "number" ? s.pass_count : null,
-    failCount: typeof s.fail_count === "number" ? s.fail_count : null,
+    passCount: typeof s.pass_count === 'number' ? s.pass_count : null,
+    failCount: typeof s.fail_count === 'number' ? s.fail_count : null,
     aiClassified: aiCategories(report).size > 0,
     checks: checkOutcome(report),
     seen: {
       total: seen.length,
       beforeConsent: seen.filter((o) => o.seenBeforeConsent).length,
       afterReject: seen.filter((o) => o.seenAfterReject).length,
-      thirdParty: seen.filter((o) => o.party === "third").length,
-    },
+      thirdParty: seen.filter((o) => o.party === 'third').length
+    }
   };
 }
 

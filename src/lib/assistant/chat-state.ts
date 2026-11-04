@@ -12,7 +12,7 @@
  */
 export type ChatState = {
   conversationId: string | null;
-  turns: Array<{ role: "user" | "assistant"; content: string }>;
+  turns: Array<{ role: 'user' | 'assistant'; content: string }>;
   minimisation: string | null;
   error: string | null;
 };
@@ -22,5 +22,5 @@ export const EMPTY_CHAT: ChatState = {
   conversationId: null,
   turns: [],
   minimisation: null,
-  error: null,
+  error: null
 };

@@ -1,26 +1,42 @@
-import { and, desc, eq, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { entities, legalReferences, templates, templateVersions } from "@/db/schema";
-import type { templateKind } from "@/db/schema";
-import { appendAuditEvent, type AuditInput } from "@/lib/audit";
-import { canonicalise } from "@/lib/canonical";
-import { LEGAL_REFERENCES, SYSTEM_TEMPLATES } from "@/lib/templates/library";
-import type { AiFrameworkId } from "@/lib/ai-frameworks";
-import { aiFrameworkOf } from "./ai-framework";
-import { templateDefinition, type TemplateDefinition } from "@/lib/templates/schema";
-import { validateTemplate, type TemplateProblem } from "@/lib/templates/validate";
-import { ukLawApplies } from "@/lib/dpa2018/applies";
+import { and, desc, eq, sql } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import {
+  entities,
+  legalReferences,
+  templates,
+  templateVersions
+} from '@/db/schema';
+import type { templateKind } from '@/db/schema';
+import type { AiFrameworkId } from '@/lib/ai-frameworks';
+import { appendAuditEvent, type AuditInput } from '@/lib/audit';
+import { canonicalise } from '@/lib/canonical';
+import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { LEGAL_REFERENCES, SYSTEM_TEMPLATES } from '@/lib/templates/library';
+import {
+  templateDefinition,
+  type TemplateDefinition
+} from '@/lib/templates/schema';
+import {
+  validateTemplate,
+  type TemplateProblem
+} from '@/lib/templates/validate';
+
+import { aiFrameworkOf } from './ai-framework';
 
 export type TemplateKind = (typeof templateKind.enumValues)[number];
 
 /** Who is acting, so the change and its audit record land together. */
-export type Actor = Pick<AuditInput, "actorKind" | "actorUserId" | "actorLabel">;
+export type Actor = Pick<
+  AuditInput,
+  'actorKind' | 'actorUserId' | 'actorLabel'
+>;
 
 export class TemplateNotPublishable extends Error {
   constructor(readonly problems: TemplateProblem[]) {
     super(
-      `Template has ${problems.length} problem${problems.length === 1 ? "" : "s"}: ` +
-        problems.map((p) => `${p.path} — ${p.message}`).join("; "),
+      `Template has ${problems.length} problem${problems.length === 1 ? '' : 's'}: ` +
+        problems.map((p) => `${p.path} - ${p.message}`).join('; ')
     );
   }
 }
@@ -38,29 +54,47 @@ type KindLimit = readonly string[] | null | undefined;
 function reach(kind: string, kinds: KindLimit) {
   if (kinds && !kinds.includes(kind)) {
     throw new OutsideYourKinds(
-      `Your role does not configure ${kind.replace(/_/g, " ")} templates or workflows.`,
+      `Your role does not configure ${kind.replace(/_/g, ' ')} templates or workflows.`
     );
   }
 }
 
 /** A template's kind, found within the organisation, or an error if it is not there. */
-async function kindOfTemplate(executor: Pick<typeof db, "select">, organisationId: string, templateId: string) {
+async function kindOfTemplate(
+  executor: Pick<typeof db, 'select'>,
+  organisationId: string,
+  templateId: string
+) {
   const [row] = await executor
     .select({ kind: templates.kind })
     .from(templates)
-    .where(and(eq(templates.id, templateId), eq(templates.organisationId, organisationId)));
-  if (!row) throw new Error("No such template");
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.organisationId, organisationId)
+      )
+    );
+  if (!row) throw new Error('No such template');
   return row.kind;
 }
 
 /** The same, from one of the template's versions. */
-async function kindOfVersion(executor: Pick<typeof db, "select">, organisationId: string, versionId: string) {
+async function kindOfVersion(
+  executor: Pick<typeof db, 'select'>,
+  organisationId: string,
+  versionId: string
+) {
   const [row] = await executor
     .select({ kind: templates.kind })
     .from(templateVersions)
     .innerJoin(templates, eq(templates.id, templateVersions.templateId))
-    .where(and(eq(templateVersions.id, versionId), eq(templates.organisationId, organisationId)));
-  if (!row) throw new Error("No such template version");
+    .where(
+      and(
+        eq(templateVersions.id, versionId),
+        eq(templates.organisationId, organisationId)
+      )
+    );
+  if (!row) throw new Error('No such template version');
   return row.kind;
 }
 
@@ -88,7 +122,7 @@ export async function createTemplate(input: {
           name: input.name,
           description: input.description,
           jurisdiction: input.jurisdiction,
-          isSystem: input.isSystem ?? false,
+          isSystem: input.isSystem ?? false
         })
         .returning();
 
@@ -97,19 +131,19 @@ export async function createTemplate(input: {
         .values({
           templateId: template.id,
           version: 1,
-          status: "draft",
+          status: 'draft',
           definition,
-          createdBy: input.actor.actorUserId ?? null,
+          createdBy: input.actor.actorUserId ?? null
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "template.created",
-        subjectType: "template",
+        action: 'template.created',
+        subjectType: 'template',
         subjectId: template.id,
-        after: { name: template.name, kind: template.kind, version: 1 },
+        after: { name: template.name, kind: template.kind, version: 1 }
       });
 
       return { template, version };
@@ -134,7 +168,10 @@ export async function createDraftFrom(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
-      reach(await kindOfTemplate(tx, input.organisationId, input.templateId), input.kinds);
+      reach(
+        await kindOfTemplate(tx, input.organisationId, input.templateId),
+        input.kinds
+      );
       const latest = await tx
         .select()
         .from(templateVersions)
@@ -143,16 +180,16 @@ export async function createDraftFrom(input: {
         .limit(1);
 
       const previous = latest[0];
-      if (!previous) throw new Error("Template has no versions");
+      if (!previous) throw new Error('Template has no versions');
 
-      if (previous.status === "draft") {
+      if (previous.status === 'draft') {
         throw new Error(
-          "This template already has an open draft. Edit or publish that one first.",
+          'This template already has an open draft. Edit or publish that one first.'
         );
       }
 
       const definition = templateDefinition.parse(
-        input.definition ?? previous.definition,
+        input.definition ?? previous.definition
       );
 
       const [version] = await tx
@@ -160,20 +197,20 @@ export async function createDraftFrom(input: {
         .values({
           templateId: input.templateId,
           version: previous.version + 1,
-          status: "draft",
+          status: 'draft',
           definition,
           notes: input.notes,
-          createdBy: input.actor.actorUserId ?? null,
+          createdBy: input.actor.actorUserId ?? null
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "template_version.drafted",
-        subjectType: "template_version",
+        action: 'template_version.drafted',
+        subjectType: 'template_version',
         subjectId: version.id,
-        after: { version: version.version, from: previous.version },
+        after: { version: version.version, from: previous.version }
       });
 
       return version;
@@ -193,14 +230,17 @@ export async function updateDraft(input: {
     const definition = templateDefinition.parse(input.definition);
 
     return db.transaction(async (tx) => {
-      reach(await kindOfVersion(tx, input.organisationId, input.versionId), input.kinds);
+      reach(
+        await kindOfVersion(tx, input.organisationId, input.versionId),
+        input.kinds
+      );
       const [existing] = await tx
         .select()
         .from(templateVersions)
         .where(eq(templateVersions.id, input.versionId));
-      if (!existing) throw new Error("No such template version");
-      if (existing.status !== "draft") {
-        throw new Error("Only a draft version can be edited");
+      if (!existing) throw new Error('No such template version');
+      if (existing.status !== 'draft') {
+        throw new Error('Only a draft version can be edited');
       }
 
       const [version] = await tx
@@ -212,11 +252,13 @@ export async function updateDraft(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "template_version.edited",
-        subjectType: "template_version",
+        action: 'template_version.edited',
+        subjectType: 'template_version',
         subjectId: version.id,
-        before: { definition: existing.definition as unknown as Record<string, unknown> },
-        after: { definition: definition as unknown as Record<string, unknown> },
+        before: {
+          definition: existing.definition as unknown as Record<string, unknown>
+        },
+        after: { definition: definition as unknown as Record<string, unknown> }
       });
 
       return version;
@@ -239,13 +281,17 @@ export async function publishVersion(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
-      reach(await kindOfVersion(tx, input.organisationId, input.versionId), input.kinds);
+      reach(
+        await kindOfVersion(tx, input.organisationId, input.versionId),
+        input.kinds
+      );
       const [draft] = await tx
         .select()
         .from(templateVersions)
         .where(eq(templateVersions.id, input.versionId));
-      if (!draft) throw new Error("No such template version");
-      if (draft.status !== "draft") throw new Error("Only a draft version can be published");
+      if (!draft) throw new Error('No such template version');
+      if (draft.status !== 'draft')
+        throw new Error('Only a draft version can be published');
 
       const problems = validateTemplate(draft.definition);
       if (problems.length > 0) throw new TemplateNotPublishable(problems);
@@ -256,21 +302,24 @@ export async function publishVersion(input: {
       // would make "which questions apply to a new assessment" ambiguous.
       const superseded = await tx
         .update(templateVersions)
-        .set({ status: "retired", retiredAt: now })
+        .set({ status: 'retired', retiredAt: now })
         .where(
           and(
             eq(templateVersions.templateId, draft.templateId),
-            eq(templateVersions.status, "published"),
-          ),
+            eq(templateVersions.status, 'published')
+          )
         )
-        .returning({ id: templateVersions.id, version: templateVersions.version });
+        .returning({
+          id: templateVersions.id,
+          version: templateVersions.version
+        });
 
       const [published] = await tx
         .update(templateVersions)
         .set({
-          status: "published",
+          status: 'published',
           publishedAt: now,
-          publishedBy: input.actor.actorUserId ?? null,
+          publishedBy: input.actor.actorUserId ?? null
         })
         .where(eq(templateVersions.id, input.versionId))
         .returning();
@@ -283,13 +332,13 @@ export async function publishVersion(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "template_version.published",
-        subjectType: "template_version",
+        action: 'template_version.published',
+        subjectType: 'template_version',
         subjectId: published.id,
         after: {
           version: published.version,
-          supersededVersions: superseded.map((s) => s.version),
-        },
+          supersededVersions: superseded.map((s) => s.version)
+        }
       });
 
       return published;
@@ -313,11 +362,19 @@ export async function shippedTemplatesMissing(organisationId: string) {
       db
         .select({ name: templates.name })
         .from(templates)
-        .where(and(eq(templates.organisationId, organisationId), eq(templates.isSystem, true))),
+        .where(
+          and(
+            eq(templates.organisationId, organisationId),
+            eq(templates.isSystem, true)
+          )
+        ),
       db
-        .select({ competentAuthority: entities.competentAuthority, law: entities.dataProtectionLaw })
+        .select({
+          competentAuthority: entities.competentAuthority,
+          law: entities.dataProtectionLaw
+        })
         .from(entities)
-        .where(eq(entities.organisationId, organisationId)),
+        .where(eq(entities.organisationId, organisationId))
     ]);
     const names = new Set(held.map((h) => h.name));
     const competent = owned.some((e) => e.competentAuthority);
@@ -330,7 +387,7 @@ export async function shippedTemplatesMissing(organisationId: string) {
         // The Part 3 templates are offered once an entity is a competent authority.
         (!t.competentAuthority || competent) &&
         // UK data protection templates, once an entity is subject to UK law.
-        (!t.ukLaw || ukLaw),
+        (!t.ukLaw || ukLaw)
     );
   });
 }
@@ -384,12 +441,12 @@ export async function installShippedTemplates(input: {
         jurisdiction: t.jurisdiction,
         isSystem: true,
         definition: t.definition,
-        actor: input.actor,
+        actor: input.actor
       });
       await publishVersion({
         organisationId: input.organisationId,
         versionId: version.id,
-        actor: input.actor,
+        actor: input.actor
       });
       installed.push(t.name);
     }
@@ -413,17 +470,30 @@ export async function shippedTemplatesOutdated(organisationId: string) {
       .from(templates)
       .innerJoin(
         templateVersions,
-        and(eq(templateVersions.templateId, templates.id), eq(templateVersions.status, "published")),
+        and(
+          eq(templateVersions.templateId, templates.id),
+          eq(templateVersions.status, 'published')
+        )
       )
-      .where(and(eq(templates.organisationId, organisationId), eq(templates.isSystem, true)));
+      .where(
+        and(
+          eq(templates.organisationId, organisationId),
+          eq(templates.isSystem, true)
+        )
+      );
     const drafts = new Set(
       (
         await db
           .select({ templateId: templateVersions.templateId })
           .from(templateVersions)
           .innerJoin(templates, eq(templates.id, templateVersions.templateId))
-          .where(and(eq(templates.organisationId, organisationId), eq(templateVersions.status, "draft")))
-      ).map((d) => d.templateId),
+          .where(
+            and(
+              eq(templates.organisationId, organisationId),
+              eq(templateVersions.status, 'draft')
+            )
+          )
+      ).map((d) => d.templateId)
     );
 
     const outdated: Array<{
@@ -436,14 +506,16 @@ export async function shippedTemplatesOutdated(organisationId: string) {
     for (const { template, version } of rows) {
       const shipped = SYSTEM_TEMPLATES.find((t) => t.name === template.name);
       if (!shipped) continue;
-      const current = canonicalise(templateDefinition.parse(shipped.definition));
+      const current = canonicalise(
+        templateDefinition.parse(shipped.definition)
+      );
       if (canonicalise(version.definition) === current) continue;
       outdated.push({
         templateId: template.id,
         kind: template.kind,
         name: template.name,
         version: version.version,
-        blockedByDraft: drafts.has(template.id),
+        blockedByDraft: drafts.has(template.id)
       });
     }
     return outdated;
@@ -472,10 +544,14 @@ export async function updateShippedTemplates(input: {
         organisationId: input.organisationId,
         templateId: t.templateId,
         definition: shipped.definition,
-        notes: "Updated to the version Waivern ships.",
-        actor: input.actor,
+        notes: 'Updated to the version Waivern ships.',
+        actor: input.actor
       });
-      await publishVersion({ organisationId: input.organisationId, versionId: draft.id, actor: input.actor });
+      await publishVersion({
+        organisationId: input.organisationId,
+        versionId: draft.id,
+        actor: input.actor
+      });
       updated.push(t.name);
     }
     return updated;
@@ -490,8 +566,8 @@ export async function activeVersion(templateId: string) {
     .where(
       and(
         eq(templateVersions.templateId, templateId),
-        eq(templateVersions.status, "published"),
-      ),
+        eq(templateVersions.status, 'published')
+      )
     )
     .limit(1);
   return row ?? null;
@@ -500,26 +576,29 @@ export async function activeVersion(templateId: string) {
 /** Published templates an organisation can start an assessment from. */
 export async function availableTemplates(
   organisationId: string,
-  kind?: TemplateKind,
+  kind?: TemplateKind
 ) {
   return withOrganisation(organisationId, async () => {
     return db
       .select({
         template: templates,
-        version: templateVersions,
+        version: templateVersions
       })
       .from(templates)
       .innerJoin(
         templateVersions,
         and(
           eq(templateVersions.templateId, templates.id),
-          eq(templateVersions.status, "published"),
-        ),
+          eq(templateVersions.status, 'published')
+        )
       )
       .where(
         kind
-          ? and(eq(templates.organisationId, organisationId), eq(templates.kind, kind))
-          : eq(templates.organisationId, organisationId),
+          ? and(
+              eq(templates.organisationId, organisationId),
+              eq(templates.kind, kind)
+            )
+          : eq(templates.organisationId, organisationId)
       )
       .orderBy(templates.kind, templates.name);
   });
@@ -553,7 +632,10 @@ export async function templateLibrary(organisationId: string) {
 
     const byTemplate = new Map<
       string,
-      { template: typeof templates.$inferSelect; versions: (typeof templateVersions.$inferSelect)[] }
+      {
+        template: typeof templates.$inferSelect;
+        versions: (typeof templateVersions.$inferSelect)[];
+      }
     >();
     for (const { template, version } of rows) {
       const entry = byTemplate.get(template.id) ?? { template, versions: [] };
@@ -569,7 +651,12 @@ export async function loadTemplate(templateId: string, organisationId: string) {
     const [row] = await db
       .select()
       .from(templates)
-      .where(and(eq(templates.id, templateId), eq(templates.organisationId, organisationId)));
+      .where(
+        and(
+          eq(templates.id, templateId),
+          eq(templates.organisationId, organisationId)
+        )
+      );
     if (!row) return null;
 
     const versions = await db
@@ -581,8 +668,8 @@ export async function loadTemplate(templateId: string, organisationId: string) {
     return {
       template: row,
       versions,
-      published: versions.find((v) => v.status === "published") ?? null,
-      draft: versions.find((v) => v.status === "draft") ?? null,
+      published: versions.find((v) => v.status === 'published') ?? null,
+      draft: versions.find((v) => v.status === 'draft') ?? null
     };
   });
 }

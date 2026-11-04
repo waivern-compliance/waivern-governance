@@ -15,16 +15,16 @@
  * The outcome is owed "without undue delay" (s.164A(4)), with no figure. The
  * targets for it are the organisation's own, and are always said to be.
  */
-import { DUE_SOON_DAYS, type Jurisdiction } from "@/lib/dsr/statutory";
+import { DUE_SOON_DAYS, type Jurisdiction } from '@/lib/dsr/statutory';
 
 /** When the s.164A duty came into force, along with the rest of the DUAA's changes to the rights. */
-export const COMPLAINTS_DUTY_IN_FORCE = new Date("2026-06-19T00:00:00Z");
+export const COMPLAINTS_DUTY_IN_FORCE = new Date('2026-06-19T00:00:00Z');
 
 /** s.164A(3). */
 export const ACKNOWLEDGEMENT_DAYS = 30;
 
 export const S164A_SUMMARY =
-  "DPA 2018 s.164A: make complaining easy, acknowledge each complaint within 30 days of receipt, look into it and keep the complainant informed, and tell them the outcome without undue delay.";
+  'DPA 2018 s.164A: make complaining easy, acknowledge each complaint within 30 days of receipt, look into it and keep the complainant informed, and tell them the outcome without undue delay.';
 
 /**
  * Does s.164A apply to this complaint?
@@ -33,55 +33,67 @@ export const S164A_SUMMARY =
  * complaint received once it was in force. And it is the controller's duty:
  * a processor passes the complaint to the controller rather than answering it.
  */
-export function s164aApplies(input: { jurisdiction: Jurisdiction; receivedAt: Date; controllerRole: string }): boolean {
+export function s164aApplies(input: {
+  jurisdiction: Jurisdiction;
+  receivedAt: Date;
+  controllerRole: string;
+}): boolean {
   return (
-    input.jurisdiction === "uk" &&
+    input.jurisdiction === 'uk' &&
     input.receivedAt >= COMPLAINTS_DUTY_IN_FORCE &&
-    input.controllerRole !== "processor"
+    input.controllerRole !== 'processor'
   );
 }
 
 export type ComplaintSubject =
-  | "request_handling"
-  | "accuracy"
-  | "security"
-  | "disclosure"
-  | "retention"
-  | "marketing"
-  | "lawfulness"
-  | "transparency"
-  | "automated_decision"
-  | "other";
+  | 'request_handling'
+  | 'accuracy'
+  | 'security'
+  | 'disclosure'
+  | 'retention'
+  | 'marketing'
+  | 'lawfulness'
+  | 'transparency'
+  | 'automated_decision'
+  | 'other';
 
 /** What a complaint is about, for reporting. The complainant's own words are in the description. */
 export const COMPLAINT_SUBJECTS: Record<ComplaintSubject, string> = {
-  request_handling: "How a request about their data was handled",
-  accuracy: "Inaccurate data",
-  security: "Security, loss or a breach",
-  disclosure: "Data shared or disclosed",
-  retention: "Data kept too long",
-  marketing: "Marketing",
-  lawfulness: "Using their data without a lawful basis",
-  transparency: "Not being told how their data is used",
-  automated_decision: "An automated decision",
-  other: "Something else",
+  request_handling: 'How a request about their data was handled',
+  accuracy: 'Inaccurate data',
+  security: 'Security, loss or a breach',
+  disclosure: 'Data shared or disclosed',
+  retention: 'Data kept too long',
+  marketing: 'Marketing',
+  lawfulness: 'Using their data without a lawful basis',
+  transparency: 'Not being told how their data is used',
+  automated_decision: 'An automated decision',
+  other: 'Something else'
 };
 
-export const COMPLAINT_SUBJECT_KEYS = Object.keys(COMPLAINT_SUBJECTS) as ComplaintSubject[];
+export const COMPLAINT_SUBJECT_KEYS = Object.keys(
+  COMPLAINT_SUBJECTS
+) as ComplaintSubject[];
 
-export type ComplaintOutcome = "upheld" | "partly_upheld" | "not_upheld" | "passed_to_controller";
+export type ComplaintOutcome =
+  | 'upheld'
+  | 'partly_upheld'
+  | 'not_upheld'
+  | 'passed_to_controller';
 
 export const OUTCOME_LABEL: Record<ComplaintOutcome, string> = {
-  upheld: "Upheld",
-  partly_upheld: "Partly upheld",
-  not_upheld: "Not upheld",
-  passed_to_controller: "Passed to the controller",
+  upheld: 'Upheld',
+  partly_upheld: 'Partly upheld',
+  not_upheld: 'Not upheld',
+  passed_to_controller: 'Passed to the controller'
 };
 
 const DAY = 86_400_000;
 
 function startOfDay(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
 }
 
 /** The last moment of the nth day, counting the day of `from` as the first. */
@@ -95,20 +107,32 @@ export function acknowledgementDeadline(receivedAt: Date): Date {
 }
 
 const longDate = (d: Date) =>
-  d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
 
-const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
+const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
 
 /** Whole days from one moment to a deadline, rounded so that "due today" reads as 0. */
 function daysUntil(now: Date, dueAt: Date): number {
-  return Math.round((startOfDay(dueAt).getTime() - startOfDay(now).getTime()) / DAY);
+  return Math.round(
+    (startOfDay(dueAt).getTime() - startOfDay(now).getTime()) / DAY
+  );
 }
 
 export type Dial =
-  | { state: "off"; words: string }
-  | { state: "running" | "due_soon"; dueAt: Date; daysRemaining: number; words: string }
-  | { state: "overdue"; dueAt: Date; daysOver: number; words: string }
-  | { state: "met" | "late"; dueAt: Date; at: Date; words: string };
+  | { state: 'off'; words: string }
+  | {
+      state: 'running' | 'due_soon';
+      dueAt: Date;
+      daysRemaining: number;
+      words: string;
+    }
+  | { state: 'overdue'; dueAt: Date; daysOver: number; words: string }
+  | { state: 'met' | 'late'; dueAt: Date; at: Date; words: string };
 
 function dial(input: {
   dueAt: Date;
@@ -121,24 +145,34 @@ function dial(input: {
   const { dueAt, doneAt, now } = input;
   if (doneAt) {
     return doneAt <= dueAt
-      ? { state: "met", dueAt, at: doneAt, words: `${input.what} on ${longDate(doneAt)}, within ${input.whose}.` }
-      : {
-          state: "late",
+      ? {
+          state: 'met',
           dueAt,
           at: doneAt,
-          words: `${input.what} on ${longDate(doneAt)}, ${days(daysUntil(dueAt, doneAt))} after ${input.whose} of ${longDate(dueAt)}.`,
+          words: `${input.what} on ${longDate(doneAt)}, within ${input.whose}.`
+        }
+      : {
+          state: 'late',
+          dueAt,
+          at: doneAt,
+          words: `${input.what} on ${longDate(doneAt)}, ${days(daysUntil(dueAt, doneAt))} after ${input.whose} of ${longDate(dueAt)}.`
         };
   }
   if (now > dueAt) {
     const over = Math.max(1, daysUntil(dueAt, now));
-    return { state: "overdue", dueAt, daysOver: over, words: `${days(over)} past ${input.whose} of ${longDate(dueAt)}.` };
+    return {
+      state: 'overdue',
+      dueAt,
+      daysOver: over,
+      words: `${days(over)} past ${input.whose} of ${longDate(dueAt)}.`
+    };
   }
   const remaining = daysUntil(now, dueAt);
   return {
-    state: remaining <= DUE_SOON_DAYS ? "due_soon" : "running",
+    state: remaining <= DUE_SOON_DAYS ? 'due_soon' : 'running',
     dueAt,
     daysRemaining: remaining,
-    words: `Due by ${longDate(dueAt)} (${input.whose}), ${remaining === 0 ? "today" : `${days(remaining)} left`}.`,
+    words: `Due by ${longDate(dueAt)} (${input.whose}), ${remaining === 0 ? 'today' : `${days(remaining)} left`}.`
   };
 }
 
@@ -176,41 +210,43 @@ export function complaintClock(input: {
   const now = input.now ?? new Date();
   const statutory = s164aApplies(input);
   const ended = input.ended || input.outcomeAt !== null;
-  const off = (words: string): Dial => ({ state: "off", words });
+  const off = (words: string): Dial => ({ state: 'off', words });
 
   // Sending the outcome tells the complainant it was received, so it counts as
   // an acknowledgement where none was recorded separately.
   const acknowledgedAt = input.acknowledgedAt ?? input.outcomeAt;
   const acknowledgement = !statutory
     ? off(
-        input.controllerRole === "processor"
+        input.controllerRole === 'processor'
           ? "As the processor, pass the complaint to the controller; s.164A is the controller's duty."
-          : input.jurisdiction !== "uk"
-            ? "The EU GDPR sets no period for acknowledging a complaint to the controller. Acknowledging promptly is still good practice."
-            : `Received before s.164A came into force on ${longDate(COMPLAINTS_DUTY_IN_FORCE)}, so no statutory period applies.`,
+          : input.jurisdiction !== 'uk'
+            ? 'The EU GDPR sets no period for acknowledging a complaint to the controller. Acknowledging promptly is still good practice.'
+            : `Received before s.164A came into force on ${longDate(COMPLAINTS_DUTY_IN_FORCE)}, so no statutory period applies.`
       )
     : input.ended && !acknowledgedAt
-      ? off("Withdrawn before it was acknowledged.")
+      ? off('Withdrawn before it was acknowledged.')
       : dial({
           dueAt: acknowledgementDeadline(input.receivedAt),
           doneAt: acknowledgedAt,
           now,
-          what: "Acknowledged",
-          whose: "the 30 days in s.164A(3)",
+          what: 'Acknowledged',
+          whose: 'the 30 days in s.164A(3)'
         });
 
   const from = input.acknowledgedAt ?? input.receivedAt;
   const outcome =
     input.outcomeTargetDays <= 0
-      ? off("No target set for the outcome. The Act requires it without undue delay.")
+      ? off(
+          'No target set for the outcome. The Act requires it without undue delay.'
+        )
       : input.ended && !input.outcomeAt
-        ? off("Ended without an outcome being owed.")
+        ? off('Ended without an outcome being owed.')
         : dial({
             dueAt: endOfNthDay(from, input.outcomeTargetDays + 1),
             doneAt: input.outcomeAt,
             now,
-            what: "Outcome sent",
-            whose: `your ${input.outcomeTargetDays}-day target`,
+            what: 'Outcome sent',
+            whose: `your ${input.outcomeTargetDays}-day target`
           });
 
   const lastHeard = [input.acknowledgedAt, input.lastUpdateAt]
@@ -218,27 +254,27 @@ export function complaintClock(input: {
     .sort((a, b) => b.getTime() - a.getTime())[0];
   const update =
     input.updateIntervalDays <= 0
-      ? off("No interval set for progress updates.")
+      ? off('No interval set for progress updates.')
       : ended
-        ? off("Nothing more to report.")
+        ? off('Nothing more to report.')
         : !lastHeard
-          ? off("Acknowledge it first. Updates are counted from then.")
+          ? off('Acknowledge it first. Updates are counted from then.')
           : dial({
               dueAt: endOfNthDay(lastHeard, input.updateIntervalDays + 1),
               doneAt: null,
               now,
-              what: "Updated",
-              whose: `your ${input.updateIntervalDays}-day update interval`,
+              what: 'Updated',
+              whose: `your ${input.updateIntervalDays}-day update interval`
             });
 
   return { statutory, acknowledgement, outcome, update };
 }
 
-export type DialName = "acknowledgement" | "outcome" | "update";
+export type DialName = 'acknowledgement' | 'outcome' | 'update';
 
 export type PressingDial = {
   which: DialName;
-  state: "due_soon" | "overdue";
+  state: 'due_soon' | 'overdue';
   dueAt: Date;
   words: string;
   /** Whether the deadline is the Act's or the organisation's own. */
@@ -253,10 +289,18 @@ export type PressingDial = {
  * are the organisation's own targets.
  */
 export function pressingDials(clock: ComplaintClock): PressingDial[] {
-  const names: DialName[] = ["acknowledgement", "outcome", "update"];
+  const names: DialName[] = ['acknowledgement', 'outcome', 'update'];
   return names.flatMap((which) => {
     const d = clock[which];
-    if (d.state !== "due_soon" && d.state !== "overdue") return [];
-    return [{ which, state: d.state, dueAt: d.dueAt, words: d.words, statutory: which === "acknowledgement" && clock.statutory }];
+    if (d.state !== 'due_soon' && d.state !== 'overdue') return [];
+    return [
+      {
+        which,
+        state: d.state,
+        dueAt: d.dueAt,
+        words: d.words,
+        statutory: which === 'acknowledgement' && clock.statutory
+      }
+    ];
   });
 }

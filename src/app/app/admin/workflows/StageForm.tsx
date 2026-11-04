@@ -1,12 +1,17 @@
-"use client";
+'use client';
 
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { ROLES, ROLE_BLURB, ROLE_LABEL } from "@/lib/rbac";
-import { isSimple } from "@/lib/workflow/routing";
-import type { StageView } from "@/services/approval-routing";
-import { addStageAction, updateStageAction, type RoutingResult } from "./actions";
+import { ROLE_BLURB, ROLE_LABEL, ROLES } from '@/lib/rbac';
+import { useRefusableAction } from '@/lib/use-refusable-action';
+import { isSimple } from '@/lib/workflow/routing';
+import type { StageView } from '@/services/approval-routing';
 
-const TIERS = ["low", "medium", "high", "critical"] as const;
+import {
+  addStageAction,
+  updateStageAction,
+  type RoutingResult
+} from './actions';
+
+const TIERS = ['low', 'medium', 'high', 'critical'] as const;
 
 /**
  * Change who decides one gate.
@@ -17,7 +22,10 @@ const TIERS = ["low", "medium", "high", "critical"] as const;
  * said plainly: a gate with no eligible approver does not fail, it waits.
  */
 export function StageForm({ stage }: { stage: StageView }) {
-  const { result, pending, formProps } = useRefusableAction<RoutingResult>(updateStageAction.bind(null, stage.id), { resetOnSuccess: false });
+  const { result, pending, formProps } = useRefusableAction<RoutingResult>(
+    updateStageAction.bind(null, stage.id),
+    { resetOnSuccess: false }
+  );
   const simple = isSimple(stage.condition);
 
   return (
@@ -28,30 +36,34 @@ export function StageForm({ stage }: { stage: StageView }) {
         </span>
         <span className="font-mono text-[11px] text-ink-soft">
           applies when {stage.appliesWhen}
-          {stage.pending > 0 ? ` · ${stage.pending} waiting` : ""}
+          {stage.pending > 0 ? ` · ${stage.pending} waiting` : ''}
         </span>
       </div>
 
       <p className="text-xs text-ink-soft">
-        Decided by anyone holding <span className="font-medium text-ink">{stage.roleLabel}</span>{" "}
-        in the assessment&rsquo;s entity.{" "}
+        Decided by anyone holding{' '}
+        <span className="font-medium text-ink">{stage.roleLabel}</span> in the
+        assessment&rsquo;s entity.{' '}
         {stage.eligible.length === 0 ? (
           <span className="text-amber-900">
-            Nobody currently holds it, so this gate will wait indefinitely. Grant the role,
-            or change it here.
+            Nobody currently holds it, so this gate will wait indefinitely.
+            Grant the role, or change it here.
           </span>
         ) : (
           <>
-            Today that is{" "}
+            Today that is{' '}
             {stage.eligible
-              .map((p) => p.email + (p.entityName ? ` (${p.entityName})` : ""))
-              .join(", ")}
+              .map((p) => p.email + (p.entityName ? ` (${p.entityName})` : ''))
+              .join(', ')}
             .
           </>
         )}
       </p>
 
-      <form {...formProps} className="grid gap-3 sm:grid-cols-2">
+      <form
+        {...formProps}
+        className="grid gap-3 sm:grid-cols-2"
+      >
         <label className="block space-y-1">
           <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-soft">
             Name
@@ -74,14 +86,17 @@ export function StageForm({ stage }: { stage: StageView }) {
             className="w-full rounded border border-line bg-ground px-3 py-1.5 text-xs"
           >
             {ROLES.map((role) => (
-              <option key={role} value={role}>
-                {ROLE_LABEL[role]} — {ROLE_BLURB[role]}
+              <option
+                key={role}
+                value={role}
+              >
+                {ROLE_LABEL[role]} - {ROLE_BLURB[role]}
               </option>
             ))}
           </select>
         </label>
 
-        <BoardField value={stage.boardName ?? ""} />
+        <BoardField value={stage.boardName ?? ''} />
 
         <label className="block space-y-1">
           <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-soft">
@@ -94,7 +109,7 @@ export function StageForm({ stage }: { stage: StageView }) {
             name="slaHours"
             type="number"
             min={1}
-            defaultValue={stage.slaHours ?? ""}
+            defaultValue={stage.slaHours ?? ''}
             className="w-full rounded border border-line bg-ground px-3 py-1.5 text-xs"
           />
         </label>
@@ -111,10 +126,16 @@ export function StageForm({ stage }: { stage: StageView }) {
                 className="w-full rounded border border-line bg-ground px-3 py-1.5 text-xs"
               >
                 <option value="always">Always</option>
-                <option value="scoreAtLeast">The risk score reaches a number</option>
+                <option value="scoreAtLeast">
+                  The risk score reaches a number
+                </option>
                 <option value="tierAtLeast">The risk reaches a tier</option>
-                <option value="answerAtLeast">An answer reaches a number</option>
-                <option value="specialCategoryData">Special-category data is involved</option>
+                <option value="answerAtLeast">
+                  An answer reaches a number
+                </option>
+                <option value="specialCategoryData">
+                  Special-category data is involved
+                </option>
                 <option value="transferToNonAdequate">
                   Data goes somewhere not approved by UK regulations
                 </option>
@@ -125,16 +146,27 @@ export function StageForm({ stage }: { stage: StageView }) {
                   type="number"
                   min={0}
                   placeholder="score"
-                  defaultValue={stage.condition.op === "scoreAtLeast" ? stage.condition.value : ""}
+                  defaultValue={
+                    stage.condition.op === 'scoreAtLeast'
+                      ? stage.condition.value
+                      : ''
+                  }
                   className="w-24 rounded border border-line bg-ground px-2 py-1 text-xs"
                 />
                 <select
                   name="conditionTier"
-                  defaultValue={stage.condition.op === "tierAtLeast" ? stage.condition.value : "high"}
+                  defaultValue={
+                    stage.condition.op === 'tierAtLeast'
+                      ? stage.condition.value
+                      : 'high'
+                  }
                   className="w-32 rounded border border-line bg-ground px-2 py-1 text-xs"
                 >
                   {TIERS.map((t) => (
-                    <option key={t} value={t}>
+                    <option
+                      key={t}
+                      value={t}
+                    >
                       {t}
                     </option>
                   ))}
@@ -144,27 +176,40 @@ export function StageForm({ stage }: { stage: StageView }) {
                 <input
                   name="conditionQuestion"
                   placeholder="question key, e.g. expected_spend_gbp"
-                  defaultValue={stage.condition.op === "answerAtLeast" ? stage.condition.question : ""}
+                  defaultValue={
+                    stage.condition.op === 'answerAtLeast'
+                      ? stage.condition.question
+                      : ''
+                  }
                   className="min-w-0 flex-1 rounded border border-line bg-ground px-2 py-1 font-mono text-xs"
                 />
                 <input
                   name="conditionNumber"
                   type="number"
                   placeholder="at least"
-                  defaultValue={stage.condition.op === "answerAtLeast" ? stage.condition.value : ""}
+                  defaultValue={
+                    stage.condition.op === 'answerAtLeast'
+                      ? stage.condition.value
+                      : ''
+                  }
                   className="w-32 rounded border border-line bg-ground px-2 py-1 text-xs"
                 />
               </div>
             </>
           ) : (
             <>
-              <input type="hidden" name="conditionOp" value="keep" />
+              <input
+                type="hidden"
+                name="conditionOp"
+                value="keep"
+              />
               <p className="rounded border border-line bg-ground px-3 py-2 text-xs text-ink-soft">
                 {stage.appliesWhen}
                 <span className="mt-1 block">
-                  This rule combines several conditions, so it is shown rather than offered for
-                  editing — rebuilding one in a form is how a rule nobody fully read gets
-                  replaced. The role and timing above can still be changed.
+                  This rule combines several conditions, so it is shown rather
+                  than offered for editing - rebuilding one in a form is how a
+                  rule nobody fully read gets replaced. The role and timing
+                  above can still be changed.
                 </span>
               </p>
             </>
@@ -177,8 +222,8 @@ export function StageForm({ stage }: { stage: StageView }) {
               role="status"
               className={`rounded border px-3 py-2 text-xs ${
                 result.ok
-                  ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                  : "border-amber-700 bg-amber-50 text-amber-900"
+                  ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                  : 'border-amber-700 bg-amber-50 text-amber-900'
               }`}
             >
               {result.message}
@@ -186,8 +231,9 @@ export function StageForm({ stage }: { stage: StageView }) {
           ) : null}
           {stage.pending > 0 ? (
             <p className="text-xs text-ink-soft">
-              {stage.pending} approval{stage.pending === 1 ? "" : "s"} already waiting on this
-              stage will be redirected to whichever role you save.
+              {stage.pending} approval{stage.pending === 1 ? '' : 's'} already
+              waiting on this stage will be redirected to whichever role you
+              save.
             </p>
           ) : null}
           <button
@@ -195,7 +241,7 @@ export function StageForm({ stage }: { stage: StageView }) {
             disabled={pending}
             className="rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-brand"
           >
-            {pending ? "Saving…" : "Save this stage"}
+            {pending ? 'Saving…' : 'Save this stage'}
           </button>
         </div>
       </form>
@@ -210,8 +256,8 @@ function BoardField({ value }: { value: string }) {
       <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-soft">
         Decided by a board or committee
         <span className="block font-normal normal-case tracking-normal">
-          Its name — the role above records the decision, citing the meeting. Empty for one
-          person&rsquo;s decision.
+          Its name - the role above records the decision, citing the meeting.
+          Empty for one person&rsquo;s decision.
         </span>
       </span>
       <input
@@ -229,11 +275,18 @@ function BoardField({ value }: { value: string }) {
  * board or an ethics committee without resetting a workflow already tuned.
  */
 export function AddStageForm({ workflowId }: { workflowId: string }) {
-  const { result, pending, formProps } = useRefusableAction<RoutingResult>(addStageAction.bind(null, workflowId));
+  const { result, pending, formProps } = useRefusableAction<RoutingResult>(
+    addStageAction.bind(null, workflowId)
+  );
   return (
-    <form {...formProps} className="grid gap-3 border-t border-line p-4 sm:grid-cols-2">
+    <form
+      {...formProps}
+      className="grid gap-3 border-t border-line p-4 sm:grid-cols-2"
+    >
       <label className="block space-y-1">
-        <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-soft">Name</span>
+        <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+          Name
+        </span>
         <input
           name="name"
           required
@@ -251,7 +304,10 @@ export function AddStageForm({ workflowId }: { workflowId: string }) {
           className="w-full rounded border border-line bg-ground px-3 py-1.5 text-xs"
         >
           {ROLES.map((role) => (
-            <option key={role} value={role}>
+            <option
+              key={role}
+              value={role}
+            >
               {ROLE_LABEL[role]}
             </option>
           ))}
@@ -271,7 +327,9 @@ export function AddStageForm({ workflowId }: { workflowId: string }) {
           <option value="tierAtLeast">The risk reaches a tier</option>
           <option value="scoreAtLeast">The risk score reaches a number</option>
           <option value="answerAtLeast">An answer reaches a number</option>
-          <option value="specialCategoryData">Special-category data is involved</option>
+          <option value="specialCategoryData">
+            Special-category data is involved
+          </option>
         </select>
         <div className="flex gap-2">
           <select
@@ -280,7 +338,12 @@ export function AddStageForm({ workflowId }: { workflowId: string }) {
             className="w-28 rounded border border-line bg-ground px-2 py-1 text-xs"
           >
             {TIERS.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option
+                key={t}
+                value={t}
+              >
+                {t}
+              </option>
             ))}
           </select>
           <input
@@ -311,8 +374,8 @@ export function AddStageForm({ workflowId }: { workflowId: string }) {
             role="status"
             className={`rounded border px-3 py-2 text-xs ${
               result.ok
-                ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                : "border-amber-700 bg-amber-50 text-amber-900"
+                ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                : 'border-amber-700 bg-amber-50 text-amber-900'
             }`}
           >
             {result.message}
@@ -323,7 +386,7 @@ export function AddStageForm({ workflowId }: { workflowId: string }) {
           disabled={pending}
           className="rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground disabled:opacity-60"
         >
-          {pending ? "Adding…" : "Add the stage"}
+          {pending ? 'Adding…' : 'Add the stage'}
         </button>
       </div>
     </form>

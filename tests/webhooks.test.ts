@@ -1,14 +1,19 @@
-import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
-import { after, describe, it } from "node:test";
-import { eq } from "drizzle-orm";
-import { db, sql as pg } from "@/db/client";
-import { entities, organisations, webhookDeliveries } from "@/db/schema";
-import { signRequest } from "@/lib/integration/crypto";
-import { createConnection } from "@/services/connections";
-import { deliverPending, queueEvent } from "@/services/webhooks";
+import assert from 'node:assert/strict';
+import { createServer, type Server } from 'node:http';
+import { after, describe, it } from 'node:test';
+import { eq } from 'drizzle-orm';
 
-const SYSTEM = { actorKind: "system" as const, actorUserId: null, actorLabel: "test" };
+import { db, sql as pg } from '@/db/client';
+import { entities, organisations, webhookDeliveries } from '@/db/schema';
+import { signRequest } from '@/lib/integration/crypto';
+import { createConnection } from '@/services/connections';
+import { deliverPending, queueEvent } from '@/services/webhooks';
+
+const SYSTEM = {
+  actorKind: 'system' as const,
+  actorUserId: null,
+  actorLabel: 'test'
+};
 
 type Received = {
   body: string;
@@ -20,48 +25,51 @@ type Received = {
 
 /** A stand-in subscriber, so the delivery path is exercised for real. */
 async function subscriber(
-  respond: (n: number) => number,
+  respond: (n: number) => number
 ): Promise<{ url: string; received: Received[]; close: () => Promise<void> }> {
   const received: Received[] = [];
   let calls = 0;
   const server: Server = createServer((req, res) => {
-    let body = "";
-    req.on("data", (c) => (body += c));
-    req.on("end", () => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
       received.push({
         body,
-        event: req.headers["x-waivern-event"] as string | undefined,
-        timestamp: req.headers["x-waivern-timestamp"] as string | undefined,
-        signature: req.headers["x-waivern-signature"] as string | undefined,
-        delivery: req.headers["x-waivern-delivery"] as string | undefined,
+        event: req.headers['x-waivern-event'] as string | undefined,
+        timestamp: req.headers['x-waivern-timestamp'] as string | undefined,
+        signature: req.headers['x-waivern-signature'] as string | undefined,
+        delivery: req.headers['x-waivern-delivery'] as string | undefined
       });
       res.writeHead(respond(++calls)).end();
     });
   });
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const address = server.address();
-  const port = typeof address === "object" && address ? address.port : 0;
+  const port = typeof address === 'object' && address ? address.port : 0;
   return {
     url: `http://127.0.0.1:${port}/hook`,
     received,
-    close: () => new Promise<void>((r) => server.close(() => r())),
+    close: () => new Promise<void>((r) => server.close(() => r()))
   };
 }
 
 async function world(label: string, webhookUrl?: string) {
   const [org] = await db
     .insert(organisations)
-    .values({ name: `H ${label}`, slug: `hook-${label}-${crypto.randomUUID().slice(0, 8)}` })
+    .values({
+      name: `H ${label}`,
+      slug: `hook-${label}-${crypto.randomUUID().slice(0, 8)}`
+    })
     .returning();
   await db
     .insert(entities)
-    .values({ organisationId: org.id, name: "Main", isDefault: true });
+    .values({ organisationId: org.id, name: 'Main', isDefault: true });
   const conn = await createConnection({
     organisationId: org.id,
-    kind: "waivern_portal",
-    name: "Portal",
+    kind: 'waivern_portal',
+    name: 'Portal',
     webhookUrl,
-    actor: SYSTEM,
+    actor: SYSTEM
   });
   return { org, conn };
 }
@@ -70,16 +78,16 @@ after(async () => {
   await pg.end();
 });
 
-describe("queueing", () => {
-  it("queues nothing for a connection with no webhook URL", async () => {
-    const w = await world("nourl");
+describe('queueing', () => {
+  it('queues nothing for a connection with no webhook URL', async () => {
+    const w = await world('nourl');
     await db.transaction((tx) =>
       queueEvent(tx, {
         organisationId: w.org.id,
-        event: "assessment.approved",
-        payload: { reference: "DPIA-1" },
-        idempotencyKey: "k1",
-      }),
+        event: 'assessment.approved',
+        payload: { reference: 'DPIA-1' },
+        idempotencyKey: 'k1'
+      })
     );
     const rows = await db
       .select()
@@ -88,16 +96,16 @@ describe("queueing", () => {
     assert.equal(rows.length, 0);
   });
 
-  it("queues one delivery per event, however often it is raised", async () => {
-    const w = await world("idem", "http://127.0.0.1:1/hook");
+  it('queues one delivery per event, however often it is raised', async () => {
+    const w = await world('idem', 'http://127.0.0.1:1/hook');
     for (let i = 0; i < 3; i++) {
       await db.transaction((tx) =>
         queueEvent(tx, {
           organisationId: w.org.id,
-          event: "risk.accepted",
-          payload: { reference: "RISK-1" },
-          idempotencyKey: "risk-accepted:abc",
-        }),
+          event: 'risk.accepted',
+          payload: { reference: 'RISK-1' },
+          idempotencyKey: 'risk-accepted:abc'
+        })
       );
     }
     const rows = await db
@@ -108,18 +116,18 @@ describe("queueing", () => {
   });
 });
 
-describe("delivery", () => {
-  it("delivers a signed event the subscriber can verify", async () => {
+describe('delivery', () => {
+  it('delivers a signed event the subscriber can verify', async () => {
     const sub = await subscriber(() => 200);
     try {
-      const w = await world("signed", sub.url);
+      const w = await world('signed', sub.url);
       await db.transaction((tx) =>
         queueEvent(tx, {
           organisationId: w.org.id,
-          event: "assessment.approved",
-          payload: { reference: "DPIA-2026-0001", tier: "critical" },
-          idempotencyKey: "assessment:1:approved",
-        }),
+          event: 'assessment.approved',
+          payload: { reference: 'DPIA-2026-0001', tier: 'critical' },
+          idempotencyKey: 'assessment:1:approved'
+        })
       );
 
       const run = await deliverPending(w.org.id);
@@ -127,7 +135,7 @@ describe("delivery", () => {
       assert.equal(sub.received.length, 1);
 
       const got = sub.received[0];
-      assert.equal(got.event, "assessment.approved");
+      assert.equal(got.event, 'assessment.approved');
       assert.match(got.body, /DPIA-2026-0001/);
 
       // The subscriber holds the same secret, so it can check the event came
@@ -136,28 +144,31 @@ describe("delivery", () => {
       const expected = signRequest({
         secret: w.conn.secret,
         timestamp: got.timestamp!,
-        method: "POST",
-        pathWithQuery: "/hook",
-        body: got.body,
+        method: 'POST',
+        pathWithQuery: '/hook',
+        body: got.body
       });
       assert.equal(got.signature, expected);
-      assert.ok(got.delivery, "a delivery id is present for the subscriber's own idempotency");
+      assert.ok(
+        got.delivery,
+        "a delivery id is present for the subscriber's own idempotency"
+      );
     } finally {
       await sub.close();
     }
   });
 
-  it("does not deliver the same event twice", async () => {
+  it('does not deliver the same event twice', async () => {
     const sub = await subscriber(() => 200);
     try {
-      const w = await world("once", sub.url);
+      const w = await world('once', sub.url);
       await db.transaction((tx) =>
         queueEvent(tx, {
           organisationId: w.org.id,
-          event: "risk.accepted",
-          payload: { reference: "RISK-1" },
-          idempotencyKey: "risk-accepted:1",
-        }),
+          event: 'risk.accepted',
+          payload: { reference: 'RISK-1' },
+          idempotencyKey: 'risk-accepted:1'
+        })
       );
       await deliverPending(w.org.id);
       await deliverPending(w.org.id);
@@ -167,17 +178,17 @@ describe("delivery", () => {
     }
   });
 
-  it("retries with backoff when the subscriber is failing", async () => {
+  it('retries with backoff when the subscriber is failing', async () => {
     const sub = await subscriber(() => 500);
     try {
-      const w = await world("retry", sub.url);
+      const w = await world('retry', sub.url);
       await db.transaction((tx) =>
         queueEvent(tx, {
           organisationId: w.org.id,
-          event: "assessment.approved",
+          event: 'assessment.approved',
           payload: {},
-          idempotencyKey: "a:1",
-        }),
+          idempotencyKey: 'a:1'
+        })
       );
       const run = await deliverPending(w.org.id);
       assert.equal(run.failed, 1);
@@ -186,9 +197,9 @@ describe("delivery", () => {
         .select()
         .from(webhookDeliveries)
         .where(eq(webhookDeliveries.organisationId, w.org.id));
-      assert.equal(row.status, "failed");
+      assert.equal(row.status, 'failed');
       assert.equal(row.attempts, 1);
-      assert.match(row.lastError ?? "", /500/);
+      assert.match(row.lastError ?? '', /500/);
       // Scheduled forward, so a subscriber that is down for an hour is not
       // hammered every sweep.
       assert.ok(row.nextAttemptAt && row.nextAttemptAt.getTime() > Date.now());
@@ -197,17 +208,17 @@ describe("delivery", () => {
     }
   });
 
-  it("gives up after enough attempts rather than retrying forever", async () => {
+  it('gives up after enough attempts rather than retrying forever', async () => {
     const sub = await subscriber(() => 500);
     try {
-      const w = await world("giveup", sub.url);
+      const w = await world('giveup', sub.url);
       await db.transaction((tx) =>
         queueEvent(tx, {
           organisationId: w.org.id,
-          event: "assessment.approved",
+          event: 'assessment.approved',
           payload: {},
-          idempotencyKey: "a:1",
-        }),
+          idempotencyKey: 'a:1'
+        })
       );
       for (let i = 0; i < 6; i++) {
         await db
@@ -220,24 +231,24 @@ describe("delivery", () => {
         .select()
         .from(webhookDeliveries)
         .where(eq(webhookDeliveries.organisationId, w.org.id));
-      assert.equal(row.status, "abandoned");
+      assert.equal(row.status, 'abandoned');
       assert.equal(row.nextAttemptAt, null);
     } finally {
       await sub.close();
     }
   });
 
-  it("recovers when a failing subscriber comes back", async () => {
+  it('recovers when a failing subscriber comes back', async () => {
     const sub = await subscriber((n) => (n === 1 ? 503 : 200));
     try {
-      const w = await world("recover", sub.url);
+      const w = await world('recover', sub.url);
       await db.transaction((tx) =>
         queueEvent(tx, {
           organisationId: w.org.id,
-          event: "risk.accepted",
+          event: 'risk.accepted',
           payload: {},
-          idempotencyKey: "r:1",
-        }),
+          idempotencyKey: 'r:1'
+        })
       );
       await deliverPending(w.org.id);
       await db
@@ -251,7 +262,7 @@ describe("delivery", () => {
         .select()
         .from(webhookDeliveries)
         .where(eq(webhookDeliveries.organisationId, w.org.id));
-      assert.equal(row.status, "delivered");
+      assert.equal(row.status, 'delivered');
       assert.equal(row.attempts, 2);
     } finally {
       await sub.close();

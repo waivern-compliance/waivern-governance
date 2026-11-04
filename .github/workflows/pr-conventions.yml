@@ -1,0 +1,36 @@
+name: PR conventions
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conventions:
+    name: Conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check branch name
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: ./scripts/check-branch-name.sh "$BRANCH"
+
+      # Runs even after a bad branch name, so both problems surface at once.
+      - id: setup
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/setup
+
+      # PRs are squash-merged, so the title becomes the commit on main.
+      - name: Check PR title
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | pnpm exec commitlint

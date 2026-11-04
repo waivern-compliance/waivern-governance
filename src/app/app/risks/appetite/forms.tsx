@@ -1,16 +1,23 @@
-"use client";
+'use client';
 
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { useState } from "react";
+import { useState } from 'react';
+
+import { useRefusableAction } from '@/lib/use-refusable-action';
+
 import {
   decideAppetiteAction,
   proposeAppetiteAction,
-  type AppetiteResult,
-} from "./actions";
+  type AppetiteResult
+} from './actions';
 
-type Level = { value: string; label: string; guidance: string | null; suggestedTier: string };
+type Level = {
+  value: string;
+  label: string;
+  guidance: string | null;
+  suggestedTier: string;
+};
 
-const TIERS = ["low", "medium", "high", "critical"] as const;
+const TIERS = ['low', 'medium', 'high', 'critical'] as const;
 
 function Outcome({ result }: { result: AppetiteResult }) {
   if (!result) return null;
@@ -19,8 +26,8 @@ function Outcome({ result }: { result: AppetiteResult }) {
       role="status"
       className={`rounded border px-3 py-2 text-sm ${
         result.ok
-          ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-          : "border-amber-700 bg-amber-50 text-amber-900"
+          ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+          : 'border-amber-700 bg-amber-50 text-amber-900'
       }`}
     >
       {result.message}
@@ -39,23 +46,36 @@ function Outcome({ result }: { result: AppetiteResult }) {
 export function ProposeAppetiteForm({
   scope,
   levels,
-  current,
+  current
 }: {
   scope: string;
   levels: Level[];
   current: { level: string; toleratedTier: string } | null;
 }) {
-  const { result, pending, formProps } = useRefusableAction<AppetiteResult>(proposeAppetiteAction);
-  const [level, setLevel] = useState(current?.level ?? "cautious");
+  const { result, pending, formProps } = useRefusableAction<AppetiteResult>(
+    proposeAppetiteAction
+  );
+  const [level, setLevel] = useState(current?.level ?? 'cautious');
   const [tier, setTier] = useState(
-    current?.toleratedTier ?? levels.find((l) => l.value === level)?.suggestedTier ?? "medium",
+    current?.toleratedTier ??
+      levels.find((l) => l.value === level)?.suggestedTier ??
+      'medium'
   );
 
   return (
-    <form {...formProps} className="space-y-3 border-t border-line p-4">
-      <input type="hidden" name="scope" value={scope} />
+    <form
+      {...formProps}
+      className="space-y-3 border-t border-line p-4"
+    >
+      <input
+        type="hidden"
+        name="scope"
+        value={scope}
+      />
       <fieldset className="space-y-2">
-        <legend className="text-xs font-medium uppercase tracking-wider text-ink-soft">Level</legend>
+        <legend className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+          Level
+        </legend>
         {levels.map((l) => (
           <label
             key={l.value}
@@ -74,7 +94,11 @@ export function ProposeAppetiteForm({
             />
             <span>
               <span className="font-medium">{l.label}</span>
-              {l.guidance ? <span className="block text-xs text-ink-soft">{l.guidance}</span> : null}
+              {l.guidance ? (
+                <span className="block text-xs text-ink-soft">
+                  {l.guidance}
+                </span>
+              ) : null}
             </span>
           </label>
         ))}
@@ -90,7 +114,12 @@ export function ProposeAppetiteForm({
           className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
         >
           {TIERS.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option
+              key={t}
+              value={t}
+            >
+              {t}
+            </option>
           ))}
         </select>
         <span className="block text-xs text-ink-soft">
@@ -116,7 +145,7 @@ export function ProposeAppetiteForm({
         disabled={pending}
         className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        {pending ? "Proposing…" : "Propose for sign-off"}
+        {pending ? 'Proposing…' : 'Propose for sign-off'}
       </button>
     </form>
   );
@@ -124,15 +153,26 @@ export function ProposeAppetiteForm({
 
 /** Sign off, or decline, a proposed appetite. */
 export function DecideAppetiteForm({ appetiteId }: { appetiteId: string }) {
-  const { result, pending, formProps } = useRefusableAction<AppetiteResult>(decideAppetiteAction);
-  const [decision, setDecision] = useState<"approved" | "rejected">("approved");
+  const { result, pending, formProps } =
+    useRefusableAction<AppetiteResult>(decideAppetiteAction);
+  const [decision, setDecision] = useState<'approved' | 'rejected'>('approved');
 
   return (
-    <form {...formProps} className="space-y-3 rounded border border-line bg-ground p-3">
-      <input type="hidden" name="appetiteId" value={appetiteId} />
+    <form
+      {...formProps}
+      className="space-y-3 rounded border border-line bg-ground p-3"
+    >
+      <input
+        type="hidden"
+        name="appetiteId"
+        value={appetiteId}
+      />
       <div className="flex gap-4 text-sm">
-        {(["approved", "rejected"] as const).map((d) => (
-          <label key={d} className="flex items-center gap-2">
+        {(['approved', 'rejected'] as const).map((d) => (
+          <label
+            key={d}
+            className="flex items-center gap-2"
+          >
             <input
               type="radio"
               name="decision"
@@ -141,11 +181,11 @@ export function DecideAppetiteForm({ appetiteId }: { appetiteId: string }) {
               onChange={() => setDecision(d)}
               className="accent-brand"
             />
-            {d === "approved" ? "Sign off" : "Do not approve"}
+            {d === 'approved' ? 'Sign off' : 'Do not approve'}
           </label>
         ))}
       </div>
-      {decision === "approved" ? (
+      {decision === 'approved' ? (
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <label className="block space-y-1">
             <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
@@ -175,7 +215,9 @@ export function DecideAppetiteForm({ appetiteId }: { appetiteId: string }) {
         </div>
       ) : (
         <label className="block space-y-1">
-          <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Why not</span>
+          <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+            Why not
+          </span>
           <input
             name="rejectionReason"
             required
@@ -189,7 +231,7 @@ export function DecideAppetiteForm({ appetiteId }: { appetiteId: string }) {
         disabled={pending}
         className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-brand"
       >
-        {pending ? "Recording…" : "Record decision"}
+        {pending ? 'Recording…' : 'Record decision'}
       </button>
     </form>
   );

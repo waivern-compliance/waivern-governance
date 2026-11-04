@@ -1,7 +1,7 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 /** A house, inline so it takes `currentColor` like the Waivern mark. */
-function House({ className = "h-4 w-4" }: { className?: string }) {
+function House({ className = 'h-4 w-4' }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -27,11 +27,17 @@ function House({ className = "h-4 w-4" }: { className?: string }) {
  * no learning. `tone` matches the surface: white on the navy masthead, navy on
  * a light page.
  */
-export function HomeLink({ href = "/app", tone = "dark" }: { href?: string; tone?: "dark" | "light" }) {
+export function HomeLink({
+  href = '/app',
+  tone = 'dark'
+}: {
+  href?: string;
+  tone?: 'dark' | 'light';
+}) {
   const colours =
-    tone === "dark"
-      ? "border-white/25 text-white hover:bg-white/10 focus-visible:outline-white"
-      : "border-line text-navy hover:bg-surface focus-visible:outline-navy";
+    tone === 'dark'
+      ? 'border-white/25 text-white hover:bg-white/10 focus-visible:outline-white'
+      : 'border-line text-navy hover:bg-surface focus-visible:outline-navy';
   return (
     <Link
       href={href}

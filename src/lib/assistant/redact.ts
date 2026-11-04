@@ -16,40 +16,43 @@ export type Redaction = { kind: string; count: number };
 
 const RULES: Array<{ kind: string; pattern: RegExp; replace: string }> = [
   {
-    kind: "email address",
+    kind: 'email address',
     pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
-    replace: "[email removed]",
+    replace: '[email removed]'
   },
   {
     // UK NINO. Checked before the general number rules, which would otherwise
     // shred it into pieces that no longer look like anything.
-    kind: "national insurance number",
+    kind: 'national insurance number',
     pattern: /\b[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b/gi,
-    replace: "[national insurance number removed]",
+    replace: '[national insurance number removed]'
   },
   {
-    kind: "payment card number",
+    kind: 'payment card number',
     pattern: /\b(?:\d[ -]?){13,19}\b/g,
-    replace: "[card number removed]",
+    replace: '[card number removed]'
   },
   {
-    kind: "UK telephone number",
+    kind: 'UK telephone number',
     pattern: /\b(?:\+44\s?|0)(?:\d\s?){9,10}\d\b/g,
-    replace: "[telephone number removed]",
+    replace: '[telephone number removed]'
   },
   {
-    kind: "UK postcode",
+    kind: 'UK postcode',
     pattern: /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/gi,
-    replace: "[postcode removed]",
+    replace: '[postcode removed]'
   },
   {
-    kind: "IP address",
+    kind: 'IP address',
     pattern: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
-    replace: "[IP address removed]",
-  },
+    replace: '[IP address removed]'
+  }
 ];
 
-export function redact(text: string): { text: string; redactions: Redaction[] } {
+export function redact(text: string): {
+  text: string;
+  redactions: Redaction[];
+} {
   let out = text;
   const redactions: Redaction[] = [];
 
@@ -70,8 +73,10 @@ function plural(noun: string, count: number): string {
 }
 
 /** Whether anything was removed, for telling the user plainly. */
-export function summariseRedactions(redactions: readonly Redaction[]): string | null {
+export function summariseRedactions(
+  redactions: readonly Redaction[]
+): string | null {
   if (redactions.length === 0) return null;
   const parts = redactions.map((r) => `${r.count} ${plural(r.kind, r.count)}`);
-  return `Removed before sending: ${parts.join(", ")}.`;
+  return `Removed before sending: ${parts.join(', ')}.`;
 }

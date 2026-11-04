@@ -1,4 +1,4 @@
-import { unstable_rethrow } from "next/navigation";
+import { unstable_rethrow } from 'next/navigation';
 
 /** What an edit form's action reports: saved, or refused with the reason. */
 export type EditResult = { ok: boolean; message: string } | null;
@@ -16,16 +16,21 @@ export type EditResult = { ok: boolean; message: string } | null;
  * that is logged and reported generically. Navigation (a redirect to sign in,
  * a not-found) is passed through untouched.
  */
-export async function refusable(work: () => Promise<unknown>): Promise<EditResult> {
+export async function refusable(
+  work: () => Promise<unknown>
+): Promise<EditResult> {
   try {
     await work();
-    return { ok: true, message: "Saved." };
+    return { ok: true, message: 'Saved.' };
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof Error && !("code" in error)) {
+    if (error instanceof Error && !('code' in error)) {
       return { ok: false, message: error.message };
     }
-    console.error("Edit failed", error);
-    return { ok: false, message: "That could not be saved. Nothing was changed; try again." };
+    console.error('Edit failed', error);
+    return {
+      ok: false,
+      message: 'That could not be saved. Nothing was changed; try again.'
+    };
   }
 }

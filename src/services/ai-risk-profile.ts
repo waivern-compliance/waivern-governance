@@ -1,5 +1,6 @@
-import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiIncidents,
   aiUseCases,
@@ -7,14 +8,15 @@ import {
   mitigations,
   riskAcceptances,
   risks,
-  users,
-} from "@/db/schema";
-import { judge, scopeLabel, type AppetiteJudgement } from "@/lib/risk/appetite";
-import { categoryLabel } from "@/lib/ai-frameworks";
-import { aiFrameworkPackOf } from "./ai-framework";
-import { tierRank, type RiskTier } from "@/lib/risk/scale";
-import { TREATMENT_LABEL, type TreatmentType } from "@/lib/risk/treatment";
-import { appetiteInForce } from "./appetite-in-force";
+  users
+} from '@/db/schema';
+import { categoryLabel } from '@/lib/ai-frameworks';
+import { judge, scopeLabel, type AppetiteJudgement } from '@/lib/risk/appetite';
+import { tierRank, type RiskTier } from '@/lib/risk/scale';
+import { TREATMENT_LABEL, type TreatmentType } from '@/lib/risk/treatment';
+
+import { aiFrameworkPackOf } from './ai-framework';
+import { appetiteInForce } from './appetite-in-force';
 
 /**
  * The risk picture for AI systems: one system at a time, and the whole
@@ -38,21 +40,24 @@ async function riskOwnership(organisationId: string, useCaseIds?: string[]) {
       .where(
         and(
           eq(risks.organisationId, organisationId),
-          eq(assessments.subjectType, "ai_use_case"),
-          useCaseIds ? inArray(assessments.subjectId, useCaseIds) : undefined,
-        ),
+          eq(assessments.subjectType, 'ai_use_case'),
+          useCaseIds ? inArray(assessments.subjectId, useCaseIds) : undefined
+        )
       ),
     db
-      .select({ riskId: aiIncidents.linkedRiskId, useCaseId: aiIncidents.aiUseCaseId })
+      .select({
+        riskId: aiIncidents.linkedRiskId,
+        useCaseId: aiIncidents.aiUseCaseId
+      })
       .from(aiIncidents)
       .where(
         and(
           eq(aiIncidents.organisationId, organisationId),
           isNotNull(aiIncidents.linkedRiskId),
           isNotNull(aiIncidents.aiUseCaseId),
-          useCaseIds ? inArray(aiIncidents.aiUseCaseId, useCaseIds) : undefined,
-        ),
-      ),
+          useCaseIds ? inArray(aiIncidents.aiUseCaseId, useCaseIds) : undefined
+        )
+      )
   ]);
   const owner = new Map<string, Set<string>>();
   for (const { riskId, useCaseId } of [...fromAssessments, ...fromIncidents]) {
@@ -72,12 +77,23 @@ export type ProfiledRisk = {
   appetite: AppetiteJudgement;
 };
 
-async function profile(riskRows: RiskRow[], organisationId: string): Promise<ProfiledRisk[]> {
+async function profile(
+  riskRows: RiskRow[],
+  organisationId: string
+): Promise<ProfiledRisk[]> {
   if (riskRows.length === 0) return [];
   const ids = riskRows.map((r) => r.id);
-  const ownerIds = [...new Set(riskRows.map((r) => r.ownerId).filter((x): x is string => x !== null))];
+  const ownerIds = [
+    ...new Set(
+      riskRows.map((r) => r.ownerId).filter((x): x is string => x !== null)
+    )
+  ];
   const [treatments, acceptances, owners, inForce] = await Promise.all([
-    db.select().from(mitigations).where(inArray(mitigations.riskId, ids)).orderBy(mitigations.createdAt),
+    db
+      .select()
+      .from(mitigations)
+      .where(inArray(mitigations.riskId, ids))
+      .orderBy(mitigations.createdAt),
     db
       .select()
       .from(riskAcceptances)
@@ -85,13 +101,16 @@ async function profile(riskRows: RiskRow[], organisationId: string): Promise<Pro
         and(
           inArray(riskAcceptances.riskId, ids),
           isNull(riskAcceptances.supersededAt),
-          isNull(riskAcceptances.revokedAt),
-        ),
+          isNull(riskAcceptances.revokedAt)
+        )
       ),
     ownerIds.length
-      ? db.select({ id: users.id, email: users.email }).from(users).where(inArray(users.id, ownerIds))
+      ? db
+          .select({ id: users.id, email: users.email })
+          .from(users)
+          .where(inArray(users.id, ownerIds))
       : Promise.resolve([] as Array<{ id: string; email: string }>),
-    appetiteInForce(organisationId),
+    appetiteInForce(organisationId)
   ]);
   const email = new Map(owners.map((o) => [o.id, o.email]));
   const now = Date.now();
@@ -104,9 +123,13 @@ async function profile(riskRows: RiskRow[], organisationId: string): Promise<Pro
       acceptance,
       lapsed: acceptance !== null && acceptance.expiresAt.getTime() <= now,
       appetite: judge(
-        { category: risk.category, residualTier: risk.residualTier as RiskTier | null, status: risk.status },
-        inForce,
-      ),
+        {
+          category: risk.category,
+          residualTier: risk.residualTier as RiskTier | null,
+          status: risk.status
+        },
+        inForce
+      )
     };
   });
 }
@@ -125,8 +148,9 @@ export type CategoryLine = {
 
 function worst(tiers: Array<RiskTier | null>): RiskTier | null {
   return tiers.reduce<RiskTier | null>(
-    (w, t) => (t === null ? w : w === null || tierRank(t) > tierRank(w) ? t : w),
-    null,
+    (w, t) =>
+      t === null ? w : w === null || tierRank(t) > tierRank(w) ? t : w,
+    null
   );
 }
 
@@ -135,7 +159,10 @@ function worst(tiers: Array<RiskTier | null>): RiskTier | null {
  * appetite, and the same grouped by the toolkit's categories — which is the
  * view DSIT's AI risk monitoring dashboard gives.
  */
-export async function riskProfileFor(useCaseId: string, organisationId: string) {
+export async function riskProfileFor(
+  useCaseId: string,
+  organisationId: string
+) {
   return withOrganisation(organisationId, async () => {
     const owner = await riskOwnership(organisationId, [useCaseId]);
     const riskIds = [...owner.keys()];
@@ -143,36 +170,52 @@ export async function riskProfileFor(useCaseId: string, organisationId: string) 
       ? await db
           .select()
           .from(risks)
-          .where(and(eq(risks.organisationId, organisationId), inArray(risks.id, riskIds)))
+          .where(
+            and(
+              eq(risks.organisationId, organisationId),
+              inArray(risks.id, riskIds)
+            )
+          )
       : [];
     const profiled = (await profile(rows, organisationId)).sort(
-      (a, b) => b.risk.inherentScore - a.risk.inherentScore,
+      (a, b) => b.risk.inherentScore - a.risk.inherentScore
     );
-    const open = profiled.filter((p) => p.risk.status !== "closed");
+    const open = profiled.filter((p) => p.risk.status !== 'closed');
 
-    const framework = (await aiFrameworkPackOf(organisationId)).categories.map((c) => c.value);
+    const framework = (await aiFrameworkPackOf(organisationId)).categories.map(
+      (c) => c.value
+    );
     const categories = [
       ...framework,
       // Anything filed outside the framework's list still has to appear somewhere.
-      ...new Set(open.map((p) => p.risk.category ?? "").filter((c) => !framework.includes(c))),
+      ...new Set(
+        open
+          .map((p) => p.risk.category ?? '')
+          .filter((c) => !framework.includes(c))
+      )
     ];
     const byCategory: CategoryLine[] = categories.map((category) => {
-      const here = open.filter((p) => (p.risk.category ?? "") === category);
+      const here = open.filter((p) => (p.risk.category ?? '') === category);
       const basis = here[0]?.appetite;
       return {
         category,
-        label: category === "" ? "No category" : (categoryLabel(category) ?? category),
+        label:
+          category === ''
+            ? 'No category'
+            : (categoryLabel(category) ?? category),
         open: here.length,
         worstInherent: worst(here.map((p) => p.risk.inherentTier as RiskTier)),
-        worstResidual: worst(here.map((p) => p.risk.residualTier as RiskTier | null)),
-        outside: here.filter((p) => p.appetite.state === "outside").length,
-        unrated: here.filter((p) => p.appetite.state === "unrated").length,
+        worstResidual: worst(
+          here.map((p) => p.risk.residualTier as RiskTier | null)
+        ),
+        outside: here.filter((p) => p.appetite.state === 'outside').length,
+        unrated: here.filter((p) => p.appetite.state === 'unrated').length,
         appetite:
-          basis && basis.state !== "closed"
-            ? basis.basis.source === "platform"
-              ? `no appetite signed off — residual up to ${basis.basis.toleratedTier}`
-              : `${basis.basis.source === "category" ? scopeLabel(basis.basis.scope) : "organisation default"}: up to ${basis.basis.toleratedTier}`
-            : "",
+          basis && basis.state !== 'closed'
+            ? basis.basis.source === 'platform'
+              ? `no appetite signed off - residual up to ${basis.basis.toleratedTier}`
+              : `${basis.basis.source === 'category' ? scopeLabel(basis.basis.scope) : 'organisation default'}: up to ${basis.basis.toleratedTier}`
+            : ''
       };
     });
 
@@ -181,12 +224,16 @@ export async function riskProfileFor(useCaseId: string, organisationId: string) 
       byCategory,
       totals: {
         open: open.length,
-        outside: open.filter((p) => p.appetite.state === "outside").length,
-        unrated: open.filter((p) => p.appetite.state === "unrated").length,
+        outside: open.filter((p) => p.appetite.state === 'outside').length,
+        unrated: open.filter((p) => p.appetite.state === 'unrated').length,
         accepted: open.filter((p) => p.acceptance !== null).length,
         lapsed: open.filter((p) => p.lapsed).length,
-        untreated: open.filter((p) => p.treatments.filter((t) => t.status !== "abandoned").length === 0 && !p.acceptance).length,
-      },
+        untreated: open.filter(
+          (p) =>
+            p.treatments.filter((t) => t.status !== 'abandoned').length === 0 &&
+            !p.acceptance
+        ).length
+      }
     };
   });
 }
@@ -199,7 +246,10 @@ export async function riskProfileFor(useCaseId: string, organisationId: string) 
  * across government. This is that log: one row per risk per system, with the
  * scale it was rated on, appetite, treatment and acceptance alongside.
  */
-export async function aiRiskLog(organisationId: string, entityIds: string[] | null) {
+export async function aiRiskLog(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const owner = await riskOwnership(organisationId);
     const riskIds = [...owner.keys()];
@@ -213,28 +263,36 @@ export async function aiRiskLog(organisationId: string, entityIds: string[] | nu
           and(
             eq(risks.organisationId, organisationId),
             inArray(risks.id, riskIds),
-            entityIds === null ? undefined : inArray(risks.entityId, entityIds),
-          ),
+            entityIds === null ? undefined : inArray(risks.entityId, entityIds)
+          )
         ),
-      db.select().from(aiUseCases).where(eq(aiUseCases.organisationId, organisationId)),
+      db
+        .select()
+        .from(aiUseCases)
+        .where(eq(aiUseCases.organisationId, organisationId))
     ]);
     const systemById = new Map(systems.map((s) => [s.id, s]));
     const profiled = await profile(rows, organisationId);
 
-    return profiled.flatMap((p) =>
-      [...(owner.get(p.risk.id) ?? [])]
-        .map((id) => systemById.get(id))
-        .filter((s): s is NonNullable<typeof s> => Boolean(s))
-        .map((system) => ({ system, ...p })),
-    ).sort(
-      (a, b) =>
-        a.system.reference.localeCompare(b.system.reference) || b.risk.inherentScore - a.risk.inherentScore,
-    );
+    return profiled
+      .flatMap((p) =>
+        [...(owner.get(p.risk.id) ?? [])]
+          .map((id) => systemById.get(id))
+          .filter((s): s is NonNullable<typeof s> => Boolean(s))
+          .map((system) => ({ system, ...p }))
+      )
+      .sort(
+        (a, b) =>
+          a.system.reference.localeCompare(b.system.reference) ||
+          b.risk.inherentScore - a.risk.inherentScore
+      );
   });
 }
 
 /** A treatment, in words, for a flat file. */
 export function treatmentWords(t: typeof mitigations.$inferSelect): string {
-  const kind = t.treatmentType ? `${TREATMENT_LABEL[t.treatmentType as TreatmentType]}: ` : "";
-  return `${kind}${t.description} [${t.status.replace(/_/g, " ")}]`;
+  const kind = t.treatmentType
+    ? `${TREATMENT_LABEL[t.treatmentType as TreatmentType]}: `
+    : '';
+  return `${kind}${t.description} [${t.status.replace(/_/g, ' ')}]`;
 }

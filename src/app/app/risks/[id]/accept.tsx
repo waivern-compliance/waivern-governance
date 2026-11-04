@@ -1,8 +1,10 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { RiskTierBadge } from "@/components/RiskTierBadge";
-import { acceptAction, revokeAction } from "./actions";
+import { useState, useTransition } from 'react';
+
+import { RiskTierBadge } from '@/components/RiskTierBadge';
+
+import { acceptAction, revokeAction } from './actions';
 
 type Live = {
   id: string;
@@ -26,7 +28,7 @@ export function AcceptPanel({
   ownsIt,
   residualRated,
   live,
-  history,
+  history
 }: {
   riskId: string;
   mayAccept: boolean;
@@ -45,11 +47,11 @@ export function AcceptPanel({
   const [pending, startTransition] = useTransition();
 
   const blocked = !mayAccept
-    ? "Accepting a risk needs the approver role. Ask whoever holds it for this entity."
+    ? 'Accepting a risk needs the approver role. Ask whoever holds it for this entity.'
     : ownsIt
-      ? "You own this risk, so you cannot also accept it. Signing off your own exposure is not an independent decision."
+      ? 'You own this risk, so you cannot also accept it. Signing off your own exposure is not an independent decision.'
       : !residualRated
-        ? "Rate the residual risk first. There is nothing to accept until someone has judged what remains."
+        ? 'Rate the residual risk first. There is nothing to accept until someone has judged what remains.'
         : null;
 
   return (
@@ -61,22 +63,30 @@ export function AcceptPanel({
       {live ? (
         <div
           className={`space-y-2 rounded border-l-2 bg-surface px-4 py-3 ${
-            live.lapsed ? "border-amber-700" : "border-emerald-700"
+            live.lapsed ? 'border-amber-700' : 'border-emerald-700'
           }`}
         >
           <div className="flex flex-wrap items-center gap-2">
-            <RiskTierBadge tier={live.tier} score={live.score} prefix="accepted at" />
+            <RiskTierBadge
+              tier={live.tier}
+              score={live.score}
+              prefix="accepted at"
+            />
             <span className="font-mono text-[11px] text-ink-soft">
-              {live.lapsed ? `lapsed ${live.expiresAt}` : `expires ${live.expiresAt}`}
+              {live.lapsed
+                ? `lapsed ${live.expiresAt}`
+                : `expires ${live.expiresAt}`}
             </span>
           </div>
           <p className="text-sm">{live.rationale}</p>
-          <p className="font-mono text-[11px] text-ink-soft">accepted by {live.acceptedBy}</p>
+          <p className="font-mono text-[11px] text-ink-soft">
+            accepted by {live.acceptedBy}
+          </p>
           {live.lapsed ? (
             <p className="text-sm text-amber-900">
-              This acceptance has run out. The risk is still recorded as accepted
-              — nothing overturns a person&rsquo;s decision automatically — but it
-              needs looking at again.
+              This acceptance has run out. The risk is still recorded as
+              accepted - nothing overturns a person&rsquo;s decision
+              automatically - but it needs looking at again.
             </p>
           ) : null}
 
@@ -147,7 +157,8 @@ export function AcceptPanel({
               className="rounded border border-line bg-ground px-3 py-2 text-sm"
             />
             <span className="block text-xs text-ink-soft">
-              Every acceptance ends. An open-ended one quietly becomes permanent.
+              Every acceptance ends. An open-ended one quietly becomes
+              permanent.
             </span>
           </label>
           <button
@@ -155,13 +166,16 @@ export function AcceptPanel({
             disabled={pending}
             className="rounded bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-40 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            {live ? "Replace this acceptance" : "Accept this risk"}
+            {live ? 'Replace this acceptance' : 'Accept this risk'}
           </button>
         </form>
       )}
 
       {error ? (
-        <p role="alert" className="text-sm text-red-800">
+        <p
+          role="alert"
+          className="text-sm text-red-800"
+        >
           {error}
         </p>
       ) : null}
@@ -169,11 +183,14 @@ export function AcceptPanel({
       {history.length > 0 ? (
         <details className="rounded border border-line bg-surface">
           <summary className="cursor-pointer px-4 py-2.5 text-sm text-ink-soft">
-            {history.length} earlier decision{history.length === 1 ? "" : "s"}
+            {history.length} earlier decision{history.length === 1 ? '' : 's'}
           </summary>
           <ul className="divide-y divide-line border-t border-line">
             {history.map((h) => (
-              <li key={h.id} className="space-y-1 px-4 py-3">
+              <li
+                key={h.id}
+                className="space-y-1 px-4 py-3"
+              >
                 <p className="text-sm">{h.rationale}</p>
                 <p className="font-mono text-[11px] text-ink-soft">
                   {h.acceptedBy} · to {h.expiresAt} · {h.outcome}

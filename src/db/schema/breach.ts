@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -8,16 +8,17 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  uuid,
-} from "drizzle-orm/pg-core";
-import type { Regime } from "@/lib/dpa2018/part3";
+  uuid
+} from 'drizzle-orm/pg-core';
+
+import type { Regime } from '@/lib/dpa2018/part3';
+
 import {
-  breachCategory,
   breachDecisionKind,
   breachDecisionOutcome,
-  breachStatus,
-} from "./enums";
-import { entities, organisations, users } from "./tenancy";
+  breachStatus
+} from './enums';
+import { entities, organisations, users } from './tenancy';
 
 /**
  * A personal data breach, and what was decided about it.
@@ -35,19 +36,19 @@ import { entities, organisations, users } from "./tenancy";
  * communicable; the same field cannot answer both.
  */
 export const breaches = pgTable(
-  "breach",
+  'breach',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    entityId: uuid("entity_id")
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    entityId: uuid('entity_id')
       .notNull()
-      .references(() => entities.id, { onDelete: "restrict" }),
-    reference: text("reference").notNull(),
+      .references(() => entities.id, { onDelete: 'restrict' }),
+    reference: text('reference').notNull(),
 
-    title: text("title").notNull(),
-    description: text("description").notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
 
     /**
      * Which obligations apply at all. A processor's duty under Article 33(2)
@@ -55,41 +56,47 @@ export const breaches = pgTable(
      * authority in its own right, and a register that conflated the two would
      * have processors reporting breaches they should be escalating.
      */
-    controllerRole: text("controller_role").notNull().default("controller"),
+    controllerRole: text('controller_role').notNull().default('controller'),
     /**
      * UK GDPR (Articles 33–34), or law enforcement processing under Part 3 of
      * the Data Protection Act 2018 (ss.67–68). Part 3 only on a competent
      * authority's entity.
      */
-    regime: text("regime").$type<Regime>().notNull().default("uk_gdpr"),
+    regime: text('regime').$type<Regime>().notNull().default('uk_gdpr'),
 
     /**
      * When the organisation became aware. This starts the seventy-two hours,
      * not when the breach happened — Article 33(1) is explicit, and the two
      * are often weeks apart.
      */
-    discoveredAt: timestamp("discovered_at", { withTimezone: true }).notNull(),
+    discoveredAt: timestamp('discovered_at', { withTimezone: true }).notNull(),
     /** When it happened, where that is known. Often it is not. */
-    occurredAt: timestamp("occurred_at", { withTimezone: true }),
-    containedAt: timestamp("contained_at", { withTimezone: true }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }),
+    containedAt: timestamp('contained_at', { withTimezone: true }),
 
-    categories: jsonb("categories").$type<string[]>().notNull().default([]),
+    categories: jsonb('categories').$type<string[]>().notNull().default([]),
 
     /**
      * Article 33(3)(a) asks for categories and *approximate* numbers. Nullable
      * because "not yet known" is a legitimate state at hour one, and Article
      * 33(4) expressly allows information to be given in phases.
      */
-    subjectCategories: jsonb("subject_categories").$type<string[]>().notNull().default([]),
-    dataCategories: jsonb("data_categories").$type<string[]>().notNull().default([]),
-    subjectsAffected: integer("subjects_affected"),
-    recordsAffected: integer("records_affected"),
-    specialCategory: boolean("special_category"),
+    subjectCategories: jsonb('subject_categories')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    dataCategories: jsonb('data_categories')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    subjectsAffected: integer('subjects_affected'),
+    recordsAffected: integer('records_affected'),
+    specialCategory: boolean('special_category'),
 
     /** Article 33(3)(c). */
-    likelyConsequences: text("likely_consequences"),
+    likelyConsequences: text('likely_consequences'),
     /** Article 33(3)(d), including measures to mitigate possible adverse effects. */
-    measuresTaken: text("measures_taken"),
+    measuresTaken: text('measures_taken'),
 
     /**
      * Whether the data was rendered unintelligible — encryption, effective
@@ -97,33 +104,39 @@ export const breaches = pgTable(
      * exemption from telling the people affected, and it is a question of fact
      * that should be settled before it is relied on.
      */
-    dataUnintelligible: boolean("data_unintelligible"),
+    dataUnintelligible: boolean('data_unintelligible'),
 
     /**
      * Whether it arose in connection with providing a public electronic
      * communications service. Asked only where the entity is such a provider;
      * not yet answered counts as yes, so the PECR reg 5A clock runs meanwhile.
      */
-    pecrServiceBreach: boolean("pecr_service_breach"),
+    pecrServiceBreach: boolean('pecr_service_breach'),
 
-    status: breachStatus("status").notNull().default("discovered"),
+    status: breachStatus('status').notNull().default('discovered'),
 
-    ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+    ownerId: uuid('owner_id').references(() => users.id, {
+      onDelete: 'set null'
+    }),
     /** The assessment, where one was run to reach the severity judgement. */
-    assessmentId: uuid("assessment_id"),
+    assessmentId: uuid('assessment_id'),
 
-    closedAt: timestamp("closed_at", { withTimezone: true }),
-    closureRationale: text("closure_rationale"),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closureRationale: text('closure_rationale'),
 
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    uniqueIndex("breach_reference_key").on(t.organisationId, t.reference),
-    index("breach_status_idx").on(t.organisationId, t.status),
+    uniqueIndex('breach_reference_key').on(t.organisationId, t.reference),
+    index('breach_status_idx').on(t.organisationId, t.status),
     // The seventy-two hours is queried by the sweep on every run.
-    index("breach_discovered_idx").on(t.organisationId, t.discoveredAt),
-  ],
+    index('breach_discovered_idx').on(t.organisationId, t.discoveredAt)
+  ]
 );
 
 /**
@@ -136,18 +149,18 @@ export const breaches = pgTable(
  * one of them is required.
  */
 export const breachDecisions = pgTable(
-  "breach_decision",
+  'breach_decision',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    breachId: uuid("breach_id")
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    breachId: uuid('breach_id')
       .notNull()
-      .references(() => breaches.id, { onDelete: "cascade" }),
+      .references(() => breaches.id, { onDelete: 'cascade' }),
 
-    kind: breachDecisionKind("kind").notNull(),
-    outcome: breachDecisionOutcome("outcome").notNull().default("pending"),
+    kind: breachDecisionKind('kind').notNull(),
+    outcome: breachDecisionOutcome('outcome').notNull().default('pending'),
 
     /**
      * The provision relied on, either to act or not to. "Article 33(1)" where
@@ -155,41 +168,54 @@ export const breachDecisions = pgTable(
      * not, because the data was unintelligible. Absent means the organisation
      * acted without being obliged to.
      */
-    statutoryBasis: text("statutory_basis"),
+    statutoryBasis: text('statutory_basis'),
     /** Never optional. A decision without reasoning cannot be defended later. */
-    rationale: text("rationale").notNull(),
+    rationale: text('rationale').notNull(),
 
     /** Who was told, or would have been. */
-    recipient: text("recipient"),
+    recipient: text('recipient'),
     /** A case number, ticket or acknowledgement from the recipient. */
-    externalRef: text("external_ref"),
+    externalRef: text('external_ref'),
 
     /** When it had to be done by, where a deadline applies. */
-    dueAt: timestamp("due_at", { withTimezone: true }),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     /**
      * Article 33(1) requires reasons where the authority is told late. Recorded
      * against the decision rather than the breach, since only one decision
      * carries that deadline.
      */
-    lateReason: text("late_reason"),
+    lateReason: text('late_reason'),
 
-    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
-    decidedByLabel: text("decided_by_label").notNull(),
-    decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedBy: uuid('decided_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    decidedByLabel: text('decided_by_label').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    index("breach_decision_breach_idx").on(t.breachId, t.decidedAt),
-    index("breach_decision_kind_idx").on(t.organisationId, t.kind, t.outcome),
-  ],
+    index('breach_decision_breach_idx').on(t.breachId, t.decidedAt),
+    index('breach_decision_kind_idx').on(t.organisationId, t.kind, t.outcome)
+  ]
 );
 
 export const breachRelations = relations(breaches, ({ many, one }) => ({
   decisions: many(breachDecisions),
-  entity: one(entities, { fields: [breaches.entityId], references: [entities.id] }),
-  owner: one(users, { fields: [breaches.ownerId], references: [users.id] }),
+  entity: one(entities, {
+    fields: [breaches.entityId],
+    references: [entities.id]
+  }),
+  owner: one(users, { fields: [breaches.ownerId], references: [users.id] })
 }));
 
-export const breachDecisionRelations = relations(breachDecisions, ({ one }) => ({
-  breach: one(breaches, { fields: [breachDecisions.breachId], references: [breaches.id] }),
-}));
+export const breachDecisionRelations = relations(
+  breachDecisions,
+  ({ one }) => ({
+    breach: one(breaches, {
+      fields: [breachDecisions.breachId],
+      references: [breaches.id]
+    })
+  })
+);

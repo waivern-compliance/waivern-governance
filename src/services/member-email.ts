@@ -1,17 +1,25 @@
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { memberships, notifications, organisations, roleAssignments, tasks, users } from "@/db/schema";
-import { appRole } from "@/db/schema/enums";
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
-  STALE_AFTER_HOURS,
+  memberships,
+  notifications,
+  organisations,
+  roleAssignments,
+  tasks,
+  users
+} from '@/db/schema';
+import { appRole } from '@/db/schema/enums';
+import {
   isEmailedKind,
   memberEmail,
   memberEmailConfig,
-  type MemberNotice,
-} from "@/lib/email/member";
-import { sendEmail, type EmailConfig } from "@/lib/email/resend";
-import { log } from "@/lib/log";
-import { pathFor } from "@/lib/records";
+  STALE_AFTER_HOURS,
+  type MemberNotice
+} from '@/lib/email/member';
+import { sendEmail, type EmailConfig } from '@/lib/email/resend';
+import { log } from '@/lib/log';
+import { pathFor } from '@/lib/records';
 
 /**
  * Hands recorded notifications (`notification`) to email, for the people who
@@ -36,26 +44,50 @@ type Recipient = { userId: string; email: string; optedIn: boolean };
  * members of the organisation count; a bare address with no account (an
  * outside contributor) cannot have opted in, so is never emailed from here.
  */
-async function recipientsOf(organisationId: string, recipient: string, entityId: string | null): Promise<Recipient[]> {
+async function recipientsOf(
+  organisationId: string,
+  recipient: string,
+  entityId: string | null
+): Promise<Recipient[]> {
   const base = db
-    .selectDistinct({ userId: users.id, email: users.email, optedIn: users.emailNotifications })
+    .selectDistinct({
+      userId: users.id,
+      email: users.email,
+      optedIn: users.emailNotifications
+    })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId));
-  const active = and(eq(memberships.organisationId, organisationId), eq(memberships.isActive, true));
+  const active = and(
+    eq(memberships.organisationId, organisationId),
+    eq(memberships.isActive, true)
+  );
 
-  if (UUID.test(recipient)) return base.where(and(active, eq(users.id, recipient)));
-  if (recipient.includes("@")) return base.where(and(active, eq(users.email, recipient.trim().toLowerCase())));
+  if (UUID.test(recipient))
+    return base.where(and(active, eq(users.id, recipient)));
+  if (recipient.includes('@'))
+    return base.where(
+      and(active, eq(users.email, recipient.trim().toLowerCase()))
+    );
   if (ROLES.has(recipient)) {
     return base
-      .innerJoin(roleAssignments, eq(roleAssignments.membershipId, memberships.id))
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.membershipId, memberships.id)
+      )
       .where(
         and(
           active,
-          eq(roleAssignments.role, recipient as (typeof appRole.enumValues)[number]),
+          eq(
+            roleAssignments.role,
+            recipient as (typeof appRole.enumValues)[number]
+          ),
           entityId
-            ? or(eq(roleAssignments.scope, "organisation"), eq(roleAssignments.entityId, entityId))
-            : eq(roleAssignments.scope, "organisation"),
-        ),
+            ? or(
+                eq(roleAssignments.scope, 'organisation'),
+                eq(roleAssignments.entityId, entityId)
+              )
+            : eq(roleAssignments.scope, 'organisation')
+        )
       );
   }
   return [];
@@ -69,19 +101,31 @@ type Planned = {
 };
 
 /** Where a notification's link goes: its task's record, else what its body names. */
-function pathOf(body: string, task: { subjectType: string; subjectId: string } | null): string {
-  if (task) return pathFor(task.subjectType, task.subjectId) ?? "/app/tasks";
-  const last = body.trim().split("\n").at(-1)?.trim() ?? "";
-  return last.startsWith("/app") ? last : "/app/tasks";
+function pathOf(
+  body: string,
+  task: { subjectType: string; subjectId: string } | null
+): string {
+  if (task) return pathFor(task.subjectType, task.subjectId) ?? '/app/tasks';
+  const last = body.trim().split('\n').at(-1)?.trim() ?? '';
+  return last.startsWith('/app') ? last : '/app/tasks';
 }
 
-export type DeliveryResult = { emailed: number; dealtWith: number; failed: number };
+export type DeliveryResult = {
+  emailed: number;
+  dealtWith: number;
+  failed: number;
+};
 
 export async function deliverNotifications(
   organisationId: string,
-  options: { config?: EmailConfig | null; fetch?: typeof fetch; now?: Date } = {},
+  options: {
+    config?: EmailConfig | null;
+    fetch?: typeof fetch;
+    now?: Date;
+  } = {}
 ): Promise<DeliveryResult> {
-  const config = options.config === undefined ? memberEmailConfig() : options.config;
+  const config =
+    options.config === undefined ? memberEmailConfig() : options.config;
   const result: DeliveryResult = { emailed: 0, dealtWith: 0, failed: 0 };
   if (!config) return result;
   const now = options.now ?? new Date();
@@ -90,14 +134,24 @@ export async function deliverNotifications(
   // Read and plan inside the organisation; send outside it, so a slow mail
   // service never holds a database transaction open.
   const planned = await withOrganisation(organisationId, async () => {
-    const [org] = await db.select({ name: organisations.name }).from(organisations).where(eq(organisations.id, organisationId));
+    const [org] = await db
+      .select({ name: organisations.name })
+      .from(organisations)
+      .where(eq(organisations.id, organisationId));
     const pending = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.organisationId, organisationId), isNull(notifications.sentAt)))
+      .where(
+        and(
+          eq(notifications.organisationId, organisationId),
+          isNull(notifications.sentAt)
+        )
+      )
       .orderBy(asc(notifications.createdAt))
       .limit(BATCH);
-    const taskIds = pending.map((n) => n.taskId).filter((id): id is string => Boolean(id));
+    const taskIds = pending
+      .map((n) => n.taskId)
+      .filter((id): id is string => Boolean(id));
     const taskRows = taskIds.length
       ? await db
           .select({
@@ -106,7 +160,7 @@ export async function deliverNotifications(
             title: tasks.title,
             dueAt: tasks.dueAt,
             subjectType: tasks.subjectType,
-            subjectId: tasks.subjectId,
+            subjectId: tasks.subjectId
           })
           .from(tasks)
           .where(inArray(tasks.id, taskIds))
@@ -116,32 +170,45 @@ export async function deliverNotifications(
     const plans: Planned[] = [];
     for (const n of pending) {
       if (!isEmailedKind(n.kind)) {
-        plans.push({ id: n.id, outcome: "not emailed: not an alert kind" });
+        plans.push({ id: n.id, outcome: 'not emailed: not an alert kind' });
         continue;
       }
       if (n.createdAt < staleBefore) {
-        plans.push({ id: n.id, outcome: `not emailed: older than ${STALE_AFTER_HOURS} hours` });
+        plans.push({
+          id: n.id,
+          outcome: `not emailed: older than ${STALE_AFTER_HOURS} hours`
+        });
         continue;
       }
       const task = n.taskId ? (taskById.get(n.taskId) ?? null) : null;
-      const people = await recipientsOf(organisationId, n.recipient, task?.entityId ?? null);
+      const people = await recipientsOf(
+        organisationId,
+        n.recipient,
+        task?.entityId ?? null
+      );
       const wanting = people.filter((p) => p.optedIn);
       if (wanting.length === 0) {
         plans.push({
           id: n.id,
-          outcome: people.length === 0 ? "not emailed: nobody to send to" : "not emailed: nobody asked for email",
+          outcome:
+            people.length === 0
+              ? 'not emailed: nobody to send to'
+              : 'not emailed: nobody asked for email'
         });
         continue;
       }
       const notice: MemberNotice = {
         kind: n.kind,
         subject: n.subject,
-        organisationName: org?.name ?? "your organisation",
+        organisationName: org?.name ?? 'your organisation',
         task: task ? { title: task.title, dueAt: task.dueAt } : null,
-        path: pathOf(n.body, task),
+        path: pathOf(n.body, task)
       };
       const message = memberEmail(notice);
-      plans.push({ id: n.id, emails: wanting.map((p) => ({ to: p.email, message })) });
+      plans.push({
+        id: n.id,
+        emails: wanting.map((p) => ({ to: p.email, message }))
+      });
     }
     return plans;
   });
@@ -156,7 +223,10 @@ export async function deliverNotifications(
     let failed = 0;
     // One email per person, so nobody sees who else was told.
     for (const e of plan.emails ?? []) {
-      const outcome = await sendEmail({ ...e.message, to: [e.to] }, { config, fetch: options.fetch });
+      const outcome = await sendEmail(
+        { ...e.message, to: [e.to] },
+        { config, fetch: options.fetch }
+      );
       if (outcome.sent) sent += 1;
       else failed += 1;
     }
@@ -164,7 +234,11 @@ export async function deliverNotifications(
     result.failed += failed;
     // Nobody reached: leave it to be tried again. Anybody reached: done, so a
     // retry never emails the same person twice.
-    if (sent > 0) outcomes.push({ id: plan.id, outcome: `emailed ${sent}${failed ? `, ${failed} failed` : ""}` });
+    if (sent > 0)
+      outcomes.push({
+        id: plan.id,
+        outcome: `emailed ${sent}${failed ? `, ${failed} failed` : ''}`
+      });
   }
 
   if (outcomes.length > 0) {
@@ -173,13 +247,22 @@ export async function deliverNotifications(
         await db
           .update(notifications)
           .set({ sentAt: now, outcome: o.outcome })
-          .where(and(eq(notifications.id, o.id), eq(notifications.organisationId, organisationId)));
+          .where(
+            and(
+              eq(notifications.id, o.id),
+              eq(notifications.organisationId, organisationId)
+            )
+          );
       }
     });
   }
   result.dealtWith = outcomes.length;
   if (result.emailed || result.failed) {
-    log("info", "member_email.delivered", { emailed: result.emailed, failed: result.failed, dealtWith: result.dealtWith });
+    log('info', 'member_email.delivered', {
+      emailed: result.emailed,
+      failed: result.failed,
+      dealtWith: result.dealtWith
+    });
   }
   return result;
 }
@@ -195,7 +278,10 @@ export async function setEmailNotifications(userId: string, on: boolean) {
 /** Read back a person's choice, for their profile page. */
 export async function emailNotificationsFor(userId: string) {
   const [row] = await db
-    .select({ on: users.emailNotifications, changedAt: users.emailNotificationsChangedAt })
+    .select({
+      on: users.emailNotifications,
+      changedAt: users.emailNotificationsChangedAt
+    })
     .from(users)
     .where(eq(users.id, userId));
   return row ?? { on: false, changedAt: null };

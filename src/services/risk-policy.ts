@@ -1,21 +1,28 @@
-import { and, asc, count, desc, eq } from "drizzle-orm";
-import { db, type Db, withOrganisation } from "@/db/client";
-import { organisations, riskAppetites, risks } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { addMonths } from "@/lib/dates";
+import { and, asc, count, desc, eq } from 'drizzle-orm';
+
+import { db, withOrganisation, type Db } from '@/db/client';
+import { organisations, riskAppetites, risks } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { addMonths } from '@/lib/dates';
 import {
-  type AppetiteLevel,
-  type AppetiteScope,
-  isScope,
   APPETITE_LEVELS,
-} from "@/lib/risk/appetite";
-import { SCALES, TIER_ORDER, type RiskScaleId, type RiskTier } from "@/lib/risk/scale";
-import { appetiteInForce } from "./appetite-in-force";
-import { aiFrameworkPackOf } from "./ai-framework";
-import { SegregationOfDuties, riskScaleOf } from "./risks";
+  isScope,
+  type AppetiteLevel,
+  type AppetiteScope
+} from '@/lib/risk/appetite';
+import {
+  SCALES,
+  TIER_ORDER,
+  type RiskScaleId,
+  type RiskTier
+} from '@/lib/risk/scale';
+
+import { aiFrameworkPackOf } from './ai-framework';
+import { appetiteInForce } from './appetite-in-force';
+import { riskScaleOf, SegregationOfDuties } from './risks';
+import type { Actor } from './templates';
 
 export { appetiteInForce, riskScaleOf };
-import type { Actor } from "./templates";
 
 /**
  * The organisation's risk policy: the scale it rates on, and how much risk of
@@ -23,7 +30,7 @@ import type { Actor } from "./templates";
  * whole rather than about any one risk, which is why they live apart from it.
  */
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export class RiskScaleLocked extends Error {}
 export class AppetiteRefused extends Error {}
@@ -54,7 +61,7 @@ export async function setRiskScale(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    if (!(input.scale in SCALES)) throw new Error("No such risk scale");
+    if (!(input.scale in SCALES)) throw new Error('No such risk scale');
 
     return db.transaction(async (tx) => {
       // Lock the organisation row so a risk cannot be raised between the count
@@ -63,14 +70,14 @@ export async function setRiskScale(input: {
         .select()
         .from(organisations)
         .where(eq(organisations.id, input.organisationId))
-        .for("update");
-      if (!org) throw new Error("No such organisation");
+        .for('update');
+      if (!org) throw new Error('No such organisation');
       if (org.riskScale === input.scale) return org;
 
       const existing = await riskCount(input.organisationId, tx);
       if (existing > 0) {
         throw new RiskScaleLocked(
-          `The register already holds ${existing} risk${existing === 1 ? "" : "s"} rated on the ${SCALES[org.riskScale as RiskScaleId].inSentence} scale`,
+          `The register already holds ${existing} risk${existing === 1 ? '' : 's'} rated on the ${SCALES[org.riskScale as RiskScaleId].inSentence} scale`
         );
       }
 
@@ -83,11 +90,11 @@ export async function setRiskScale(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "organisation.risk_scale_set",
-        subjectType: "organisation",
+        action: 'organisation.risk_scale_set',
+        subjectType: 'organisation',
         subjectId: input.organisationId,
         before: { riskScale: org.riskScale },
-        after: { riskScale: input.scale },
+        after: { riskScale: input.scale }
       });
       return updated;
     });
@@ -120,12 +127,17 @@ export async function proposeAppetite(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    if (!isScope(input.scope, await aiFrameworkPackOf(input.organisationId))) throw new AppetiteRefused("Unknown category");
-    if (!APPETITE_LEVELS.includes(input.level)) throw new AppetiteRefused("Unknown appetite level");
-    if (!TIER_ORDER.includes(input.toleratedTier)) throw new AppetiteRefused("Unknown tier");
+    if (!isScope(input.scope, await aiFrameworkPackOf(input.organisationId)))
+      throw new AppetiteRefused('Unknown category');
+    if (!APPETITE_LEVELS.includes(input.level))
+      throw new AppetiteRefused('Unknown appetite level');
+    if (!TIER_ORDER.includes(input.toleratedTier))
+      throw new AppetiteRefused('Unknown tier');
     const statement = input.statement.trim();
     if (!statement) {
-      throw new AppetiteRefused("Say what the appetite means in words — the level alone is not a statement");
+      throw new AppetiteRefused(
+        'Say what the appetite means in words - the level alone is not a statement'
+      );
     }
 
     return db.transaction(async (tx) => {
@@ -136,11 +148,13 @@ export async function proposeAppetite(input: {
           and(
             eq(riskAppetites.organisationId, input.organisationId),
             eq(riskAppetites.category, input.scope),
-            eq(riskAppetites.status, "proposed"),
-          ),
+            eq(riskAppetites.status, 'proposed')
+          )
         );
       if (pending) {
-        throw new AppetiteRefused("There is already a proposal waiting for a decision in this category");
+        throw new AppetiteRefused(
+          'There is already a proposal waiting for a decision in this category'
+        );
       }
 
       const [row] = await tx
@@ -152,17 +166,21 @@ export async function proposeAppetite(input: {
           toleratedTier: input.toleratedTier,
           statement,
           proposedByUserId: input.actor.actorUserId ?? null,
-          proposedByLabel: input.actor.actorLabel,
+          proposedByLabel: input.actor.actorLabel
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "risk_appetite.proposed",
-        subjectType: "risk_appetite",
+        action: 'risk_appetite.proposed',
+        subjectType: 'risk_appetite',
         subjectId: row.id,
-        after: { category: row.category, level: row.level, toleratedTier: row.toleratedTier },
+        after: {
+          category: row.category,
+          level: row.level,
+          toleratedTier: row.toleratedTier
+        }
       });
       return row;
     });
@@ -182,24 +200,32 @@ export async function proposeAppetite(input: {
 export async function decideAppetite(input: {
   appetiteId: string;
   organisationId: string;
-  decision: "approved" | "rejected";
+  decision: 'approved' | 'rejected';
   approvalReference?: string;
   rejectionReason?: string;
   reviewMonths?: number;
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    const reference = input.approvalReference?.trim() ?? "";
-    const reason = input.rejectionReason?.trim() ?? "";
-    if (input.decision === "approved" && !reference) {
-      throw new AppetiteRefused("Say where it was signed off — the board, the date and the minute");
+    const reference = input.approvalReference?.trim() ?? '';
+    const reason = input.rejectionReason?.trim() ?? '';
+    if (input.decision === 'approved' && !reference) {
+      throw new AppetiteRefused(
+        'Say where it was signed off - the board, the date and the minute'
+      );
     }
-    if (input.decision === "rejected" && !reason) {
-      throw new AppetiteRefused("Say why it was not approved");
+    if (input.decision === 'rejected' && !reason) {
+      throw new AppetiteRefused('Say why it was not approved');
     }
     const reviewMonths = input.reviewMonths ?? 12;
-    if (!Number.isInteger(reviewMonths) || reviewMonths < 1 || reviewMonths > 60) {
-      throw new AppetiteRefused("Set a review between one month and five years away");
+    if (
+      !Number.isInteger(reviewMonths) ||
+      reviewMonths < 1 ||
+      reviewMonths > 60
+    ) {
+      throw new AppetiteRefused(
+        'Set a review between one month and five years away'
+      );
     }
 
     return db.transaction(async (tx) => {
@@ -209,33 +235,37 @@ export async function decideAppetite(input: {
         .where(
           and(
             eq(riskAppetites.id, input.appetiteId),
-            eq(riskAppetites.organisationId, input.organisationId),
-          ),
+            eq(riskAppetites.organisationId, input.organisationId)
+          )
         );
-      if (!proposal) throw new Error("No such appetite statement");
-      if (proposal.status !== "proposed") {
-        throw new AppetiteRefused(`This statement is already ${proposal.status}`);
+      if (!proposal) throw new Error('No such appetite statement');
+      if (proposal.status !== 'proposed') {
+        throw new AppetiteRefused(
+          `This statement is already ${proposal.status}`
+        );
       }
       if (
         proposal.proposedByUserId &&
         input.actor.actorUserId &&
         proposal.proposedByUserId === input.actor.actorUserId
       ) {
-        throw new SegregationOfDuties("An appetite cannot be signed off by the person who proposed it");
+        throw new SegregationOfDuties(
+          'An appetite cannot be signed off by the person who proposed it'
+        );
       }
 
       const now = new Date();
       let superseded: string | null = null;
-      if (input.decision === "approved") {
+      if (input.decision === 'approved') {
         const [current] = await tx
           .update(riskAppetites)
-          .set({ status: "superseded", supersededAt: now })
+          .set({ status: 'superseded', supersededAt: now })
           .where(
             and(
               eq(riskAppetites.organisationId, input.organisationId),
               eq(riskAppetites.category, proposal.category),
-              eq(riskAppetites.status, "approved"),
-            ),
+              eq(riskAppetites.status, 'approved')
+            )
           )
           .returning({ id: riskAppetites.id });
         superseded = current?.id ?? null;
@@ -248,12 +278,12 @@ export async function decideAppetite(input: {
           decidedByUserId: input.actor.actorUserId ?? null,
           decidedByLabel: input.actor.actorLabel,
           decidedAt: now,
-          ...(input.decision === "approved"
+          ...(input.decision === 'approved'
             ? {
                 approvalReference: reference,
-                reviewDueAt: addMonths(now, reviewMonths),
+                reviewDueAt: addMonths(now, reviewMonths)
               }
-            : { rejectionReason: reason }),
+            : { rejectionReason: reason })
         })
         .where(eq(riskAppetites.id, input.appetiteId))
         .returning();
@@ -261,19 +291,22 @@ export async function decideAppetite(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: input.decision === "approved" ? "risk_appetite.approved" : "risk_appetite.rejected",
-        subjectType: "risk_appetite",
+        action:
+          input.decision === 'approved'
+            ? 'risk_appetite.approved'
+            : 'risk_appetite.rejected',
+        subjectType: 'risk_appetite',
         subjectId: decided.id,
-        before: { status: "proposed" },
+        before: { status: 'proposed' },
         after: {
           status: decided.status,
           category: decided.category,
           level: decided.level,
           toleratedTier: decided.toleratedTier,
-          ...(input.decision === "approved"
+          ...(input.decision === 'approved'
             ? { approvalReference: reference, supersedes: superseded }
-            : { rejectionReason: reason }),
-        },
+            : { rejectionReason: reason })
+        }
       });
       return decided;
     });
@@ -287,7 +320,10 @@ export async function appetitesDueForReview(organisationId: string) {
       .select()
       .from(riskAppetites)
       .where(
-        and(eq(riskAppetites.organisationId, organisationId), eq(riskAppetites.status, "approved")),
+        and(
+          eq(riskAppetites.organisationId, organisationId),
+          eq(riskAppetites.status, 'approved')
+        )
       )
       .orderBy(asc(riskAppetites.reviewDueAt));
     const now = Date.now();

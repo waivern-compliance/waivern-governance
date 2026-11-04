@@ -1,9 +1,9 @@
-import { connectionActor } from "@/lib/integration/auth";
-import { exportRoute } from "@/lib/integration/handler";
-import { BadQuery } from "@/lib/integration/query";
-import { aiProfileExport } from "@/services/ai-profile";
+import { connectionActor } from '@/lib/integration/auth';
+import { exportRoute } from '@/lib/integration/handler';
+import { BadQuery } from '@/lib/integration/query';
+import { aiProfileExport } from '@/services/ai-profile';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 /**
  * The organisation's NIST AI RMF profile: current against target for each of
@@ -15,12 +15,17 @@ export const dynamic = "force-dynamic";
  * not tell.
  */
 export const GET = exportRoute({
-  kinds: ["waivern_portal", "other"],
+  kinds: ['waivern_portal', 'other'],
   handle: async (connection, url) => {
     const given = [...new Set(url.searchParams.keys())];
     if (given.length) {
-      throw new BadQuery(`The AI RMF profile takes no query parameters (got ${given.map((k) => `\`${k}\``).join(", ")})`);
+      throw new BadQuery(
+        `The AI RMF profile takes no query parameters (got ${given.map((k) => `\`${k}\``).join(', ')})`
+      );
     }
-    return aiProfileExport({ organisationId: connection.organisationId, actor: connectionActor(connection) });
-  },
+    return aiProfileExport({
+      organisationId: connection.organisationId,
+      actor: connectionActor(connection)
+    });
+  }
 });

@@ -17,7 +17,7 @@
  * follows.
  */
 
-import type { LawfulBasis } from "@/lib/gdpr/lawful-basis";
+import type { LawfulBasis } from '@/lib/gdpr/lawful-basis';
 
 /** The data protection officer, as an organisation or entity records it. */
 export type Dpo = {
@@ -35,29 +35,35 @@ export type Dpo = {
 export class DpoRefused extends Error {}
 
 /** The DPO as it will be stored, or null where none is designated. */
-export function cleanDpo(input: {
-  name?: string | null;
-  contact?: string | null;
-  userId?: string | null;
-  reportsTo?: string | null;
-  published?: boolean;
-} | null): Dpo | null {
-  const name = input?.name?.trim() ?? "";
-  const contact = input?.contact?.trim() ?? "";
+export function cleanDpo(
+  input: {
+    name?: string | null;
+    contact?: string | null;
+    userId?: string | null;
+    reportsTo?: string | null;
+    published?: boolean;
+  } | null
+): Dpo | null {
+  const name = input?.name?.trim() ?? '';
+  const contact = input?.contact?.trim() ?? '';
   if (!name && !contact && !input?.userId) return null;
-  if (!name) throw new DpoRefused("Name the data protection officer.");
-  if (!contact) throw new DpoRefused("Give a way to contact the data protection officer.");
+  if (!name) throw new DpoRefused('Name the data protection officer.');
+  if (!contact)
+    throw new DpoRefused('Give a way to contact the data protection officer.');
   return {
     name,
     contact,
     userId: input?.userId || null,
     reportsTo: input?.reportsTo?.trim() || null,
-    published: input?.published ?? false,
+    published: input?.published ?? false
   };
 }
 
 /** An entity's own DPO where it has one, otherwise the organisation's. */
-export function effectiveDpo(organisationDpo: Dpo | null, entityDpo: Dpo | null): Dpo | null {
+export function effectiveDpo(
+  organisationDpo: Dpo | null,
+  entityDpo: Dpo | null
+): Dpo | null {
   return entityDpo ?? organisationDpo;
 }
 
@@ -67,13 +73,23 @@ export function effectiveDpo(organisationDpo: Dpo | null, entityDpo: Dpo | null)
  * judicially apart.
  */
 export function dpoMissing(
-  entity: { publicAuthority: boolean; competentAuthority?: boolean; dpo: Dpo | null },
-  organisationDpo: Dpo | null,
+  entity: {
+    publicAuthority: boolean;
+    competentAuthority?: boolean;
+    dpo: Dpo | null;
+  },
+  organisationDpo: Dpo | null
 ): boolean {
-  return (entity.publicAuthority || entity.competentAuthority === true) && !effectiveDpo(organisationDpo, entity.dpo);
+  return (
+    (entity.publicAuthority || entity.competentAuthority === true) &&
+    !effectiveDpo(organisationDpo, entity.dpo)
+  );
 }
 
-const BARRED: LawfulBasis[] = ["legitimate_interests", "recognised_legitimate_interests"];
+const BARRED: LawfulBasis[] = [
+  'legitimate_interests',
+  'recognised_legitimate_interests'
+];
 
 /**
  * Article 6(1), final subparagraph: a public authority relying on legitimate
@@ -91,7 +107,7 @@ export function barredBasesFor(input: {
 }
 
 /** The workflow stage the DPO takes, in the shipped workflows. */
-export const DPO_STAGE_NAME = "Data protection officer";
+export const DPO_STAGE_NAME = 'Data protection officer';
 
 export function isDpoStage(stageName: string): boolean {
   return stageName.trim().toLowerCase() === DPO_STAGE_NAME.toLowerCase();

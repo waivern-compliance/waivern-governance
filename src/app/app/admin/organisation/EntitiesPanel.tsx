@@ -1,18 +1,23 @@
-"use client";
+'use client';
 
-import { savedKey } from "@/lib/saved-key";
-import { useRefusableAction } from "@/lib/use-refusable-action";
+import {
+  DATA_PROTECTION_LAWS,
+  ukLawApplies,
+  type DataProtectionLaw
+} from '@/lib/dpa2018/applies';
+import { savedKey } from '@/lib/saved-key';
+import { useRefusableAction } from '@/lib/use-refusable-action';
+
 import {
   addEntityAction,
   makeDefaultEntityAction,
   renameEntityAction,
-  setProviderAction,
   setCompetentAuthorityAction,
   setDataProtectionLawAction,
+  setProviderAction,
   setPublicAuthorityAction,
-  type AdminResult,
-} from "../actions";
-import { DATA_PROTECTION_LAWS, ukLawApplies, type DataProtectionLaw } from "@/lib/dpa2018/applies";
+  type AdminResult
+} from '../actions';
 
 type Entity = {
   id: string;
@@ -27,13 +32,17 @@ type Entity = {
 };
 
 const input =
-  "rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand";
-const label = "block text-xs font-medium uppercase tracking-wider text-ink-soft";
+  'rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
+const label =
+  'block text-xs font-medium uppercase tracking-wider text-ink-soft';
 
 function Outcome({ result }: { result: AdminResult }) {
   if (!result) return null;
   return (
-    <p role={result.ok ? "status" : "alert"} className={`text-xs ${result.ok ? "text-emerald-800" : "text-red-800"}`}>
+    <p
+      role={result.ok ? 'status' : 'alert'}
+      className={`text-xs ${result.ok ? 'text-emerald-800' : 'text-red-800'}`}
+    >
       {result.message}
     </p>
   );
@@ -44,68 +53,100 @@ function Outcome({ result }: { result: AdminResult }) {
  * Service and BBC Studios. An owner over the whole organisation adds and
  * renames them here; anyone else who reaches this page sees the list only.
  */
-export function EntitiesPanel({ entities, mayManage }: { entities: Entity[]; mayManage: boolean }) {
+export function EntitiesPanel({
+  entities,
+  mayManage
+}: {
+  entities: Entity[];
+  mayManage: boolean;
+}) {
   const add = useRefusableAction<AdminResult>(addEntityAction);
 
   return (
     <section className="space-y-4 rounded border border-line bg-surface p-5">
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold">Legal entities ({entities.length})</h2>
+        <h2 className="text-sm font-semibold">
+          Legal entities ({entities.length})
+        </h2>
         <p className="max-w-prose text-sm text-ink-soft">
-          The companies or bodies within this organisation that records are classified, reported
-          and access-scoped by. Not services, products or departments. Records arriving with no
-          entity named land in the default.
+          The companies or bodies within this organisation that records are
+          classified, reported and access-scoped by. Not services, products or
+          departments. Records arriving with no entity named land in the
+          default.
         </p>
       </div>
 
       <ul className="divide-y divide-line rounded border border-line">
         {entities.map((e) =>
           mayManage ? (
-            <EntityRow key={e.id} entity={e} />
+            <EntityRow
+              key={e.id}
+              entity={e}
+            />
           ) : (
-            <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-4 px-4 py-2.5 text-sm">
+            <li
+              key={e.id}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 px-4 py-2.5 text-sm"
+            >
               <span className="font-medium">{e.name}</span>
               <span className="font-mono text-[11px] text-ink-soft">
-                {e.legalEntityRef ?? "no reference"}
-                {e.isDefault ? " · default" : ""}
-                {e.publicCommsProvider ? " · public communications provider" : ""}
-                {e.publicAuthority ? " · public authority" : ""}
-                {e.competentAuthority ? " · competent authority (Part 3)" : ""}
+                {e.legalEntityRef ?? 'no reference'}
+                {e.isDefault ? ' · default' : ''}
+                {e.publicCommsProvider
+                  ? ' · public communications provider'
+                  : ''}
+                {e.publicAuthority ? ' · public authority' : ''}
+                {e.competentAuthority ? ' · competent authority (Part 3)' : ''}
               </span>
             </li>
-          ),
+          )
         )}
       </ul>
 
       {mayManage ? (
         <>
-          <form {...add.formProps} className="flex flex-wrap items-end gap-2">
+          <form
+            {...add.formProps}
+            className="flex flex-wrap items-end gap-2"
+          >
             <label className="block space-y-1">
               <span className={label}>Add a legal entity</span>
-              <input name="name" required minLength={2} placeholder="BBC Studios Distribution Limited" className={`${input} w-72`} />
+              <input
+                name="name"
+                required
+                minLength={2}
+                placeholder="BBC Studios Distribution Limited"
+                className={`${input} w-72`}
+              />
             </label>
             <label className="block space-y-1">
               <span className={label}>Reference (optional)</span>
-              <input name="legalEntityRef" placeholder="Company number or code" className={`${input} w-48 font-mono`} />
+              <input
+                name="legalEntityRef"
+                placeholder="Company number or code"
+                className={`${input} w-48 font-mono`}
+              />
             </label>
             <button
               type="submit"
               disabled={add.pending}
               className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-50"
             >
-              {add.pending ? "Adding…" : "Add"}
+              {add.pending ? 'Adding…' : 'Add'}
             </button>
           </form>
           <Outcome result={add.result} />
           <p className="max-w-prose text-xs text-ink-soft">
-            Renaming keeps every record with its entity. The Portal and any script that names an
-            entity by its name or reference will need the new one. Entities cannot be removed:
-            records and their history point at them.
+            Renaming keeps every record with its entity. The Portal and any
+            script that names an entity by its name or reference will need the
+            new one. Entities cannot be removed: records and their history point
+            at them.
           </p>
         </>
       ) : (
         <p className="max-w-prose text-xs text-ink-soft">
-          Only an owner of the whole organisation can add or rename legal entities.
+          Only an owner of the whole organisation can add or rename legal
+          entities.
         </p>
       )}
     </section>
@@ -113,25 +154,37 @@ export function EntitiesPanel({ entities, mayManage }: { entities: Entity[]; may
 }
 
 function EntityRow({ entity }: { entity: Entity }) {
-  const rename = useRefusableAction<AdminResult>(renameEntityAction.bind(null, entity.id), { resetOnSuccess: false });
-  const makeDefault = useRefusableAction<AdminResult>(makeDefaultEntityAction.bind(null, entity.id), {
-    resetOnSuccess: false,
-  });
+  const rename = useRefusableAction<AdminResult>(
+    renameEntityAction.bind(null, entity.id),
+    { resetOnSuccess: false }
+  );
+  const makeDefault = useRefusableAction<AdminResult>(
+    makeDefaultEntityAction.bind(null, entity.id),
+    {
+      resetOnSuccess: false
+    }
+  );
   const provider = useRefusableAction<AdminResult>(
     setProviderAction.bind(null, entity.id, !entity.publicCommsProvider),
-    { resetOnSuccess: false },
+    { resetOnSuccess: false }
   );
 
   const authority = useRefusableAction<AdminResult>(
     setPublicAuthorityAction.bind(null, entity.id, !entity.publicAuthority),
-    { resetOnSuccess: false },
+    { resetOnSuccess: false }
   );
-  const competent = useRefusableAction<AdminResult>(setCompetentAuthorityAction.bind(null, entity.id), {
-    resetOnSuccess: false,
-  });
-  const law = useRefusableAction<AdminResult>(setDataProtectionLawAction.bind(null, entity.id), {
-    resetOnSuccess: false,
-  });
+  const competent = useRefusableAction<AdminResult>(
+    setCompetentAuthorityAction.bind(null, entity.id),
+    {
+      resetOnSuccess: false
+    }
+  );
+  const law = useRefusableAction<AdminResult>(
+    setDataProtectionLawAction.bind(null, entity.id),
+    {
+      resetOnSuccess: false
+    }
+  );
   const uk = ukLawApplies(entity.dataProtectionLaw);
 
   return (
@@ -145,13 +198,19 @@ function EntityRow({ entity }: { entity: Entity }) {
       >
         <label className="block space-y-1">
           <span className="sr-only">Name of {entity.name}</span>
-          <input name="name" required minLength={2} defaultValue={entity.name} className={`${input} w-72 font-medium`} />
+          <input
+            name="name"
+            required
+            minLength={2}
+            defaultValue={entity.name}
+            className={`${input} w-72 font-medium`}
+          />
         </label>
         <label className="block space-y-1">
           <span className="sr-only">Reference of {entity.name}</span>
           <input
             name="legalEntityRef"
-            defaultValue={entity.legalEntityRef ?? ""}
+            defaultValue={entity.legalEntityRef ?? ''}
             placeholder="no reference"
             className={`${input} w-48 font-mono`}
           />
@@ -161,7 +220,7 @@ function EntityRow({ entity }: { entity: Entity }) {
           disabled={rename.pending}
           className="rounded border border-line bg-surface px-3 py-2 text-xs hover:border-brand disabled:opacity-50"
         >
-          {rename.pending ? "Saving…" : "Save"}
+          {rename.pending ? 'Saving…' : 'Save'}
         </button>
         {entity.isDefault ? (
           <span className="rounded border border-emerald-700 bg-emerald-50 px-2 py-0.5 font-mono text-[11px] text-emerald-900">
@@ -182,17 +241,30 @@ function EntityRow({ entity }: { entity: Entity }) {
       )}
       <Outcome result={rename.result} />
       <Outcome result={makeDefault.result} />
-      <form key={savedKey(entity.dataProtectionLaw)} {...law.formProps} className="flex flex-wrap items-baseline gap-2 text-xs">
+      <form
+        key={savedKey(entity.dataProtectionLaw)}
+        {...law.formProps}
+        className="flex flex-wrap items-baseline gap-2 text-xs"
+      >
         <label className="flex flex-wrap items-baseline gap-2">
-          <span className="text-ink-soft">Data protection law it is subject to:</span>
+          <span className="text-ink-soft">
+            Data protection law it is subject to:
+          </span>
           <select
             name="dataProtectionLaw"
             defaultValue={entity.dataProtectionLaw}
             className="rounded border border-line bg-ground px-2 py-1 text-xs"
           >
-            {(Object.keys(DATA_PROTECTION_LAWS) as DataProtectionLaw[]).map((k) => (
-              <option key={k} value={k}>{DATA_PROTECTION_LAWS[k]}</option>
-            ))}
+            {(Object.keys(DATA_PROTECTION_LAWS) as DataProtectionLaw[]).map(
+              (k) => (
+                <option
+                  key={k}
+                  value={k}
+                >
+                  {DATA_PROTECTION_LAWS[k]}
+                </option>
+              )
+            )}
           </select>
         </label>
         <button
@@ -205,68 +277,90 @@ function EntityRow({ entity }: { entity: Entity }) {
       </form>
       <Outcome result={law.result} />
       {uk ? (
-      <>
-      <form {...provider.formProps} className="flex flex-wrap items-baseline gap-2 text-xs">
-        {entity.publicCommsProvider ? (
-          <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">public communications provider</span>
-        ) : null}
-        <button
-          type="submit"
-          disabled={provider.pending}
-          className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-        >
-          {entity.publicCommsProvider
-            ? "Not a public communications provider"
-            : "Mark as a public communications provider (PECR reg 5A)"}
-        </button>
-      </form>
-      <form {...authority.formProps} className="flex flex-wrap items-baseline gap-2 text-xs">
-        {entity.publicAuthority ? (
-          <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">public authority</span>
-        ) : null}
-        <button
-          type="submit"
-          disabled={authority.pending}
-          className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-        >
-          {entity.publicAuthority
-            ? "Not a public authority"
-            : "Mark as a public authority (Data Protection Act 2018 s.7)"}
-        </button>
-      </form>
-      <Outcome result={provider.result} />
-      <form
-        key={savedKey(entity.competentAuthority, entity.defaultRegime)}
-        {...competent.formProps}
-        className="flex flex-wrap items-baseline gap-2 text-xs"
-      >
-        <label className="flex flex-wrap items-baseline gap-2">
-          <span className="text-ink-soft">Law enforcement (Data Protection Act 2018 Part 3, s.30):</span>
-          <select
-            name="competentAuthority"
-            defaultValue={!entity.competentAuthority ? "no" : entity.defaultRegime === "dpa_part3" ? "part3" : "yes"}
-            className="rounded border border-line bg-ground px-2 py-1 text-xs"
+        <>
+          <form
+            {...provider.formProps}
+            className="flex flex-wrap items-baseline gap-2 text-xs"
           >
-            <option value="no">Not a competent authority</option>
-            <option value="yes">A competent authority; new records start under the UK GDPR</option>
-            <option value="part3">A competent authority; new records start under Part 3</option>
-          </select>
-        </label>
-        <button
-          type="submit"
-          disabled={competent.pending}
-          className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-        >
-          Save
-        </button>
-      </form>
-      <Outcome result={authority.result} />
-      <Outcome result={competent.result} />
-      </>
+            {entity.publicCommsProvider ? (
+              <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
+                public communications provider
+              </span>
+            ) : null}
+            <button
+              type="submit"
+              disabled={provider.pending}
+              className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+            >
+              {entity.publicCommsProvider
+                ? 'Not a public communications provider'
+                : 'Mark as a public communications provider (PECR reg 5A)'}
+            </button>
+          </form>
+          <form
+            {...authority.formProps}
+            className="flex flex-wrap items-baseline gap-2 text-xs"
+          >
+            {entity.publicAuthority ? (
+              <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
+                public authority
+              </span>
+            ) : null}
+            <button
+              type="submit"
+              disabled={authority.pending}
+              className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+            >
+              {entity.publicAuthority
+                ? 'Not a public authority'
+                : 'Mark as a public authority (Data Protection Act 2018 s.7)'}
+            </button>
+          </form>
+          <Outcome result={provider.result} />
+          <form
+            key={savedKey(entity.competentAuthority, entity.defaultRegime)}
+            {...competent.formProps}
+            className="flex flex-wrap items-baseline gap-2 text-xs"
+          >
+            <label className="flex flex-wrap items-baseline gap-2">
+              <span className="text-ink-soft">
+                Law enforcement (Data Protection Act 2018 Part 3, s.30):
+              </span>
+              <select
+                name="competentAuthority"
+                defaultValue={
+                  !entity.competentAuthority
+                    ? 'no'
+                    : entity.defaultRegime === 'dpa_part3'
+                      ? 'part3'
+                      : 'yes'
+                }
+                className="rounded border border-line bg-ground px-2 py-1 text-xs"
+              >
+                <option value="no">Not a competent authority</option>
+                <option value="yes">
+                  A competent authority; new records start under the UK GDPR
+                </option>
+                <option value="part3">
+                  A competent authority; new records start under Part 3
+                </option>
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={competent.pending}
+              className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+            >
+              Save
+            </button>
+          </form>
+          <Outcome result={authority.result} />
+          <Outcome result={competent.result} />
+        </>
       ) : (
         <p className="text-xs text-ink-soft">
-          The public authority, competent authority and PECR settings are UK law, so are not offered for an entity
-          subject to EU law only.
+          The public authority, competent authority and PECR settings are UK
+          law, so are not offered for an entity subject to EU law only.
         </p>
       )}
     </li>

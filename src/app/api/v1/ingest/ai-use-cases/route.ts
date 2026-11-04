@@ -1,8 +1,8 @@
-import { ingestRoute } from "@/lib/integration/handler";
-import { aiUseCaseBatch } from "@/lib/integration/contracts";
-import { ingestAiUseCases } from "@/services/ingest";
+import { aiUseCaseBatch } from '@/lib/integration/contracts';
+import { ingestRoute } from '@/lib/integration/handler';
+import { ingestAiUseCases } from '@/services/ingest';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 /**
  * AI systems from the Waivern Compliance Portal. Describes them; never moves
@@ -10,6 +10,6 @@ export const dynamic = "force-dynamic";
  */
 export const POST = ingestRoute({
   schema: aiUseCaseBatch,
-  kinds: ["waivern_portal", "other"],
-  handle: (connection, input) => ingestAiUseCases(connection, input.records),
+  kinds: ['waivern_portal', 'other'],
+  handle: (connection, input) => ingestAiUseCases(connection, input.records)
 });

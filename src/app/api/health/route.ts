@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
-import { LATEST_MIGRATION, schemaState } from "@/lib/schema-state";
+import { NextResponse } from 'next/server';
 
-export const dynamic = "force-dynamic";
+import { LATEST_MIGRATION, schemaState } from '@/lib/schema-state';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Is this deployment actually able to serve?
@@ -20,19 +21,23 @@ export async function GET() {
 
   if (state.ok) {
     return NextResponse.json(
-      { status: "healthy", migrations: state.applied, expects: LATEST_MIGRATION },
-      { status: 200, headers: { "cache-control": "no-store" } },
+      {
+        status: 'healthy',
+        migrations: state.applied,
+        expects: LATEST_MIGRATION
+      },
+      { status: 200, headers: { 'cache-control': 'no-store' } }
     );
   }
 
   return NextResponse.json(
     {
-      status: "unhealthy",
+      status: 'unhealthy',
       reason: state.reason,
       detail: state.detail,
       migrations: state.applied ?? null,
-      expects: LATEST_MIGRATION,
+      expects: LATEST_MIGRATION
     },
-    { status: 503, headers: { "cache-control": "no-store" } },
+    { status: 503, headers: { 'cache-control': 'no-store' } }
   );
 }

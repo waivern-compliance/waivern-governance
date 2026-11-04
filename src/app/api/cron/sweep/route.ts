@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
-import { sweepAll } from "@/services/sweep";
+import { NextResponse } from 'next/server';
 
-export const dynamic = "force-dynamic";
+import { sweepAll } from '@/services/sweep';
+
+export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
@@ -20,14 +21,14 @@ export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json(
-      { error: "CRON_SECRET is not configured; refusing to run" },
-      { status: 503 },
+      { error: 'CRON_SECRET is not configured; refusing to run' },
+      { status: 503 }
     );
   }
 
-  const provided = request.headers.get("authorization");
+  const provided = request.headers.get('authorization');
   if (provided !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
 
   const results = await sweepAll();

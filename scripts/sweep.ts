@@ -1,5 +1,5 @@
-import { sql as pg } from "@/db/client";
-import { sweepAll } from "@/services/sweep";
+import { sql as pg } from '@/db/client';
+import { sweepAll } from '@/services/sweep';
 
 /**
  * The scheduled run, as a job rather than an HTTP call.
@@ -50,42 +50,60 @@ async function main() {
     console.log(
       `${r.organisation}: ` +
         [
-          r.schedulesMaterialised && `${r.schedulesMaterialised} scheduled task(s) raised`,
-          r.acceptanceReviewsRaised && `${r.acceptanceReviewsRaised} lapsed acceptance(s) flagged`,
-          r.mitigationRemindersRaised && `${r.mitigationRemindersRaised} overdue mitigation(s) chased`,
-          r.breachesRecorded && `${r.breachesRecorded} service-level breach(es) recorded`,
-          r.countryReviewsRaised && `${r.countryReviewsRaised} country review(s) raised`,
-          r.dpaReviewsRaised && `${r.dpaReviewsRaised} processor agreement(s) flagged`,
-          r.breachDeadlinesRaised && `${r.breachDeadlinesRaised} breach deadline(s) flagged`,
-          r.requestDeadlinesRaised && `${r.requestDeadlinesRaised} data subject request deadline(s) flagged`,
-          r.complaintDeadlinesRaised && `${r.complaintDeadlinesRaised} complaint deadline(s) flagged`,
+          r.schedulesMaterialised &&
+            `${r.schedulesMaterialised} scheduled task(s) raised`,
+          r.acceptanceReviewsRaised &&
+            `${r.acceptanceReviewsRaised} lapsed acceptance(s) flagged`,
+          r.mitigationRemindersRaised &&
+            `${r.mitigationRemindersRaised} overdue mitigation(s) chased`,
+          r.breachesRecorded &&
+            `${r.breachesRecorded} service-level breach(es) recorded`,
+          r.countryReviewsRaised &&
+            `${r.countryReviewsRaised} country review(s) raised`,
+          r.dpaReviewsRaised &&
+            `${r.dpaReviewsRaised} processor agreement(s) flagged`,
+          r.breachDeadlinesRaised &&
+            `${r.breachDeadlinesRaised} breach deadline(s) flagged`,
+          r.requestDeadlinesRaised &&
+            `${r.requestDeadlinesRaised} data subject request deadline(s) flagged`,
+          r.complaintDeadlinesRaised &&
+            `${r.complaintDeadlinesRaised} complaint deadline(s) flagged`,
           r.rescansRaised && `${r.rescansRaised} cookie rescan(s) due`,
-          r.tpsScreeningsRaised && `${r.tpsScreeningsRaised} TPS screening(s) due`,
-          r.consentScansFinished && `${r.consentScansFinished} consent scan(s) finished`,
-          r.objectionReviewsRaised && `${r.objectionReviewsRaised} LIA review(s) raised by objections`,
-          r.lapsedReviewsRaised && `${r.lapsedReviewsRaised} assessment(s) past review`,
+          r.tpsScreeningsRaised &&
+            `${r.tpsScreeningsRaised} TPS screening(s) due`,
+          r.consentScansFinished &&
+            `${r.consentScansFinished} consent scan(s) finished`,
+          r.objectionReviewsRaised &&
+            `${r.objectionReviewsRaised} LIA review(s) raised by objections`,
+          r.lapsedReviewsRaised &&
+            `${r.lapsedReviewsRaised} assessment(s) past review`,
           r.aiReviewsRaised && `${r.aiReviewsRaised} AI system(s) past review`,
-          r.appetiteReviewsRaised && `${r.appetiteReviewsRaised} risk appetite statement(s) past review`,
-          r.documentsScanned && `${r.documentsScanned} stored file(s) virus-scanned`,
-          r.documentsQuarantined && `${r.documentsQuarantined} file(s) quarantined as infected`,
-          r.conversationsForgotten && `${r.conversationsForgotten} assistant conversation(s) forgotten`,
+          r.appetiteReviewsRaised &&
+            `${r.appetiteReviewsRaised} risk appetite statement(s) past review`,
+          r.documentsScanned &&
+            `${r.documentsScanned} stored file(s) virus-scanned`,
+          r.documentsQuarantined &&
+            `${r.documentsQuarantined} file(s) quarantined as infected`,
+          r.conversationsForgotten &&
+            `${r.conversationsForgotten} assistant conversation(s) forgotten`,
           r.webhooksDelivered && `${r.webhooksDelivered} webhook(s) delivered`,
           r.webhooksFailed && `${r.webhooksFailed} webhook(s) failed`,
-          r.notificationsEmailed && `${r.notificationsEmailed} notification email(s) sent`,
+          r.notificationsEmailed &&
+            `${r.notificationsEmailed} notification email(s) sent`
         ]
           .filter(Boolean)
-          .join(", "),
+          .join(', ')
     );
   }
 
   console.log(
-    `Swept ${results.length} organisation(s) in ${Date.now() - started}ms.`,
+    `Swept ${results.length} organisation(s) in ${Date.now() - started}ms.`
   );
   await pg.end();
 }
 
 main().catch(async (err) => {
-  console.error("Sweep failed:", err);
+  console.error('Sweep failed:', err);
   await pg.end();
   process.exit(1);
 });

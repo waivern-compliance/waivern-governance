@@ -1,5 +1,5 @@
-import { raiseRisk } from "@/app/app/risks/actions";
-import type { RiskCategoryDef } from "@/lib/ai-frameworks";
+import { raiseRisk } from '@/app/app/risks/actions';
+import type { RiskCategoryDef } from '@/lib/ai-frameworks';
 
 type Point = { value: number; label: string };
 
@@ -18,7 +18,7 @@ export function RaiseRiskForm({
   suggestedCategories = [],
   categories,
   likelihood,
-  impact,
+  impact
 }: {
   /** One entry when the entity is fixed, several when the person chooses. */
   entities: Array<{ id: string; name: string }>;
@@ -31,18 +31,38 @@ export function RaiseRiskForm({
   impact: readonly Point[];
 }) {
   // The middle of the scale, as the register form has always defaulted to.
-  const middle = (scale: readonly Point[]) => String(scale[Math.floor(scale.length / 2)].value);
-  const suggested = categories.filter((c) => suggestedCategories.includes(c.value));
-  const others = categories.filter((c) => !suggestedCategories.includes(c.value));
+  const middle = (scale: readonly Point[]) =>
+    String(scale[Math.floor(scale.length / 2)].value);
+  const suggested = categories.filter((c) =>
+    suggestedCategories.includes(c.value)
+  );
+  const others = categories.filter(
+    (c) => !suggestedCategories.includes(c.value)
+  );
 
   return (
-    <form action={raiseRisk} className="space-y-3 border-t border-line p-4">
-      {assessmentId ? <input type="hidden" name="assessmentId" value={assessmentId} /> : null}
+    <form
+      action={raiseRisk}
+      className="space-y-3 border-t border-line p-4"
+    >
+      {assessmentId ? (
+        <input
+          type="hidden"
+          name="assessmentId"
+          value={assessmentId}
+        />
+      ) : null}
       {entities.length === 1 ? (
-        <input type="hidden" name="entityId" value={entities[0].id} />
+        <input
+          type="hidden"
+          name="entityId"
+          value={entities[0].id}
+        />
       ) : null}
       <label className="block space-y-1">
-        <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Title</span>
+        <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+          Title
+        </span>
         <input
           name="title"
           required
@@ -61,38 +81,65 @@ export function RaiseRiskForm({
         />
       </label>
       <label className="block space-y-1">
-        <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Category</span>
+        <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+          Category
+        </span>
         <select
           name="category"
-          defaultValue={suggested[0]?.value ?? ""}
+          defaultValue={suggested[0]?.value ?? ''}
           className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
         >
           <option value="">No category</option>
           {suggested.length > 0 ? (
             <optgroup label="Named in this assessment">
               {suggested.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
+                <option
+                  key={c.value}
+                  value={c.value}
+                >
+                  {c.label}
+                </option>
               ))}
             </optgroup>
           ) : null}
-          <optgroup label={suggested.length > 0 ? "Other AI risk categories" : "AI risk categories"}>
+          <optgroup
+            label={
+              suggested.length > 0
+                ? 'Other AI risk categories'
+                : 'AI risk categories'
+            }
+          >
             {others.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+              <option
+                key={c.value}
+                value={c.value}
+              >
+                {c.label}
+              </option>
             ))}
           </optgroup>
         </select>
       </label>
-      <div className={`grid gap-3 ${entities.length === 1 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+      <div
+        className={`grid gap-3 ${entities.length === 1 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}
+      >
         {entities.length > 1 ? (
           <label className="block space-y-1">
-            <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">Entity</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+              Entity
+            </span>
             <select
               name="entityId"
               required
               className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
             >
               {entities.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
+                <option
+                  key={e.id}
+                  value={e.id}
+                >
+                  {e.name}
+                </option>
               ))}
             </select>
           </label>
@@ -108,7 +155,12 @@ export function RaiseRiskForm({
             className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
           >
             {likelihood.map((l) => (
-              <option key={l.value} value={l.value}>{l.value} · {l.label}</option>
+              <option
+                key={l.value}
+                value={l.value}
+              >
+                {l.value} · {l.label}
+              </option>
             ))}
           </select>
         </label>
@@ -123,7 +175,12 @@ export function RaiseRiskForm({
             className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
           >
             {impact.map((i) => (
-              <option key={i.value} value={i.value}>{i.value} · {i.label}</option>
+              <option
+                key={i.value}
+                value={i.value}
+              >
+                {i.value} · {i.label}
+              </option>
             ))}
           </select>
         </label>

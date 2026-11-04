@@ -1,4 +1,4 @@
-import { can, type Capability, type Grant } from "./rbac";
+import { can, type Capability, type Grant } from './rbac';
 
 /**
  * What to offer somebody.
@@ -24,170 +24,175 @@ export type NavItem = {
    * it under "everything else" is how the owner of a platform ends up unable
    * to find the screen that configures it.
    */
-  group?: "admin";
+  group?: 'admin';
 };
 
 export const NAV: NavItem[] = [
   {
-    href: "/app/tasks",
-    label: "Tasks",
-    hint: "what is waiting on you",
+    href: '/app/tasks',
+    label: 'Tasks',
+    hint: 'what is waiting on you'
     // Deliberately open. A task that names you is your business whether or not
     // you may read anything else.
   },
   {
-    href: "/app/dashboard",
-    label: "Governance overview",
-    hint: "posture, pipeline and service levels",
-    capability: "record.read",
+    href: '/app/dashboard',
+    label: 'Governance overview',
+    hint: 'posture, pipeline and service levels',
+    capability: 'record.read'
   },
   {
-    href: "/app/trends",
-    label: "Trends",
-    hint: "posture month by month, and how long decisions take",
-    capability: "record.read",
+    href: '/app/trends',
+    label: 'Trends',
+    hint: 'posture month by month, and how long decisions take',
+    capability: 'record.read'
   },
   {
-    href: "/app/assessments",
-    label: "Assessments",
-    hint: "start, answer and submit",
-    capability: "record.read",
+    href: '/app/assessments',
+    label: 'Assessments',
+    hint: 'start, answer and submit',
+    capability: 'record.read'
   },
   {
-    href: "/app/reviews",
-    label: "Recurring reviews",
-    hint: "what comes round again, and what is already overdue",
-    capability: "record.read",
+    href: '/app/reviews',
+    label: 'Recurring reviews',
+    hint: 'what comes round again, and what is already overdue',
+    capability: 'record.read'
   },
   {
-    href: "/app/ropa",
-    label: "Processing register",
-    hint: "Article 30 records, and which would fail an inspection",
-    capability: "record.read",
+    href: '/app/ropa',
+    label: 'Processing register',
+    hint: 'Article 30 records, and which would fail an inspection',
+    capability: 'record.read'
   },
   {
-    href: "/app/policy-documents",
-    label: "Appropriate policy documents",
-    hint: "Schedule 1 conditions, and what no current document covers",
-    capability: "record.read",
-    ukLaw: true,
+    href: '/app/policy-documents',
+    label: 'Appropriate policy documents',
+    hint: 'Schedule 1 conditions, and what no current document covers',
+    capability: 'record.read',
+    ukLaw: true
   },
   {
-    href: "/app/sharing-agreements",
-    label: "Data sharing agreements",
-    hint: "sharing with other controllers, and what no agreement covers",
-    capability: "record.read",
-    ukLaw: true,
+    href: '/app/sharing-agreements',
+    label: 'Data sharing agreements',
+    hint: 'sharing with other controllers, and what no agreement covers',
+    capability: 'record.read',
+    ukLaw: true
   },
   {
-    href: "/app/third-parties",
-    label: "Third parties",
-    hint: "processors, agreements, and which are not covered",
-    capability: "record.read",
+    href: '/app/third-parties',
+    label: 'Third parties',
+    hint: 'processors, agreements, and which are not covered',
+    capability: 'record.read'
   },
   {
-    href: "/app/ai",
-    label: "AI register",
-    hint: "every AI system, and what nobody has assessed",
-    capability: "record.read",
+    href: '/app/ai',
+    label: 'AI register',
+    hint: 'every AI system, and what nobody has assessed',
+    capability: 'record.read'
   },
   {
-    href: "/app/breaches",
-    label: "Breaches",
-    hint: "the Article 33(5) register, and the seventy-two hours",
-    capability: "record.read",
+    href: '/app/breaches',
+    label: 'Breaches',
+    hint: 'the Article 33(5) register, and the seventy-two hours',
+    capability: 'record.read'
   },
   {
-    href: "/app/requests",
-    label: "Data subject requests",
-    hint: "access, objection and the other rights, and the month to answer",
-    capability: "dsr.handle",
+    href: '/app/requests',
+    label: 'Data subject requests',
+    hint: 'access, objection and the other rights, and the month to answer',
+    capability: 'dsr.handle'
   },
   {
-    href: "/app/cookies",
-    label: "Cookies and similar technologies",
-    hint: "the inventory, and the PECR Schedule A1 basis for each",
-    capability: "record.read",
+    href: '/app/cookies',
+    label: 'Cookies and similar technologies',
+    hint: 'the inventory, and the PECR Schedule A1 basis for each',
+    capability: 'record.read'
   },
   {
-    href: "/app/marketing",
-    label: "Electronic marketing",
-    hint: "email, text and calls, and the PECR basis for each",
-    capability: "record.read",
+    href: '/app/marketing',
+    label: 'Electronic marketing',
+    hint: 'email, text and calls, and the PECR basis for each',
+    capability: 'record.read'
   },
   {
-    href: "/app/complaints",
-    label: "Data protection complaints",
-    hint: "complaints made to you, and the 30 days to acknowledge them",
-    capability: "dsr.handle",
+    href: '/app/complaints',
+    label: 'Data protection complaints',
+    hint: 'complaints made to you, and the 30 days to acknowledge them',
+    capability: 'dsr.handle'
   },
   {
-    href: "/app/risks",
-    label: "Risk register",
-    hint: "mitigations, residual rating, acceptance",
-    capability: "record.read",
+    href: '/app/risks',
+    label: 'Risk register',
+    hint: 'mitigations, residual rating, acceptance',
+    capability: 'record.read'
   },
   {
-    href: "/app/findings",
-    label: "Scan findings",
-    hint: "pushed in by scanning tools, awaiting a decision",
-    capability: "record.read",
+    href: '/app/findings',
+    label: 'Scan findings',
+    hint: 'pushed in by scanning tools, awaiting a decision',
+    capability: 'record.read'
   },
   {
-    href: "/app/countries",
-    label: "Country library",
-    hint: "UK approval, adequacy, transfer risk, and when it was last checked",
-    capability: "record.read",
+    href: '/app/countries',
+    label: 'Country library',
+    hint: 'UK approval, adequacy, transfer risk, and when it was last checked',
+    capability: 'record.read'
   },
   {
-    href: "/app/exports",
-    label: "Exports",
-    hint: "spreadsheets of anything you can see",
-    capability: "record.read",
+    href: '/app/exports',
+    label: 'Exports',
+    hint: 'spreadsheets of anything you can see',
+    capability: 'record.read'
   },
   {
-    href: "/app/training",
-    label: "AI learning",
-    hint: "what you need to know about AI, and whether it is current",
+    href: '/app/training',
+    label: 'AI learning',
+    hint: 'what you need to know about AI, and whether it is current'
   },
   {
-    href: "/app/templates",
-    label: "Assessment templates",
-    hint: "DPIA, transfer risk and impact, AI risk, screening",
-    capability: "record.read",
+    href: '/app/templates',
+    label: 'Assessment templates',
+    hint: 'DPIA, transfer risk and impact, AI risk, screening',
+    capability: 'record.read'
   },
   {
-    href: "/app/admin/organisation",
-    label: "Organisation",
-    hint: "what this organisation is called throughout",
-    capability: "org.manage",
-    group: "admin",
+    href: '/app/admin/organisation',
+    label: 'Organisation',
+    hint: 'what this organisation is called throughout',
+    capability: 'org.manage',
+    group: 'admin'
   },
   {
-    href: "/app/admin/people",
-    label: "People and access",
-    hint: "who may sign in, and as what",
-    capability: "member.manage",
-    group: "admin",
+    href: '/app/admin/people',
+    label: 'People and access',
+    hint: 'who may sign in, and as what',
+    capability: 'member.manage',
+    group: 'admin'
   },
   {
-    href: "/app/admin/workflows",
-    label: "Approval workflows",
-    hint: "who signs off each kind of assessment",
-    capability: "workflow.configure",
-    group: "admin",
+    href: '/app/admin/workflows',
+    label: 'Approval workflows',
+    hint: 'who signs off each kind of assessment',
+    capability: 'workflow.configure',
+    group: 'admin'
   },
   {
-    href: "/app/admin/assistant",
-    label: "Assistant",
-    hint: "point the platform at a model you control",
-    capability: "org.manage",
-    group: "admin",
-  },
+    href: '/app/admin/assistant',
+    label: 'Assistant',
+    hint: 'point the platform at a model you control',
+    capability: 'org.manage',
+    group: 'admin'
+  }
 ];
 
-export function navFor(grants: readonly Grant[], options: { ukLaw?: boolean } = {}): NavItem[] {
+export function navFor(
+  grants: readonly Grant[],
+  options: { ukLaw?: boolean } = {}
+): NavItem[] {
   return NAV.filter(
-    (item) => (!item.capability || can(grants, item.capability)) && (options.ukLaw !== false || !item.ukLaw),
+    (item) =>
+      (!item.capability || can(grants, item.capability)) &&
+      (options.ukLaw !== false || !item.ukLaw)
   );
 }

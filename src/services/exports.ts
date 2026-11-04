@@ -1,42 +1,46 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
   assessments,
   auditEvents,
-  countryRisk,
   entities,
   mitigations,
   riskAcceptances,
   risks,
-  templateVersions,
   templates,
-  users,
-} from "@/db/schema";
-import { GENESIS_HASH, appendAuditEvent } from "@/lib/audit";
-import { PRODUCT_NAME } from "@/lib/product";
-import { toCsv } from "@/lib/csv";
-import { legalRefMap } from "@/lib/legal-refs";
-import { questionsOf } from "@/lib/templates/logic";
-import { libraryFor } from "./countries";
-import { gapsFor } from "./ai-register";
-import { aiRiskLog, treatmentWords } from "./ai-risk-profile";
-import { categoryLabel } from "@/lib/ai-frameworks";
-import { GAP_WORDS, listActivities } from "./ropa";
-import { breachRegister } from "./breaches";
-import { requestMetrics, requestRegister } from "./data-subject-requests";
-import { trendFor } from "./trends";
+  templateVersions,
+  users
+} from '@/db/schema';
+import { categoryLabel } from '@/lib/ai-frameworks';
+import { appendAuditEvent, GENESIS_HASH } from '@/lib/audit';
+import { toCsv } from '@/lib/csv';
 import {
-  GAP_WORDS as SUPPLIER_GAP_WORDS,
-  PRIVACY_STANDING_LABEL,
-  listSuppliers,
-} from "./third-party";
-import type { Actor } from "./templates";
-import { AI_STANDING_LABEL } from "@/lib/thirdparty/ai-procurement";
-import { RECOGNISED_CONDITIONS, describeBases } from "@/lib/gdpr/lawful-basis";
-import { ART9_CONDITIONS, describeArt10, describeSchedule1 } from "@/lib/dpa2018/schedule-1";
+  ART9_CONDITIONS,
+  describeArt10,
+  describeSchedule1
+} from '@/lib/dpa2018/schedule-1';
+import { describeBases, RECOGNISED_CONDITIONS } from '@/lib/gdpr/lawful-basis';
+import { legalRefMap } from '@/lib/legal-refs';
+import { PRODUCT_NAME } from '@/lib/product';
+import { questionsOf } from '@/lib/templates/logic';
+import { AI_STANDING_LABEL } from '@/lib/thirdparty/ai-procurement';
 
+import { gapsFor } from './ai-register';
+import { aiRiskLog, treatmentWords } from './ai-risk-profile';
+import { breachRegister } from './breaches';
+import { libraryFor } from './countries';
+import { requestMetrics, requestRegister } from './data-subject-requests';
+import { GAP_WORDS, listActivities } from './ropa';
+import type { Actor } from './templates';
+import {
+  listSuppliers,
+  PRIVACY_STANDING_LABEL,
+  GAP_WORDS as SUPPLIER_GAP_WORDS
+} from './third-party';
+import { trendFor } from './trends';
 
 /**
  * Data out, for people rather than machines.
@@ -53,30 +57,30 @@ import { ART9_CONDITIONS, describeArt10, describeSchedule1 } from "@/lib/dpa2018
  */
 
 export type Dataset =
-  | "risks"
-  | "assessments"
-  | "ai-register"
-  | "ai-risks"
-  | "ropa"
-  | "third-parties"
-  | "breaches"
-  | "requests"
-  | "trends"
-  | "countries"
-  | "audit";
+  | 'risks'
+  | 'assessments'
+  | 'ai-register'
+  | 'ai-risks'
+  | 'ropa'
+  | 'third-parties'
+  | 'breaches'
+  | 'requests'
+  | 'trends'
+  | 'countries'
+  | 'audit';
 
 export const DATASET_LABEL: Record<Dataset, string> = {
-  risks: "Risk register",
-  assessments: "Assessments",
-  "ai-register": "AI register",
-  "ai-risks": "AI risk log",
-  ropa: "Processing register (Article 30)",
-  "third-parties": "Third parties (Article 28)",
-  breaches: "Breach register (Article 33(5))",
-  requests: "Data subject requests",
-  trends: "Trends by month",
-  countries: "Country library",
-  audit: "Audit log",
+  risks: 'Risk register',
+  assessments: 'Assessments',
+  'ai-register': 'AI register',
+  'ai-risks': 'AI risk log',
+  ropa: 'Processing register (Article 30)',
+  'third-parties': 'Third parties (Article 28)',
+  breaches: 'Breach register (Article 33(5))',
+  requests: 'Data subject requests',
+  trends: 'Trends by month',
+  countries: 'Country library',
+  audit: 'Audit log'
 };
 
 export type ExportResult = {
@@ -88,7 +92,10 @@ export type ExportResult = {
   caveat?: string;
 };
 
-export async function exportRisks(organisationId: string, entityIds: string[] | null) {
+export async function exportRisks(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({ risk: risks, entity: entities.name, owner: users.email })
@@ -100,8 +107,8 @@ export async function exportRisks(organisationId: string, entityIds: string[] | 
           ? eq(risks.organisationId, organisationId)
           : and(
               eq(risks.organisationId, organisationId),
-              inArray(risks.entityId, entityIds),
-            ),
+              inArray(risks.entityId, entityIds)
+            )
       )
       .orderBy(asc(risks.reference));
 
@@ -109,48 +116,96 @@ export async function exportRisks(organisationId: string, entityIds: string[] | 
       ? await db
           .select()
           .from(mitigations)
-          .where(inArray(mitigations.riskId, rows.map((r) => r.risk.id)))
+          .where(
+            inArray(
+              mitigations.riskId,
+              rows.map((r) => r.risk.id)
+            )
+          )
       : [];
     const live = rows.length
       ? await db
           .select()
           .from(riskAcceptances)
-          .where(inArray(riskAcceptances.riskId, rows.map((r) => r.risk.id)))
+          .where(
+            inArray(
+              riskAcceptances.riskId,
+              rows.map((r) => r.risk.id)
+            )
+          )
       : [];
 
     return {
       columns: [
-        "Reference", "Entity", "Title", "Description", "Status", "Owner",
-        "Inherent likelihood", "Inherent impact", "Inherent score", "Inherent tier",
-        "Residual likelihood", "Residual impact", "Residual score", "Residual tier",
-        "Mitigations", "Mitigations verified",
-        "Accepted by", "Acceptance rationale", "Acceptance expires", "Acceptance lapsed",
-        "Next review", "Opened", "Closed",
+        'Reference',
+        'Entity',
+        'Title',
+        'Description',
+        'Status',
+        'Owner',
+        'Inherent likelihood',
+        'Inherent impact',
+        'Inherent score',
+        'Inherent tier',
+        'Residual likelihood',
+        'Residual impact',
+        'Residual score',
+        'Residual tier',
+        'Mitigations',
+        'Mitigations verified',
+        'Accepted by',
+        'Acceptance rationale',
+        'Acceptance expires',
+        'Acceptance lapsed',
+        'Next review',
+        'Opened',
+        'Closed'
       ],
       rows: rows.map(({ risk, entity, owner }) => {
         const mine = treatments.filter((m) => m.riskId === risk.id);
         const acceptance = live.find(
-          (a) => a.riskId === risk.id && !a.supersededAt && !a.revokedAt,
+          (a) => a.riskId === risk.id && !a.supersededAt && !a.revokedAt
         );
         return [
-          risk.reference, entity, risk.title, risk.description, risk.status, owner,
-          risk.inherentLikelihood, risk.inherentImpact, risk.inherentScore, risk.inherentTier,
-          risk.residualLikelihood, risk.residualImpact, risk.residualScore, risk.residualTier,
-          mine.length, mine.filter((m) => m.status === "verified").length,
+          risk.reference,
+          entity,
+          risk.title,
+          risk.description,
+          risk.status,
+          owner,
+          risk.inherentLikelihood,
+          risk.inherentImpact,
+          risk.inherentScore,
+          risk.inherentTier,
+          risk.residualLikelihood,
+          risk.residualImpact,
+          risk.residualScore,
+          risk.residualTier,
+          mine.length,
+          mine.filter((m) => m.status === 'verified').length,
           acceptance?.acceptedByLabel ?? null,
           acceptance?.rationale ?? null,
           acceptance?.expiresAt ?? null,
           // Stated rather than left to be worked out from a date, so a lapsed
           // acceptance cannot read as current in a spreadsheet either.
-          acceptance ? (acceptance.expiresAt.getTime() <= Date.now() ? "yes" : "no") : null,
-          risk.nextReviewAt, risk.openedAt, risk.closedAt,
+          acceptance
+            ? acceptance.expiresAt.getTime() <= Date.now()
+              ? 'yes'
+              : 'no'
+            : null,
+          risk.nextReviewAt,
+          risk.openedAt,
+          risk.closedAt
         ];
-      }),
+      })
     };
   });
 }
 
-export async function exportAssessments(organisationId: string, entityIds: string[] | null) {
+export async function exportAssessments(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({
@@ -160,11 +215,14 @@ export async function exportAssessments(organisationId: string, entityIds: strin
         templateName: templates.name,
         version: templateVersions.version,
         definition: templateVersions.definition,
-        owner: users.email,
+        owner: users.email
       })
       .from(assessments)
       .innerJoin(entities, eq(entities.id, assessments.entityId))
-      .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+      .innerJoin(
+        templateVersions,
+        eq(templateVersions.id, assessments.templateVersionId)
+      )
       .innerJoin(templates, eq(templates.id, templateVersions.templateId))
       .leftJoin(users, eq(users.id, assessments.ownerId))
       .where(
@@ -172,8 +230,8 @@ export async function exportAssessments(organisationId: string, entityIds: strin
           ? eq(assessments.organisationId, organisationId)
           : and(
               eq(assessments.organisationId, organisationId),
-              inArray(assessments.entityId, entityIds),
-            ),
+              inArray(assessments.entityId, entityIds)
+            )
       )
       .orderBy(asc(assessments.reference));
 
@@ -189,7 +247,7 @@ export async function exportAssessments(organisationId: string, entityIds: strin
      * what it was assessed against. A lawyer reviewing it should not have to
      * work out which questions were on the page at the time.
      */
-    const citationsFor = (definition: (typeof rows)[number]["definition"]) => {
+    const citationsFor = (definition: (typeof rows)[number]['definition']) => {
       const codes = new Set<string>();
       for (const { question } of questionsOf(definition.schema)) {
         for (const code of question.legalRefs ?? []) codes.add(code);
@@ -200,36 +258,60 @@ export async function exportAssessments(organisationId: string, entityIds: strin
           return ref ? `${ref.regime} ${ref.citation}` : `${code} (unknown)`;
         })
         .sort()
-        .join("; ");
+        .join('; ');
     };
 
     return {
       columns: [
-        "Reference", "Entity", "Title", "Type", "Template", "Template version",
-        "Status", "Owner", "Score", "Band", "Tier",
-        "Legal references",
-        "Created", "Submitted", "Completed",
+        'Reference',
+        'Entity',
+        'Title',
+        'Type',
+        'Template',
+        'Template version',
+        'Status',
+        'Owner',
+        'Score',
+        'Band',
+        'Tier',
+        'Legal references',
+        'Created',
+        'Submitted',
+        'Completed'
       ],
       rows: rows.map((r) => [
-        r.assessment.reference, r.entity, r.assessment.title, r.kind,
-        r.templateName, r.version, r.assessment.status, r.owner,
-        r.assessment.scoreValue, r.assessment.scoreBand, r.assessment.scoreTier,
+        r.assessment.reference,
+        r.entity,
+        r.assessment.title,
+        r.kind,
+        r.templateName,
+        r.version,
+        r.assessment.status,
+        r.owner,
+        r.assessment.scoreValue,
+        r.assessment.scoreBand,
+        r.assessment.scoreTier,
         citationsFor(r.definition),
-        r.assessment.createdAt, r.assessment.submittedAt, r.assessment.completedAt,
-      ]),
+        r.assessment.createdAt,
+        r.assessment.submittedAt,
+        r.assessment.completedAt
+      ])
     };
   });
 }
 
-export async function exportAiRegister(organisationId: string, entityIds: string[] | null) {
+export async function exportAiRegister(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
-    const officers = alias(users, "governance_officer");
+    const officers = alias(users, 'governance_officer');
     const rows = await db
       .select({
         useCase: aiUseCases,
         entity: entities.name,
         owner: users.email,
-        officer: officers.email,
+        officer: officers.email
       })
       .from(aiUseCases)
       .innerJoin(entities, eq(entities.id, aiUseCases.entityId))
@@ -240,30 +322,58 @@ export async function exportAiRegister(organisationId: string, entityIds: string
           ? eq(aiUseCases.organisationId, organisationId)
           : and(
               eq(aiUseCases.organisationId, organisationId),
-              inArray(aiUseCases.entityId, entityIds),
-            ),
+              inArray(aiUseCases.entityId, entityIds)
+            )
       )
       .orderBy(asc(aiUseCases.reference));
 
     return {
       columns: [
-        "Reference", "Entity", "Name", "Purpose", "Type", "Provenance", "Stage",
-        "Deployment", "Vendor", "Model", "Owner", "AI governance officer", "Team",
-        "Processes personal data", "Outstanding", "Live since", "Next review", "Retired",
+        'Reference',
+        'Entity',
+        'Name',
+        'Purpose',
+        'Type',
+        'Provenance',
+        'Stage',
+        'Deployment',
+        'Vendor',
+        'Model',
+        'Owner',
+        'AI governance officer',
+        'Team',
+        'Processes personal data',
+        'Outstanding',
+        'Live since',
+        'Next review',
+        'Retired'
       ],
       rows: rows.map(({ useCase, entity, owner, officer }) => [
-        useCase.reference, entity, useCase.name, useCase.purpose,
-        useCase.systemType, useCase.provenance, useCase.lifecycleStage,
-        useCase.deploymentPattern, useCase.vendor, useCase.modelName, owner, officer,
+        useCase.reference,
+        entity,
+        useCase.name,
+        useCase.purpose,
+        useCase.systemType,
+        useCase.provenance,
+        useCase.lifecycleStage,
+        useCase.deploymentPattern,
+        useCase.vendor,
+        useCase.modelName,
+        owner,
+        officer,
         useCase.responsibleTeam,
         useCase.processesPersonalData === null
           ? null
-          : useCase.processesPersonalData ? "yes" : "no",
+          : useCase.processesPersonalData
+            ? 'yes'
+            : 'no',
         // Computed at export, matching what the register shows — a stored copy
         // would disagree with the screen the moment anything changed.
-        gapsFor(useCase, null).join("; ") || "nothing",
-        useCase.liveSince, useCase.nextReviewAt, useCase.retiredAt,
-      ]),
+        gapsFor(useCase, null).join('; ') || 'nothing',
+        useCase.liveSince,
+        useCase.nextReviewAt,
+        useCase.retiredAt
+      ])
     };
   });
 }
@@ -273,16 +383,37 @@ export async function exportCountries(organisationId: string) {
     const library = await libraryFor(organisationId);
     return {
       columns: [
-        "Code", "Country", "UK approval (Article 45A)", "UK note", "EU adequacy", "EU note",
-        "Government access", "Redress", "Summary",
-        "Source of this entry", "Last checked", "Checked by", "Next review", "Overdue",
+        'Code',
+        'Country',
+        'UK approval (Article 45A)',
+        'UK note',
+        'EU adequacy',
+        'EU note',
+        'Government access',
+        'Redress',
+        'Summary',
+        'Source of this entry',
+        'Last checked',
+        'Checked by',
+        'Next review',
+        'Overdue'
       ],
       rows: library.map((c) => [
-        c.code, c.name, c.ukAdequacy, c.ukAdequacyNote, c.euAdequacy, c.euAdequacyNote,
-        c.governmentAccess, c.redress, c.summary,
-        c.isOverride ? "your organisation" : "shared library",
-        c.reviewedAt, c.reviewedBy, c.nextReviewAt, c.stale ? "yes" : "no",
-      ]),
+        c.code,
+        c.name,
+        c.ukAdequacy,
+        c.ukAdequacyNote,
+        c.euAdequacy,
+        c.euAdequacyNote,
+        c.governmentAccess,
+        c.redress,
+        c.summary,
+        c.isOverride ? 'your organisation' : 'shared library',
+        c.reviewedAt,
+        c.reviewedBy,
+        c.nextReviewAt,
+        c.stale ? 'yes' : 'no'
+      ])
     };
   });
 }
@@ -300,7 +431,7 @@ export async function exportCountries(organisationId: string) {
  */
 export async function exportAudit(
   organisationId: string,
-  entityIds: string[] | null,
+  entityIds: string[] | null
 ) {
   return withOrganisation(organisationId, async () => {
     const complete = entityIds === null;
@@ -313,28 +444,48 @@ export async function exportAudit(
           ? eq(auditEvents.organisationId, organisationId)
           : and(
               eq(auditEvents.organisationId, organisationId),
-              inArray(auditEvents.entityId, entityIds),
-            ),
+              inArray(auditEvents.entityId, entityIds)
+            )
       )
       .orderBy(asc(auditEvents.seq));
 
     return {
       complete,
       columns: [
-        "Sequence", "At", "Actor kind", "Actor", "Action",
-        "Subject type", "Subject", "Entity",
-        "Before", "After", "Metadata", "Previous hash", "Hash",
+        'Sequence',
+        'At',
+        'Actor kind',
+        'Actor',
+        'Action',
+        'Subject type',
+        'Subject',
+        'Entity',
+        'Before',
+        'After',
+        'Metadata',
+        'Previous hash',
+        'Hash'
       ],
       rows: rows.map((e) => [
-        e.seq, e.at, e.actorKind, e.actorLabel, e.action,
-        e.subjectType, e.subjectId, e.entityId,
-        e.before, e.after, e.metadata, e.prevHash, e.hash,
+        e.seq,
+        e.at,
+        e.actorKind,
+        e.actorLabel,
+        e.action,
+        e.subjectType,
+        e.subjectId,
+        e.entityId,
+        e.before,
+        e.after,
+        e.metadata,
+        e.prevHash,
+        e.hash
       ]),
       caveat: complete
         ? undefined
-        : "This is an extract filtered to the entities you can see. The hash chain " +
-          "cannot be verified from it, because the events in between are missing. " +
-          "A verifiable export requires organisation-wide audit access.",
+        : 'This is an extract filtered to the entities you can see. The hash chain ' +
+          'cannot be verified from it, because the events in between are missing. ' +
+          'A verifiable export requires organisation-wide audit access.'
     };
   });
 }
@@ -346,9 +497,12 @@ export async function exportAudit(
  * check is not evidence — it is a claim. Anyone with the file and a SHA-256
  * implementation can reproduce it.
  */
-export function verificationManifest(organisationName: string, rows: number): string {
+export function verificationManifest(
+  organisationName: string,
+  rows: number
+): string {
   return [
-    `${PRODUCT_NAME} — audit log export`,
+    `${PRODUCT_NAME} - audit log export`,
     `Organisation: ${organisationName}`,
     `Events: ${rows}`,
     ``,
@@ -369,8 +523,8 @@ export function verificationManifest(organisationName: string, rows: number): st
     `  4. Each event's Previous hash must equal the preceding event's Hash.`,
     ``,
     `Any mismatch means the record was altered after it was written, and names`,
-    `the first event where that happened.`,
-  ].join("\n");
+    `the first event where that happened.`
+  ].join('\n');
 }
 
 /**
@@ -392,15 +546,17 @@ export async function recordExport(input: {
       appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "data.exported",
-        subjectType: "organisation",
+        action: 'data.exported',
+        subjectType: 'organisation',
         subjectId: input.organisationId,
         after: {
           dataset: input.dataset,
           rows: input.rows,
-          ...(input.complete === undefined ? {} : { completeChain: input.complete }),
-        },
-      }),
+          ...(input.complete === undefined
+            ? {}
+            : { completeChain: input.complete })
+        }
+      })
     );
   });
 }
@@ -415,58 +571,98 @@ export { toCsv };
  * uses — an export that quietly disagreed with the screen about which records
  * were deficient would be worse than no export.
  */
-export async function exportRopa(organisationId: string, entityIds: string[] | null) {
+export async function exportRopa(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await listActivities(organisationId, entityIds);
 
     return {
       columns: [
-        "Reference", "Entity", "Activity", "Description",
-        "Controller role", "Controller acted for", "Owner",
-        "Purposes", "Lawful basis", "Annex 1 condition", "Note on the basis",
-        "Categories of data subject", "Categories of personal data",
-        "Special category condition", "Criminal offence condition", "Retention followed the policy document",
-        "Categories of recipient", "Transfers", "Retention", "Security measures",
-        "Systems", "Article 30 gaps", "Would fail an inspection", "Last updated",
+        'Reference',
+        'Entity',
+        'Activity',
+        'Description',
+        'Controller role',
+        'Controller acted for',
+        'Owner',
+        'Purposes',
+        'Lawful basis',
+        'Annex 1 condition',
+        'Note on the basis',
+        'Categories of data subject',
+        'Categories of personal data',
+        'Special category condition',
+        'Criminal offence condition',
+        'Retention followed the policy document',
+        'Categories of recipient',
+        'Transfers',
+        'Retention',
+        'Security measures',
+        'Systems',
+        'Article 30 gaps',
+        'Would fail an inspection',
+        'Last updated'
       ],
       rows: rows.map(({ activity, entityName, ownerEmail, gaps, hardGaps }) => [
-        activity.reference, entityName, activity.name, activity.description,
-        activity.controllerRole, activity.controllerName, ownerEmail,
-        (activity.purposes ?? []).join("; "),
+        activity.reference,
+        entityName,
+        activity.name,
+        activity.description,
+        activity.controllerRole,
+        activity.controllerName,
+        ownerEmail,
+        (activity.purposes ?? []).join('; '),
         describeBases(activity.lawfulBases ?? []),
-        activity.recognisedCondition ? RECOGNISED_CONDITIONS[activity.recognisedCondition].label : "",
+        activity.recognisedCondition
+          ? RECOGNISED_CONDITIONS[activity.recognisedCondition].label
+          : '',
         activity.lawfulBasis,
-        (activity.subjectCategories ?? []).join("; "),
-        (activity.dataCategories ?? []).join("; "),
+        (activity.subjectCategories ?? []).join('; '),
+        (activity.dataCategories ?? []).join('; '),
         // Schedule 1 paragraph 41: the condition, and whether retention followed the policy document.
         activity.specialCategory === null
-          ? "not yet known"
+          ? 'not yet known'
           : !activity.specialCategory
-            ? "none"
+            ? 'none'
             : [
-                activity.art9Condition ? ART9_CONDITIONS[activity.art9Condition].point : "none chosen",
-                activity.schedule1Condition ? describeSchedule1(activity.schedule1Condition) : "",
-              ].filter(Boolean).join("; "),
+                activity.art9Condition
+                  ? ART9_CONDITIONS[activity.art9Condition].point
+                  : 'none chosen',
+                activity.schedule1Condition
+                  ? describeSchedule1(activity.schedule1Condition)
+                  : ''
+              ]
+                .filter(Boolean)
+                .join('; '),
         activity.criminalOffence === null
-          ? "not yet known"
+          ? 'not yet known'
           : !activity.criminalOffence
-            ? "none"
-            : activity.art10Condition ? describeArt10(activity.art10Condition) : "none chosen",
+            ? 'none'
+            : activity.art10Condition
+              ? describeArt10(activity.art10Condition)
+              : 'none chosen',
         activity.retentionFollowsPolicy === null
-          ? ""
+          ? ''
           : activity.retentionFollowsPolicy
-            ? "yes"
-            : `no${activity.retentionPolicyNote ? `: ${activity.retentionPolicyNote}` : ""}`,
-        (activity.recipients ?? []).join("; "),
+            ? 'yes'
+            : `no${activity.retentionPolicyNote ? `: ${activity.retentionPolicyNote}` : ''}`,
+        (activity.recipients ?? []).join('; '),
         (activity.transfers ?? [])
-          .map((t) => (t.mechanism ? `${t.country} (${t.mechanism})` : `${t.country} (none recorded)`))
-          .join("; "),
-        activity.retention, activity.securityMeasures,
-        (activity.systems ?? []).join("; "),
-        gaps.map((g) => GAP_WORDS[g]).join("; ") || "nothing",
-        hardGaps.length > 0 ? "yes" : "no",
-        activity.updatedAt,
-      ]),
+          .map((t) =>
+            t.mechanism
+              ? `${t.country} (${t.mechanism})`
+              : `${t.country} (none recorded)`
+          )
+          .join('; '),
+        activity.retention,
+        activity.securityMeasures,
+        (activity.systems ?? []).join('; '),
+        gaps.map((g) => GAP_WORDS[g]).join('; ') || 'nothing',
+        hardGaps.length > 0 ? 'yes' : 'no',
+        activity.updatedAt
+      ])
     };
   });
 }
@@ -484,60 +680,96 @@ export async function exportThirdParties(organisationId: string) {
 
     return {
       columns: [
-        "Third party", "Categories", "Description", "Owner", "Source",
-        "Confirmed by a person", "Agreement", "Document reference",
-        "Signed", "Expires", "Transfer mechanism", "Sub-processors",
-        "Outstanding", "Not under contract",
-        "Privacy standing", "AI standing", "AI conditions",
+        'Third party',
+        'Categories',
+        'Description',
+        'Owner',
+        'Source',
+        'Confirmed by a person',
+        'Agreement',
+        'Document reference',
+        'Signed',
+        'Expires',
+        'Transfer mechanism',
+        'Sub-processors',
+        'Outstanding',
+        'Not under contract',
+        'Privacy standing',
+        'AI standing',
+        'AI conditions'
       ],
-      rows: rows.map(({ supplier, current, ownerEmail, gaps, hardGaps, privacy, ai }) => [
-        supplier.name,
-        (supplier.categories ?? []).join("; "),
-        supplier.description,
-        ownerEmail,
-        supplier.sourceConnectionId ? "connected tool" : "person",
-        supplier.reviewedAt,
-        current?.title ?? null,
-        current?.documentRef ?? null,
-        current?.signedAt ?? null,
-        current?.expiresAt ?? null,
-        current?.transferMechanism ?? null,
-        (current?.subProcessors ?? []).join("; "),
-        gaps.map((g) => SUPPLIER_GAP_WORDS[g]).join("; ") || "nothing",
-        hardGaps.length > 0 ? "yes" : "no",
-        PRIVACY_STANDING_LABEL[privacy],
-        AI_STANDING_LABEL[ai.standing],
-        ai.assessed?.approved ? ai.assessed.conditions : null,
-      ]),
+      rows: rows.map(
+        ({ supplier, current, ownerEmail, gaps, hardGaps, privacy, ai }) => [
+          supplier.name,
+          (supplier.categories ?? []).join('; '),
+          supplier.description,
+          ownerEmail,
+          supplier.sourceConnectionId ? 'connected tool' : 'person',
+          supplier.reviewedAt,
+          current?.title ?? null,
+          current?.documentRef ?? null,
+          current?.signedAt ?? null,
+          current?.expiresAt ?? null,
+          current?.transferMechanism ?? null,
+          (current?.subProcessors ?? []).join('; '),
+          gaps.map((g) => SUPPLIER_GAP_WORDS[g]).join('; ') || 'nothing',
+          hardGaps.length > 0 ? 'yes' : 'no',
+          PRIVACY_STANDING_LABEL[privacy],
+          AI_STANDING_LABEL[ai.standing],
+          ai.assessed?.approved ? ai.assessed.conditions : null
+        ]
+      )
     };
   });
 }
 
 /** The trend figures, for a board pack that needs numbers rather than a screenshot. */
-export async function exportTrends(organisationId: string, entityIds: string[] | null) {
+export async function exportTrends(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const [{ points }, requests] = await Promise.all([
       trendFor(organisationId, entityIds, 12),
-      requestMetrics(organisationId, entityIds, 12),
+      requestMetrics(organisationId, entityIds, 12)
     ]);
     return {
       columns: [
-        "Month", "Risks open at month end", "Risks raised", "Risks closed",
-        "Assessments started", "Assessments decided", "Median days to decide",
-        "Tasks completed", "Tasks breached", "Acceptances granted",
-        "Acceptances lapsed",
-        "Data subject requests received", "Requests answered", "Answered on time", "Answered late",
+        'Month',
+        'Risks open at month end',
+        'Risks raised',
+        'Risks closed',
+        'Assessments started',
+        'Assessments decided',
+        'Median days to decide',
+        'Tasks completed',
+        'Tasks breached',
+        'Acceptances granted',
+        'Acceptances lapsed',
+        'Data subject requests received',
+        'Requests answered',
+        'Answered on time',
+        'Answered late'
       ],
       // Counts only, so they ride along with the rest of the posture for
       // anybody who may read records; the register itself needs dsr.handle.
       rows: points.map((p, i) => [
-        p.period, p.risksOpen, p.risksOpened, p.risksClosed,
-        p.assessmentsStarted, p.assessmentsApproved, p.daysToDecide,
-        p.tasksCompleted, p.tasksBreached, p.acceptancesGranted,
+        p.period,
+        p.risksOpen,
+        p.risksOpened,
+        p.risksClosed,
+        p.assessmentsStarted,
+        p.assessmentsApproved,
+        p.daysToDecide,
+        p.tasksCompleted,
+        p.tasksBreached,
+        p.acceptancesGranted,
         p.acceptancesExpired,
-        requests.byMonth[i]?.received ?? 0, requests.byMonth[i]?.answered ?? 0,
-        requests.byMonth[i]?.onTime ?? 0, requests.byMonth[i]?.late ?? 0,
-      ]),
+        requests.byMonth[i]?.received ?? 0,
+        requests.byMonth[i]?.answered ?? 0,
+        requests.byMonth[i]?.onTime ?? 0,
+        requests.byMonth[i]?.late ?? 0
+      ])
     };
   });
 }
@@ -551,56 +783,113 @@ export async function exportTrends(organisationId: string, entityIds: string[] |
  * somebody wrote, and an export that carried only outcomes would leave them
  * asking us instead of reading it.
  */
-export async function exportBreaches(organisationId: string, entityIds: string[] | null) {
+export async function exportBreaches(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const register = await breachRegister(organisationId, entityIds);
 
     const decision = (
       row: (typeof register.rows)[number],
-      kind: string,
+      kind: string
     ): [string, string, string] => {
       // The latest decision of that kind: decisions are appended, and the most
       // recent is the position the organisation currently holds.
       const found = [...row.decisions].reverse().find((d) => d.kind === kind);
-      if (!found) return ["", "", ""];
-      return [found.outcome, found.statutoryBasis ?? "not required by law", found.rationale];
+      if (!found) return ['', '', ''];
+      return [
+        found.outcome,
+        found.statutoryBasis ?? 'not required by law',
+        found.rationale
+      ];
     };
 
     return {
       columns: [
-        "Reference", "Entity", "What happened", "Description", "Our role",
-        "Became aware", "Occurred", "Contained", "Kind",
-        "Categories of data subject", "Categories of personal data",
-        "People affected", "Records affected", "Special category",
-        "Likely consequences", "Measures taken", "Data unintelligible",
-        "Risk assessed as", "Seventy-two hour position",
-        "Authority — outcome", "Authority — basis", "Authority — reasoning",
-        "Data subjects — outcome", "Data subjects — basis", "Data subjects — reasoning",
-        "Other decisions", "Status", "Closed", "Closure reasoning",
+        'Reference',
+        'Entity',
+        'What happened',
+        'Description',
+        'Our role',
+        'Became aware',
+        'Occurred',
+        'Contained',
+        'Kind',
+        'Categories of data subject',
+        'Categories of personal data',
+        'People affected',
+        'Records affected',
+        'Special category',
+        'Likely consequences',
+        'Measures taken',
+        'Data unintelligible',
+        'Risk assessed as',
+        'Seventy-two hour position',
+        'Authority - outcome',
+        'Authority - basis',
+        'Authority - reasoning',
+        'Data subjects - outcome',
+        'Data subjects - basis',
+        'Data subjects - reasoning',
+        'Other decisions',
+        'Status',
+        'Closed',
+        'Closure reasoning'
       ],
       rows: register.rows.map((row) => {
         const b = row.breach;
-        const [aOut, aBasis, aWhy] = decision(row, "supervisory_authority");
-        const [sOut, sBasis, sWhy] = decision(row, "data_subjects");
+        const [aOut, aBasis, aWhy] = decision(row, 'supervisory_authority');
+        const [sOut, sBasis, sWhy] = decision(row, 'data_subjects');
         const others = row.decisions
-          .filter((d) => !["supervisory_authority", "data_subjects"].includes(d.kind))
-          .map((d) => `${d.kind.replace(/_/g, " ")}: ${d.outcome} — ${d.rationale}`)
-          .join(" | ");
+          .filter(
+            (d) => !['supervisory_authority', 'data_subjects'].includes(d.kind)
+          )
+          .map(
+            (d) => `${d.kind.replace(/_/g, ' ')}: ${d.outcome} - ${d.rationale}`
+          )
+          .join(' | ');
 
         return [
-          b.reference, row.entityName, b.title, b.description, b.controllerRole,
-          b.discoveredAt, b.occurredAt, b.containedAt, (b.categories ?? []).join("; "),
-          (b.subjectCategories ?? []).join("; "), (b.dataCategories ?? []).join("; "),
-          b.subjectsAffected, b.recordsAffected,
-          b.specialCategory === null ? "not known" : b.specialCategory ? "yes" : "no",
-          b.likelyConsequences, b.measuresTaken,
-          b.dataUnintelligible === null ? "not known" : b.dataUnintelligible ? "yes" : "no",
-          row.risk ?? "not assessed", row.clock.words,
-          aOut, aBasis, aWhy,
-          sOut, sBasis, sWhy,
-          others, b.status, b.closedAt, b.closureRationale,
+          b.reference,
+          row.entityName,
+          b.title,
+          b.description,
+          b.controllerRole,
+          b.discoveredAt,
+          b.occurredAt,
+          b.containedAt,
+          (b.categories ?? []).join('; '),
+          (b.subjectCategories ?? []).join('; '),
+          (b.dataCategories ?? []).join('; '),
+          b.subjectsAffected,
+          b.recordsAffected,
+          b.specialCategory === null
+            ? 'not known'
+            : b.specialCategory
+              ? 'yes'
+              : 'no',
+          b.likelyConsequences,
+          b.measuresTaken,
+          b.dataUnintelligible === null
+            ? 'not known'
+            : b.dataUnintelligible
+              ? 'yes'
+              : 'no',
+          row.risk ?? 'not assessed',
+          row.clock.words,
+          aOut,
+          aBasis,
+          aWhy,
+          sOut,
+          sBasis,
+          sWhy,
+          others,
+          b.status,
+          b.closedAt,
+          b.closureRationale
         ];
-      }),
+      })
     };
   });
 }
@@ -614,28 +903,68 @@ export async function exportBreaches(organisationId: string, entityIds: string[]
  * personal data. What is kept is what an auditor asks about — the dates, the
  * deadline, and each decision with its reasoning.
  */
-export async function exportRequests(organisationId: string, entityIds: string[] | null) {
+export async function exportRequests(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const register = await requestRegister(organisationId, entityIds);
     return {
       columns: [
-        "Reference", "Entity", "Law", "Our role", "Rights", "Arrived by", "Received",
-        "Identity asked for", "Identity confirmed", "Clock", "Extended",
-        "Decisions", "Responded", "Response sent by", "On time",
-        "Told of the right to complain", "Late because", "Status", "Closed", "Closure reasoning",
+        'Reference',
+        'Entity',
+        'Law',
+        'Our role',
+        'Rights',
+        'Arrived by',
+        'Received',
+        'Identity asked for',
+        'Identity confirmed',
+        'Clock',
+        'Extended',
+        'Decisions',
+        'Responded',
+        'Response sent by',
+        'On time',
+        'Told of the right to complain',
+        'Late because',
+        'Status',
+        'Closed',
+        'Closure reasoning'
       ],
-      rows: register.rows.map(({ request: r, entityName, clock, extended, decisions }) => [
-        r.reference, entityName, r.jurisdiction.toUpperCase(), r.controllerRole,
-        r.rights.join("; "), r.channel, r.receivedAt,
-        r.identityRequestedAt, r.identityVerifiedAt, clock.words, extended ? "yes" : "no",
-        decisions
-          .map((d) => `${d.kind.replace(/_/g, " ")}: ${d.outcome.replace(/_/g, " ")}${d.statutoryBasis ? ` (${d.statutoryBasis})` : ""} — ${d.rationale}`)
-          .join(" | "),
-        r.respondedAt, r.responseChannel,
-        clock.state === "met" ? "yes" : clock.state === "late" ? "no" : "",
-        r.toldOfComplaintRight === null ? "" : r.toldOfComplaintRight ? "yes" : "no",
-        r.lateReason, r.status, r.closedAt, r.closureRationale,
-      ]),
+      rows: register.rows.map(
+        ({ request: r, entityName, clock, extended, decisions }) => [
+          r.reference,
+          entityName,
+          r.jurisdiction.toUpperCase(),
+          r.controllerRole,
+          r.rights.join('; '),
+          r.channel,
+          r.receivedAt,
+          r.identityRequestedAt,
+          r.identityVerifiedAt,
+          clock.words,
+          extended ? 'yes' : 'no',
+          decisions
+            .map(
+              (d) =>
+                `${d.kind.replace(/_/g, ' ')}: ${d.outcome.replace(/_/g, ' ')}${d.statutoryBasis ? ` (${d.statutoryBasis})` : ''} - ${d.rationale}`
+            )
+            .join(' | '),
+          r.respondedAt,
+          r.responseChannel,
+          clock.state === 'met' ? 'yes' : clock.state === 'late' ? 'no' : '',
+          r.toldOfComplaintRight === null
+            ? ''
+            : r.toldOfComplaintRight
+              ? 'yes'
+              : 'no',
+          r.lateReason,
+          r.status,
+          r.closedAt,
+          r.closureRationale
+        ]
+      )
     };
   });
 }
@@ -645,37 +974,79 @@ export async function exportRequests(organisationId: string, entityIds: string[]
  * with GDS and DSIT. One row per risk per system, judged against the appetite
  * in force at export.
  */
-export async function exportAiRiskLog(organisationId: string, entityIds: string[] | null) {
+export async function exportAiRiskLog(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await aiRiskLog(organisationId, entityIds);
     return {
       columns: [
-        "System", "System name", "Stage", "Deployment",
-        "Risk", "Title", "Description", "Category", "Scale",
-        "Inherent likelihood", "Inherent impact", "Inherent score", "Inherent tier",
-        "Residual likelihood", "Residual impact", "Residual score", "Residual tier",
-        "Judged against", "Tolerated tier", "Within appetite",
-        "Treatments", "Accepted until", "Status", "Owner",
+        'System',
+        'System name',
+        'Stage',
+        'Deployment',
+        'Risk',
+        'Title',
+        'Description',
+        'Category',
+        'Scale',
+        'Inherent likelihood',
+        'Inherent impact',
+        'Inherent score',
+        'Inherent tier',
+        'Residual likelihood',
+        'Residual impact',
+        'Residual score',
+        'Residual tier',
+        'Judged against',
+        'Tolerated tier',
+        'Within appetite',
+        'Treatments',
+        'Accepted until',
+        'Status',
+        'Owner'
       ],
-      rows: rows.map(({ system, risk, treatments, acceptance, appetite, ownerEmail }) => [
-        system.reference, system.name, system.lifecycleStage, system.deploymentPattern,
-        risk.reference, risk.title, risk.description, categoryLabel(risk.category), risk.scale,
-        risk.inherentLikelihood, risk.inherentImpact, risk.inherentScore, risk.inherentTier,
-        risk.residualLikelihood, risk.residualImpact, risk.residualScore, risk.residualTier,
-        appetite.state === "closed"
-          ? null
-          : appetite.basis.source === "platform"
-            ? "platform default (no appetite signed off)"
-            : appetite.basis.source === "category"
-              ? `appetite for ${categoryLabel(appetite.basis.scope)}`
-              : "organisation default appetite",
-        appetite.state === "closed" ? null : appetite.basis.toleratedTier,
-        appetite.state === "within" ? "yes" : appetite.state === "outside" ? "no" : appetite.state === "unrated" ? "not rated" : null,
-        treatments.map(treatmentWords).join("; ") || null,
-        acceptance?.expiresAt ?? null,
-        risk.status,
-        ownerEmail,
-      ]),
+      rows: rows.map(
+        ({ system, risk, treatments, acceptance, appetite, ownerEmail }) => [
+          system.reference,
+          system.name,
+          system.lifecycleStage,
+          system.deploymentPattern,
+          risk.reference,
+          risk.title,
+          risk.description,
+          categoryLabel(risk.category),
+          risk.scale,
+          risk.inherentLikelihood,
+          risk.inherentImpact,
+          risk.inherentScore,
+          risk.inherentTier,
+          risk.residualLikelihood,
+          risk.residualImpact,
+          risk.residualScore,
+          risk.residualTier,
+          appetite.state === 'closed'
+            ? null
+            : appetite.basis.source === 'platform'
+              ? 'platform default (no appetite signed off)'
+              : appetite.basis.source === 'category'
+                ? `appetite for ${categoryLabel(appetite.basis.scope)}`
+                : 'organisation default appetite',
+          appetite.state === 'closed' ? null : appetite.basis.toleratedTier,
+          appetite.state === 'within'
+            ? 'yes'
+            : appetite.state === 'outside'
+              ? 'no'
+              : appetite.state === 'unrated'
+                ? 'not rated'
+                : null,
+          treatments.map(treatmentWords).join('; ') || null,
+          acceptance?.expiresAt ?? null,
+          risk.status,
+          ownerEmail
+        ]
+      )
     };
   });
 }

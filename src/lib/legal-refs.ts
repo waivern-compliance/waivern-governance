@@ -1,5 +1,5 @@
-import { db } from "@/db/client";
-import { legalReferences } from "@/db/schema";
+import { db } from '@/db/client';
+import { legalReferences } from '@/db/schema';
 
 export type ResolvedRef = {
   citation: string;
@@ -27,8 +27,8 @@ export async function legalRefMap(): Promise<Record<string, ResolvedRef>> {
         title: r.title,
         regime: r.regime,
         url: r.url,
-        jurisdiction: r.jurisdiction,
-      },
-    ]),
+        jurisdiction: r.jurisdiction
+      }
+    ])
   );
 }

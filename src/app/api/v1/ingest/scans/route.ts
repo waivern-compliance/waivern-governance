@@ -1,8 +1,8 @@
-import { ingestRoute } from "@/lib/integration/handler";
-import { scanBatchIn } from "@/lib/integration/contracts";
-import { ingestScan } from "@/services/ingest";
+import { scanBatchIn } from '@/lib/integration/contracts';
+import { ingestRoute } from '@/lib/integration/handler';
+import { ingestScan } from '@/services/ingest';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 /**
@@ -16,6 +16,6 @@ export const maxDuration = 120;
  */
 export const POST = ingestRoute({
   schema: scanBatchIn,
-  kinds: ["har_analyser", "other"],
-  handle: (connection, input) => ingestScan(connection, input),
+  kinds: ['har_analyser', 'other'],
+  handle: (connection, input) => ingestScan(connection, input)
 });

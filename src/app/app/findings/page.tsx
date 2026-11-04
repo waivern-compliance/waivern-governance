@@ -1,19 +1,21 @@
-import Link from "next/link";
-import { HelpLink } from "@/components/help/HelpLink";
-import { redirect } from "next/navigation";
-import { can } from "@/lib/rbac";
-import { NotPermitted } from "@/components/NotPermitted";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
-import { openFindings } from "@/services/ingest";
-import { SCALES } from "@/lib/risk/scale";
-import { riskScaleOf } from "@/services/risks";
-import { FindingCard } from "./finding-card";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { can } from '@/lib/rbac';
+import { SCALES } from '@/lib/risk/scale';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { openFindings } from '@/services/ingest';
+import { riskScaleOf } from '@/services/risks';
+
+import { FindingCard } from './finding-card';
 
 export default async function FindingsPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-    if (!can(active.membership.grants, "record.read")) {
+  if (!can(active.membership.grants, 'record.read')) {
     return (
       <NotPermitted
         what="Scan findings"
@@ -22,16 +24,19 @@ export default async function FindingsPage() {
     );
   }
 
-const [rows, scale] = await Promise.all([
+  const [rows, scale] = await Promise.all([
     openFindings(active.membership.organisationId, visibleEntityIds(active)),
-    riskScaleOf(active.membership.organisationId),
+    riskScaleOf(active.membership.organisationId)
   ]);
-  const canAct = can(active.membership.grants, "risk.manage");
+  const canAct = can(active.membership.grants, 'risk.manage');
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Scan findings</h1>
@@ -69,7 +74,7 @@ const [rows, scale] = await Promise.all([
                 thirdCountry: finding.thirdCountry,
                 url: finding.url,
                 advisory: finding.advisory,
-                scanRef: finding.scanRef,
+                scanRef: finding.scanRef
               }}
             />
           ))}

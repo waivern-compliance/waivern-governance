@@ -15,11 +15,11 @@
 const DANGEROUS_LEAD = /^[=+\-@\t\r]/;
 
 export function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return "";
+  if (value === null || value === undefined) return '';
 
   let text: string;
   if (value instanceof Date) text = value.toISOString();
-  else if (typeof value === "object") text = JSON.stringify(value);
+  else if (typeof value === 'object') text = JSON.stringify(value);
   else text = String(value);
 
   if (DANGEROUS_LEAD.test(text)) text = `'${text}`;
@@ -30,10 +30,10 @@ export function csvCell(value: unknown): string {
 }
 
 export function csvRow(values: readonly unknown[]): string {
-  return values.map(csvCell).join(",");
+  return values.map(csvCell).join(',');
 }
 
-export const BOM = "﻿";
+export const BOM = '﻿';
 
 /**
  * @param withBom whether to lead with a byte order mark, so Excel reads UTF-8
@@ -44,20 +44,24 @@ export const BOM = "﻿";
 export function toCsv(
   columns: readonly string[],
   rows: readonly (readonly unknown[])[],
-  withBom = true,
+  withBom = true
 ): string {
   return (
-    (withBom ? BOM : "") +
-    [csvRow(columns), ...rows.map(csvRow)].join("\r\n") +
-    "\r\n"
+    (withBom ? BOM : '') +
+    [csvRow(columns), ...rows.map(csvRow)].join('\r\n') +
+    '\r\n'
   );
 }
 
 /** A filename a person can find again six months later. */
-export function exportFilename(dataset: string, organisation: string, when: Date): string {
+export function exportFilename(
+  dataset: string,
+  organisation: string,
+  when: Date
+): string {
   const slug = organisation
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
   return `${slug}-${dataset}-${when.toISOString().slice(0, 10)}.csv`;
 }

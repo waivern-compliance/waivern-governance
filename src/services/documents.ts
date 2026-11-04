@@ -1,13 +1,19 @@
-import { createHash } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { documents, users } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { contentMatchesType } from "@/lib/documents/content-check";
-import { ACCEPTED, MAX_BYTES, RETIRED } from "@/lib/documents/limits";
-import { ScannerUnavailable, scanBuffer, scannerConfig } from "@/lib/documents/scan";
-import type { Actor } from "./templates";
-import { assertEntityIn, assertRecordIn } from "./tenancy-guards";
+import { createHash } from 'node:crypto';
+import { and, asc, eq } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import { documents, users } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { contentMatchesType } from '@/lib/documents/content-check';
+import { ACCEPTED, MAX_BYTES, RETIRED } from '@/lib/documents/limits';
+import {
+  scanBuffer,
+  scannerConfig,
+  ScannerUnavailable
+} from '@/lib/documents/scan';
+
+import type { Actor } from './templates';
+import { assertEntityIn, assertRecordIn } from './tenancy-guards';
 
 /**
  * Files attached to a record.
@@ -18,21 +24,21 @@ import { assertEntityIn, assertRecordIn } from "./tenancy-guards";
  * being the right one.
  */
 
-export type StoredDocument = Omit<typeof documents.$inferSelect, "content">;
+export type StoredDocument = Omit<typeof documents.$inferSelect, 'content'>;
 
 export { ACCEPTED, MAX_BYTES };
 
 export class UploadRefused extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "UploadRefused";
+    this.name = 'UploadRefused';
   }
 }
 
 export async function attachDocument(input: {
   organisationId: string;
   entityId: string | null;
-  subjectType: StoredDocument["subjectType"];
+  subjectType: StoredDocument['subjectType'];
   subjectId: string;
   filename: string;
   contentType: string;
@@ -42,41 +48,46 @@ export async function attachDocument(input: {
 }) {
   const outcome = await withOrganisation(input.organisationId, async () => {
     if (input.content.byteLength === 0) {
-      throw new UploadRefused("That file is empty.");
+      throw new UploadRefused('That file is empty.');
     }
     if (input.content.byteLength > MAX_BYTES) {
       throw new UploadRefused(
         `That file is ${(input.content.byteLength / 1024 / 1024).toFixed(1)}MB. ` +
-          `The limit is ${MAX_BYTES / 1024 / 1024}MB — link to it instead if it is genuinely that large.`,
+          `The limit is ${MAX_BYTES / 1024 / 1024}MB - link to it instead if it is genuinely that large.`
       );
     }
     if (RETIRED.has(input.contentType)) {
       throw new UploadRefused(
         `${RETIRED.get(input.contentType)} files are no longer accepted. ` +
-          "Save it as PDF, .docx or .xlsx and attach that instead.",
+          'Save it as PDF, .docx or .xlsx and attach that instead.'
       );
     }
     if (!ACCEPTED.has(input.contentType)) {
       throw new UploadRefused(
-        `${input.contentType || "That file type"} is not accepted. ` +
-          `Allowed: ${[...new Set(ACCEPTED.values())].join(", ")}.`,
+        `${input.contentType || 'That file type'} is not accepted. ` +
+          `Allowed: ${[...new Set(ACCEPTED.values())].join(', ')}.`
       );
     }
 
     if (!contentMatchesType(input.contentType, input.content)) {
       throw new UploadRefused(
         `Its contents are not a ${ACCEPTED.get(input.contentType)} file, whatever its name says. ` +
-          "It may be misnamed or damaged — open it and save it again in that format.",
+          'It may be misnamed or damaged - open it and save it again in that format.'
       );
     }
 
-    const sha256 = createHash("sha256").update(input.content).digest("hex");
+    const sha256 = createHash('sha256').update(input.content).digest('hex');
     // Kept as sent, minus any path a browser included.
     const filename = input.filename.split(/[\\/]/).pop()!.slice(0, 200);
     // The record it is filed against must be this organisation's: a document
     // filed against another's supplier would appear on that supplier's page.
-    await assertRecordIn(input.organisationId, input.subjectType, input.subjectId);
-    if (input.entityId) await assertEntityIn(input.organisationId, input.entityId);
+    await assertRecordIn(
+      input.organisationId,
+      input.subjectType,
+      input.subjectId
+    );
+    if (input.entityId)
+      await assertEntityIn(input.organisationId, input.entityId);
 
     // Scanned before anything is written, so an infected file is never stored,
     // not even briefly. Only where this deployment runs a scanner.
@@ -89,12 +100,12 @@ export async function attachDocument(input: {
       } catch (error) {
         if (error instanceof ScannerUnavailable) {
           throw new UploadRefused(
-            "It could not be checked for viruses just now, so it has not been attached. Try again shortly.",
+            'It could not be checked for viruses just now, so it has not been attached. Try again shortly.'
           );
         }
         throw error;
       }
-      if (verdict.outcome === "infected") {
+      if (verdict.outcome === 'infected') {
         // The refusal is the record's business: somebody tried to file
         // something infected against it, and the organisation should be able
         // to see what and when. The bytes are not kept.
@@ -103,7 +114,7 @@ export async function attachDocument(input: {
             ...input.actor,
             organisationId: input.organisationId,
             entityId: input.entityId ?? undefined,
-            action: "document.refused_infected",
+            action: 'document.refused_infected',
             subjectType: input.subjectType,
             subjectId: input.subjectId,
             after: {
@@ -111,8 +122,8 @@ export async function attachDocument(input: {
               bytes: input.content.byteLength,
               sha256,
               signature: verdict.signature,
-              scanner: verdict.scanner,
-            },
+              scanner: verdict.scanner
+            }
           });
         });
         // Returned rather than thrown, so the audit entry is not rolled back
@@ -139,7 +150,7 @@ export async function attachDocument(input: {
           uploadedBy: input.actor.actorUserId ?? null,
           uploadedByLabel: input.actor.actorLabel,
           scannedAt: scan?.scannedAt ?? null,
-          scannerVersion: scan?.scannerVersion ?? null,
+          scannerVersion: scan?.scannerVersion ?? null
         })
         .returning({ id: documents.id, filename: documents.filename });
 
@@ -147,7 +158,7 @@ export async function attachDocument(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId ?? undefined,
-        action: "document.attached",
+        action: 'document.attached',
         subjectType: input.subjectType,
         subjectId: input.subjectId,
         after: {
@@ -155,15 +166,17 @@ export async function attachDocument(input: {
           filename: row.filename,
           bytes: input.content.byteLength,
           sha256,
-          ...(scan ? { scanner: scan.scannerVersion } : {}),
-        },
+          ...(scan ? { scanner: scan.scannerVersion } : {})
+        }
       });
       return row;
     });
   });
 
-  if ("infected" in outcome) {
-    throw new UploadRefused(`The virus scanner found ${outcome.infected} in it, so it has not been attached.`);
+  if ('infected' in outcome) {
+    throw new UploadRefused(
+      `The virus scanner found ${outcome.infected} in it, so it has not been attached.`
+    );
   }
   return outcome;
 }
@@ -171,8 +184,8 @@ export async function attachDocument(input: {
 /** Everything attached to one record. Never the bytes — those come one at a time. */
 export async function documentsFor(
   organisationId: string,
-  subjectType: StoredDocument["subjectType"],
-  subjectId: string,
+  subjectType: StoredDocument['subjectType'],
+  subjectId: string
 ): Promise<Array<StoredDocument & { uploaderEmail: string | null }>> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
@@ -194,7 +207,7 @@ export async function documentsFor(
         scannerVersion: documents.scannerVersion,
         quarantinedAt: documents.quarantinedAt,
         quarantineSignature: documents.quarantineSignature,
-        uploaderEmail: users.email,
+        uploaderEmail: users.email
       })
       .from(documents)
       .leftJoin(users, eq(users.id, documents.uploadedBy))
@@ -202,8 +215,8 @@ export async function documentsFor(
         and(
           eq(documents.organisationId, organisationId),
           eq(documents.subjectType, subjectType),
-          eq(documents.subjectId, subjectId),
-        ),
+          eq(documents.subjectId, subjectId)
+        )
       )
       .orderBy(asc(documents.uploadedAt));
     return rows;
@@ -213,15 +226,19 @@ export async function documentsFor(
 /** Found infected after it was stored. Kept, but not handed out. */
 export class DocumentQuarantined extends Error {
   constructor(public readonly signature: string | null) {
-    super("The virus scanner flagged this file, so it is held and cannot be downloaded");
-    this.name = "DocumentQuarantined";
+    super(
+      'The virus scanner flagged this file, so it is held and cannot be downloaded'
+    );
+    this.name = 'DocumentQuarantined';
   }
 }
 
 export class ContentAltered extends Error {
   constructor() {
-    super("The stored file does not match the hash recorded when it was uploaded");
-    this.name = "ContentAltered";
+    super(
+      'The stored file does not match the hash recorded when it was uploaded'
+    );
+    this.name = 'ContentAltered';
   }
 }
 
@@ -238,12 +255,15 @@ export async function readDocument(id: string, organisationId: string) {
     const [row] = await db
       .select()
       .from(documents)
-      .where(and(eq(documents.id, id), eq(documents.organisationId, organisationId)));
+      .where(
+        and(eq(documents.id, id), eq(documents.organisationId, organisationId))
+      );
     if (!row) return null;
 
-    const actual = createHash("sha256").update(row.content).digest("hex");
+    const actual = createHash('sha256').update(row.content).digest('hex');
     if (actual !== row.sha256) throw new ContentAltered();
-    if (row.quarantinedAt) throw new DocumentQuarantined(row.quarantineSignature);
+    if (row.quarantinedAt)
+      throw new DocumentQuarantined(row.quarantineSignature);
 
     return row;
   });
@@ -251,7 +271,13 @@ export async function readDocument(id: string, organisationId: string) {
 
 export async function recordDownload(input: {
   organisationId: string;
-  document: { id: string; filename: string; subjectType: StoredDocument["subjectType"]; subjectId: string; entityId: string | null };
+  document: {
+    id: string;
+    filename: string;
+    subjectType: StoredDocument['subjectType'];
+    subjectId: string;
+    entityId: string | null;
+  };
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
@@ -260,12 +286,15 @@ export async function recordDownload(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.document.entityId ?? undefined,
-        action: "document.downloaded",
+        action: 'document.downloaded',
         subjectType: input.document.subjectType,
         subjectId: input.document.subjectId,
         // Taking a signed contract out of the building is worth knowing about,
         // for the same reason exporting the risk register is.
-        after: { document: input.document.id, filename: input.document.filename },
+        after: {
+          document: input.document.id,
+          filename: input.document.filename
+        }
       });
     });
   });
@@ -285,10 +314,15 @@ export async function removeDocument(input: {
           subjectType: documents.subjectType,
           subjectId: documents.subjectId,
           entityId: documents.entityId,
-          sha256: documents.sha256,
+          sha256: documents.sha256
         })
         .from(documents)
-        .where(and(eq(documents.id, input.id), eq(documents.organisationId, input.organisationId)));
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.organisationId, input.organisationId)
+          )
+        );
       if (!row) return;
 
       await tx.delete(documents).where(eq(documents.id, input.id));
@@ -300,10 +334,10 @@ export async function removeDocument(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: row.entityId ?? undefined,
-        action: "document.removed",
+        action: 'document.removed',
         subjectType: row.subjectType,
         subjectId: row.subjectId,
-        before: { document: row.id, filename: row.filename, sha256: row.sha256 },
+        before: { document: row.id, filename: row.filename, sha256: row.sha256 }
       });
     });
   });
@@ -326,7 +360,7 @@ export async function removeDocument(input: {
 export async function moveDocument(input: {
   id: string;
   organisationId: string;
-  subjectType: StoredDocument["subjectType"];
+  subjectType: StoredDocument['subjectType'];
   subjectId: string;
   actor: Actor;
 }) {
@@ -338,13 +372,27 @@ export async function moveDocument(input: {
           filename: documents.filename,
           subjectType: documents.subjectType,
           subjectId: documents.subjectId,
-          entityId: documents.entityId,
+          entityId: documents.entityId
         })
         .from(documents)
-        .where(and(eq(documents.id, input.id), eq(documents.organisationId, input.organisationId)));
+        .where(
+          and(
+            eq(documents.id, input.id),
+            eq(documents.organisationId, input.organisationId)
+          )
+        );
       if (!row) return null;
-      if (row.subjectType === input.subjectType && row.subjectId === input.subjectId) return row;
-      await assertRecordIn(input.organisationId, input.subjectType, input.subjectId, tx);
+      if (
+        row.subjectType === input.subjectType &&
+        row.subjectId === input.subjectId
+      )
+        return row;
+      await assertRecordIn(
+        input.organisationId,
+        input.subjectType,
+        input.subjectId,
+        tx
+      );
 
       await tx
         .update(documents)
@@ -355,7 +403,7 @@ export async function moveDocument(input: {
         document: row.id,
         filename: row.filename,
         from: `${row.subjectType}:${row.subjectId}`,
-        to: `${input.subjectType}:${input.subjectId}`,
+        to: `${input.subjectType}:${input.subjectId}`
       };
 
       // Once against the record it left, so that record's history does not just
@@ -364,23 +412,27 @@ export async function moveDocument(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: row.entityId ?? undefined,
-        action: "document.moved",
+        action: 'document.moved',
         subjectType: row.subjectType,
         subjectId: row.subjectId,
         before: { attachedTo: move.from },
-        after: move,
+        after: move
       });
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: row.entityId ?? undefined,
-        action: "document.moved",
+        action: 'document.moved',
         subjectType: input.subjectType,
         subjectId: input.subjectId,
-        after: move,
+        after: move
       });
 
-      return { ...row, subjectType: input.subjectType, subjectId: input.subjectId };
+      return {
+        ...row,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId
+      };
     });
   });
 }

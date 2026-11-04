@@ -12,14 +12,41 @@
  * into the organisation by opening a free mailbox, so none can be claimed.
  */
 export const PUBLIC_EMAIL_DOMAINS: ReadonlySet<string> = new Set([
-  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.co.uk", "live.com",
-  "live.co.uk", "msn.com", "yahoo.com", "yahoo.co.uk", "ymail.com", "icloud.com", "me.com",
-  "mac.com", "aol.com", "aol.co.uk", "proton.me", "protonmail.com", "pm.me", "gmx.com",
-  "gmx.co.uk", "mail.com", "zoho.com", "yandex.com", "btinternet.com", "sky.com",
-  "virginmedia.com", "talktalk.net", "fastmail.com", "hey.com", "tutanota.com",
+  'gmail.com',
+  'googlemail.com',
+  'outlook.com',
+  'hotmail.com',
+  'hotmail.co.uk',
+  'live.com',
+  'live.co.uk',
+  'msn.com',
+  'yahoo.com',
+  'yahoo.co.uk',
+  'ymail.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'aol.com',
+  'aol.co.uk',
+  'proton.me',
+  'protonmail.com',
+  'pm.me',
+  'gmx.com',
+  'gmx.co.uk',
+  'mail.com',
+  'zoho.com',
+  'yandex.com',
+  'btinternet.com',
+  'sky.com',
+  'virginmedia.com',
+  'talktalk.net',
+  'fastmail.com',
+  'hey.com',
+  'tutanota.com'
 ]);
 
-const HOSTNAME = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+const HOSTNAME =
+  /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 /**
  * A domain as somebody might type it — "@Example.gov.uk", a URL, a trailing
@@ -27,23 +54,26 @@ const HOSTNAME = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2
  */
 export function normaliseDomain(input: string): string | null {
   let d = input.trim().toLowerCase();
-  d = d.replace(/^[a-z]+:\/\//, "").replace(/^@/, "").replace(/^www\./, "");
-  d = d.split(/[/?#:]/)[0].replace(/\.$/, "");
+  d = d
+    .replace(/^[a-z]+:\/\//, '')
+    .replace(/^@/, '')
+    .replace(/^www\./, '');
+  d = d.split(/[/?#:]/)[0].replace(/\.$/, '');
   return HOSTNAME.test(d) ? d : null;
 }
 
-export type ClaimRefusal = "not_a_domain" | "public_email";
+export type ClaimRefusal = 'not_a_domain' | 'public_email';
 
 export function claimRefusal(input: string): ClaimRefusal | null {
   const d = normaliseDomain(input);
-  if (!d) return "not_a_domain";
-  if (PUBLIC_EMAIL_DOMAINS.has(d)) return "public_email";
+  if (!d) return 'not_a_domain';
+  if (PUBLIC_EMAIL_DOMAINS.has(d)) return 'public_email';
   return null;
 }
 
 /** The domain of an email address, lower-cased; null if it has none. */
 export function domainOf(email: string): string | null {
-  const at = email.lastIndexOf("@");
+  const at = email.lastIndexOf('@');
   return at > 0 ? normaliseDomain(email.slice(at + 1)) : null;
 }
 
@@ -59,7 +89,7 @@ export function verificationRecordValue(token: string): string {
 /** Whether any published TXT record carries the token. A record may be split into several strings. */
 export function recordsProve(records: string[][], token: string): boolean {
   const wanted = verificationRecordValue(token);
-  return records.some((chunks) => chunks.join("").trim() === wanted);
+  return records.some((chunks) => chunks.join('').trim() === wanted);
 }
 
 /**
@@ -72,8 +102,11 @@ export function recordsProve(records: string[][], token: string): boolean {
  * refused. Other providers keep working as they did — by invitation only —
  * and are never trusted for joining by domain.
  */
-export function unverifiedEmail(provider: string, profile: Record<string, unknown> | undefined): boolean {
-  return provider === "google" && profile?.email_verified !== true;
+export function unverifiedEmail(
+  provider: string,
+  profile: Record<string, unknown> | undefined
+): boolean {
+  return provider === 'google' && profile?.email_verified !== true;
 }
 
 /**
@@ -82,8 +115,11 @@ export function unverifiedEmail(provider: string, profile: Record<string, unknow
  * Microsoft Entra ID's email claim is set by the tenant, not proved by the
  * mailbox, so it is not enough.
  */
-export function mayJoinByDomain(provider: string, profile: Record<string, unknown> | undefined): boolean {
-  return provider === "google" && profile?.email_verified === true;
+export function mayJoinByDomain(
+  provider: string,
+  profile: Record<string, unknown> | undefined
+): boolean {
+  return provider === 'google' && profile?.email_verified === true;
 }
 
 /**
@@ -91,6 +127,9 @@ export function mayJoinByDomain(provider: string, profile: Record<string, unknow
  * a Google-verified address, or local development sign-in — which exists only
  * where ALLOW_DEV_SIGN_IN is set, and the production build refuses that.
  */
-export function mayRequestOrganisation(provider: string, profile: Record<string, unknown> | undefined): boolean {
-  return mayJoinByDomain(provider, profile) || provider === "credentials";
+export function mayRequestOrganisation(
+  provider: string,
+  profile: Record<string, unknown> | undefined
+): boolean {
+  return mayJoinByDomain(provider, profile) || provider === 'credentials';
 }

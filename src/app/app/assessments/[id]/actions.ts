@@ -1,66 +1,99 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import type { AnswerValue } from "@/lib/templates/logic";
-import { rolesOn } from "@/lib/rbac";
-import { requireCapability } from "@/lib/session";
-import { loadAssessment, returnAssessment, saveAnswers } from "@/services/assessments";
-import { decideApproval, submitForApproval } from "@/services/workflow";
-import { issueContributorLink } from "@/services/contributor-links";
+import { revalidatePath } from 'next/cache';
+
+import { rolesOn } from '@/lib/rbac';
+import { requireCapability } from '@/lib/session';
+import type { AnswerValue } from '@/lib/templates/logic';
+import {
+  loadAssessment,
+  returnAssessment,
+  saveAnswers
+} from '@/services/assessments';
+import { issueContributorLink } from '@/services/contributor-links';
+import { decideApproval, submitForApproval } from '@/services/workflow';
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
 /** Resolve the assessment first: the entity it belongs to is what scopes the check. */
-async function authorise(assessmentId: string, capability: "assessment.answer" | "assessment.submit") {
+async function authorise(
+  assessmentId: string,
+  capability: 'assessment.answer' | 'assessment.submit'
+) {
   const session = await requireCapability(capability);
-  const loaded = await loadAssessment(assessmentId, session.membership.organisationId);
-  if (!loaded) throw new Error("No such assessment");
-  const active = await requireCapability(capability, { entityId: loaded.assessment.entityId });
+  const loaded = await loadAssessment(
+    assessmentId,
+    session.membership.organisationId
+  );
+  if (!loaded) throw new Error('No such assessment');
+  const active = await requireCapability(capability, {
+    entityId: loaded.assessment.entityId
+  });
   return { active, loaded };
 }
 
 export async function saveAction(
   assessmentId: string,
-  answers: Record<string, AnswerValue>,
+  answers: Record<string, AnswerValue>
 ): Promise<ActionResult> {
   try {
-    const { active } = await authorise(assessmentId, "assessment.answer");
+    const { active } = await authorise(assessmentId, 'assessment.answer');
     await saveAnswers({
       assessmentId,
       organisationId: active.membership.organisationId,
       answers,
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
     revalidatePath(`/app/assessments/${assessmentId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Could not save" };
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Could not save'
+    };
   }
 }
 
-export async function submitAction(assessmentId: string): Promise<ActionResult> {
+export async function submitAction(
+  assessmentId: string
+): Promise<ActionResult> {
   try {
-    const { active } = await authorise(assessmentId, "assessment.submit");
+    const { active } = await authorise(assessmentId, 'assessment.submit');
     await submitForApproval({
       assessmentId,
       organisationId: active.membership.organisationId,
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
     revalidatePath(`/app/assessments/${assessmentId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Could not submit" };
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Could not submit'
+    };
   }
 }
 
 export async function returnAction(assessmentId: string, formData: FormData) {
-  const reason = String(formData.get("reason") ?? "");
-  const { active } = await authorise(assessmentId, "assessment.answer");
+  const reason = String(formData.get('reason') ?? '');
+  const { active } = await authorise(assessmentId, 'assessment.answer');
   await returnAssessment({
     assessmentId,
     organisationId: active.membership.organisationId,
     reason,
-    actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+    actor: {
+      actorKind: 'user',
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
   });
   revalidatePath(`/app/assessments/${assessmentId}`);
 }
@@ -73,27 +106,33 @@ export async function returnAction(assessmentId: string, formData: FormData) {
  */
 export async function inviteAction(
   assessmentId: string,
-  formData: FormData,
+  formData: FormData
 ): Promise<{ url: string } | { error: string }> {
   try {
-    const email = String(formData.get("email") ?? "").trim();
-    const sectionKey = String(formData.get("sectionKey") ?? "") || null;
-    if (!email) return { error: "An email address is needed" };
+    const email = String(formData.get('email') ?? '').trim();
+    const sectionKey = String(formData.get('sectionKey') ?? '') || null;
+    if (!email) return { error: 'An email address is needed' };
 
-    const { active } = await authorise(assessmentId, "assessment.answer");
+    const { active } = await authorise(assessmentId, 'assessment.answer');
     const issued = await issueContributorLink({
       organisationId: active.membership.organisationId,
       assessmentId,
       email,
       sectionKey,
-      actor: { actorKind: "user", actorUserId: active.userId, actorLabel: active.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
     });
 
-    const base = process.env.AUTH_URL ?? "http://localhost:3000";
+    const base = process.env.AUTH_URL ?? 'http://localhost:3000';
     revalidatePath(`/app/assessments/${assessmentId}`);
     return { url: `${base}/contribute/${issued.token}` };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Could not create the link" };
+    return {
+      error: e instanceof Error ? e.message : 'Could not create the link'
+    };
   }
 }
 
@@ -106,27 +145,43 @@ export async function inviteAction(
 export async function decideAction(
   approvalId: string,
   assessmentId: string,
-  formData: FormData,
+  formData: FormData
 ): Promise<ActionResult> {
   try {
-    const session = await requireCapability("record.read");
-    const loaded = await loadAssessment(assessmentId, session.membership.organisationId);
-    if (!loaded) throw new Error("No such assessment");
+    const session = await requireCapability('record.read');
+    const loaded = await loadAssessment(
+      assessmentId,
+      session.membership.organisationId
+    );
+    if (!loaded) throw new Error('No such assessment');
 
-    const rolesHere = rolesOn(session.membership.grants, loaded.assessment.entityId);
+    const rolesHere = rolesOn(
+      session.membership.grants,
+      loaded.assessment.entityId
+    );
 
     await decideApproval({
       approvalId,
       organisationId: session.membership.organisationId,
-      decision: formData.get("decision") as "approved" | "rejected" | "returned",
-      rationale: String(formData.get("rationale") ?? ""),
-      boardReference: String(formData.get("boardReference") ?? ""),
+      decision: formData.get('decision') as
+        | 'approved'
+        | 'rejected'
+        | 'returned',
+      rationale: String(formData.get('rationale') ?? ''),
+      boardReference: String(formData.get('boardReference') ?? ''),
       callerRoles: rolesHere,
-      actor: { actorKind: "user", actorUserId: session.userId, actorLabel: session.email },
+      actor: {
+        actorKind: 'user',
+        actorUserId: session.userId,
+        actorLabel: session.email
+      }
     });
     revalidatePath(`/app/assessments/${assessmentId}`);
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Could not record the decision" };
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Could not record the decision'
+    };
   }
 }

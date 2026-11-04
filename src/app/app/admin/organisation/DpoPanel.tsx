@@ -1,9 +1,10 @@
-"use client";
+'use client';
 
-import type { Dpo } from "@/lib/dpa2018/public-authority";
-import { savedKey } from "@/lib/saved-key";
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { setDpoAction, type AdminResult } from "../actions";
+import type { Dpo } from '@/lib/dpa2018/public-authority';
+import { savedKey } from '@/lib/saved-key';
+import { useRefusableAction } from '@/lib/use-refusable-action';
+
+import { setDpoAction, type AdminResult } from '../actions';
 
 type Position = {
   organisationDpo: Dpo | null;
@@ -18,8 +19,9 @@ type Position = {
 };
 
 const input =
-  "w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand";
-const label = "block text-xs font-medium uppercase tracking-wider text-ink-soft";
+  'w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
+const label =
+  'block text-xs font-medium uppercase tracking-wider text-ink-soft';
 
 /**
  * The data protection officer: one for the organisation, and any entity that
@@ -29,7 +31,7 @@ const label = "block text-xs font-medium uppercase tracking-wider text-ink-soft"
 export function DpoPanel({
   position,
   members,
-  mayManage,
+  mayManage
 }: {
   position: Position;
   members: Array<{ id: string; email: string }>;
@@ -42,31 +44,46 @@ export function DpoPanel({
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">Data protection officer</h2>
         <p className="max-w-prose text-sm text-ink-soft">
-          Required of a public authority (UK GDPR Article 37(1)(a)), of a competent authority (Data Protection Act
-          2018 s.69), and of an organisation whose core activities
-          involve large-scale monitoring or large-scale special category data. Where the person named is a member
-          who may decide it, the &ldquo;Data protection officer&rdquo; approval stage goes to them.
+          Required of a public authority (UK GDPR Article 37(1)(a)), of a
+          competent authority (Data Protection Act 2018 s.69), and of an
+          organisation whose core activities involve large-scale monitoring or
+          large-scale special category data. Where the person named is a member
+          who may decide it, the &ldquo;Data protection officer&rdquo; approval
+          stage goes to them.
         </p>
       </div>
 
       {missing.length > 0 ? (
-        <p role="alert" className="max-w-prose rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900">
-          {missing.map((e) => e.name).join(", ")} {missing.length === 1 ? "is a public or competent authority" : "are public or competent authorities"}{" "}
-          with no data protection officer. UK GDPR Article 37(1)(a) and, for law enforcement processing, Data Protection
-          Act 2018 s.69 require one.
+        <p
+          role="alert"
+          className="max-w-prose rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900"
+        >
+          {missing.map((e) => e.name).join(', ')}{' '}
+          {missing.length === 1
+            ? 'is a public or competent authority'
+            : 'are public or competent authorities'}{' '}
+          with no data protection officer. UK GDPR Article 37(1)(a) and, for law
+          enforcement processing, Data Protection Act 2018 s.69 require one.
         </p>
       ) : null}
 
-      <DpoForm entityId={null} title="For the organisation" dpo={position.organisationDpo} members={members} mayManage={mayManage} />
+      <DpoForm
+        entityId={null}
+        title="For the organisation"
+        dpo={position.organisationDpo}
+        members={members}
+        mayManage={mayManage}
+      />
 
-      {position.entities.length > 1 || position.entities.some((e) => e.ownDpo) ? (
+      {position.entities.length > 1 ||
+      position.entities.some((e) => e.ownDpo) ? (
         <div className="space-y-3">
           <h3 className={label}>Entities with their own</h3>
           {position.entities.map((e) => (
             <DpoForm
               key={e.id}
               entityId={e.id}
-              title={`${e.name}${e.publicAuthority ? " · public authority" : ""}`}
+              title={`${e.name}${e.publicAuthority ? ' · public authority' : ''}`}
               dpo={e.ownDpo}
               fallback={e.ownDpo ? null : e.effectiveDpo}
               members={members}
@@ -85,7 +102,7 @@ function DpoForm({
   dpo,
   fallback,
   members,
-  mayManage,
+  mayManage
 }: {
   entityId: string | null;
   title: string;
@@ -95,7 +112,10 @@ function DpoForm({
   members: Array<{ id: string; email: string }>;
   mayManage: boolean;
 }) {
-  const save = useRefusableAction<AdminResult>(setDpoAction.bind(null, entityId), { resetOnSuccess: false });
+  const save = useRefusableAction<AdminResult>(
+    setDpoAction.bind(null, entityId),
+    { resetOnSuccess: false }
+  );
 
   if (!mayManage) {
     const shown = dpo ?? fallback;
@@ -103,47 +123,90 @@ function DpoForm({
       <div className="rounded border border-line px-4 py-3 text-sm">
         <p className="font-medium">{title}</p>
         <p className="text-xs text-ink-soft">
-          {shown ? `${shown.name} · ${shown.contact}${dpo ? "" : " (the organisation's)"}` : "None recorded"}
+          {shown
+            ? `${shown.name} · ${shown.contact}${dpo ? '' : " (the organisation's)"}`
+            : 'None recorded'}
         </p>
       </div>
     );
   }
 
   return (
-    <details className="rounded border border-line px-4 py-3" open={entityId === null}>
+    <details
+      className="rounded border border-line px-4 py-3"
+      open={entityId === null}
+    >
       <summary className="cursor-pointer text-sm">
-        <span className="font-medium">{title}</span>{" "}
+        <span className="font-medium">{title}</span>{' '}
         <span className="text-xs text-ink-soft">
-          {dpo ? `— ${dpo.name}` : fallback ? `— uses the organisation's (${fallback.name})` : "— none recorded"}
+          {dpo
+            ? `- ${dpo.name}`
+            : fallback
+              ? `- uses the organisation's (${fallback.name})`
+              : '- none recorded'}
         </span>
       </summary>
-      <form key={savedKey(dpo)} {...save.formProps} className="mt-3 grid gap-3 sm:grid-cols-2">
+      <form
+        key={savedKey(dpo)}
+        {...save.formProps}
+        className="mt-3 grid gap-3 sm:grid-cols-2"
+      >
         <label className="block space-y-1">
           <span className={label}>Name</span>
-          <input name="name" defaultValue={dpo?.name ?? ""} className={input} />
+          <input
+            name="name"
+            defaultValue={dpo?.name ?? ''}
+            className={input}
+          />
         </label>
         <label className="block space-y-1">
           <span className={label}>Contact</span>
-          <input name="contact" defaultValue={dpo?.contact ?? ""} placeholder="dpo@example.org" className={input} />
+          <input
+            name="contact"
+            defaultValue={dpo?.contact ?? ''}
+            placeholder="dpo@example.org"
+            className={input}
+          />
         </label>
         <label className="block space-y-1">
           <span className={label}>Member, if they use this platform</span>
-          <select name="userId" defaultValue={dpo?.userId ?? ""} className={input}>
+          <select
+            name="userId"
+            defaultValue={dpo?.userId ?? ''}
+            className={input}
+          >
             <option value="">Not a member</option>
             {members.map((m) => (
-              <option key={m.id} value={m.id}>{m.email}</option>
+              <option
+                key={m.id}
+                value={m.id}
+              >
+                {m.email}
+              </option>
             ))}
           </select>
         </label>
         <label className="block space-y-1">
           <span className={label}>Reports to</span>
-          <input name="reportsTo" defaultValue={dpo?.reportsTo ?? ""} placeholder="The board" className={input} />
+          <input
+            name="reportsTo"
+            defaultValue={dpo?.reportsTo ?? ''}
+            placeholder="The board"
+            className={input}
+          />
         </label>
         <label className="flex items-start gap-2 text-sm sm:col-span-2">
-          <input type="checkbox" name="published" defaultChecked={dpo?.published ?? false} className="mt-1 accent-brand" />
+          <input
+            type="checkbox"
+            name="published"
+            defaultChecked={dpo?.published ?? false}
+            className="mt-1 accent-brand"
+          />
           <span>
-            Contact details are published, for example in the privacy notice{" "}
-            <span className="font-mono text-[11px] text-ink-soft">Article 37(7)</span>
+            Contact details are published, for example in the privacy notice{' '}
+            <span className="font-mono text-[11px] text-ink-soft">
+              Article 37(7)
+            </span>
           </span>
         </label>
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
@@ -152,17 +215,24 @@ function DpoForm({
             disabled={save.pending}
             className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-50"
           >
-            {save.pending ? "Saving…" : "Save"}
+            {save.pending ? 'Saving…' : 'Save'}
           </button>
           {dpo ? (
             <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-              <input type="checkbox" name="clear" className="accent-brand" />
-              {entityId ? "Use the organisation's instead" : "Remove"}
+              <input
+                type="checkbox"
+                name="clear"
+                className="accent-brand"
+              />
+              {entityId ? "Use the organisation's instead" : 'Remove'}
             </label>
           ) : null}
         </div>
         {save.result ? (
-          <p role={save.result.ok ? "status" : "alert"} className={`text-xs sm:col-span-2 ${save.result.ok ? "text-emerald-800" : "text-red-800"}`}>
+          <p
+            role={save.result.ok ? 'status' : 'alert'}
+            className={`text-xs sm:col-span-2 ${save.result.ok ? 'text-emerald-800' : 'text-red-800'}`}
+          >
             {save.result.message}
           </p>
         ) : null}

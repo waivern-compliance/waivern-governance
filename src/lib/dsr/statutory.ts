@@ -12,9 +12,10 @@
  * where there is no corresponding date, moved to the next working day where it
  * falls on a weekend or a bank holiday.
  */
-import { addMonths } from "@/lib/dates";
-import { BANK_HOLIDAYS_ENGLAND_AND_WALES } from "./bank-holidays";
-import { basesFromText, type LawfulBasis } from "@/lib/gdpr/lawful-basis";
+import { addMonths } from '@/lib/dates';
+import { basesFromText, type LawfulBasis } from '@/lib/gdpr/lawful-basis';
+
+import { BANK_HOLIDAYS_ENGLAND_AND_WALES } from './bank-holidays';
 
 /**
  * Which law sets the clock.
@@ -23,7 +24,7 @@ import { basesFromText, type LawfulBasis } from "@/lib/gdpr/lawful-basis";
  * stop while the controller waits for clarification it reasonably needs. The
  * EU GDPR has no such pause, and the two must not be run on the same rules.
  */
-export type Jurisdiction = "uk" | "eu";
+export type Jurisdiction = 'uk' | 'eu';
 
 /**
  * When the DUAA 2025's changes to the time limits came into force: UK GDPR
@@ -32,14 +33,14 @@ export type Jurisdiction = "uk" | "eu";
  * reg 2(h); reg 4 keeps the old rules for a request received before then.
  * (The complaints duty, s.164A, is later: 19 June 2026.)
  */
-export const CLARIFICATION_PAUSE_IN_FORCE = new Date("2026-02-05T00:00:00Z");
+export const CLARIFICATION_PAUSE_IN_FORCE = new Date('2026-02-05T00:00:00Z');
 
 /**
  * When subject access became limited to what a reasonable and proportionate
  * search finds (Article 15(1A)). Section 78 came into force at Royal Assent
  * but is treated as in force from 1 January 2024 (s.78(5)).
  */
-export const PROPORTIONATE_SEARCH_IN_FORCE = new Date("2024-01-01T00:00:00Z");
+export const PROPORTIONATE_SEARCH_IN_FORCE = new Date('2024-01-01T00:00:00Z');
 
 /**
  * Does waiting for clarification stop this request's clock?
@@ -47,88 +48,102 @@ export const PROPORTIONATE_SEARCH_IN_FORCE = new Date("2024-01-01T00:00:00Z");
  * Only under UK law, and only for a request received once Article 12A was in
  * force. One received before then runs on the rules it arrived under.
  */
-export function clarificationStopsClock(jurisdiction: Jurisdiction, receivedAt: Date): boolean {
-  return jurisdiction === "uk" && receivedAt >= CLARIFICATION_PAUSE_IN_FORCE;
+export function clarificationStopsClock(
+  jurisdiction: Jurisdiction,
+  receivedAt: Date
+): boolean {
+  return jurisdiction === 'uk' && receivedAt >= CLARIFICATION_PAUSE_IN_FORCE;
 }
 
 /** Need the search be only reasonable and proportionate (Article 15(1A))? UK only. */
-export function proportionateSearchApplies(jurisdiction: Jurisdiction, receivedAt: Date): boolean {
-  return jurisdiction === "uk" && receivedAt >= PROPORTIONATE_SEARCH_IN_FORCE;
+export function proportionateSearchApplies(
+  jurisdiction: Jurisdiction,
+  receivedAt: Date
+): boolean {
+  return jurisdiction === 'uk' && receivedAt >= PROPORTIONATE_SEARCH_IN_FORCE;
 }
 
 export const JURISDICTION_LABEL: Record<Jurisdiction, string> = {
-  uk: "UK GDPR and the Data Protection Act 2018, as amended by the Data (Use and Access) Act 2025",
-  eu: "EU GDPR",
+  uk: 'UK GDPR and the Data Protection Act 2018, as amended by the Data (Use and Access) Act 2025',
+  eu: 'EU GDPR'
 };
 
 export type Right =
-  | "access"
-  | "rectification"
-  | "erasure"
-  | "restriction"
-  | "portability"
-  | "objection"
-  | "automated_decision"
-  | "withdraw_consent";
+  | 'access'
+  | 'rectification'
+  | 'erasure'
+  | 'restriction'
+  | 'portability'
+  | 'objection'
+  | 'automated_decision'
+  | 'withdraw_consent';
 
 /** The rights a request can invoke, in the order the Regulation sets them out. */
-export const RIGHTS: Record<Right, { label: string; article: string; summary: string }> = {
+export const RIGHTS: Record<
+  Right,
+  { label: string; article: string; summary: string }
+> = {
   access: {
-    label: "Access",
-    article: "Article 15",
-    summary: "A copy of their personal data, and the facts about how it is processed.",
+    label: 'Access',
+    article: 'Article 15',
+    summary:
+      'A copy of their personal data, and the facts about how it is processed.'
   },
   rectification: {
-    label: "Rectification",
-    article: "Article 16",
-    summary: "Inaccurate data corrected, incomplete data completed.",
+    label: 'Rectification',
+    article: 'Article 16',
+    summary: 'Inaccurate data corrected, incomplete data completed.'
   },
   erasure: {
-    label: "Erasure",
-    article: "Article 17",
-    summary: "Their data deleted, unless an Article 17(3) exception applies.",
+    label: 'Erasure',
+    article: 'Article 17',
+    summary: 'Their data deleted, unless an Article 17(3) exception applies.'
   },
   restriction: {
-    label: "Restriction",
-    article: "Article 18",
-    summary: "Processing limited to storage while a question about it is settled.",
+    label: 'Restriction',
+    article: 'Article 18',
+    summary:
+      'Processing limited to storage while a question about it is settled.'
   },
   portability: {
-    label: "Portability",
-    article: "Article 20",
-    summary: "Data they provided, in a machine-readable form, or sent to another controller.",
+    label: 'Portability',
+    article: 'Article 20',
+    summary:
+      'Data they provided, in a machine-readable form, or sent to another controller.'
   },
   objection: {
-    label: "Objection",
-    article: "Article 21",
-    summary: "Processing stopped, absolutely for direct marketing, otherwise unless overriding grounds are shown.",
+    label: 'Objection',
+    article: 'Article 21',
+    summary:
+      'Processing stopped, absolutely for direct marketing, otherwise unless overriding grounds are shown.'
   },
   automated_decision: {
-    label: "Automated decisions",
-    article: "Article 22C",
-    summary: "The safeguards for a significant decision made solely by automated means: information about it, a chance to make representations, human intervention, and a way to contest it.",
+    label: 'Automated decisions',
+    article: 'Article 22C',
+    summary:
+      'The safeguards for a significant decision made solely by automated means: information about it, a chance to make representations, human intervention, and a way to contest it.'
   },
   withdraw_consent: {
-    label: "Withdrawing consent",
-    article: "Article 7(3)",
-    summary: "Processing that relied on consent stopped from now on.",
-  },
+    label: 'Withdrawing consent',
+    article: 'Article 7(3)',
+    summary: 'Processing that relied on consent stopped from now on.'
+  }
 };
 
 export const RIGHT_KEYS = Object.keys(RIGHTS) as Right[];
 
 /** Article 6(1), plus direct marketing, which Article 21 treats on its own terms. */
-export type ProcessingBasis = LawfulBasis | "direct_marketing";
+export type ProcessingBasis = LawfulBasis | 'direct_marketing';
 
 export const PROCESSING_BASIS_LABEL: Record<ProcessingBasis, string> = {
-  consent: "Consent",
-  contract: "Contract",
-  legal_obligation: "Legal obligation",
-  vital_interests: "Vital interests",
-  public_task: "Public task",
-  recognised_legitimate_interests: "Recognised legitimate interests",
-  legitimate_interests: "Legitimate interests",
-  direct_marketing: "Direct marketing",
+  consent: 'Consent',
+  contract: 'Contract',
+  legal_obligation: 'Legal obligation',
+  vital_interests: 'Vital interests',
+  public_task: 'Public task',
+  recognised_legitimate_interests: 'Recognised legitimate interests',
+  legitimate_interests: 'Legitimate interests',
+  direct_marketing: 'Direct marketing'
 };
 
 /**
@@ -148,44 +163,48 @@ export function objectionTest(basis: ProcessingBasis): {
   provision: string;
   words: string;
 } {
-  if (basis === "direct_marketing") {
+  if (basis === 'direct_marketing') {
     return {
       applies: true,
       overridable: false,
-      provision: "Article 21(3)",
+      provision: 'Article 21(3)',
       words:
-        "An objection to direct marketing is absolute. The data must no longer be processed for that purpose, and there are no grounds on which to refuse.",
+        'An objection to direct marketing is absolute. The data must no longer be processed for that purpose, and there are no grounds on which to refuse.'
     };
   }
-  if (basis === "public_task" || basis === "legitimate_interests" || basis === "recognised_legitimate_interests") {
+  if (
+    basis === 'public_task' ||
+    basis === 'legitimate_interests' ||
+    basis === 'recognised_legitimate_interests'
+  ) {
     return {
       applies: true,
       overridable: true,
-      provision: "Article 21(1)",
+      provision: 'Article 21(1)',
       words:
-        "Processing must stop unless you can show compelling legitimate grounds that override the person's interests, rights and freedoms, or need it for legal claims. The burden is yours. Consider restricting the processing under Article 18(1)(d) while you decide.",
+        "Processing must stop unless you can show compelling legitimate grounds that override the person's interests, rights and freedoms, or need it for legal claims. The burden is yours. Consider restricting the processing under Article 18(1)(d) while you decide."
     };
   }
   return {
     applies: false,
     overridable: false,
-    provision: "Article 21(1)",
+    provision: 'Article 21(1)',
     words:
-      basis === "consent"
-        ? "Article 21 does not apply to processing based on consent. Treat this as withdrawal of consent under Article 7(3), which stops the processing from now on."
-        : "Article 21 does not apply to processing on this basis. Consider whether the person is exercising another right, such as erasure or restriction.",
+      basis === 'consent'
+        ? 'Article 21 does not apply to processing based on consent. Treat this as withdrawal of consent under Article 7(3), which stops the processing from now on.'
+        : 'Article 21 does not apply to processing on this basis. Consider whether the person is exercising another right, such as erasure or restriction.'
   };
 }
 
 /** Where an activity rests on several bases, the one an objection most likely concerns. */
 const OBJECTION_ORDER: LawfulBasis[] = [
-  "recognised_legitimate_interests",
-  "legitimate_interests",
-  "public_task",
-  "consent",
-  "contract",
-  "legal_obligation",
-  "vital_interests",
+  'recognised_legitimate_interests',
+  'legitimate_interests',
+  'public_task',
+  'consent',
+  'contract',
+  'legal_obligation',
+  'vital_interests'
 ];
 
 /**
@@ -202,16 +221,20 @@ export function basisSuggestedBy(activity: {
   lawfulBasis: string | null;
   purposes: readonly string[];
 }): ProcessingBasis | null {
-  if (activity.purposes.some((p) => /\bmarketing\b/i.test(p))) return "direct_marketing";
-  const chosen = activity.lawfulBases?.length ? activity.lawfulBases : basesFromText(activity.lawfulBasis);
-  if (chosen?.length) return OBJECTION_ORDER.find((b) => chosen.includes(b)) ?? null;
-  const b = (activity.lawfulBasis ?? "").toLowerCase();
-  if (/legitimate/.test(b)) return "legitimate_interests";
-  if (/public (task|interest)|official authority/.test(b)) return "public_task";
-  if (/consent/.test(b)) return "consent";
-  if (/contract/.test(b)) return "contract";
-  if (/legal obligation/.test(b)) return "legal_obligation";
-  if (/vital/.test(b)) return "vital_interests";
+  if (activity.purposes.some((p) => /\bmarketing\b/i.test(p)))
+    return 'direct_marketing';
+  const chosen = activity.lawfulBases?.length
+    ? activity.lawfulBases
+    : basesFromText(activity.lawfulBasis);
+  if (chosen?.length)
+    return OBJECTION_ORDER.find((b) => chosen.includes(b)) ?? null;
+  const b = (activity.lawfulBasis ?? '').toLowerCase();
+  if (/legitimate/.test(b)) return 'legitimate_interests';
+  if (/public (task|interest)|official authority/.test(b)) return 'public_task';
+  if (/consent/.test(b)) return 'consent';
+  if (/contract/.test(b)) return 'contract';
+  if (/legal obligation/.test(b)) return 'legal_obligation';
+  if (/vital/.test(b)) return 'vital_interests';
   return null;
 }
 
@@ -228,7 +251,7 @@ export function objectionReviewDue(count: number, threshold: number): boolean {
 
 /** Article 18(1)(d), said where an objection is still being weighed. */
 export const RESTRICT_WHILE_WEIGHED =
-  "Article 18(1)(d): while you weigh an objection to processing on public task or legitimate interests, the person may have it restricted — kept, but not otherwise used — until you decide.";
+  'Article 18(1)(d): while you weigh an objection to processing on public task or legitimate interests, the person may have it restricted - kept, but not otherwise used - until you decide.';
 
 /** How many days before the deadline a request counts as due soon. */
 export const DUE_SOON_DAYS = 7;
@@ -240,7 +263,9 @@ function dayOf(d: Date): string {
 }
 
 function startOfDay(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
 }
 
 /** The end of a day, so that a deadline "on 3 October" includes all of it. */
@@ -259,7 +284,9 @@ function endOfDay(d: Date): Date {
 export function isWorkingDay(d: Date, jurisdiction: Jurisdiction): boolean {
   const weekday = d.getUTCDay();
   if (weekday === 0 || weekday === 6) return false;
-  return jurisdiction === "eu" || !BANK_HOLIDAYS_ENGLAND_AND_WALES.has(dayOf(d));
+  return (
+    jurisdiction === 'eu' || !BANK_HOLIDAYS_ENGLAND_AND_WALES.has(dayOf(d))
+  );
 }
 
 function nextWorkingDay(d: Date, jurisdiction: Jurisdiction): Date {
@@ -277,11 +304,17 @@ export type Pause = { from: Date; to: Date | null };
  * A pause started and ended on the same day stops nothing. Each day that began
  * while waiting is a day the controller could not act on, so it is added back.
  */
-export function pausedDays(pauses: readonly Pause[], jurisdiction: Jurisdiction, now = new Date()): number {
-  if (jurisdiction !== "uk") return 0;
+export function pausedDays(
+  pauses: readonly Pause[],
+  jurisdiction: Jurisdiction,
+  now = new Date()
+): number {
+  if (jurisdiction !== 'uk') return 0;
   return pauses.reduce((sum, p) => {
     const to = p.to ?? now;
-    const days = Math.round((startOfDay(to).getTime() - startOfDay(p.from).getTime()) / DAY);
+    const days = Math.round(
+      (startOfDay(to).getTime() - startOfDay(p.from).getTime()) / DAY
+    );
     return sum + Math.max(0, days);
   }, 0);
 }
@@ -301,7 +334,9 @@ export function clockStartsAt(input: {
 }): Date | null {
   if (!input.identityRequestedAt) return input.receivedAt;
   if (!input.identityVerifiedAt) return null;
-  return input.identityVerifiedAt > input.receivedAt ? input.identityVerifiedAt : input.receivedAt;
+  return input.identityVerifiedAt > input.receivedAt
+    ? input.identityVerifiedAt
+    : input.receivedAt;
 }
 
 /**
@@ -322,7 +357,8 @@ export function responseDeadline(input: {
   const months = input.extended ? 3 : 1;
   const base = addMonths(startOfDay(input.startsAt), months);
   const shifted = new Date(
-    base.getTime() + pausedDays(input.pauses ?? [], input.jurisdiction, input.now) * DAY,
+    base.getTime() +
+      pausedDays(input.pauses ?? [], input.jurisdiction, input.now) * DAY
   );
   return endOfDay(nextWorkingDay(shifted, input.jurisdiction));
 }
@@ -344,19 +380,24 @@ export function extensionNoticeDeadline(input: {
 }
 
 export type RequestClock =
-  | { state: "waiting"; words: string }
-  | { state: "paused"; dueAt: Date; words: string }
-  | { state: "running"; daysRemaining: number; dueAt: Date; words: string }
-  | { state: "due_soon"; daysRemaining: number; dueAt: Date; words: string }
-  | { state: "overdue"; daysOver: number; dueAt: Date; words: string }
-  | { state: "met"; dueAt: Date; respondedAt: Date; words: string }
-  | { state: "late"; dueAt: Date; respondedAt: Date; words: string }
-  | { state: "closed"; words: string };
+  | { state: 'waiting'; words: string }
+  | { state: 'paused'; dueAt: Date; words: string }
+  | { state: 'running'; daysRemaining: number; dueAt: Date; words: string }
+  | { state: 'due_soon'; daysRemaining: number; dueAt: Date; words: string }
+  | { state: 'overdue'; daysOver: number; dueAt: Date; words: string }
+  | { state: 'met'; dueAt: Date; respondedAt: Date; words: string }
+  | { state: 'late'; dueAt: Date; respondedAt: Date; words: string }
+  | { state: 'closed'; words: string };
 
 const longDate = (d: Date) =>
-  d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
 
-const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
+const days = (n: number) => (n === 1 ? '1 day' : `${n} days`);
 
 /** How the month stands, said in words a handler can act on. */
 export function requestClock(input: {
@@ -375,73 +416,83 @@ export function requestClock(input: {
   const startsAt = clockStartsAt(input);
 
   if (input.closedWithoutResponse && !input.respondedAt) {
-    return { state: "closed", words: "Closed without a response being owed." };
+    return { state: 'closed', words: 'Closed without a response being owed.' };
   }
   if (!startsAt) {
     return {
-      state: "waiting",
+      state: 'waiting',
       words:
-        "Waiting for proof of identity. The month starts when it arrives. If it never does, record that and close the request.",
+        'Waiting for proof of identity. The month starts when it arrives. If it never does, record that and close the request.'
     };
   }
 
-  const pauses = clarificationStopsClock(input.jurisdiction, input.receivedAt) ? (input.pauses ?? []) : [];
+  const pauses = clarificationStopsClock(input.jurisdiction, input.receivedAt)
+    ? (input.pauses ?? [])
+    : [];
   const dueAt = responseDeadline({
     startsAt,
     jurisdiction: input.jurisdiction,
     extended: input.extended,
     pauses,
-    now,
+    now
   });
 
   if (input.respondedAt) {
     return input.respondedAt <= dueAt
-      ? { state: "met", dueAt, respondedAt: input.respondedAt, words: `Responded on ${longDate(input.respondedAt)}, within the time allowed.` }
-      : {
-          state: "late",
+      ? {
+          state: 'met',
           dueAt,
           respondedAt: input.respondedAt,
-          words: `Responded on ${longDate(input.respondedAt)}, after the deadline of ${longDate(dueAt)}.`,
+          words: `Responded on ${longDate(input.respondedAt)}, within the time allowed.`
+        }
+      : {
+          state: 'late',
+          dueAt,
+          respondedAt: input.respondedAt,
+          words: `Responded on ${longDate(input.respondedAt)}, after the deadline of ${longDate(dueAt)}.`
         };
   }
 
   const open = pauses.some((p) => p.to === null);
   if (open) {
     return {
-      state: "paused",
+      state: 'paused',
       dueAt,
-      words: `Paused while clarification is awaited. If it arrived today the deadline would be ${longDate(dueAt)}, and it moves a day for each day the pause lasts.`,
+      words: `Paused while clarification is awaited. If it arrived today the deadline would be ${longDate(dueAt)}, and it moves a day for each day the pause lasts.`
     };
   }
 
   const remaining = Math.ceil((dueAt.getTime() - now.getTime()) / DAY);
   if (remaining < 0 || dueAt < now) {
-    const over = Math.max(1, Math.floor((now.getTime() - dueAt.getTime()) / DAY) + 1);
+    const over = Math.max(
+      1,
+      Math.floor((now.getTime() - dueAt.getTime()) / DAY) + 1
+    );
     return {
-      state: "overdue",
+      state: 'overdue',
       daysOver: over,
       dueAt,
-      words: `${days(over)} past the deadline of ${longDate(dueAt)}. The response is still owed, and the delay is now something the person can complain about.`,
+      words: `${days(over)} past the deadline of ${longDate(dueAt)}. The response is still owed, and the delay is now something the person can complain about.`
     };
   }
   if (remaining <= DUE_SOON_DAYS) {
     return {
-      state: "due_soon",
+      state: 'due_soon',
       daysRemaining: remaining,
       dueAt,
       words: input.extended
         ? `${days(remaining)} left, to ${longDate(dueAt)}, and the time has already been extended once.`
-        : `${days(remaining)} left, to ${longDate(dueAt)}. Respond, or extend by up to two months and tell the person why before then.`,
+        : `${days(remaining)} left, to ${longDate(dueAt)}. Respond, or extend by up to two months and tell the person why before then.`
     };
   }
   return {
-    state: "running",
+    state: 'running',
     daysRemaining: remaining,
     dueAt,
-    words: `Due by ${longDate(dueAt)}${input.extended ? ", as extended" : ""}.`,
+    words: `Due by ${longDate(dueAt)}${input.extended ? ', as extended' : ''}.`
   };
 }
 
 /** What a refusal has to say, whatever the reason for it. */
 export const REFUSAL_MUST_SAY =
-  "Article 12(4): the reasons, and that the person may complain to the supervisory authority and seek a judicial remedy.";
+  'Article 12(4): the reasons, and that the person may complain to the supervisory authority and seek a judicial remedy.';

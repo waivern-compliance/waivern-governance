@@ -6,7 +6,11 @@
  * are also the counts a return under DPA 2018 s.164B would ask for, if
  * regulations under it are ever made.
  */
-import { COMPLAINT_SUBJECTS, COMPLAINT_SUBJECT_KEYS, type ComplaintSubject } from "./statutory";
+import {
+  COMPLAINT_SUBJECT_KEYS,
+  COMPLAINT_SUBJECTS,
+  type ComplaintSubject
+} from './statutory';
 
 const DAY = 86_400_000;
 
@@ -48,29 +52,46 @@ export type ComplaintCounts = {
     medianDaysToAcknowledge: number | null;
     medianDaysToOutcome: number | null;
   };
-  outcomes: { upheld: number; partlyUpheld: number; notUpheld: number; passedToController: number };
-  bySubject: Array<ComplaintTally & { subject: ComplaintSubject; label: string; upheld: number }>;
+  outcomes: {
+    upheld: number;
+    partlyUpheld: number;
+    notUpheld: number;
+    passedToController: number;
+  };
+  bySubject: Array<
+    ComplaintTally & {
+      subject: ComplaintSubject;
+      label: string;
+      upheld: number;
+    }
+  >;
   byMonth: Array<ComplaintTally & { period: string }>;
 };
 
-const within = (d: Date | null, p: Period) => Boolean(d && d >= p.start && d < p.end);
+const within = (d: Date | null, p: Period) =>
+  Boolean(d && d >= p.start && d < p.end);
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+    : sorted[mid];
 }
 
-const daysBetween = (from: Date, to: Date) => Math.max(0, Math.round((to.getTime() - from.getTime()) / DAY));
+const daysBetween = (from: Date, to: Date) =>
+  Math.max(0, Math.round((to.getTime() - from.getTime()) / DAY));
 
 function tally(rows: readonly ComplaintInput[]): ComplaintTally {
   return {
     received: rows.length,
     acknowledged: rows.filter((r) => r.acknowledgedAt).length,
-    acknowledgedInTime: rows.filter((r) => r.acknowledgementState === "met").length,
-    acknowledgedLate: rows.filter((r) => r.acknowledgementState === "late").length,
-    outcomesSent: rows.filter((r) => r.outcomeAt).length,
+    acknowledgedInTime: rows.filter((r) => r.acknowledgementState === 'met')
+      .length,
+    acknowledgedLate: rows.filter((r) => r.acknowledgementState === 'late')
+      .length,
+    outcomesSent: rows.filter((r) => r.outcomeAt).length
   };
 }
 
@@ -81,24 +102,43 @@ function tally(rows: readonly ComplaintInput[]): ComplaintTally {
  * acknowledged (in time or late) when the acknowledgement went, outcomes when
  * the outcome was sent.
  */
-export function complaintCounts(rows: readonly ComplaintInput[], periods: readonly Period[]): ComplaintCounts {
+export function complaintCounts(
+  rows: readonly ComplaintInput[],
+  periods: readonly Period[]
+): ComplaintCounts {
   const outcome = (o: string) => rows.filter((r) => r.outcome === o).length;
   return {
     totals: {
       ...tally(rows),
-      outcomeWithinTarget: rows.filter((r) => r.outcomeAt && r.outcomeState === "met").length,
-      outcomeAfterTarget: rows.filter((r) => r.outcomeAt && r.outcomeState === "late").length,
-      withdrawn: rows.filter((r) => r.status === "withdrawn").length,
-      open: rows.filter((r) => !r.outcomeAt && r.status !== "withdrawn" && r.status !== "closed").length,
-      acknowledgementOverdue: rows.filter((r) => r.acknowledgementState === "overdue").length,
-      medianDaysToAcknowledge: median(rows.flatMap((r) => (r.acknowledgedAt ? [daysBetween(r.receivedAt, r.acknowledgedAt)] : []))),
-      medianDaysToOutcome: median(rows.flatMap((r) => (r.outcomeAt ? [daysBetween(r.receivedAt, r.outcomeAt)] : []))),
+      outcomeWithinTarget: rows.filter(
+        (r) => r.outcomeAt && r.outcomeState === 'met'
+      ).length,
+      outcomeAfterTarget: rows.filter(
+        (r) => r.outcomeAt && r.outcomeState === 'late'
+      ).length,
+      withdrawn: rows.filter((r) => r.status === 'withdrawn').length,
+      open: rows.filter(
+        (r) => !r.outcomeAt && r.status !== 'withdrawn' && r.status !== 'closed'
+      ).length,
+      acknowledgementOverdue: rows.filter(
+        (r) => r.acknowledgementState === 'overdue'
+      ).length,
+      medianDaysToAcknowledge: median(
+        rows.flatMap((r) =>
+          r.acknowledgedAt ? [daysBetween(r.receivedAt, r.acknowledgedAt)] : []
+        )
+      ),
+      medianDaysToOutcome: median(
+        rows.flatMap((r) =>
+          r.outcomeAt ? [daysBetween(r.receivedAt, r.outcomeAt)] : []
+        )
+      )
     },
     outcomes: {
-      upheld: outcome("upheld"),
-      partlyUpheld: outcome("partly_upheld"),
-      notUpheld: outcome("not_upheld"),
-      passedToController: outcome("passed_to_controller"),
+      upheld: outcome('upheld'),
+      partlyUpheld: outcome('partly_upheld'),
+      notUpheld: outcome('not_upheld'),
+      passedToController: outcome('passed_to_controller')
     },
     bySubject: COMPLAINT_SUBJECT_KEYS.map((subject) => {
       const these = rows.filter((r) => r.subject === subject);
@@ -106,7 +146,9 @@ export function complaintCounts(rows: readonly ComplaintInput[], periods: readon
         subject,
         label: COMPLAINT_SUBJECTS[subject],
         ...tally(these),
-        upheld: these.filter((r) => r.outcome === "upheld" || r.outcome === "partly_upheld").length,
+        upheld: these.filter(
+          (r) => r.outcome === 'upheld' || r.outcome === 'partly_upheld'
+        ).length
       };
     }).filter((s) => s.received > 0),
     byMonth: periods.map((p) => {
@@ -115,10 +157,14 @@ export function complaintCounts(rows: readonly ComplaintInput[], periods: readon
         period: p.key,
         received: rows.filter((r) => within(r.receivedAt, p)).length,
         acknowledged: acknowledgedIn.length,
-        acknowledgedInTime: acknowledgedIn.filter((r) => r.acknowledgementState === "met").length,
-        acknowledgedLate: acknowledgedIn.filter((r) => r.acknowledgementState === "late").length,
-        outcomesSent: rows.filter((r) => within(r.outcomeAt, p)).length,
+        acknowledgedInTime: acknowledgedIn.filter(
+          (r) => r.acknowledgementState === 'met'
+        ).length,
+        acknowledgedLate: acknowledgedIn.filter(
+          (r) => r.acknowledgementState === 'late'
+        ).length,
+        outcomesSent: rows.filter((r) => within(r.outcomeAt, p)).length
       };
-    }),
+    })
   };
 }

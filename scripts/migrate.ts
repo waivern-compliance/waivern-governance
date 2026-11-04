@@ -1,7 +1,8 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
-import { whyUnusable } from "@/lib/db-url";
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
+
+import { whyUnusable } from '@/lib/db-url';
 
 /**
  * Apply migrations from inside Railway, as a pre-deploy step.
@@ -19,9 +20,9 @@ import { whyUnusable } from "@/lib/db-url";
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   console.error(
-    "DATABASE_URL is not set. On Railway, set it to a reference — " +
-      "DATABASE_URL=${{Postgres.DATABASE_URL}} — so it follows the database " +
-      "rather than a string somebody pasted.",
+    'DATABASE_URL is not set. On Railway, set it to a reference - ' +
+      'DATABASE_URL=${{Postgres.DATABASE_URL}} - so it follows the database ' +
+      'rather than a string somebody pasted.'
   );
   process.exit(1);
 }
@@ -40,7 +41,7 @@ const client = postgres(connectionString, { max: 1, prepare: false });
 
 async function main() {
   const started = Date.now();
-  await migrate(drizzle(client), { migrationsFolder: "drizzle" });
+  await migrate(drizzle(client), { migrationsFolder: 'drizzle' });
   console.log(`Migrations applied in ${Date.now() - started}ms.`);
   await client.end();
 }
@@ -60,11 +61,11 @@ function explain(error: unknown): string {
     lines.push(code ? `${current.message} (${code})` : current.message);
     current = (current as { cause?: unknown }).cause;
   }
-  return lines.join("\n  caused by: ") || String(error);
+  return lines.join('\n  caused by: ') || String(error);
 }
 
 main().catch(async (error) => {
-  console.error("Migration failed, so the deploy should not proceed.");
+  console.error('Migration failed, so the deploy should not proceed.');
   console.error(explain(error));
   await client.end().catch(() => {});
   process.exit(1);

@@ -1,27 +1,28 @@
-import { NextResponse } from "next/server";
-import { PRODUCT_NAME } from "@/lib/product";
-import { BOM, exportFilename, toCsv } from "@/lib/csv";
-import { can } from "@/lib/rbac";
-import { getActiveSession, visibleEntityIds } from "@/lib/session";
+import { NextResponse } from 'next/server';
+
+import { BOM, exportFilename, toCsv } from '@/lib/csv';
+import { PRODUCT_NAME } from '@/lib/product';
+import { can } from '@/lib/rbac';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
   DATASET_LABEL,
   exportAiRegister,
   exportAiRiskLog,
   exportAssessments,
   exportAudit,
+  exportBreaches,
   exportCountries,
+  exportRequests,
   exportRisks,
   exportRopa,
   exportThirdParties,
   exportTrends,
-  exportBreaches,
-  exportRequests,
   recordExport,
   verificationManifest,
-  type Dataset,
-} from "@/services/exports";
+  type Dataset
+} from '@/services/exports';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 /**
@@ -35,42 +36,48 @@ export const maxDuration = 120;
  */
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ dataset: string }> },
+  { params }: { params: Promise<{ dataset: string }> }
 ) {
   const { dataset } = await params;
   const active = await getActiveSession();
-  if (!active) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!active)
+    return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
 
   if (!(dataset in DATASET_LABEL)) {
-    return NextResponse.json({ error: "No such export" }, { status: 404 });
+    return NextResponse.json({ error: 'No such export' }, { status: 404 });
   }
   const key = dataset as Dataset;
 
   // Requests are the requesters' own personal data, held by the people who
   // handle them; everything else follows record access.
-  const needed = key === "audit" ? "audit.export" : key === "requests" ? "dsr.handle" : "record.read";
+  const needed =
+    key === 'audit'
+      ? 'audit.export'
+      : key === 'requests'
+        ? 'dsr.handle'
+        : 'record.read';
   if (!can(active.membership.grants, needed)) {
     return NextResponse.json(
       {
-        error: `Exporting the ${DATASET_LABEL[key].toLowerCase()} is not part of your access`,
+        error: `Exporting the ${DATASET_LABEL[key].toLowerCase()} is not part of your access`
       },
-      { status: 403 },
+      { status: 403 }
     );
   }
 
   const org = active.membership.organisationId;
   const entityIds = visibleEntityIds(active, needed);
   const actor = {
-    actorKind: "user" as const,
+    actorKind: 'user' as const,
     actorUserId: active.userId,
-    actorLabel: active.email,
+    actorLabel: active.email
   };
 
   let body: string;
   let rows: number;
   let complete: boolean | undefined;
 
-  if (key === "audit") {
+  if (key === 'audit') {
     const result = await exportAudit(org, entityIds);
     rows = result.rows.length;
     complete = result.complete;
@@ -78,54 +85,60 @@ export async function GET(
     // check without asking us is a claim, not evidence.
     const header = result.complete
       ? verificationManifest(active.membership.organisationName, rows)
-      : `${PRODUCT_NAME} — audit log extract\n\n${result.caveat}`;
+      : `${PRODUCT_NAME} - audit log extract\n\n${result.caveat}`;
     // The mark leads the file, ahead of the commentary — it only works at byte
     // zero, and anywhere else it silently becomes part of the first column name.
     body =
       BOM +
       header
-        .split("\n")
+        .split('\n')
         .map((line) => `# ${line}`)
-        .join("\n") +
-      "\n\n" +
+        .join('\n') +
+      '\n\n' +
       toCsv(result.columns, result.rows, false);
   } else {
     const result =
-      key === "risks"
+      key === 'risks'
         ? await exportRisks(org, entityIds)
-        : key === "assessments"
+        : key === 'assessments'
           ? await exportAssessments(org, entityIds)
-          : key === "ai-register"
+          : key === 'ai-register'
             ? await exportAiRegister(org, entityIds)
-            : key === "ai-risks"
-            ? await exportAiRiskLog(org, entityIds)
-            : key === "ropa"
-              ? await exportRopa(org, entityIds)
-              : key === "third-parties"
-                ? await exportThirdParties(org)
-                : key === "trends"
-                  ? await exportTrends(org, entityIds)
-                  : key === "breaches"
-                    ? await exportBreaches(org, entityIds)
-                    : key === "requests"
-                      ? await exportRequests(org, entityIds)
-                      : await exportCountries(org);
+            : key === 'ai-risks'
+              ? await exportAiRiskLog(org, entityIds)
+              : key === 'ropa'
+                ? await exportRopa(org, entityIds)
+                : key === 'third-parties'
+                  ? await exportThirdParties(org)
+                  : key === 'trends'
+                    ? await exportTrends(org, entityIds)
+                    : key === 'breaches'
+                      ? await exportBreaches(org, entityIds)
+                      : key === 'requests'
+                        ? await exportRequests(org, entityIds)
+                        : await exportCountries(org);
     rows = result.rows.length;
     body = toCsv(result.columns, result.rows);
   }
 
-  await recordExport({ organisationId: org, dataset: key, rows, complete, actor });
+  await recordExport({
+    organisationId: org,
+    dataset: key,
+    rows,
+    complete,
+    actor
+  });
 
   return new NextResponse(body, {
     status: 200,
     headers: {
-      "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="${exportFilename(
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="${exportFilename(
         key,
         active.membership.organisationName,
-        new Date(),
+        new Date()
       )}"`,
-      "cache-control": "no-store",
-    },
+      'cache-control': 'no-store'
+    }
   });
 }

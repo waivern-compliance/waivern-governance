@@ -1,12 +1,21 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { notFound } from "next/navigation";
-import { auth } from "@/auth";
-import { alertPlatformAdmins, describeTestOutcome, testEmail } from "@/lib/email/platform-alerts";
-import { log } from "@/lib/log";
-import { isPlatformAdmin, platformAdmins } from "@/lib/platform";
-import { RequestRefused, approveRequest, declineRequest } from "@/services/organisation-requests";
+import { revalidatePath } from 'next/cache';
+import { notFound } from 'next/navigation';
+
+import { auth } from '@/auth';
+import {
+  alertPlatformAdmins,
+  describeTestOutcome,
+  testEmail
+} from '@/lib/email/platform-alerts';
+import { log } from '@/lib/log';
+import { isPlatformAdmin, platformAdmins } from '@/lib/platform';
+import {
+  approveRequest,
+  declineRequest,
+  RequestRefused
+} from '@/services/organisation-requests';
 
 export type DecisionResult = { ok: boolean; message: string } | null;
 
@@ -21,26 +30,41 @@ async function operator(): Promise<string> {
 async function decide(work: () => Promise<string>): Promise<DecisionResult> {
   try {
     const message = await work();
-    revalidatePath("/platform");
+    revalidatePath('/platform');
     return { ok: true, message };
   } catch (error) {
-    if (error instanceof RequestRefused) return { ok: false, message: error.message };
+    if (error instanceof RequestRefused)
+      return { ok: false, message: error.message };
     throw error;
   }
 }
 
-export async function approveAction(requestId: string, _prev: DecisionResult): Promise<DecisionResult> {
+export async function approveAction(
+  requestId: string,
+  _prev: DecisionResult
+): Promise<DecisionResult> {
   const email = await operator();
   return decide(async () => {
-    const { organisation } = await approveRequest({ requestId, decidedByEmail: email });
+    const { organisation } = await approveRequest({
+      requestId,
+      decidedByEmail: email
+    });
     return `${organisation.name} is set up. Its owner can sign in now.`;
   });
 }
 
-export async function declineAction(requestId: string, _prev: DecisionResult, formData: FormData): Promise<DecisionResult> {
+export async function declineAction(
+  requestId: string,
+  _prev: DecisionResult,
+  formData: FormData
+): Promise<DecisionResult> {
   const email = await operator();
   return decide(async () => {
-    const declined = await declineRequest({ requestId, decidedByEmail: email, note: String(formData.get("note") ?? "") });
+    const declined = await declineRequest({
+      requestId,
+      decidedByEmail: email,
+      note: String(formData.get('note') ?? '')
+    });
     return `Declined ${declined.organisationName}.`;
   });
 }
@@ -53,6 +77,9 @@ export async function declineAction(requestId: string, _prev: DecisionResult, fo
 export async function sendTestEmailAction(): Promise<DecisionResult> {
   const email = await operator();
   const outcome = await alertPlatformAdmins(testEmail(email));
-  log("info", "email.test", { sent: outcome.sent, reason: outcome.sent ? null : outcome.reason });
+  log('info', 'email.test', {
+    sent: outcome.sent,
+    reason: outcome.sent ? null : outcome.reason
+  });
   return describeTestOutcome(outcome, platformAdmins().length);
 }

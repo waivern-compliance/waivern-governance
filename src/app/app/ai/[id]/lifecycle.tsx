@@ -1,8 +1,14 @@
-"use client";
+'use client';
 
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { useState } from "react";
-import { changeStageAction, recordChangeAction, type LifecycleResult } from "./lifecycle-actions";
+import { useState } from 'react';
+
+import { useRefusableAction } from '@/lib/use-refusable-action';
+
+import {
+  changeStageAction,
+  recordChangeAction,
+  type LifecycleResult
+} from './lifecycle-actions';
 
 function Outcome({ result }: { result: LifecycleResult }) {
   if (!result) return null;
@@ -11,8 +17,8 @@ function Outcome({ result }: { result: LifecycleResult }) {
       role="status"
       className={`rounded border px-3 py-2 text-sm ${
         result.ok
-          ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-          : "border-amber-700 bg-amber-50 text-amber-900"
+          ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+          : 'border-amber-700 bg-amber-50 text-amber-900'
       }`}
     >
       {result.message}
@@ -20,8 +26,8 @@ function Outcome({ result }: { result: LifecycleResult }) {
   );
 }
 
-const field = "w-full rounded border border-line bg-ground px-3 py-2 text-sm";
-const label = "text-xs font-medium uppercase tracking-wider text-ink-soft";
+const field = 'w-full rounded border border-line bg-ground px-3 py-2 text-sm';
+const label = 'text-xs font-medium uppercase tracking-wider text-ink-soft';
 
 /**
  * Move the system to another stage.
@@ -35,7 +41,7 @@ export function StageForm({
   current,
   stages,
   unmetByStage,
-  mayWaive,
+  mayWaive
 }: {
   useCaseId: string;
   current: string;
@@ -43,26 +49,48 @@ export function StageForm({
   unmetByStage: Record<string, string[]>;
   mayWaive: boolean;
 }) {
-  const { result, pending, formProps } = useRefusableAction<LifecycleResult>(changeStageAction.bind(null, useCaseId));
-  const [to, setTo] = useState(stages.find((s) => s.value !== current)?.value ?? current);
+  const { result, pending, formProps } = useRefusableAction<LifecycleResult>(
+    changeStageAction.bind(null, useCaseId)
+  );
+  const [to, setTo] = useState(
+    stages.find((s) => s.value !== current)?.value ?? current
+  );
   const unmet = unmetByStage[to] ?? [];
 
   return (
-    <form {...formProps} className="space-y-3 rounded border border-line bg-surface p-4">
+    <form
+      {...formProps}
+      className="space-y-3 rounded border border-line bg-surface p-4"
+    >
       <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
         <label className="block space-y-1">
           <span className={label}>Move to</span>
-          <select name="to" value={to} onChange={(e) => setTo(e.target.value)} className={field}>
+          <select
+            name="to"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={field}
+          >
             {stages
               .filter((s) => s.value !== current)
               .map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
+                <option
+                  key={s.value}
+                  value={s.value}
+                >
+                  {s.label}
+                </option>
               ))}
           </select>
         </label>
         <label className="block space-y-1">
           <span className={label}>Why</span>
-          <input name="summary" required className={field} placeholder="Beta passed; rolling out to all regions" />
+          <input
+            name="summary"
+            required
+            className={field}
+            placeholder="Beta passed; rolling out to all regions"
+          />
         </label>
       </div>
 
@@ -89,7 +117,10 @@ export function StageForm({
               </span>
             </label>
           ) : (
-            <p className="text-xs">Somebody who decides approvals can let it go ahead with a recorded reason.</p>
+            <p className="text-xs">
+              Somebody who decides approvals can let it go ahead with a recorded
+              reason.
+            </p>
           )}
         </div>
       ) : null}
@@ -100,7 +131,7 @@ export function StageForm({
         disabled={pending}
         className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-60"
       >
-        {pending ? "Moving…" : "Move"}
+        {pending ? 'Moving…' : 'Move'}
       </button>
     </form>
   );
@@ -108,15 +139,25 @@ export function StageForm({
 
 /** Record a change to the model, its data or its use. */
 export function ChangeForm({ useCaseId }: { useCaseId: string }) {
-  const { result, pending, formProps } = useRefusableAction<LifecycleResult>(recordChangeAction.bind(null, useCaseId));
-  const [kind, setKind] = useState("model");
+  const { result, pending, formProps } = useRefusableAction<LifecycleResult>(
+    recordChangeAction.bind(null, useCaseId)
+  );
+  const [kind, setKind] = useState('model');
 
   return (
-    <form {...formProps} className="space-y-3 border-t border-line p-4">
+    <form
+      {...formProps}
+      className="space-y-3 border-t border-line p-4"
+    >
       <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
         <label className="block space-y-1">
           <span className={label}>What changed</span>
-          <select name="kind" value={kind} onChange={(e) => setKind(e.target.value)} className={field}>
+          <select
+            name="kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            className={field}
+          >
             <option value="model">The model</option>
             <option value="data">Its data</option>
             <option value="scope">How or where it is used</option>
@@ -124,32 +165,42 @@ export function ChangeForm({ useCaseId }: { useCaseId: string }) {
         </label>
         <label className="block space-y-1">
           <span className={label}>The change</span>
-          <input name="summary" required className={field} placeholder="Upgraded from v3 to v4 of the provider's model" />
+          <input
+            name="summary"
+            required
+            className={field}
+            placeholder="Upgraded from v3 to v4 of the provider's model"
+          />
         </label>
       </div>
       <label className="block space-y-1">
-        <span className={label}>How it was tested and validated{kind === "model" ? "" : " (if it was)"}</span>
+        <span className={label}>
+          How it was tested and validated
+          {kind === 'model' ? '' : ' (if it was)'}
+        </span>
         <textarea
           name="validation"
           rows={2}
-          required={kind === "model"}
+          required={kind === 'model'}
           className={field}
           placeholder="Accuracy 0.94 against the held-out set (threshold 0.92); fairness checks re-run"
         />
       </label>
       <label className="block space-y-1">
-        <span className={label}>How it would be rolled back{kind === "model" ? "" : " (if it can be)"}</span>
+        <span className={label}>
+          How it would be rolled back{kind === 'model' ? '' : ' (if it can be)'}
+        </span>
         <textarea
           name="rollback"
           rows={2}
-          required={kind === "model"}
+          required={kind === 'model'}
           className={field}
           placeholder="Previous model version pinned in configuration; revert takes one deploy"
         />
       </label>
       <p className="text-xs text-ink-soft">
-        Recording a change brings the system&rsquo;s review forward to now, and it
-        shows as changed since assessed until it is assessed again.
+        Recording a change brings the system&rsquo;s review forward to now, and
+        it shows as changed since assessed until it is assessed again.
       </p>
       <Outcome result={result} />
       <button
@@ -157,7 +208,7 @@ export function ChangeForm({ useCaseId }: { useCaseId: string }) {
         disabled={pending}
         className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-60"
       >
-        {pending ? "Recording…" : "Record the change"}
+        {pending ? 'Recording…' : 'Record the change'}
       </button>
     </form>
   );

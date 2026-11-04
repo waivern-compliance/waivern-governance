@@ -1,17 +1,19 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   entities,
   memberships,
   organisations,
   roleAssignments,
-  users,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import type { AppRole } from "@/lib/rbac";
-import type { Persona } from "@/lib/persona";
-import type { Actor } from "./templates";
-import { assertEntityIn } from "./tenancy-guards";
+  users
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import type { Persona } from '@/lib/persona';
+import type { AppRole } from '@/lib/rbac';
+
+import type { Actor } from './templates';
+import { assertEntityIn } from './tenancy-guards';
 
 /**
  * Who may use this, and as what.
@@ -25,8 +27,8 @@ import { assertEntityIn } from "./tenancy-guards";
 
 export class LastOwnerRemains extends Error {
   constructor() {
-    super("An organisation must keep at least one owner");
-    this.name = "LastOwnerRemains";
+    super('An organisation must keep at least one owner');
+    this.name = 'LastOwnerRemains';
   }
 }
 
@@ -41,13 +43,15 @@ export type MemberRow = {
   roles: Array<{
     id: string;
     role: AppRole;
-    scope: "organisation" | "entity";
+    scope: 'organisation' | 'entity';
     entityId: string | null;
     entityName: string | null;
   }>;
 };
 
-export async function listMembers(organisationId: string): Promise<MemberRow[]> {
+export async function listMembers(
+  organisationId: string
+): Promise<MemberRow[]> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({ membership: memberships, user: users })
@@ -61,17 +65,22 @@ export async function listMembers(organisationId: string): Promise<MemberRow[]> 
       .select({ grant: roleAssignments, entityName: entities.name })
       .from(roleAssignments)
       .leftJoin(entities, eq(entities.id, roleAssignments.entityId))
-      .where(inArray(roleAssignments.membershipId, rows.map((r) => r.membership.id)));
+      .where(
+        inArray(
+          roleAssignments.membershipId,
+          rows.map((r) => r.membership.id)
+        )
+      );
 
-    const byMembership = new Map<string, MemberRow["roles"]>();
+    const byMembership = new Map<string, MemberRow['roles']>();
     for (const { grant, entityName } of grants) {
       const list = byMembership.get(grant.membershipId) ?? [];
       list.push({
         id: grant.id,
         role: grant.role as AppRole,
-        scope: grant.scope as "organisation" | "entity",
+        scope: grant.scope as 'organisation' | 'entity',
         entityId: grant.entityId,
-        entityName,
+        entityName
       });
       byMembership.set(grant.membershipId, list);
     }
@@ -84,7 +93,7 @@ export async function listMembers(organisationId: string): Promise<MemberRow[]> 
       persona: membership.persona as Persona | null,
       isActive: membership.isActive,
       lastSeenAt: user.lastSeenAt,
-      roles: byMembership.get(membership.id) ?? [],
+      roles: byMembership.get(membership.id) ?? []
     }));
   });
 }
@@ -99,7 +108,7 @@ export async function listMembers(organisationId: string): Promise<MemberRow[]> 
  */
 async function ownersBesides(
   organisationId: string,
-  exceptMembershipId: string,
+  exceptMembershipId: string
 ): Promise<number> {
   const owners = await db
     .select({ membershipId: roleAssignments.membershipId })
@@ -109,8 +118,8 @@ async function ownersBesides(
       and(
         eq(memberships.organisationId, organisationId),
         eq(memberships.isActive, true),
-        eq(roleAssignments.role, "owner"),
-      ),
+        eq(roleAssignments.role, 'owner')
+      )
     );
   return owners.filter((o) => o.membershipId !== exceptMembershipId).length;
 }
@@ -126,7 +135,8 @@ export async function inviteMember(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const email = input.email.toLowerCase().trim();
-    if (input.entityId) await assertEntityIn(input.organisationId, input.entityId);
+    if (input.entityId)
+      await assertEntityIn(input.organisationId, input.entityId);
 
     return db.transaction(async (tx) => {
       // People are shared across organisations, but each organisation sees
@@ -134,13 +144,15 @@ export async function inviteMember(input: {
       // one question an invitation must ask across that line, so a database
       // function answers it with the id alone — nothing else about them.
       const [found] = (await tx.execute(
-        sql`select app_user_id_for_email(${email}) as id`,
+        sql`select app_user_id_for_email(${email}) as id`
       )) as unknown as Array<{ id: string | null }>;
       const userId = found?.id ?? crypto.randomUUID();
       if (!found?.id) {
         // No `returning`: until the membership below exists, this organisation
         // cannot see the person it has just created.
-        await tx.insert(users).values({ id: userId, email, name: input.name ?? null });
+        await tx
+          .insert(users)
+          .values({ id: userId, email, name: input.name ?? null });
       }
       const user = { id: userId };
 
@@ -150,8 +162,8 @@ export async function inviteMember(input: {
         .where(
           and(
             eq(memberships.organisationId, input.organisationId),
-            eq(memberships.userId, user.id),
-          ),
+            eq(memberships.userId, user.id)
+          )
         );
 
       const membership =
@@ -162,7 +174,7 @@ export async function inviteMember(input: {
             .values({
               organisationId: input.organisationId,
               userId: user.id,
-              persona: input.persona ?? null,
+              persona: input.persona ?? null
             })
             .returning()
         )[0];
@@ -175,14 +187,20 @@ export async function inviteMember(input: {
       // read a persona, which is the one thing it must never do.
       await tx
         .update(memberships)
-        .set({ isActive: true, ...(input.persona ? { persona: input.persona } : {}) })
+        .set({
+          isActive: true,
+          ...(input.persona ? { persona: input.persona } : {})
+        })
         .where(eq(memberships.id, membership.id));
 
       // Never overwrite a name they already have: theirs is likelier to be right
       // than one typed into an admin form. Visible to this organisation now that
       // they are a member of it.
       if (input.name) {
-        await tx.update(users).set({ name: input.name }).where(and(eq(users.id, user.id), isNull(users.name)));
+        await tx
+          .update(users)
+          .set({ name: input.name })
+          .where(and(eq(users.id, user.id), isNull(users.name)));
       }
 
       const [granted] = await tx
@@ -190,8 +208,8 @@ export async function inviteMember(input: {
         .values({
           membershipId: membership.id,
           role: input.role,
-          scope: input.entityId ? "entity" : "organisation",
-          entityId: input.entityId ?? null,
+          scope: input.entityId ? 'entity' : 'organisation',
+          entityId: input.entityId ?? null
         })
         .onConflictDoNothing()
         .returning();
@@ -200,10 +218,14 @@ export async function inviteMember(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId ?? undefined,
-        action: granted ? "role_assignment.granted" : "membership.confirmed",
-        subjectType: granted ? "role_assignment" : "membership",
+        action: granted ? 'role_assignment.granted' : 'membership.confirmed',
+        subjectType: granted ? 'role_assignment' : 'membership',
         subjectId: granted?.id ?? membership.id,
-        after: { email, role: input.role, scope: input.entityId ? "entity" : "organisation" },
+        after: {
+          email,
+          role: input.role,
+          scope: input.entityId ? 'entity' : 'organisation'
+        }
       });
 
       return { membershipId: membership.id, granted: Boolean(granted) };
@@ -219,33 +241,49 @@ export async function revokeRole(input: {
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
       const [row] = await tx
-        .select({ grant: roleAssignments, membership: memberships, email: users.email })
+        .select({
+          grant: roleAssignments,
+          membership: memberships,
+          email: users.email
+        })
         .from(roleAssignments)
-        .innerJoin(memberships, eq(memberships.id, roleAssignments.membershipId))
+        .innerJoin(
+          memberships,
+          eq(memberships.id, roleAssignments.membershipId)
+        )
         .innerJoin(users, eq(users.id, memberships.userId))
         .where(
           and(
             eq(roleAssignments.id, input.roleAssignmentId),
-            eq(memberships.organisationId, input.organisationId),
-          ),
+            eq(memberships.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such role assignment");
+      if (!row) throw new Error('No such role assignment');
 
-      if (row.grant.role === "owner") {
-        const remaining = await ownersBesides(input.organisationId, row.membership.id);
+      if (row.grant.role === 'owner') {
+        const remaining = await ownersBesides(
+          input.organisationId,
+          row.membership.id
+        );
         if (remaining === 0) throw new LastOwnerRemains();
       }
 
-      await tx.delete(roleAssignments).where(eq(roleAssignments.id, input.roleAssignmentId));
+      await tx
+        .delete(roleAssignments)
+        .where(eq(roleAssignments.id, input.roleAssignmentId));
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: row.grant.entityId ?? undefined,
-        action: "role_assignment.revoked",
-        subjectType: "role_assignment",
+        action: 'role_assignment.revoked',
+        subjectType: 'role_assignment',
         subjectId: input.roleAssignmentId,
-        before: { email: row.email, role: row.grant.role, scope: row.grant.scope },
+        before: {
+          email: row.email,
+          role: row.grant.role,
+          scope: row.grant.scope
+        }
       });
     });
   });
@@ -266,10 +304,10 @@ export async function setMembershipActive(input: {
         .where(
           and(
             eq(memberships.id, input.membershipId),
-            eq(memberships.organisationId, input.organisationId),
-          ),
+            eq(memberships.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such membership");
+      if (!row) throw new Error('No such membership');
 
       if (!input.isActive) {
         const [ownsIt] = await tx
@@ -278,11 +316,14 @@ export async function setMembershipActive(input: {
           .where(
             and(
               eq(roleAssignments.membershipId, input.membershipId),
-              eq(roleAssignments.role, "owner"),
-            ),
+              eq(roleAssignments.role, 'owner')
+            )
           );
         if (ownsIt) {
-          const remaining = await ownersBesides(input.organisationId, input.membershipId);
+          const remaining = await ownersBesides(
+            input.organisationId,
+            input.membershipId
+          );
           if (remaining === 0) throw new LastOwnerRemains();
         }
       }
@@ -295,11 +336,13 @@ export async function setMembershipActive(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: input.isActive ? "membership.reinstated" : "membership.suspended",
-        subjectType: "membership",
+        action: input.isActive
+          ? 'membership.reinstated'
+          : 'membership.suspended',
+        subjectType: 'membership',
         subjectId: input.membershipId,
         before: { email: row.email, isActive: row.membership.isActive },
-        after: { isActive: input.isActive },
+        after: { isActive: input.isActive }
       });
     });
   });
@@ -319,10 +362,10 @@ export async function setPersona(input: {
         .where(
           and(
             eq(memberships.id, input.membershipId),
-            eq(memberships.organisationId, input.organisationId),
-          ),
+            eq(memberships.organisationId, input.organisationId)
+          )
         );
-      if (!row) throw new Error("No such membership");
+      if (!row) throw new Error('No such membership');
 
       await tx
         .update(memberships)
@@ -334,11 +377,11 @@ export async function setPersona(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "membership.persona_set",
-        subjectType: "membership",
+        action: 'membership.persona_set',
+        subjectType: 'membership',
         subjectId: input.membershipId,
         before: { persona: row.persona },
-        after: { persona: input.persona },
+        after: { persona: input.persona }
       });
     });
   });
@@ -363,14 +406,14 @@ export async function renameOrganisation(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     const name = input.name.trim();
-    if (name.length < 2) throw new Error("An organisation needs a name");
+    if (name.length < 2) throw new Error('An organisation needs a name');
 
     return db.transaction(async (tx) => {
       const [before] = await tx
         .select()
         .from(organisations)
         .where(eq(organisations.id, input.organisationId));
-      if (!before) throw new Error("No such organisation");
+      if (!before) throw new Error('No such organisation');
 
       const [after] = await tx
         .update(organisations)
@@ -381,11 +424,11 @@ export async function renameOrganisation(input: {
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "organisation.renamed",
-        subjectType: "organisation",
+        action: 'organisation.renamed',
+        subjectType: 'organisation',
         subjectId: input.organisationId,
         before: { name: before.name },
-        after: { name: after.name },
+        after: { name: after.name }
       });
 
       return after;

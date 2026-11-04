@@ -1,18 +1,19 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { signOut } from "@/auth";
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+
+import { signOut } from '@/auth';
+import { Guide } from '@/components/guidance/Guide';
 import {
   AiHome,
   EngineeringHome,
   PrivacyHome,
   ProductHome,
-  QuickLinks,
-} from "@/components/home/homes";
-import { Guide } from "@/components/guidance/Guide";
-import { PersonaSwitcher } from "@/components/home/PersonaSwitcher";
-import { PERSONA_LABEL } from "@/lib/persona";
-import { ORGANISATION_COOKIE, getActiveSession } from "@/lib/session";
-import { guidanceFor } from "@/services/guidance";
+  QuickLinks
+} from '@/components/home/homes';
+import { PersonaSwitcher } from '@/components/home/PersonaSwitcher';
+import { PERSONA_LABEL } from '@/lib/persona';
+import { getActiveSession, ORGANISATION_COOKIE } from '@/lib/session';
+import { guidanceFor } from '@/services/guidance';
 
 /**
  * One home, four arrangements.
@@ -23,7 +24,7 @@ import { guidanceFor } from "@/services/guidance";
  */
 export default async function Home() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
   const { persona } = active;
 
@@ -31,14 +32,14 @@ export default async function Home() {
   // feet needs the order of the work before they need their own slice of it.
   const guidance = await guidanceFor({
     organisationId: active.membership.organisationId,
-    chosen: active.membership.guidance ?? null,
+    chosen: active.membership.guidance ?? null
   });
   // No first name here. The name field holds whatever an administrator typed —
   // often a job title — and "Here is what needs you, Engineering" is worse than
   // no greeting at all. Their name is already in the heading above.
   const greeting =
-    persona === "product" || persona === "engineering"
-      ? "Here is what needs you."
+    persona === 'product' || persona === 'engineering'
+      ? 'Here is what needs you.'
       : PERSONA_LABEL[persona];
 
   return (
@@ -55,10 +56,10 @@ export default async function Home() {
         </div>
         <form
           action={async () => {
-            "use server";
+            'use server';
             // The next person to sign in on this browser starts from their own default.
             (await cookies()).delete(ORGANISATION_COOKIE);
-            await signOut({ redirectTo: "/sign-in" });
+            await signOut({ redirectTo: '/sign-in' });
           }}
         >
           <button
@@ -72,12 +73,14 @@ export default async function Home() {
 
       <Guide guidance={guidance} />
 
-      {persona === "privacy_governance" ? <PrivacyHome active={active} /> : null}
-      {persona === "ai_governance" ? <AiHome active={active} /> : null}
-      {persona === "engineering" ? <EngineeringHome active={active} /> : null}
-      {persona === "product" ? <ProductHome active={active} /> : null}
+      {persona === 'privacy_governance' ? (
+        <PrivacyHome active={active} />
+      ) : null}
+      {persona === 'ai_governance' ? <AiHome active={active} /> : null}
+      {persona === 'engineering' ? <EngineeringHome active={active} /> : null}
+      {persona === 'product' ? <ProductHome active={active} /> : null}
 
-      {persona === "engineering" || persona === "product" ? (
+      {persona === 'engineering' || persona === 'product' ? (
         <QuickLinks active={active} />
       ) : null}
 

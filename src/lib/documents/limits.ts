@@ -22,13 +22,19 @@ export const MAX_BYTES = 10 * 1024 * 1024;
  * claimed for them, and their text cannot be read. See `RETIRED`.
  */
 export const ACCEPTED = new Map<string, string>([
-  ["application/pdf", "PDF"],
-  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word (.docx)"],
-  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Excel (.xlsx)"],
-  ["text/plain", "Plain text"],
-  ["text/csv", "CSV"],
-  ["image/png", "PNG"],
-  ["image/jpeg", "JPEG"],
+  ['application/pdf', 'PDF'],
+  [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'Word (.docx)'
+  ],
+  [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Excel (.xlsx)'
+  ],
+  ['text/plain', 'Plain text'],
+  ['text/csv', 'CSV'],
+  ['image/png', 'PNG'],
+  ['image/jpeg', 'JPEG']
 ]);
 
 /**
@@ -38,6 +44,6 @@ export const ACCEPTED = new Map<string, string>([
  * where they are and download as before.
  */
 export const RETIRED = new Map<string, string>([
-  ["application/msword", "Word (.doc)"],
-  ["application/vnd.ms-excel", "Excel (.xls)"],
+  ['application/msword', 'Word (.doc)'],
+  ['application/vnd.ms-excel', 'Excel (.xls)']
 ]);

@@ -1,10 +1,12 @@
-import { and, eq } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
-import { integrationConnections } from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { newSecret, sealSecret } from "@/lib/integration/crypto";
-import type { Actor } from "./templates";
-import { assertEntityIn } from "./tenancy-guards";
+import { and, eq } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
+import { integrationConnections } from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import { newSecret, sealSecret } from '@/lib/integration/crypto';
+
+import type { Actor } from './templates';
+import { assertEntityIn } from './tenancy-guards';
 
 export type ProvisionedConnection = {
   id: string;
@@ -14,7 +16,7 @@ export type ProvisionedConnection = {
 
 export async function createConnection(input: {
   organisationId: string;
-  kind: "waivern_portal" | "har_analyser" | "other";
+  kind: 'waivern_portal' | 'har_analyser' | 'other';
   name: string;
   defaultEntityId?: string;
   webhookUrl?: string;
@@ -23,7 +25,8 @@ export async function createConnection(input: {
   return withOrganisation(input.organisationId, async () => {
     const secret = newSecret();
     const sealed = sealSecret(secret);
-    if (input.defaultEntityId) await assertEntityIn(input.organisationId, input.defaultEntityId);
+    if (input.defaultEntityId)
+      await assertEntityIn(input.organisationId, input.defaultEntityId);
 
     return db.transaction(async (tx) => {
       const [row] = await tx
@@ -36,17 +39,21 @@ export async function createConnection(input: {
           secretIv: sealed.iv,
           secretTag: sealed.tag,
           defaultEntityId: input.defaultEntityId,
-          webhookUrl: input.webhookUrl,
+          webhookUrl: input.webhookUrl
         })
         .returning();
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "integration_connection.created",
-        subjectType: "integration_connection",
+        action: 'integration_connection.created',
+        subjectType: 'integration_connection',
         subjectId: row.id,
-        after: { kind: input.kind, name: input.name, webhookUrl: input.webhookUrl ?? null },
+        after: {
+          kind: input.kind,
+          name: input.name,
+          webhookUrl: input.webhookUrl ?? null
+        }
       });
 
       return { id: row.id, secret };
@@ -70,7 +77,7 @@ export async function rotateSecret(input: {
         .set({
           secretCiphertext: sealed.ciphertext,
           secretIv: sealed.iv,
-          secretTag: sealed.tag,
+          secretTag: sealed.tag
         })
         // Its own organisation's only. Without this, anyone who could rotate
         // their own secret could rotate another organisation's by id — and be
@@ -78,19 +85,19 @@ export async function rotateSecret(input: {
         .where(
           and(
             eq(integrationConnections.id, input.connectionId),
-            eq(integrationConnections.organisationId, input.organisationId),
-          ),
+            eq(integrationConnections.organisationId, input.organisationId)
+          )
         )
         .returning();
-      if (!row) throw new Error("No such connection");
+      if (!row) throw new Error('No such connection');
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "integration_connection.secret_rotated",
-        subjectType: "integration_connection",
+        action: 'integration_connection.secret_rotated',
+        subjectType: 'integration_connection',
         subjectId: row.id,
-        after: { name: row.name },
+        after: { name: row.name }
       });
 
       return { id: row.id, secret };
@@ -108,7 +115,7 @@ export async function listConnections(organisationId: string) {
         webhookUrl: integrationConnections.webhookUrl,
         isActive: integrationConnections.isActive,
         lastSeenAt: integrationConnections.lastSeenAt,
-        createdAt: integrationConnections.createdAt,
+        createdAt: integrationConnections.createdAt
       })
       .from(integrationConnections)
       .where(eq(integrationConnections.organisationId, organisationId));

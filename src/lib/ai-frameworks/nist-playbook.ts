@@ -1,4 +1,4 @@
-import PLAYBOOK from "./nist-playbook.json";
+import PLAYBOOK from './nist-playbook.json';
 
 /**
  * The NIST AI RMF Playbook's suggestions, per subcategory: what an
@@ -14,7 +14,7 @@ import PLAYBOOK from "./nist-playbook.json";
  * action ending in a colon introduces the ones after it. The Playbook's
  * "About" text and reading lists are left out.
  */
-export const NIST_PLAYBOOK_EDITION = "2024-08-02";
+export const NIST_PLAYBOOK_EDITION = '2024-08-02';
 
 export type PlaybookEntry = {
   /** Lead-in before the first suggested action, where the Playbook has one. */

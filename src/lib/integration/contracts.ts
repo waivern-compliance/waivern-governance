@@ -1,6 +1,15 @@
-import { z } from "zod";
-import { LAWFUL_BASIS_KEYS, RECOGNISED_CONDITION_KEYS } from "@/lib/gdpr/lawful-basis";
-import { automatedDecisionsWire, furtherProcessingWire, researchWire } from "./duaa";
+import { z } from 'zod';
+
+import {
+  LAWFUL_BASIS_KEYS,
+  RECOGNISED_CONDITION_KEYS
+} from '@/lib/gdpr/lawful-basis';
+
+import {
+  automatedDecisionsWire,
+  furtherProcessingWire,
+  researchWire
+} from './duaa';
 
 /**
  * The wire contract, versioned from the first release.
@@ -19,7 +28,7 @@ const longText = z.string().max(20_000);
 /** Every batch names the entity it belongs to, or accepts the connection's default. */
 const envelope = {
   /** Legal entity name or id. Omitted means the connection's default entity. */
-  entity: z.string().max(200).optional(),
+  entity: z.string().max(200).optional()
 };
 
 export const processingActivityIn = z.object({
@@ -31,20 +40,32 @@ export const processingActivityIn = z.object({
   /** As written. Read into `lawfulBases` where it names them unambiguously. */
   lawfulBasis: z.string().max(100).optional(),
   /** The Article 6(1) bases, where the producer knows them. Takes precedence over the text. */
-  lawfulBases: z.array(z.enum(LAWFUL_BASIS_KEYS as [string, ...string[]])).max(7).optional(),
+  lawfulBases: z
+    .array(z.enum(LAWFUL_BASIS_KEYS as [string, ...string[]]))
+    .max(7)
+    .optional(),
   /** The Annex 1 condition, with recognised legitimate interests. */
-  recognisedCondition: z.enum(RECOGNISED_CONDITION_KEYS as [string, ...string[]]).optional(),
+  recognisedCondition: z
+    .enum(RECOGNISED_CONDITION_KEYS as [string, ...string[]])
+    .optional(),
   dataCategories: z.array(z.string().max(100)).max(100).default([]),
   subjectCategories: z.array(z.string().max(100)).max(50).default([]),
   recipients: z.array(z.string().max(200)).max(100).default([]),
   systems: z.array(z.string().max(200)).max(100).default([]),
   transfers: z
-    .array(z.object({ country: z.string().max(100), mechanism: z.string().max(100).optional() }))
+    .array(
+      z.object({
+        country: z.string().max(100),
+        mechanism: z.string().max(100).optional()
+      })
+    )
     .max(50)
     .default([]),
   retention: z.string().max(2000).optional(),
   securityMeasures: z.string().max(4000).optional(),
-  controllerRole: z.enum(["controller", "processor", "joint_controller"]).optional(),
+  controllerRole: z
+    .enum(['controller', 'processor', 'joint_controller'])
+    .optional(),
   controllerName: z.string().max(200).optional(),
   reviewDueAt: z.iso.datetime().optional(),
   /**
@@ -54,14 +75,14 @@ export const processingActivityIn = z.object({
   automatedDecisions: automatedDecisionsWire.optional(),
   furtherProcessing: furtherProcessingWire.optional(),
   research: researchWire.optional(),
-  childrenLikely: z.boolean().nullable().optional(),
+  childrenLikely: z.boolean().nullable().optional()
 });
 
 export const vendorIn = z.object({
   externalRef: externalRef.optional(),
   name: shortText,
   description: longText.optional(),
-  categories: z.array(z.string().max(100)).max(50).default([]),
+  categories: z.array(z.string().max(100)).max(50).default([])
 });
 
 export const dpaIn = z.object({
@@ -74,21 +95,24 @@ export const dpaIn = z.object({
   expiresAt: z.iso.datetime().optional(),
   transferMechanism: z.string().max(200).optional(),
   subProcessors: z.array(z.string().max(200)).max(200).default([]),
-  terms: z.record(z.string(), z.unknown()).default({}),
+  terms: z.record(z.string(), z.unknown()).default({})
 });
 
 export const evidenceIn = z.object({
   ...envelope,
   externalRef,
-  kind: z.enum(["document", "scan", "attestation", "link"]),
+  kind: z.enum(['document', 'scan', 'attestation', 'link']),
   title: shortText,
   description: longText.optional(),
   uri: z.string().url().max(2000).optional(),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  sha256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   collectedAt: z.iso.datetime().optional(),
   payload: z.record(z.string(), z.unknown()).default({}),
   /** Attach to an existing record by its reference, e.g. "DPIA-2026-0001". */
-  attachTo: z.string().max(100).optional(),
+  attachTo: z.string().max(100).optional()
 });
 
 /**
@@ -101,7 +125,7 @@ export const evidenceIn = z.object({
 export const scanFindingIn = z.object({
   externalRef,
   category: shortText,
-  severity: z.enum(["info", "low", "medium", "high"]),
+  severity: z.enum(['info', 'low', 'medium', 'high']),
   title: shortText,
   detail: longText.optional(),
   url: z.string().max(2000).optional(),
@@ -109,7 +133,7 @@ export const scanFindingIn = z.object({
   cookieName: z.string().max(200).optional(),
   setBeforeConsent: z.boolean().optional(),
   thirdCountry: z.string().max(100).optional(),
-  advisory: z.record(z.string(), z.unknown()).default({}),
+  advisory: z.record(z.string(), z.unknown()).default({})
 });
 
 export const scanBatchIn = z.object({
@@ -121,7 +145,7 @@ export const scanBatchIn = z.object({
   /** Attach the run's evidence to an existing record, e.g. "DPIA-2026-0001". */
   attachTo: z.string().max(100).optional(),
   summary: z.record(z.string(), z.unknown()).default({}),
-  findings: z.array(scanFindingIn).max(1000),
+  findings: z.array(scanFindingIn).max(1000)
 });
 
 /**
@@ -139,14 +163,33 @@ export const aiUseCaseIn = z.object({
   name: shortText,
   purpose: longText.min(1),
   description: longText.optional(),
-  systemType: z.enum(["predictive", "generative", "agentic", "hybrid"]),
-  provenance: z.enum(["built_in_house", "fine_tuned", "third_party_api", "embedded_vendor"]),
+  systemType: z.enum(['predictive', 'generative', 'agentic', 'hybrid']),
+  provenance: z.enum([
+    'built_in_house',
+    'fine_tuned',
+    'third_party_api',
+    'embedded_vendor'
+  ]),
   /** Used only when the system is first recorded. */
   lifecycleStage: z
-    .enum(["proposed", "development", "pilot", "production", "retiring", "retired"])
+    .enum([
+      'proposed',
+      'development',
+      'pilot',
+      'production',
+      'retiring',
+      'retired'
+    ])
     .optional(),
   deploymentPattern: z
-    .enum(["public_web_app", "embedded", "public_api", "privately_hosted", "local", "trained_here"])
+    .enum([
+      'public_web_app',
+      'embedded',
+      'public_api',
+      'privately_hosted',
+      'local',
+      'trained_here'
+    ])
     .optional(),
   /** Linked to a supplier on the register by name, where one matches. */
   supplierName: shortText.optional(),
@@ -156,24 +199,26 @@ export const aiUseCaseIn = z.object({
   processesPersonalData: z.boolean().optional(),
   dataCategories: z.array(z.string().max(100)).max(100).default([]),
   /** Articles 22A–22C, as on a processing activity. Sent replaces; left out leaves it alone. */
-  automatedDecisions: automatedDecisionsWire.optional(),
+  automatedDecisions: automatedDecisionsWire.optional()
 });
 
 /** Batches are capped so one request cannot become an unbounded transaction. */
 export const MAX_BATCH = 500;
 
 export const processingActivityBatch = z.object({
-  records: z.array(processingActivityIn).min(1).max(MAX_BATCH),
+  records: z.array(processingActivityIn).min(1).max(MAX_BATCH)
 });
 export const vendorBatch = z.object({
-  records: z.array(vendorIn).min(1).max(MAX_BATCH),
+  records: z.array(vendorIn).min(1).max(MAX_BATCH)
 });
-export const dpaBatch = z.object({ records: z.array(dpaIn).min(1).max(MAX_BATCH) });
+export const dpaBatch = z.object({
+  records: z.array(dpaIn).min(1).max(MAX_BATCH)
+});
 export const evidenceBatch = z.object({
-  records: z.array(evidenceIn).min(1).max(MAX_BATCH),
+  records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
 export const aiUseCaseBatch = z.object({
-  records: z.array(aiUseCaseIn).min(1).max(MAX_BATCH),
+  records: z.array(aiUseCaseIn).min(1).max(MAX_BATCH)
 });
 
 export type ProcessingActivityIn = z.infer<typeof processingActivityIn>;

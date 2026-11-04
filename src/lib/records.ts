@@ -11,34 +11,37 @@ export type SubjectType = string;
 const PATHS: Record<string, (id: string) => string> = {
   assessment: (id) => `/app/assessments/${id}`,
   risk: (id) => `/app/risks/${id}`,
-  mitigation: () => "/app/risks",
+  mitigation: () => '/app/risks',
   processing_activity: (id) => `/app/ropa/${id}`,
   ai_use_case: (id) => `/app/ai/${id}`,
   supplier: (id) => `/app/third-parties/${id}`,
-  dpa: () => "/app/third-parties",
-  country_risk: () => "/app/countries",
-  scan_finding: () => "/app/findings",
+  dpa: () => '/app/third-parties',
+  country_risk: () => '/app/countries',
+  scan_finding: () => '/app/findings',
   breach: (id) => `/app/breaches/${id}`,
-  breach_decision: () => "/app/breaches",
+  breach_decision: () => '/app/breaches',
   data_subject_request: (id) => `/app/requests/${id}`,
-  data_subject_request_decision: () => "/app/requests",
+  data_subject_request_decision: () => '/app/requests',
   data_protection_complaint: (id) => `/app/complaints/${id}`,
   digital_property: (id) => `/app/cookies/${id}`,
-  storage_item: () => "/app/cookies",
-  storage_decision: () => "/app/cookies",
-  consent_scan: () => "/app/cookies",
+  storage_item: () => '/app/cookies',
+  storage_decision: () => '/app/cookies',
+  consent_scan: () => '/app/cookies',
   marketing_activity: (id) => `/app/marketing/${id}`,
-  marketing_decision: () => "/app/marketing",
-  data_protection_complaint_event: () => "/app/complaints",
-  risk_appetite: () => "/app/risks/appetite",
+  marketing_decision: () => '/app/marketing',
+  data_protection_complaint_event: () => '/app/complaints',
+  risk_appetite: () => '/app/risks/appetite',
   ai_incident: (id) => `/app/ai/incidents/${id}`,
-  ai_use_case_request: (id) => `/app/ai/intake/${id}`,
+  ai_use_case_request: (id) => `/app/ai/intake/${id}`
 };
 
 /**
  * A record with no screen of its own returns null rather than a broken link.
  * Sending somebody to a 404 is worse than telling them there is nowhere to go.
  */
-export function pathFor(subjectType: SubjectType, subjectId: string): string | null {
+export function pathFor(
+  subjectType: SubjectType,
+  subjectId: string
+): string | null {
   return PATHS[subjectType]?.(subjectId) ?? null;
 }

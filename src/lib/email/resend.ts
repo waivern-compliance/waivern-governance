@@ -1,5 +1,5 @@
-import { waivernHosted } from "@/lib/hosting";
-import { log } from "@/lib/log";
+import { waivernHosted } from '@/lib/hosting';
+import { log } from '@/lib/log';
 
 /**
  * Transactional email, through Resend.
@@ -21,7 +21,7 @@ import { log } from "@/lib/log";
  * Failures are logged by shape (status, error name), never by content.
  */
 
-const ENDPOINT = "https://api.resend.com/emails";
+const ENDPOINT = 'https://api.resend.com/emails';
 const TIMEOUT_MS = 10_000;
 
 export type Email = {
@@ -39,7 +39,9 @@ export type Email = {
 export type EmailConfig = { apiKey: string; from: string };
 
 /** The Resend key and sender, whatever the mail is for, or null without them. */
-export function transportConfig(env: Record<string, string | undefined> = process.env): EmailConfig | null {
+export function transportConfig(
+  env: Record<string, string | undefined> = process.env
+): EmailConfig | null {
   const apiKey = env.RESEND_API_KEY?.trim();
   const from = env.EMAIL_FROM?.trim();
   if (!apiKey || !from) return null;
@@ -47,7 +49,9 @@ export function transportConfig(env: Record<string, string | undefined> = proces
 }
 
 /** What alerts to Waivern's operators need, or null where they should not be sent. */
-export function emailConfig(env: Record<string, string | undefined> = process.env): EmailConfig | null {
+export function emailConfig(
+  env: Record<string, string | undefined> = process.env
+): EmailConfig | null {
   if (!waivernHosted(env)) return null;
   return transportConfig(env);
 }
@@ -56,63 +60,76 @@ export function emailConfig(env: Record<string, string | undefined> = process.en
  * Which settings sending still needs, by name — never their values — so an
  * operator can see why nothing is being sent.
  */
-export function missingEmailSettings(env: Record<string, string | undefined> = process.env): string[] {
+export function missingEmailSettings(
+  env: Record<string, string | undefined> = process.env
+): string[] {
   const missing: string[] = [];
-  if (!waivernHosted(env)) missing.push("WAIVERN_HOSTED");
-  if (!env.RESEND_API_KEY?.trim()) missing.push("RESEND_API_KEY");
-  if (!env.EMAIL_FROM?.trim()) missing.push("EMAIL_FROM");
+  if (!waivernHosted(env)) missing.push('WAIVERN_HOSTED');
+  if (!env.RESEND_API_KEY?.trim()) missing.push('RESEND_API_KEY');
+  if (!env.EMAIL_FROM?.trim()) missing.push('EMAIL_FROM');
   return missing;
 }
 
-export type SendOutcome = { sent: true; messageId: string } | { sent: false; reason: string };
+export type SendOutcome =
+  | { sent: true; messageId: string }
+  | { sent: false; reason: string };
 
 /** Send one email. Resolves with what happened; never rejects. */
 export async function sendEmail(
   email: Email,
-  options: { config?: EmailConfig | null; fetch?: typeof fetch } = {},
+  options: { config?: EmailConfig | null; fetch?: typeof fetch } = {}
 ): Promise<SendOutcome> {
   const config = options.config === undefined ? emailConfig() : options.config;
-  if (!config) return { sent: false, reason: "not_configured" };
-  const to = [...new Set(email.to.map((a) => a.trim().toLowerCase()).filter(Boolean))];
-  if (to.length === 0) return { sent: false, reason: "no_recipients" };
+  if (!config) return { sent: false, reason: 'not_configured' };
+  const to = [
+    ...new Set(email.to.map((a) => a.trim().toLowerCase()).filter(Boolean))
+  ];
+  if (to.length === 0) return { sent: false, reason: 'no_recipients' };
 
   const started = Date.now();
   try {
     const response = await (options.fetch ?? fetch)(ENDPOINT, {
-      method: "POST",
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         from: config.from,
         to,
         subject: email.subject,
         text: email.text,
-        tags: [{ name: "kind", value: email.tag }],
+        tags: [{ name: 'kind', value: email.tag }]
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(TIMEOUT_MS)
     });
-    const body = (await response.json().catch(() => ({}))) as { id?: string; name?: string };
+    const body = (await response.json().catch(() => ({}))) as {
+      id?: string;
+      name?: string;
+    };
     if (!response.ok || !body.id) {
-      log("warn", "email.failed", {
+      log('warn', 'email.failed', {
         tag: email.tag,
         status: response.status,
         error: body.name ?? null,
         recipients: to.length,
-        ms: Date.now() - started,
+        ms: Date.now() - started
       });
       return { sent: false, reason: `resend_${body.name ?? response.status}` };
     }
-    log("info", "email.sent", { tag: email.tag, recipients: to.length, ms: Date.now() - started });
+    log('info', 'email.sent', {
+      tag: email.tag,
+      recipients: to.length,
+      ms: Date.now() - started
+    });
     return { sent: true, messageId: body.id };
   } catch (cause) {
-    log("warn", "email.failed", {
+    log('warn', 'email.failed', {
       tag: email.tag,
-      error: cause instanceof Error ? cause.name : "unknown",
+      error: cause instanceof Error ? cause.name : 'unknown',
       recipients: to.length,
-      ms: Date.now() - started,
+      ms: Date.now() - started
     });
-    return { sent: false, reason: "unreachable" };
+    return { sent: false, reason: 'unreachable' };
   }
 }

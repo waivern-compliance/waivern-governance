@@ -1,16 +1,17 @@
-"use client";
+'use client';
 
-import { useActionState } from "react";
-import { ACCEPTED, MAX_BYTES } from "@/lib/documents/limits";
-import type { StoredDocument } from "@/services/documents";
+import { useActionState } from 'react';
+
 import {
   moveDocumentAction,
   removeDocumentAction,
   uploadDocumentsAction,
-  type UploadResult,
-} from "@/app/app/third-parties/documentActions";
-import { savedKey } from "@/lib/saved-key";
-import { EditForm } from "@/components/EditForm";
+  type UploadResult
+} from '@/app/app/third-parties/documentActions';
+import { EditForm } from '@/components/EditForm';
+import { ACCEPTED, MAX_BYTES } from '@/lib/documents/limits';
+import { savedKey } from '@/lib/saved-key';
+import type { StoredDocument } from '@/services/documents';
 
 /** Somewhere else on this third party a file could belong instead. */
 export type MoveTarget = { value: string; label: string; current: boolean };
@@ -35,9 +36,9 @@ export function Attachments({
   documents,
   mayEdit,
   what,
-  moveTargets = [],
+  moveTargets = []
 }: {
-  subjectType: StoredDocument["subjectType"];
+  subjectType: StoredDocument['subjectType'];
   subjectId: string;
   entityId: string | null;
   revalidate: string;
@@ -53,8 +54,13 @@ export function Attachments({
   moveTargets?: MoveTarget[];
 }) {
   const [result, action, pending] = useActionState<UploadResult, FormData>(
-    uploadDocumentsAction.bind(null, { subjectType, subjectId, entityId, revalidate }),
-    null,
+    uploadDocumentsAction.bind(null, {
+      subjectType,
+      subjectId,
+      entityId,
+      revalidate
+    }),
+    null
   );
 
   return (
@@ -62,14 +68,18 @@ export function Attachments({
       {documents.length > 0 ? (
         <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-ground">
           {documents.map((d) => (
-            <li key={d.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2">
+            <li
+              key={d.id}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2"
+            >
               <span className="space-y-0.5">
                 {d.quarantinedAt ? (
                   <span className="text-sm font-medium text-red-900">
                     {d.filename}
                     <span className="block text-xs font-normal">
-                      Held: the virus scanner found {d.quarantineSignature ?? "something"} in it. It cannot be
-                      downloaded — remove it, or replace it with a clean copy.
+                      Held: the virus scanner found{' '}
+                      {d.quarantineSignature ?? 'something'} in it. It cannot be
+                      downloaded - remove it, or replace it with a clean copy.
                     </span>
                   </span>
                 ) : (
@@ -81,11 +91,14 @@ export function Attachments({
                   </a>
                 )}
                 {d.description ? (
-                  <span className="block text-xs text-ink-soft">{d.description}</span>
+                  <span className="block text-xs text-ink-soft">
+                    {d.description}
+                  </span>
                 ) : null}
                 <span className="block font-mono text-[11px] text-ink-soft">
-                  {size(d.byteSize)} · {d.uploaderEmail ?? d.uploadedByLabel} ·{" "}
-                  {d.uploadedAt.toISOString().slice(0, 10)} · sha256 {d.sha256.slice(0, 12)}…
+                  {size(d.byteSize)} · {d.uploaderEmail ?? d.uploadedByLabel} ·{' '}
+                  {d.uploadedAt.toISOString().slice(0, 10)} · sha256{' '}
+                  {d.sha256.slice(0, 12)}…
                 </span>
               </span>
               {mayEdit ? (
@@ -100,22 +113,32 @@ export function Attachments({
                         Belongs to
                         <select
                           name="target"
-                          defaultValue={moveTargets.find((t) => t.current)?.value}
+                          defaultValue={
+                            moveTargets.find((t) => t.current)?.value
+                          }
                           className="ml-1.5 max-w-[16rem] rounded border border-line bg-surface px-1.5 py-0.5 text-[11px]"
                         >
                           {moveTargets.map((t) => (
-                            <option key={t.value} value={t.value}>
+                            <option
+                              key={t.value}
+                              value={t.value}
+                            >
                               {t.label}
                             </option>
                           ))}
                         </select>
                       </label>
-                      <button type="submit" className="text-[11px] text-brand underline">
+                      <button
+                        type="submit"
+                        className="text-[11px] text-brand underline"
+                      >
                         Move
                       </button>
                     </EditForm>
                   ) : null}
-                  <form action={removeDocumentAction.bind(null, d.id, revalidate)}>
+                  <form
+                    action={removeDocumentAction.bind(null, d.id, revalidate)}
+                  >
                     <button
                       type="submit"
                       className="text-xs text-ink-soft underline hover:text-red-900"
@@ -129,17 +152,22 @@ export function Attachments({
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-ink-soft">Nothing attached here yet — {what}.</p>
+        <p className="text-xs text-ink-soft">
+          Nothing attached here yet - {what}.
+        </p>
       )}
 
       {mayEdit ? (
-        <form action={action} className="space-y-2 rounded border border-dashed border-line p-3">
+        <form
+          action={action}
+          className="space-y-2 rounded border border-dashed border-line p-3"
+        >
           <label className="block space-y-1">
             <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
               Attach {what}
               <span className="block font-normal normal-case tracking-normal">
-                Several at once. Up to {MAX_BYTES / 1024 / 1024}MB each —{" "}
-                {[...new Set(ACCEPTED.values())].join(", ")}.
+                Several at once. Up to {MAX_BYTES / 1024 / 1024}MB each -{' '}
+                {[...new Set(ACCEPTED.values())].join(', ')}.
               </span>
             </span>
             <input
@@ -147,7 +175,7 @@ export function Attachments({
               name="files"
               multiple
               required
-              accept={[...ACCEPTED.keys()].join(",")}
+              accept={[...ACCEPTED.keys()].join(',')}
               className="w-full text-xs file:mr-3 file:rounded file:border file:border-line file:bg-surface file:px-3 file:py-1.5 file:text-xs"
             />
           </label>
@@ -161,8 +189,8 @@ export function Attachments({
               role="status"
               className={`rounded border px-3 py-2 text-xs ${
                 result.ok
-                  ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-                  : "border-amber-700 bg-amber-50 text-amber-900"
+                  ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                  : 'border-amber-700 bg-amber-50 text-amber-900'
               }`}
             >
               {result.message}
@@ -173,7 +201,7 @@ export function Attachments({
             disabled={pending}
             className="rounded border border-line px-3 py-1.5 text-xs font-medium hover:bg-ground disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-brand"
           >
-            {pending ? "Uploading…" : "Attach"}
+            {pending ? 'Uploading…' : 'Attach'}
           </button>
         </form>
       ) : null}

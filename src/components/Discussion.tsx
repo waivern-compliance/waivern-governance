@@ -1,8 +1,11 @@
-import { pathFor } from "@/lib/records";
-import { getActiveSession } from "@/lib/session";
-import { commentsFor, organisationMembers } from "@/services/collaboration";
-import type { Comment } from "@/services/collaboration";
-import { postCommentAction, withdrawCommentAction } from "@/app/app/comments/actions";
+import {
+  postCommentAction,
+  withdrawCommentAction
+} from '@/app/app/comments/actions';
+import { pathFor } from '@/lib/records';
+import { getActiveSession } from '@/lib/session';
+import { commentsFor, organisationMembers } from '@/services/collaboration';
+import type { Comment } from '@/services/collaboration';
 
 const when = (d: Date) =>
   `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
@@ -17,9 +20,9 @@ export async function Discussion({
   subjectType,
   subjectId,
   entityId,
-  subjectLabel,
+  subjectLabel
 }: {
-  subjectType: Comment["subjectType"];
+  subjectType: Comment['subjectType'];
   subjectId: string;
   entityId: string | null;
   subjectLabel: string;
@@ -29,20 +32,20 @@ export async function Discussion({
 
   const [rows, members] = await Promise.all([
     commentsFor(active.membership.organisationId, subjectType, subjectId),
-    organisationMembers(active.membership.organisationId),
+    organisationMembers(active.membership.organisationId)
   ]);
 
   const context = { subjectType, subjectId, entityId, subjectLabel };
   // Only needed to revalidate this page after a withdrawal.
-  const href = pathFor(subjectType, subjectId) ?? "/app";
+  const href = pathFor(subjectType, subjectId) ?? '/app';
 
   return (
     <section className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">Discussion</h2>
         <p className="max-w-prose text-xs text-ink-soft">
-          For questions and context. Decisions — approval, acceptance, sign-off
-          — are recorded separately and are not made here.
+          For questions and context. Decisions - approval, acceptance, sign-off
+          - are recorded separately and are not made here.
         </p>
       </div>
 
@@ -67,7 +70,7 @@ export async function Discussion({
                 <p className="mt-1.5 whitespace-pre-wrap">{comment.body}</p>
                 {mentioned.length > 0 ? (
                   <p className="mt-1.5 text-xs text-ink-soft">
-                    Notified: {mentioned.map((m) => m.email).join(", ")}
+                    Notified: {mentioned.map((m) => m.email).join(', ')}
                   </p>
                 ) : null}
                 {comment.authorId === active.userId ? (
@@ -103,8 +106,8 @@ export async function Discussion({
           <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
             Add to the discussion
             <span className="block font-normal normal-case tracking-normal">
-              Type @ and someone&rsquo;s name to notify them — @{" "}
-              {members[0]?.email.split("@")[0] ?? "colleague"} or their full
+              Type @ and someone&rsquo;s name to notify them - @{' '}
+              {members[0]?.email.split('@')[0] ?? 'colleague'} or their full
               address. An @ that matches nobody is left as written.
             </span>
           </span>

@@ -1,5 +1,5 @@
-import { sql as pg } from "@/db/client";
-import { libraryHealth, seedSharedLibrary } from "@/services/countries";
+import { sql as pg } from '@/db/client';
+import { libraryHealth, seedSharedLibrary } from '@/services/countries';
 
 /**
  * Load the shared country library.
@@ -16,21 +16,25 @@ async function main() {
   const result = await seedSharedLibrary();
 
   if (result.created === 0) {
-    console.log(`Country library already loaded — ${result.total} entries, nothing added.`);
+    console.log(
+      `Country library already loaded - ${result.total} entries, nothing added.`
+    );
   } else {
-    console.log(`Country library: ${result.created} of ${result.total} entries added.`);
+    console.log(
+      `Country library: ${result.created} of ${result.total} entries added.`
+    );
   }
 
   console.log(
-    "\nEvery seeded entry is marked unverified and due for review, deliberately.",
+    '\nEvery seeded entry is marked unverified and due for review, deliberately.'
   );
   console.log(
-    "It is a starting point generated from public adequacy decisions, not a",
+    'It is a starting point generated from public adequacy decisions, not a'
   );
   console.log(
-    "checked source — a privacy professional should confirm each one before an",
+    'checked source - a privacy professional should confirm each one before an'
   );
-  console.log("assessment relies on it. The library page lists them.");
+  console.log('assessment relies on it. The library page lists them.');
 
   await pg.end();
   void libraryHealth;

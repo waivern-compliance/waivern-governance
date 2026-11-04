@@ -3,8 +3,8 @@ import {
   createDecipheriv,
   createHmac,
   randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
+  timingSafeEqual
+} from 'node:crypto';
 
 /**
  * Shared secrets for signed ingest.
@@ -15,18 +15,18 @@ import {
  * does not yield working credentials.
  */
 
-const ALGORITHM = "aes-256-gcm";
+const ALGORITHM = 'aes-256-gcm';
 
 function key(): Buffer {
   const raw = process.env.INTEGRATION_KEY;
   if (!raw) {
     throw new Error(
-      "INTEGRATION_KEY is not set. Generate one with: openssl rand -base64 32",
+      'INTEGRATION_KEY is not set. Generate one with: openssl rand -base64 32'
     );
   }
-  const buf = Buffer.from(raw, "base64");
+  const buf = Buffer.from(raw, 'base64');
   if (buf.length !== 32) {
-    throw new Error("INTEGRATION_KEY must be 32 bytes, base64 encoded");
+    throw new Error('INTEGRATION_KEY must be 32 bytes, base64 encoded');
   }
   return buf;
 }
@@ -36,25 +36,32 @@ export type SealedSecret = { ciphertext: string; iv: string; tag: string };
 export function sealSecret(plaintext: string): SealedSecret {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGORITHM, key(), iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const ciphertext = Buffer.concat([
+    cipher.update(plaintext, 'utf8'),
+    cipher.final()
+  ]);
   return {
-    ciphertext: ciphertext.toString("base64"),
-    iv: iv.toString("base64"),
-    tag: cipher.getAuthTag().toString("base64"),
+    ciphertext: ciphertext.toString('base64'),
+    iv: iv.toString('base64'),
+    tag: cipher.getAuthTag().toString('base64')
   };
 }
 
 export function openSecret(sealed: SealedSecret): string {
-  const decipher = createDecipheriv(ALGORITHM, key(), Buffer.from(sealed.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(sealed.tag, "base64"));
+  const decipher = createDecipheriv(
+    ALGORITHM,
+    key(),
+    Buffer.from(sealed.iv, 'base64')
+  );
+  decipher.setAuthTag(Buffer.from(sealed.tag, 'base64'));
   return Buffer.concat([
-    decipher.update(Buffer.from(sealed.ciphertext, "base64")),
-    decipher.final(),
-  ]).toString("utf8");
+    decipher.update(Buffer.from(sealed.ciphertext, 'base64')),
+    decipher.final()
+  ]).toString('utf8');
 }
 
 export function newSecret(): string {
-  return randomBytes(32).toString("base64url");
+  return randomBytes(32).toString('base64url');
 }
 
 /**
@@ -72,17 +79,19 @@ export function newSecret(): string {
 export function canonicalRequest(
   method: string,
   pathWithQuery: string,
-  body: string,
+  body: string
 ): string {
-  return [method.toUpperCase(), pathWithQuery, body].join("\n");
+  return [method.toUpperCase(), pathWithQuery, body].join('\n');
 }
 
 export function signPayload(
   secret: string,
   timestamp: string,
-  canonical: string,
+  canonical: string
 ): string {
-  return createHmac("sha256", secret).update(`${timestamp}.${canonical}`).digest("hex");
+  return createHmac('sha256', secret)
+    .update(`${timestamp}.${canonical}`)
+    .digest('hex');
 }
 
 /** Convenience for callers: sign a whole request in one step. */
@@ -96,14 +105,14 @@ export function signRequest(input: {
   return signPayload(
     input.secret,
     input.timestamp,
-    canonicalRequest(input.method, input.pathWithQuery, input.body ?? ""),
+    canonicalRequest(input.method, input.pathWithQuery, input.body ?? '')
   );
 }
 
 /** Constant-time comparison, so a wrong signature leaks nothing through timing. */
 export function signatureMatches(expected: string, provided: string): boolean {
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(provided, "utf8");
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(provided, 'utf8');
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }
@@ -113,7 +122,10 @@ export const MAX_CLOCK_SKEW_SECONDS = 300;
 
 export type SignatureCheck =
   | { ok: true }
-  | { ok: false; reason: "missing_headers" | "stale_timestamp" | "bad_signature" };
+  | {
+      ok: false;
+      reason: 'missing_headers' | 'stale_timestamp' | 'bad_signature';
+    };
 
 export function verifyRequest(input: {
   secret: string;
@@ -124,25 +136,26 @@ export function verifyRequest(input: {
   body: string;
   now?: number;
 }): SignatureCheck {
-  if (!input.timestamp || !input.signature) return { ok: false, reason: "missing_headers" };
+  if (!input.timestamp || !input.signature)
+    return { ok: false, reason: 'missing_headers' };
 
   const sent = Number(input.timestamp);
-  if (!Number.isFinite(sent)) return { ok: false, reason: "stale_timestamp" };
+  if (!Number.isFinite(sent)) return { ok: false, reason: 'stale_timestamp' };
 
   const now = Math.floor((input.now ?? Date.now()) / 1000);
   // Bounded in both directions: a far-future timestamp is as suspicious as an
   // old one, and accepting it would widen the replay window indefinitely.
   if (Math.abs(now - sent) > MAX_CLOCK_SKEW_SECONDS) {
-    return { ok: false, reason: "stale_timestamp" };
+    return { ok: false, reason: 'stale_timestamp' };
   }
 
   const expected = signPayload(
     input.secret,
     input.timestamp,
-    canonicalRequest(input.method, input.pathWithQuery, input.body),
+    canonicalRequest(input.method, input.pathWithQuery, input.body)
   );
   if (!signatureMatches(expected, input.signature)) {
-    return { ok: false, reason: "bad_signature" };
+    return { ok: false, reason: 'bad_signature' };
   }
   return { ok: true };
 }

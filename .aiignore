@@ -1,0 +1,14 @@
+# Secrets
+.env*
+!.env.example
+*.pem
+
+# Generated or too large to be useful
+node_modules/
+.next/
+dist/
+build/
+out/
+drizzle/meta/
+pnpm-lock.yaml
+*.log

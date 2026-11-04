@@ -1,18 +1,20 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { HelpLink } from "@/components/help/HelpLink";
-import { NotPermitted } from "@/components/NotPermitted";
-import { can } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { RETAIN_DAYS, providerSummary } from "@/services/assistant";
-import { ProviderForm } from "./ProviderForm";
-import { removeProviderAction } from "../actions";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { can } from '@/lib/rbac';
+import { getActiveSession } from '@/lib/session';
+import { providerSummary, RETAIN_DAYS } from '@/services/assistant';
+
+import { removeProviderAction } from '../actions';
+import { ProviderForm } from './ProviderForm';
 
 export default async function AssistantAdminPage() {
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
-  if (!can(active.membership.grants, "org.manage")) {
+  if (!can(active.membership.grants, 'org.manage')) {
     return (
       <NotPermitted
         what="Configuring the assistant"
@@ -26,7 +28,10 @@ export default async function AssistantAdminPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
-        <Link href="/app" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← {active.membership.organisationName}
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Assistant</h1>
@@ -52,15 +57,19 @@ export default async function AssistantAdminPage() {
           Answers are proposals. Nothing reaches a record until somebody writes
           it themselves, and that act is what the audit log attributes to them.
           Obvious identifiers are stripped from a question before it is sent and
-          the person is told what was removed — a partial control, and described
-          as one. Conversations are kept for {RETAIN_DAYS} days and then deleted.
+          the person is told what was removed - a partial control, and described
+          as one. Conversations are kept for {RETAIN_DAYS} days and then
+          deleted.
         </p>
       </section>
 
       <ProviderForm existing={existing} />
 
       {existing ? (
-        <form action={removeProviderAction} className="border-t border-line pt-6">
+        <form
+          action={removeProviderAction}
+          className="border-t border-line pt-6"
+        >
           <button
             type="submit"
             className="rounded border border-line px-4 py-2 text-sm hover:border-red-700 hover:text-red-900 focus-visible:outline-2 focus-visible:outline-brand"

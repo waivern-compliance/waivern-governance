@@ -1,7 +1,8 @@
-import assert from "node:assert/strict";
-import { after, describe, it } from "node:test";
-import { and, eq } from "drizzle-orm";
-import { db, sql as pg } from "@/db/client";
+import assert from 'node:assert/strict';
+import { after, describe, it } from 'node:test';
+import { and, eq } from 'drizzle-orm';
+
+import { db, sql as pg } from '@/db/client';
 import {
   approvals,
   assessments,
@@ -16,17 +17,26 @@ import {
   templateVersions,
   users,
   workflowDefinitions,
-  workflowStages,
-} from "@/db/schema";
-import { describeRouting } from "@/lib/workflow/routing";
+  workflowStages
+} from '@/db/schema';
+import { describeRouting } from '@/lib/workflow/routing';
 import {
   RoutingRefused,
   updateStage,
-  workflowsFor,
-} from "@/services/approval-routing";
-import { HandoverRefused, candidatesFor, handOver, holdingsOf } from "@/services/handover";
+  workflowsFor
+} from '@/services/approval-routing';
+import {
+  candidatesFor,
+  handOver,
+  HandoverRefused,
+  holdingsOf
+} from '@/services/handover';
 
-const ACTOR = { actorKind: "system" as const, actorUserId: null, actorLabel: "approver.test" };
+const ACTOR = {
+  actorKind: 'system' as const,
+  actorUserId: null,
+  actorLabel: 'approver.test'
+};
 
 after(async () => {
   await pg.end();
@@ -40,21 +50,25 @@ async function scratch() {
     .returning();
   const [entity] = await db
     .insert(entities)
-    .values({ organisationId: org.id, name: "Main", isDefault: true })
+    .values({ organisationId: org.id, name: 'Main', isDefault: true })
     .returning();
   const [definition] = await db
     .insert(workflowDefinitions)
-    .values({ organisationId: org.id, templateKind: "dpia", name: "DPIA approval" })
+    .values({
+      organisationId: org.id,
+      templateKind: 'dpia',
+      name: 'DPIA approval'
+    })
     .returning();
   const [stage] = await db
     .insert(workflowStages)
     .values({
       workflowDefinitionId: definition.id,
       position: 1,
-      name: "Privacy review",
-      requiredRole: "privacy_analyst",
-      condition: { op: "always" },
-      slaHours: 72,
+      name: 'Privacy review',
+      requiredRole: 'privacy_analyst',
+      condition: { op: 'always' },
+      slaHours: 72
     })
     .returning();
   return { org, entity, definition, stage, s };
@@ -63,15 +77,15 @@ async function scratch() {
 async function templateVersion(orgId: string, s: string) {
   const [template] = await db
     .insert(templates)
-    .values({ organisationId: orgId, kind: "dpia", name: `DPIA ${s}` })
+    .values({ organisationId: orgId, kind: 'dpia', name: `DPIA ${s}` })
     .returning();
   const [version] = await db
     .insert(templateVersions)
     .values({
       templateId: template.id,
       version: 1,
-      status: "draft",
-      definition: { schema: { sections: [] } } as never,
+      status: 'draft',
+      definition: { schema: { sections: [] } } as never
     })
     .returning();
   return version;
@@ -86,34 +100,41 @@ async function person(orgId: string, email: string, role: string | null) {
   if (role) {
     await db.insert(roleAssignments).values({
       membershipId: membership.id,
-      role: role as "privacy_analyst",
-      scope: "organisation",
+      role: role as 'privacy_analyst',
+      scope: 'organisation'
     });
   }
   return { user, membership };
 }
 
-describe("who approves, and where that is defined", () => {
-  it("names a role, and shows who currently holds it", async () => {
+describe('who approves, and where that is defined', () => {
+  it('names a role, and shows who currently holds it', async () => {
     const { org, s } = await scratch();
-    await person(org.id, `analyst-${s}@example.test`, "privacy_analyst");
+    await person(org.id, `analyst-${s}@example.test`, 'privacy_analyst');
 
     const [workflow] = await workflowsFor(org.id);
     const stage = workflow.stages[0];
-    assert.equal(stage.requiredRole, "privacy_analyst");
-    assert.equal(stage.roleLabel, "Privacy analyst");
-    assert.deepEqual(stage.eligible.map((e) => e.email), [`analyst-${s}@example.test`]);
+    assert.equal(stage.requiredRole, 'privacy_analyst');
+    assert.equal(stage.roleLabel, 'Privacy analyst');
+    assert.deepEqual(
+      stage.eligible.map((e) => e.email),
+      [`analyst-${s}@example.test`]
+    );
   });
 
-  it("counts an owner as eligible for every gate", async () => {
+  it('counts an owner as eligible for every gate', async () => {
     const { org, s } = await scratch();
-    await person(org.id, `owner-${s}@example.test`, "owner");
+    await person(org.id, `owner-${s}@example.test`, 'owner');
 
     const [workflow] = await workflowsFor(org.id);
-    assert.equal(workflow.stages[0].eligible.length, 1, "the owner can decide it");
+    assert.equal(
+      workflow.stages[0].eligible.length,
+      1,
+      'the owner can decide it'
+    );
   });
 
-  it("says plainly when nobody holds the role", async () => {
+  it('says plainly when nobody holds the role', async () => {
     // A gate with no eligible approver does not fail. It waits, silently,
     // which is the failure this screen exists to make visible.
     const { org } = await scratch();
@@ -121,33 +142,43 @@ describe("who approves, and where that is defined", () => {
     assert.deepEqual(workflow.stages[0].eligible, []);
   });
 
-  it("does not count a suspended member as an approver", async () => {
+  it('does not count a suspended member as an approver', async () => {
     const { org, s } = await scratch();
-    const { membership } = await person(org.id, `gone-${s}@example.test`, "privacy_analyst");
-    await db.update(memberships).set({ isActive: false }).where(eq(memberships.id, membership.id));
+    const { membership } = await person(
+      org.id,
+      `gone-${s}@example.test`,
+      'privacy_analyst'
+    );
+    await db
+      .update(memberships)
+      .set({ isActive: false })
+      .where(eq(memberships.id, membership.id));
 
     const [workflow] = await workflowsFor(org.id);
     assert.deepEqual(workflow.stages[0].eligible, []);
   });
 
-  it("explains when a stage applies, in words", () => {
-    assert.equal(describeRouting({ op: "always" }), "always");
+  it('explains when a stage applies, in words', () => {
+    assert.equal(describeRouting({ op: 'always' }), 'always');
     assert.equal(
-      describeRouting({ op: "specialCategoryData" }),
-      "special-category data is involved",
+      describeRouting({ op: 'specialCategoryData' }),
+      'special-category data is involved'
     );
     assert.match(
       describeRouting({
-        op: "and",
-        all: [{ op: "tierAtLeast", value: "high" }, { op: "transferToNonAdequate" }],
+        op: 'and',
+        all: [
+          { op: 'tierAtLeast', value: 'high' },
+          { op: 'transferToNonAdequate' }
+        ]
       }),
-      /high or worse, and .*not approved by UK regulations/,
+      /high or worse, and .*not approved by UK regulations/
     );
   });
 });
 
-describe("changing the approver", () => {
-  it("moves the role, and redirects the approvals already waiting", async () => {
+describe('changing the approver', () => {
+  it('moves the role, and redirects the approvals already waiting', async () => {
     const { org, entity, stage, s } = await scratch();
     const version = await templateVersion(org.id, s);
     const [assessment] = await db
@@ -157,35 +188,38 @@ describe("changing the approver", () => {
         entityId: entity.id,
         templateVersionId: version.id,
         reference: `DPIA-${s}-1`,
-        title: "Contributor contract records",
-        status: "in_review",
+        title: 'Contributor contract records',
+        status: 'in_review'
       })
       .returning();
     await db.insert(approvals).values({
       assessmentId: assessment.id,
       stageId: stage.id,
       position: 1,
-      name: "Privacy review",
-      requiredRole: "privacy_analyst",
-      status: "pending",
-      reason: "always",
+      name: 'Privacy review',
+      requiredRole: 'privacy_analyst',
+      status: 'pending',
+      reason: 'always'
     });
 
     const { redirected } = await updateStage({
       organisationId: org.id,
       stageId: stage.id,
-      name: "Privacy review",
-      requiredRole: "approver",
+      name: 'Privacy review',
+      requiredRole: 'approver',
       slaHours: 48,
-      actor: ACTOR,
+      actor: ACTOR
     });
 
-    assert.equal(redirected, 1, "the waiting gate followed the rule");
-    const [gate] = await db.select().from(approvals).where(eq(approvals.stageId, stage.id));
-    assert.equal(gate.requiredRole, "approver");
+    assert.equal(redirected, 1, 'the waiting gate followed the rule');
+    const [gate] = await db
+      .select()
+      .from(approvals)
+      .where(eq(approvals.stageId, stage.id));
+    assert.equal(gate.requiredRole, 'approver');
   });
 
-  it("leaves a decided approval alone, because it records who was entitled then", async () => {
+  it('leaves a decided approval alone, because it records who was entitled then', async () => {
     const { org, entity, stage, s } = await scratch();
     const version = await templateVersion(org.id, s);
     const [assessment] = await db
@@ -195,68 +229,75 @@ describe("changing the approver", () => {
         entityId: entity.id,
         templateVersionId: version.id,
         reference: `DPIA-${s}-2`,
-        title: "Contributor contract records",
-        status: "approved",
+        title: 'Contributor contract records',
+        status: 'approved'
       })
       .returning();
     await db.insert(approvals).values({
       assessmentId: assessment.id,
       stageId: stage.id,
       position: 1,
-      name: "Privacy review",
-      requiredRole: "privacy_analyst",
-      status: "approved",
-      reason: "always",
-      decidedByLabel: "someone@example.test",
-      decidedAt: new Date(),
+      name: 'Privacy review',
+      requiredRole: 'privacy_analyst',
+      status: 'approved',
+      reason: 'always',
+      decidedByLabel: 'someone@example.test',
+      decidedAt: new Date()
     });
 
     await updateStage({
       organisationId: org.id,
       stageId: stage.id,
-      name: "Privacy review",
-      requiredRole: "approver",
+      name: 'Privacy review',
+      requiredRole: 'approver',
       slaHours: null,
-      actor: ACTOR,
+      actor: ACTOR
     });
 
-    const [gate] = await db.select().from(approvals).where(eq(approvals.stageId, stage.id));
-    assert.equal(gate.requiredRole, "privacy_analyst", "history is not rewritten");
+    const [gate] = await db
+      .select()
+      .from(approvals)
+      .where(eq(approvals.stageId, stage.id));
+    assert.equal(
+      gate.requiredRole,
+      'privacy_analyst',
+      'history is not rewritten'
+    );
   });
 
-  it("refuses a service level outside anything sensible", async () => {
+  it('refuses a service level outside anything sensible', async () => {
     const { org, stage } = await scratch();
     await assert.rejects(
       () =>
         updateStage({
           organisationId: org.id,
           stageId: stage.id,
-          name: "Privacy review",
-          requiredRole: "privacy_analyst",
+          name: 'Privacy review',
+          requiredRole: 'privacy_analyst',
           slaHours: 0,
-          actor: ACTOR,
+          actor: ACTOR
         }),
-      RoutingRefused,
+      RoutingRefused
     );
   });
 
-  it("refuses an unnamed stage", async () => {
+  it('refuses an unnamed stage', async () => {
     const { org, stage } = await scratch();
     await assert.rejects(
       () =>
         updateStage({
           organisationId: org.id,
           stageId: stage.id,
-          name: "   ",
-          requiredRole: "privacy_analyst",
+          name: '   ',
+          requiredRole: 'privacy_analyst',
           slaHours: null,
-          actor: ACTOR,
+          actor: ACTOR
         }),
-      RoutingRefused,
+      RoutingRefused
     );
   });
 
-  it("cannot be changed from another organisation", async () => {
+  it('cannot be changed from another organisation', async () => {
     const { stage } = await scratch();
     const other = await scratch();
     await assert.rejects(
@@ -264,50 +305,58 @@ describe("changing the approver", () => {
         updateStage({
           organisationId: other.org.id,
           stageId: stage.id,
-          name: "Hijacked",
-          requiredRole: "owner",
+          name: 'Hijacked',
+          requiredRole: 'owner',
           slaHours: null,
-          actor: ACTOR,
+          actor: ACTOR
         }),
-      RoutingRefused,
+      RoutingRefused
     );
   });
 });
 
-describe("when somebody leaves", () => {
+describe('when somebody leaves', () => {
   async function withWork() {
     const { org, entity, s } = await scratch();
-    const leaver = await person(org.id, `leaver-${s}@example.test`, "privacy_analyst");
-    const successor = await person(org.id, `successor-${s}@example.test`, "privacy_analyst");
+    const leaver = await person(
+      org.id,
+      `leaver-${s}@example.test`,
+      'privacy_analyst'
+    );
+    const successor = await person(
+      org.id,
+      `successor-${s}@example.test`,
+      'privacy_analyst'
+    );
 
     await db.insert(tasks).values({
       organisationId: org.id,
       entityId: entity.id,
-      type: "review_assessment",
-      subjectType: "assessment",
+      type: 'review_assessment',
+      subjectType: 'assessment',
       subjectId: entity.id,
-      title: "Something to do",
+      title: 'Something to do',
       assigneeUserId: leaver.user.id,
-      status: "open",
+      status: 'open'
     });
     await db.insert(processingActivities).values({
       organisationId: org.id,
       entityId: entity.id,
       reference: `ROPA-${s}`,
       name: `Activity ${s}`,
-      ownerId: leaver.user.id,
+      ownerId: leaver.user.id
     });
     await db.insert(suppliers).values({
       organisationId: org.id,
       name: `Vendor ${s}`,
       canonicalKey: `vendor-${s}`,
-      ownerId: leaver.user.id,
+      ownerId: leaver.user.id
     });
 
     return { org, leaver, successor };
   }
 
-  it("shows what they are holding", async () => {
+  it('shows what they are holding', async () => {
     const { org, leaver } = await withWork();
     const holding = await holdingsOf(org.id, leaver.user.id);
     assert.equal(holding.openTasks, 1);
@@ -316,13 +365,13 @@ describe("when somebody leaves", () => {
     assert.equal(holding.total, 3);
   });
 
-  it("moves all of it to the successor in one act", async () => {
+  it('moves all of it to the successor in one act', async () => {
     const { org, leaver, successor } = await withWork();
     const { moved } = await handOver({
       organisationId: org.id,
       fromUserId: leaver.user.id,
       toUserId: successor.user.id,
-      actor: ACTOR,
+      actor: ACTOR
     });
 
     assert.equal(moved.total, 3);
@@ -330,30 +379,34 @@ describe("when somebody leaves", () => {
     assert.equal((await holdingsOf(org.id, successor.user.id)).total, 3);
   });
 
-  it("leaves finished work where it was", async () => {
+  it('leaves finished work where it was', async () => {
     // A completed task is a record of what somebody did. Moving it would
     // rewrite that.
     const { org, leaver, successor } = await withWork();
     await db
       .update(tasks)
-      .set({ status: "done" })
+      .set({ status: 'done' })
       .where(eq(tasks.assigneeUserId, leaver.user.id));
 
     await handOver({
       organisationId: org.id,
       fromUserId: leaver.user.id,
       toUserId: successor.user.id,
-      actor: ACTOR,
+      actor: ACTOR
     });
 
     const [done] = await db
       .select()
       .from(tasks)
-      .where(and(eq(tasks.organisationId, org.id), eq(tasks.status, "done")));
-    assert.equal(done.assigneeUserId, leaver.user.id, "the finished task stayed put");
+      .where(and(eq(tasks.organisationId, org.id), eq(tasks.status, 'done')));
+    assert.equal(
+      done.assigneeUserId,
+      leaver.user.id,
+      'the finished task stayed put'
+    );
   });
 
-  it("refuses to hand work to somebody suspended", async () => {
+  it('refuses to hand work to somebody suspended', async () => {
     const { org, leaver, successor } = await withWork();
     await db
       .update(memberships)
@@ -366,13 +419,13 @@ describe("when somebody leaves", () => {
           organisationId: org.id,
           fromUserId: leaver.user.id,
           toUserId: successor.user.id,
-          actor: ACTOR,
+          actor: ACTOR
         }),
-      HandoverRefused,
+      HandoverRefused
     );
   });
 
-  it("refuses to hand work to the same person", async () => {
+  it('refuses to hand work to the same person', async () => {
     const { org, leaver } = await withWork();
     await assert.rejects(
       () =>
@@ -380,19 +433,22 @@ describe("when somebody leaves", () => {
           organisationId: org.id,
           fromUserId: leaver.user.id,
           toUserId: leaver.user.id,
-          actor: ACTOR,
+          actor: ACTOR
         }),
-      HandoverRefused,
+      HandoverRefused
     );
   });
 
-  it("offers only active members of the same organisation as successors", async () => {
+  it('offers only active members of the same organisation as successors', async () => {
     const { org, leaver, successor } = await withWork();
     const other = await scratch();
-    await person(other.org.id, `elsewhere-${other.s}@example.test`, "owner");
+    await person(other.org.id, `elsewhere-${other.s}@example.test`, 'owner');
 
     const options = await candidatesFor(org.id, leaver.user.id);
-    assert.deepEqual(options.map((o) => o.id).sort(), [successor.user.id].sort());
+    assert.deepEqual(
+      options.map((o) => o.id).sort(),
+      [successor.user.id].sort()
+    );
   });
 
   it("does not move another organisation's work", async () => {
@@ -403,12 +459,12 @@ describe("when somebody leaves", () => {
       organisationId: org.id,
       fromUserId: leaver.user.id,
       toUserId: successor.user.id,
-      actor: ACTOR,
+      actor: ACTOR
     });
     assert.equal(
       (await holdingsOf(other.org.id, other.leaver.user.id)).total,
       3,
-      "the other organisation is untouched",
+      'the other organisation is untouched'
     );
   });
 });

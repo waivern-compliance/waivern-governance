@@ -1,4 +1,4 @@
-import { GAP_WORDS, SERIOUS_GAPS, type Gap } from "@/services/ai-register";
+import { GAP_WORDS, SERIOUS_GAPS, type Gap } from '@/services/ai-register';
 
 /**
  * What is missing, named.
@@ -15,7 +15,7 @@ export function GapChips<T extends string>({
   gaps,
   words = GAP_WORDS as Record<string, string>,
   serious = SERIOUS_GAPS as readonly string[],
-  clear = "nothing outstanding",
+  clear = 'nothing outstanding'
 }: {
   gaps: readonly T[];
   words?: Record<string, string>;
@@ -36,8 +36,8 @@ export function GapChips<T extends string>({
           key={g}
           className={`rounded border px-2 py-0.5 font-mono text-[11px] ${
             serious.includes(g)
-              ? "border-red-700 bg-red-50 text-red-900"
-              : "border-amber-700 bg-amber-50 text-amber-900"
+              ? 'border-red-700 bg-red-50 text-red-900'
+              : 'border-amber-700 bg-amber-50 text-amber-900'
           }`}
         >
           {words[g] ?? g}

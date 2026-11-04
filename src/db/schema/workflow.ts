@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -8,10 +8,12 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  uuid,
-} from "drizzle-orm/pg-core";
-import type { RoutingCondition } from "@/lib/workflow/routing";
-import { assessments } from "./assessments";
+  uuid
+} from 'drizzle-orm/pg-core';
+
+import type { RoutingCondition } from '@/lib/workflow/routing';
+
+import { assessments } from './assessments';
 import {
   appRole,
   approvalStatus,
@@ -19,31 +21,35 @@ import {
   scheduleAction,
   taskStatus,
   taskType,
-  templateKind,
-} from "./enums";
-import { entities, organisations, users } from "./tenancy";
+  templateKind
+} from './enums';
+import { entities, organisations, users } from './tenancy';
 
 /** How assessments of one kind get approved in this organisation. */
 export const workflowDefinitions = pgTable(
-  "workflow_definition",
+  'workflow_definition',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    templateKind: templateKind("template_kind").notNull(),
-    name: text("name").notNull(),
-    isActive: boolean("is_active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    templateKind: templateKind('template_kind').notNull(),
+    name: text('name').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
     // One active workflow per kind: two would make "how does this get approved"
     // depend on row order.
-    uniqueIndex("workflow_one_active_per_kind")
+    uniqueIndex('workflow_one_active_per_kind')
       .on(t.organisationId, t.templateKind)
-      .where(sql`${t.isActive}`),
-  ],
+      .where(sql`${t.isActive}`)
+  ]
 );
 
 /**
@@ -55,26 +61,31 @@ export const workflowDefinitions = pgTable(
  * up a second.
  */
 export const workflowStages = pgTable(
-  "workflow_stage",
+  'workflow_stage',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    workflowDefinitionId: uuid("workflow_definition_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    workflowDefinitionId: uuid('workflow_definition_id')
       .notNull()
-      .references(() => workflowDefinitions.id, { onDelete: "cascade" }),
-    position: integer("position").notNull(),
-    name: text("name").notNull(),
+      .references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    name: text('name').notNull(),
     /** Role a person must hold, in the assessment's entity, to decide this stage. */
-    requiredRole: appRole("required_role").notNull(),
-    condition: jsonb("condition").$type<RoutingCondition>().notNull(),
-    slaHours: integer("sla_hours"),
+    requiredRole: appRole('required_role').notNull(),
+    condition: jsonb('condition').$type<RoutingCondition>().notNull(),
+    slaHours: integer('sla_hours'),
     /**
      * Set where the decision is a board's or committee's — an AI governance
      * board, an ethics committee — rather than one person's. Somebody holding
      * the role records it, and the record must say which meeting decided.
      */
-    boardName: text("board_name"),
+    boardName: text('board_name')
   },
-  (t) => [uniqueIndex("workflow_stage_position").on(t.workflowDefinitionId, t.position)],
+  (t) => [
+    uniqueIndex('workflow_stage_position').on(
+      t.workflowDefinitionId,
+      t.position
+    )
+  ]
 );
 
 /**
@@ -85,71 +96,75 @@ export const workflowStages = pgTable(
  * silently never appears is indistinguishable from a gate somebody removed.
  */
 export const approvals = pgTable(
-  "approval",
+  'approval',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    assessmentId: uuid("assessment_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    assessmentId: uuid('assessment_id')
       .notNull()
-      .references(() => assessments.id, { onDelete: "cascade" }),
-    stageId: uuid("stage_id").references(() => workflowStages.id, { onDelete: "set null" }),
-    position: integer("position").notNull(),
-    name: text("name").notNull(),
-    requiredRole: appRole("required_role").notNull(),
-    /** Copied from the stage, as the role is, so a decided gate keeps its own record. */
-    boardName: text("board_name"),
-    status: approvalStatus("status").notNull().default("pending"),
-    /** Why this stage applied, or why it did not. */
-    reason: text("reason").notNull(),
-
-    decidedByUserId: uuid("decided_by_user_id").references(() => users.id, {
-      onDelete: "set null",
+      .references(() => assessments.id, { onDelete: 'cascade' }),
+    stageId: uuid('stage_id').references(() => workflowStages.id, {
+      onDelete: 'set null'
     }),
-    decidedByLabel: text("decided_by_label"),
-    decidedAt: timestamp("decided_at", { withTimezone: true }),
-    rationale: text("rationale"),
-    /** For a board's decision: the meeting and minute that decided it. */
-    boardReference: text("board_reference"),
+    position: integer('position').notNull(),
+    name: text('name').notNull(),
+    requiredRole: appRole('required_role').notNull(),
+    /** Copied from the stage, as the role is, so a decided gate keeps its own record. */
+    boardName: text('board_name'),
+    status: approvalStatus('status').notNull().default('pending'),
+    /** Why this stage applied, or why it did not. */
+    reason: text('reason').notNull(),
 
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedByUserId: uuid('decided_by_user_id').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    decidedByLabel: text('decided_by_label'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    rationale: text('rationale'),
+    /** For a board's decision: the meeting and minute that decided it. */
+    boardReference: text('board_reference'),
+
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    uniqueIndex("approval_assessment_position").on(t.assessmentId, t.position),
-    index("approval_status_idx").on(t.status),
-  ],
+    uniqueIndex('approval_assessment_position').on(t.assessmentId, t.position),
+    index('approval_status_idx').on(t.status)
+  ]
 );
 
 /** Something a named person, or a named email address, has to do. */
 export const tasks = pgTable(
-  "task",
+  'task',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    entityId: uuid("entity_id")
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    entityId: uuid('entity_id')
       .notNull()
-      .references(() => entities.id, { onDelete: "restrict" }),
+      .references(() => entities.id, { onDelete: 'restrict' }),
 
-    type: taskType("type").notNull(),
-    title: text("title").notNull(),
-    description: text("description"),
+    type: taskType('type').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
 
-    subjectType: recordType("subject_type").notNull(),
-    subjectId: uuid("subject_id").notNull(),
+    subjectType: recordType('subject_type').notNull(),
+    subjectId: uuid('subject_id').notNull(),
 
     /** Either a user, or a bare email for someone with no account. */
-    assigneeUserId: uuid("assignee_user_id").references(() => users.id, {
-      onDelete: "set null",
+    assigneeUserId: uuid('assignee_user_id').references(() => users.id, {
+      onDelete: 'set null'
     }),
-    assigneeEmail: text("assignee_email"),
+    assigneeEmail: text('assignee_email'),
     /** Where nobody is named, the role that should pick it up. */
-    assigneeRole: appRole("assignee_role"),
+    assigneeRole: appRole('assignee_role'),
 
-    status: taskStatus("status").notNull().default("open"),
-    dueAt: timestamp("due_at", { withTimezone: true }),
-    slaHours: integer("sla_hours"),
-    breachedAt: timestamp("breached_at", { withTimezone: true }),
-    escalatedAt: timestamp("escalated_at", { withTimezone: true }),
+    status: taskStatus('status').notNull().default('open'),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    slaHours: integer('sla_hours'),
+    breachedAt: timestamp('breached_at', { withTimezone: true }),
+    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
 
     /**
      * Stops a sweep raising the same task twice. Every task a sweep creates
@@ -161,44 +176,46 @@ export const tasks = pgTable(
      * returns an issue id, ServiceNow a sys_id; both are what the API wants
      * back and neither is meant for a person to read.
      */
-    externalId: text("external_id"),
+    externalId: text('external_id'),
     /**
      * The reference a person recognises — PRIV-142, TASK0012345. Held apart
      * from the identifier because the two systems disagree about whether those
      * are the same thing, and storing one would mean either being unable to
      * call the API or being unable to show anybody where the work went.
      */
-    externalRef: text("external_ref"),
+    externalRef: text('external_ref'),
     /** Where to open it. Stored rather than rebuilt, so the link survives the connection being changed. */
-    externalUrl: text("external_url"),
+    externalUrl: text('external_url'),
 
-    idempotencyKey: text("idempotency_key"),
+    idempotencyKey: text('idempotency_key'),
 
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-    completedByLabel: text("completed_by_label"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    completedByLabel: text('completed_by_label'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    uniqueIndex("task_idempotency_key").on(t.organisationId, t.idempotencyKey),
-    index("task_open_idx").on(t.organisationId, t.status, t.dueAt),
-    index("task_assignee_idx").on(t.assigneeUserId, t.status),
-    index("task_subject_idx").on(t.subjectType, t.subjectId),
-  ],
+    uniqueIndex('task_idempotency_key').on(t.organisationId, t.idempotencyKey),
+    index('task_open_idx').on(t.organisationId, t.status, t.dueAt),
+    index('task_assignee_idx').on(t.assigneeUserId, t.status),
+    index('task_subject_idx').on(t.subjectType, t.subjectId)
+  ]
 );
 
 /** How long a kind of task should take, and who hears about it if it does not. */
 export const slaPolicies = pgTable(
-  "sla_policy",
+  'sla_policy',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    taskType: taskType("task_type").notNull(),
-    targetHours: integer("target_hours").notNull(),
-    escalateToRole: appRole("escalate_to_role"),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    taskType: taskType('task_type').notNull(),
+    targetHours: integer('target_hours').notNull(),
+    escalateToRole: appRole('escalate_to_role')
   },
-  (t) => [uniqueIndex("sla_policy_key").on(t.organisationId, t.taskType)],
+  (t) => [uniqueIndex('sla_policy_key').on(t.organisationId, t.taskType)]
 );
 
 /**
@@ -210,37 +227,39 @@ export const slaPolicies = pgTable(
  * is the whole of it.
  */
 export const schedules = pgTable(
-  "schedule",
+  'schedule',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    entityId: uuid("entity_id")
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    entityId: uuid('entity_id')
       .notNull()
-      .references(() => entities.id, { onDelete: "restrict" }),
+      .references(() => entities.id, { onDelete: 'restrict' }),
 
-    subjectType: recordType("subject_type").notNull(),
-    subjectId: uuid("subject_id").notNull(),
-    action: scheduleAction("action").notNull(),
-    title: text("title").notNull(),
+    subjectType: recordType('subject_type').notNull(),
+    subjectId: uuid('subject_id').notNull(),
+    action: scheduleAction('action').notNull(),
+    title: text('title').notNull(),
 
-    intervalMonths: integer("interval_months").notNull(),
+    intervalMonths: integer('interval_months').notNull(),
     /** Raise the task this many days before it falls due. */
-    leadDays: integer("lead_days").notNull().default(14),
-    nextDueAt: timestamp("next_due_at", { withTimezone: true }).notNull(),
-    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    leadDays: integer('lead_days').notNull().default(14),
+    nextDueAt: timestamp('next_due_at', { withTimezone: true }).notNull(),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
 
-    assigneeUserId: uuid("assignee_user_id").references(() => users.id, {
-      onDelete: "set null",
+    assigneeUserId: uuid('assignee_user_id').references(() => users.id, {
+      onDelete: 'set null'
     }),
-    isActive: boolean("is_active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    index("schedule_due_idx").on(t.isActive, t.nextDueAt),
-    index("schedule_subject_idx").on(t.subjectType, t.subjectId),
-  ],
+    index('schedule_due_idx').on(t.isActive, t.nextDueAt),
+    index('schedule_subject_idx').on(t.subjectType, t.subjectId)
+  ]
 );
 
 /**
@@ -251,53 +270,67 @@ export const schedules = pgTable(
  * delivery queue unchanged when one is.
  */
 export const notifications = pgTable(
-  "notification",
+  'notification',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
-    recipient: text("recipient").notNull(),
-    kind: text("kind").notNull(),
-    subject: text("subject").notNull(),
-    body: text("body").notNull(),
-    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
-    idempotencyKey: text("idempotency_key").notNull(),
-    sentAt: timestamp("sent_at", { withTimezone: true }),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    recipient: text('recipient').notNull(),
+    kind: text('kind').notNull(),
+    subject: text('subject').notNull(),
+    body: text('body').notNull(),
+    taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
     /**
      * What delivery did with it, once it has been dealt with: how many people
      * were emailed, or why nobody was. Null while it is still waiting.
      */
-    outcome: text("outcome"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    outcome: text('outcome'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    uniqueIndex("notification_idempotency_key").on(t.organisationId, t.idempotencyKey),
-    index("notification_unsent_idx").on(t.organisationId, t.sentAt),
-  ],
+    uniqueIndex('notification_idempotency_key').on(
+      t.organisationId,
+      t.idempotencyKey
+    ),
+    index('notification_unsent_idx').on(t.organisationId, t.sentAt)
+  ]
 );
 
-export const workflowDefinitionRelations = relations(workflowDefinitions, ({ many }) => ({
-  stages: many(workflowStages),
-}));
+export const workflowDefinitionRelations = relations(
+  workflowDefinitions,
+  ({ many }) => ({
+    stages: many(workflowStages)
+  })
+);
 
 export const workflowStageRelations = relations(workflowStages, ({ one }) => ({
   definition: one(workflowDefinitions, {
     fields: [workflowStages.workflowDefinitionId],
-    references: [workflowDefinitions.id],
-  }),
+    references: [workflowDefinitions.id]
+  })
 }));
 
 export const approvalRelations = relations(approvals, ({ one }) => ({
   assessment: one(assessments, {
     fields: [approvals.assessmentId],
-    references: [assessments.id],
-  }),
+    references: [assessments.id]
+  })
 }));
 
 export const taskRelations = relations(tasks, ({ one }) => ({
-  entity: one(entities, { fields: [tasks.entityId], references: [entities.id] }),
-  assignee: one(users, { fields: [tasks.assigneeUserId], references: [users.id] }),
+  entity: one(entities, {
+    fields: [tasks.entityId],
+    references: [entities.id]
+  }),
+  assignee: one(users, {
+    fields: [tasks.assigneeUserId],
+    references: [users.id]
+  })
 }));
 
 /**
@@ -314,56 +347,65 @@ export const taskRelations = relations(tasks, ({ one }) => ({
  * attributable and hash-linked. This is the conversation around that.
  */
 export const comments = pgTable(
-  "comment",
+  'comment',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organisationId: uuid("organisation_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
       .notNull()
-      .references(() => organisations.id, { onDelete: "cascade" }),
+      .references(() => organisations.id, { onDelete: 'cascade' }),
     /**
      * Carried on the row rather than resolved through the subject, so a
      * comment can be filtered by what the reader may see without a
      * polymorphic join. Null for records scoped to the organisation as a
      * whole, such as suppliers.
      */
-    entityId: uuid("entity_id").references(() => entities.id, { onDelete: "restrict" }),
+    entityId: uuid('entity_id').references(() => entities.id, {
+      onDelete: 'restrict'
+    }),
 
-    subjectType: recordType("subject_type").notNull(),
-    subjectId: uuid("subject_id").notNull(),
+    subjectType: recordType('subject_type').notNull(),
+    subjectId: uuid('subject_id').notNull(),
     /**
      * How the record was known when the remark was made — a reference, or a
      * name. Stored so a mention inbox can list what it is about without
      * joining across every record type, and so the entry still reads correctly
      * if the record is later renamed.
      */
-    subjectLabel: text("subject_label").notNull().default(""),
+    subjectLabel: text('subject_label').notNull().default(''),
 
-    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    authorId: uuid('author_id').references(() => users.id, {
+      onDelete: 'set null'
+    }),
     /**
      * Kept alongside the reference so authorship survives the account being
      * removed. A discussion that turns anonymous when somebody leaves is
      * worse than useless in a record meant to explain a decision later.
      */
-    authorLabel: text("author_label").notNull(),
+    authorLabel: text('author_label').notNull(),
 
-    body: text("body").notNull(),
+    body: text('body').notNull(),
     /** Resolved at post time, so a later rename cannot silently re-target. */
-    mentions: jsonb("mentions").$type<string[]>().notNull().default([]),
+    mentions: jsonb('mentions').$type<string[]>().notNull().default([]),
 
     /**
      * Withdrawn rather than removed. The row stays so the thread still reads
      * in order and the audit chain keeps referring to something.
      */
-    deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
   (t) => [
-    index("comment_subject_idx").on(t.subjectType, t.subjectId, t.createdAt),
-    index("comment_org_idx").on(t.organisationId, t.createdAt),
-  ],
+    index('comment_subject_idx').on(t.subjectType, t.subjectId, t.createdAt),
+    index('comment_org_idx').on(t.organisationId, t.createdAt)
+  ]
 );
 
 export const commentRelations = relations(comments, ({ one }) => ({
   author: one(users, { fields: [comments.authorId], references: [users.id] }),
-  entity: one(entities, { fields: [comments.entityId], references: [entities.id] }),
+  entity: one(entities, {
+    fields: [comments.entityId],
+    references: [entities.id]
+  })
 }));

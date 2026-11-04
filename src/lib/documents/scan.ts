@@ -1,5 +1,6 @@
-import { connect } from "node:net";
-import { log } from "@/lib/log";
+import { connect } from 'node:net';
+
+import { log } from '@/lib/log';
 
 /**
  * Virus scanning, by a ClamAV daemon this deployment runs itself.
@@ -29,27 +30,35 @@ const CHUNK = 64 * 1024;
 
 export type ScannerConfig = { host: string; port: number; timeoutMs: number };
 
-export function scannerConfig(env: Record<string, string | undefined> = process.env): ScannerConfig | null {
+export function scannerConfig(
+  env: Record<string, string | undefined> = process.env
+): ScannerConfig | null {
   const host = env.CLAMAV_HOST?.trim();
   if (!host) return null;
   const port = Number(env.CLAMAV_PORT?.trim() || DEFAULT_PORT);
-  return { host, port: Number.isInteger(port) && port > 0 ? port : DEFAULT_PORT, timeoutMs: TIMEOUT_MS };
+  return {
+    host,
+    port: Number.isInteger(port) && port > 0 ? port : DEFAULT_PORT,
+    timeoutMs: TIMEOUT_MS
+  };
 }
 
 /** Whether uploads are scanned on this deployment. What the security page asks. */
-export function scanningEnabled(env: Record<string, string | undefined> = process.env): boolean {
+export function scanningEnabled(
+  env: Record<string, string | undefined> = process.env
+): boolean {
   return scannerConfig(env) !== null;
 }
 
 export type ScanVerdict =
-  | { outcome: "clean"; scanner: string }
-  | { outcome: "infected"; signature: string; scanner: string };
+  | { outcome: 'clean'; scanner: string }
+  | { outcome: 'infected'; signature: string; scanner: string };
 
 /** The scanner could not give an answer. Treated as "not checked", never as "clean". */
 export class ScannerUnavailable extends Error {
-  constructor(public readonly reason: "unreachable" | "timeout" | "error") {
+  constructor(public readonly reason: 'unreachable' | 'timeout' | 'error') {
     super(`Virus scanner ${reason}`);
-    this.name = "ScannerUnavailable";
+    this.name = 'ScannerUnavailable';
   }
 }
 
@@ -72,28 +81,41 @@ function request(config: ScannerConfig, frames: Buffer[]): Promise<string> {
       if (error) reject(error);
       else resolve(reply!);
     };
-    const timer = setTimeout(() => finish(new ScannerUnavailable("timeout")), config.timeoutMs);
+    const timer = setTimeout(
+      () => finish(new ScannerUnavailable('timeout')),
+      config.timeoutMs
+    );
 
-    socket.on("connect", () => {
+    socket.on('connect', () => {
       for (const frame of frames) socket.write(frame);
     });
-    socket.on("data", (chunk) => {
+    socket.on('data', (chunk) => {
       received.push(chunk);
       const all = Buffer.concat(received);
       const end = all.indexOf(0);
-      if (end >= 0) finish(null, all.subarray(0, end).toString("utf8").trim());
+      if (end >= 0) finish(null, all.subarray(0, end).toString('utf8').trim());
     });
-    socket.on("error", (cause: NodeJS.ErrnoException) => {
-      const refused = ["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH"];
-      finish(new ScannerUnavailable(refused.includes(cause.code ?? "") ? "unreachable" : "error"));
+    socket.on('error', (cause: NodeJS.ErrnoException) => {
+      const refused = [
+        'ECONNREFUSED',
+        'ENOTFOUND',
+        'EAI_AGAIN',
+        'EHOSTUNREACH',
+        'ENETUNREACH'
+      ];
+      finish(
+        new ScannerUnavailable(
+          refused.includes(cause.code ?? '') ? 'unreachable' : 'error'
+        )
+      );
     });
-    socket.on("close", () => finish(new ScannerUnavailable("error")));
+    socket.on('close', () => finish(new ScannerUnavailable('error')));
   });
 }
 
 /** INSTREAM framing: each chunk led by its length, big-endian, then a zero length to end. */
 function instream(content: Buffer): Buffer[] {
-  const frames: Buffer[] = [Buffer.from("zINSTREAM\0")];
+  const frames: Buffer[] = [Buffer.from('zINSTREAM\0')];
   for (let at = 0; at < content.byteLength; at += CHUNK) {
     const chunk = content.subarray(at, at + CHUNK);
     const length = Buffer.alloc(4);
@@ -112,8 +134,8 @@ function instream(content: Buffer): Buffer[] {
  * be on Friday's.
  */
 async function scannerVersion(config: ScannerConfig): Promise<string> {
-  const reply = await request(config, [Buffer.from("zVERSION\0")]);
-  return reply.split("/").slice(0, 2).join("/").slice(0, 100);
+  const reply = await request(config, [Buffer.from('zVERSION\0')]);
+  return reply.split('/').slice(0, 2).join('/').slice(0, 100);
 }
 
 /**
@@ -122,27 +144,46 @@ async function scannerVersion(config: ScannerConfig): Promise<string> {
  */
 export async function scanBuffer(
   content: Buffer,
-  config: ScannerConfig | null = scannerConfig(),
+  config: ScannerConfig | null = scannerConfig()
 ): Promise<ScanVerdict> {
-  if (!config) throw new Error("Scanning is not configured");
+  if (!config) throw new Error('Scanning is not configured');
   const started = Date.now();
   try {
-    const [reply, scanner] = await Promise.all([request(config, instream(content)), scannerVersion(config)]);
+    const [reply, scanner] = await Promise.all([
+      request(config, instream(content)),
+      scannerVersion(config)
+    ]);
 
     // "stream: OK", "stream: <signature> FOUND", or "<message> ERROR".
     const found = /^stream: (.+) FOUND$/.exec(reply);
     if (found) {
-      log("warn", "scan.infected", { bytes: content.byteLength, ms: Date.now() - started });
-      return { outcome: "infected", signature: found[1].slice(0, 200), scanner };
+      log('warn', 'scan.infected', {
+        bytes: content.byteLength,
+        ms: Date.now() - started
+      });
+      return {
+        outcome: 'infected',
+        signature: found[1].slice(0, 200),
+        scanner
+      };
     }
-    if (reply === "stream: OK") {
-      log("info", "scan.clean", { bytes: content.byteLength, ms: Date.now() - started });
-      return { outcome: "clean", scanner };
+    if (reply === 'stream: OK') {
+      log('info', 'scan.clean', {
+        bytes: content.byteLength,
+        ms: Date.now() - started
+      });
+      return { outcome: 'clean', scanner };
     }
-    throw new ScannerUnavailable("error");
+    throw new ScannerUnavailable('error');
   } catch (cause) {
-    const reason = cause instanceof ScannerUnavailable ? cause.reason : "error";
-    log("error", "scan.failed", { reason, bytes: content.byteLength, ms: Date.now() - started });
-    throw cause instanceof ScannerUnavailable ? cause : new ScannerUnavailable("error");
+    const reason = cause instanceof ScannerUnavailable ? cause.reason : 'error';
+    log('error', 'scan.failed', {
+      reason,
+      bytes: content.byteLength,
+      ms: Date.now() - started
+    });
+    throw cause instanceof ScannerUnavailable
+      ? cause
+      : new ScannerUnavailable('error');
   }
 }

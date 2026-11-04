@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Feedback on the product, for Waivern's operators (`lib/feedback.ts`).
@@ -10,17 +10,19 @@ import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
  * organisations.
  */
 export const feedback = pgTable(
-  "feedback",
+  'feedback',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    message: text("message").notNull(),
+    id: uuid('id').primaryKey().defaultRandom(),
+    message: text('message').notNull(),
     /** The page's route with record ids replaced by [id]. */
-    place: text("place").notNull(),
-    placeLabel: text("place_label").notNull(),
-    contactEmail: text("contact_email"),
+    place: text('place').notNull(),
+    placeLabel: text('place_label').notNull(),
+    contactEmail: text('contact_email'),
     /** When an operator marked it dealt with. */
-    handledAt: timestamp("handled_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    handledAt: timestamp('handled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
   },
-  (t) => [index("feedback_created_idx").on(t.createdAt)],
+  (t) => [index('feedback_created_idx').on(t.createdAt)]
 );

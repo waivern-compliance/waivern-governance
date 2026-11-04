@@ -1,17 +1,25 @@
-"use client";
+'use client';
 
-import { useRefusableAction } from "@/lib/use-refusable-action";
-import { renameOrganisationAction, type AdminResult } from "../actions";
-import { savedKey } from "@/lib/saved-key";
+import { savedKey } from '@/lib/saved-key';
+import { useRefusableAction } from '@/lib/use-refusable-action';
+
+import { renameOrganisationAction, type AdminResult } from '../actions';
 
 export function RenameForm({ current }: { current: string }) {
   // Through a transition, so a refused name stays in the box to be corrected.
-  const { result, pending, formProps } = useRefusableAction<AdminResult>(renameOrganisationAction, {
-    resetOnSuccess: false,
-  });
+  const { result, pending, formProps } = useRefusableAction<AdminResult>(
+    renameOrganisationAction,
+    {
+      resetOnSuccess: false
+    }
+  );
 
   return (
-    <form key={savedKey(current)} {...formProps} className="space-y-3 rounded border border-line bg-surface p-5">
+    <form
+      key={savedKey(current)}
+      {...formProps}
+      className="space-y-3 rounded border border-line bg-surface p-5"
+    >
       <label className="block space-y-1">
         <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
           Organisation name
@@ -34,8 +42,8 @@ export function RenameForm({ current }: { current: string }) {
           role="status"
           className={`rounded border px-4 py-2.5 text-sm ${
             result.ok
-              ? "border-emerald-700 bg-emerald-50 text-emerald-900"
-              : "border-amber-700 bg-amber-50 text-amber-900"
+              ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+              : 'border-amber-700 bg-amber-50 text-amber-900'
           }`}
         >
           {result.message}
@@ -47,7 +55,7 @@ export function RenameForm({ current }: { current: string }) {
         disabled={pending}
         className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        {pending ? "Saving…" : "Save"}
+        {pending ? 'Saving…' : 'Save'}
       </button>
     </form>
   );

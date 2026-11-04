@@ -1,9 +1,13 @@
-"use client";
+'use client';
 
-import { useActionState, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
-import { FEEDBACK_MAX, placeOf } from "@/lib/feedback";
-import { sendFeedbackAction, type FeedbackResult } from "@/app/app/feedback-actions";
+import { useActionState, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+
+import {
+  sendFeedbackAction,
+  type FeedbackResult
+} from '@/app/app/feedback-actions';
+import { FEEDBACK_MAX, placeOf } from '@/lib/feedback';
 
 /**
  * Feedback to Waivern from any page.
@@ -18,20 +22,23 @@ export function FeedbackButton({ email }: { email: string }) {
   const [open, setOpen] = useState(false);
   // Counting the sends keys the form, so a new one follows each send and the
   // words and the tick go with the old one.
-  const [{ result, sent }, action, pending] = useActionState<{ result: FeedbackResult; sent: number }, FormData>(
+  const [{ result, sent }, action, pending] = useActionState<
+    { result: FeedbackResult; sent: number },
+    FormData
+  >(
     async (previous, formData) => {
       const result = await sendFeedbackAction(null, formData);
       return { result, sent: result?.ok ? previous.sent + 1 : previous.sent };
     },
-    { result: null, sent: 0 },
+    { result: null, sent: 0 }
   );
 
   useEffect(() => {
     if (!open) return;
-    document.getElementById("feedback-message")?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.getElementById('feedback-message')?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
   return (
@@ -43,7 +50,12 @@ export function FeedbackButton({ email }: { email: string }) {
           className="w-[min(24rem,calc(100vw-2rem))] space-y-3 rounded border border-line bg-surface p-4 text-sm shadow-lg"
         >
           <div className="flex items-baseline justify-between gap-3">
-            <h2 id="feedback-heading" className="font-semibold">Feedback to Waivern</h2>
+            <h2
+              id="feedback-heading"
+              className="font-semibold"
+            >
+              Feedback to Waivern
+            </h2>
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -53,32 +65,50 @@ export function FeedbackButton({ email }: { email: string }) {
             </button>
           </div>
           <p className="text-xs text-ink-soft">
-            About: <span className="font-medium text-ink">{label}</span>. This goes to Waivern, who make the
-            tool, not to your organisation.
+            About: <span className="font-medium text-ink">{label}</span>. This
+            goes to Waivern, who make the tool, not to your organisation.
           </p>
-          <form key={sent} action={action} className="space-y-3">
-            <input type="hidden" name="pathname" value={pathname} />
+          <form
+            key={sent}
+            action={action}
+            className="space-y-3"
+          >
+            <input
+              type="hidden"
+              name="pathname"
+              value={pathname}
+            />
             <MessageField />
             <label className="flex items-start gap-2.5 text-xs">
-              <input id="feedback-share-email" type="checkbox" name="shareEmail" className="mt-0.5 accent-brand" />
+              <input
+                id="feedback-share-email"
+                type="checkbox"
+                name="shareEmail"
+                className="mt-0.5 accent-brand"
+              />
               <span>
-                Waivern may email me at <span className="font-mono">{email}</span> to follow up.
+                Waivern may email me at{' '}
+                <span className="font-mono">{email}</span> to follow up.
                 <span className="block text-ink-soft">
-                  Unticked, it is sent anonymously: Waivern sees your words and which page you were on, and nothing
-                  about who you are or which organisation you work for.
+                  Unticked, it is sent anonymously: Waivern sees your words and
+                  which page you were on, and nothing about who you are or which
+                  organisation you work for.
                 </span>
               </span>
             </label>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p role="status" className={`text-xs ${result && !result.ok ? "text-red-900" : "text-ink-soft"}`}>
-                {result?.message ?? ""}
+              <p
+                role="status"
+                className={`text-xs ${result && !result.ok ? 'text-red-900' : 'text-ink-soft'}`}
+              >
+                {result?.message ?? ''}
               </p>
               <button
                 type="submit"
                 disabled={pending}
                 className="rounded border border-line bg-surface px-3 py-1.5 text-sm hover:border-brand focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50"
               >
-                {pending ? "Sending…" : "Send feedback"}
+                {pending ? 'Sending…' : 'Send feedback'}
               </button>
             </div>
           </form>

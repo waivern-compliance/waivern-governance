@@ -1,6 +1,6 @@
-import type { aiFramework } from "@/db/schema";
-import type { AppetiteLevel } from "@/lib/risk/appetite";
-import type { TreatmentSuggestion } from "@/lib/risk/treatment-library";
+import type { aiFramework } from '@/db/schema';
+import type { AppetiteLevel } from '@/lib/risk/appetite';
+import type { TreatmentSuggestion } from '@/lib/risk/treatment-library';
 
 export type AiFrameworkId = (typeof aiFramework.enumValues)[number];
 

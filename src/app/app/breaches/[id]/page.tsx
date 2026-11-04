@@ -1,41 +1,54 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
-import { db, scoped } from "@/db/client";
-import { memberships, users } from "@/db/schema";
-import { Clock } from "@/components/breach/Clock";
-import { Discussion } from "@/components/Discussion";
-import { NotPermitted } from "@/components/NotPermitted";
-import { NOTIFICATION_CONTENT } from "@/lib/breach/statutory";
-import { can } from "@/lib/rbac";
-import { getActiveSession } from "@/lib/session";
-import { loadBreach, severitySuggestion } from "@/services/breaches";
-import { DecisionForm } from "../DecisionForm";
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { asc, eq } from 'drizzle-orm';
+
+import { Clock } from '@/components/breach/Clock';
+import { Discussion } from '@/components/Discussion';
+import { EditForm } from '@/components/EditForm';
+import { NotPermitted } from '@/components/NotPermitted';
+import { db, scoped } from '@/db/client';
+import { memberships, users } from '@/db/schema';
+import { NOTIFICATION_CONTENT } from '@/lib/breach/statutory';
+import { can } from '@/lib/rbac';
+import { savedKey } from '@/lib/saved-key';
+import { getActiveSession } from '@/lib/session';
+import { loadBreach, severitySuggestion } from '@/services/breaches';
+
 import {
   detachAssessmentAction,
   startSeverityAssessmentAction,
-  updateBreachAction,
-} from "../actions";
-import { savedKey } from "@/lib/saved-key";
-import { EditForm } from "@/components/EditForm";
+  updateBreachAction
+} from '../actions';
+import { DecisionForm } from '../DecisionForm';
 
 const stamp = (d: Date | null) =>
-  d ? d.toISOString().slice(0, 16).replace("T", " ") + " UTC" : null;
+  d ? d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : null;
 
 export default async function BreachPage({
-  params,
+  params
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
   const active = await getActiveSession();
-  if (!active) redirect("/sign-in");
+  if (!active) redirect('/sign-in');
 
   const loaded = await loadBreach(id, active.membership.organisationId);
   if (!loaded) notFound();
 
-  const { breach, entityName, decisions, risk, obligations, clock, outstandingContent, publicCommsProvider, pecr, competentAuthority } = loaded;
-  if (!can(active.membership.grants, "record.read", breach.entityId)) {
+  const {
+    breach,
+    entityName,
+    decisions,
+    risk,
+    obligations,
+    clock,
+    outstandingContent,
+    publicCommsProvider,
+    pecr,
+    competentAuthority
+  } = loaded;
+  if (!can(active.membership.grants, 'record.read', breach.entityId)) {
     return (
       <NotPermitted
         what={`${breach.reference} belongs to another part of the organisation, and`}
@@ -43,34 +56,64 @@ export default async function BreachPage({
       />
     );
   }
-  const mayEdit = can(active.membership.grants, "record.write", breach.entityId);
-  const mayAssess = can(active.membership.grants, "assessment.create", breach.entityId);
+  const mayEdit = can(
+    active.membership.grants,
+    'record.write',
+    breach.entityId
+  );
+  const mayAssess = can(
+    active.membership.grants,
+    'assessment.create',
+    breach.entityId
+  );
   const suggestion = await severitySuggestion(breach);
 
-  const colleagues = await scoped(active.membership.organisationId, () => db
-    .select({ id: users.id, email: users.email })
-    .from(memberships)
-    .innerJoin(users, eq(users.id, memberships.userId))
-    .where(eq(memberships.organisationId, active.membership.organisationId))
-    .orderBy(asc(users.email)));
+  const colleagues = await scoped(active.membership.organisationId, () =>
+    db
+      .select({ id: users.id, email: users.email })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(eq(memberships.organisationId, active.membership.organisationId))
+      .orderBy(asc(users.email))
+  );
 
   return (
     <main className="mx-auto max-w-3xl space-y-9 px-6 py-12">
       <header className="space-y-3 border-b border-line pb-6">
-        <Link href="/app/breaches" className="text-xs text-ink-soft hover:text-brand">
+        <Link
+          href="/app/breaches"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
           ← Personal data breaches
         </Link>
         <div className="flex flex-wrap items-baseline gap-3">
-          <span className="font-mono text-sm text-ink-soft">{breach.reference}</span>
-          <h1 className="text-2xl font-semibold tracking-tight">{breach.title}</h1>
+          <span className="font-mono text-sm text-ink-soft">
+            {breach.reference}
+          </span>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {breach.title}
+          </h1>
         </div>
         <p className="text-xs text-ink-soft">
-          {entityName} · {breach.controllerRole.replace(/_/g, " ")} · {breach.status}
-          {breach.regime === "dpa_part3" ? " · law enforcement (Part 3, ss.67–68)" : ""}
-          {breach.categories.length > 0 ? ` · ${breach.categories.join(", ")}` : ""}
+          {entityName} · {breach.controllerRole.replace(/_/g, ' ')} ·{' '}
+          {breach.status}
+          {breach.regime === 'dpa_part3'
+            ? ' · law enforcement (Part 3, ss.67–68)'
+            : ''}
+          {breach.categories.length > 0
+            ? ` · ${breach.categories.join(', ')}`
+            : ''}
         </p>
-        <Clock clock={clock} regime={breach.regime === "dpa_part3" ? "part3" : "article33"} />
-        {pecr ? <Clock clock={pecr.clock} regime="pecr" /> : null}
+        <Clock
+          clock={clock}
+          regime={breach.regime === 'dpa_part3' ? 'part3' : 'article33'}
+        />
+        {pecr ? (
+          <Clock
+            clock={pecr.clock}
+            regime="pecr"
+          />
+        ) : null}
       </header>
 
       <section className="space-y-3">
@@ -83,18 +126,21 @@ export default async function BreachPage({
                   href={`/app/assessments/${breach.assessmentId}`}
                   className="text-sm font-medium hover:text-brand"
                 >
-                  {suggestion.reference} — severity assessment
+                  {suggestion.reference} - severity assessment
                 </Link>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {suggestion.status}
-                  {suggestion.score !== null ? ` · scored ${suggestion.score}` : ""}
+                  {suggestion.score !== null
+                    ? ` · scored ${suggestion.score}`
+                    : ''}
                 </span>
               </div>
               {suggestion.band ? (
                 <p className="mt-1.5 max-w-prose text-sm">{suggestion.band}</p>
               ) : (
                 <p className="mt-1.5 text-sm text-ink-soft">
-                  Not yet scored — answer it through to the end and a band appears.
+                  Not yet scored - answer it through to the end and a band
+                  appears.
                 </p>
               )}
               <p className="mt-1.5 max-w-prose text-xs text-ink-soft">
@@ -118,12 +164,14 @@ export default async function BreachPage({
             <p className="max-w-prose text-sm text-ink-soft">
               Severity has not been assessed with a template. You can record the
               judgement in the decisions below as free text, which is enough for
-              a breach settled quickly — or run the structured assessment, which
+              a breach settled quickly - or run the structured assessment, which
               works through the ICO&rsquo;s factors and proposes an answer to
               both statutory questions.
             </p>
             {mayAssess ? (
-              <form action={startSeverityAssessmentAction.bind(null, breach.id)}>
+              <form
+                action={startSeverityAssessmentAction.bind(null, breach.id)}
+              >
                 <button
                   type="submit"
                   className="rounded border border-line px-3.5 py-1.5 text-sm font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
@@ -137,20 +185,27 @@ export default async function BreachPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold">What the Regulation requires here</h2>
+        <h2 className="text-sm font-semibold">
+          What the Regulation requires here
+        </h2>
         {obligations.length === 0 ? (
           <p className="rounded border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             Assessed as unlikely to result in a risk to rights and freedoms, so
             neither Article 33 nor Article 34 requires notification. It stays on
-            the register regardless — Article 33(5) asks for all of them.
+            the register regardless - Article 33(5) asks for all of them.
           </p>
         ) : (
           <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
             {obligations.map((o) => (
-              <li key={o.kind} className="space-y-1 px-4 py-3">
+              <li
+                key={o.kind}
+                className="space-y-1 px-4 py-3"
+              >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4">
                   <span className="text-sm font-medium">{o.what}</span>
-                  <span className="font-mono text-[11px] text-ink-soft">{o.basis}</span>
+                  <span className="font-mono text-[11px] text-ink-soft">
+                    {o.basis}
+                  </span>
                 </div>
                 <p className="text-xs text-ink-soft">{o.deadlineWords}</p>
               </li>
@@ -159,22 +214,29 @@ export default async function BreachPage({
         )}
         <p className="max-w-prose text-xs text-ink-soft">
           {risk === null
-            ? "The risk has not been assessed yet, so the authority obligation is shown as engaged. The seventy-two hours does not pause while somebody decides whether it applies."
-            : `Assessed as ${risk.replace(/_/g, " ")}.`}
+            ? 'The risk has not been assessed yet, so the authority obligation is shown as engaged. The seventy-two hours does not pause while somebody decides whether it applies.'
+            : `Assessed as ${risk.replace(/_/g, ' ')}.`}
         </p>
       </section>
 
       {publicCommsProvider ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold">What PECR regulation 5A requires here</h2>
+          <h2 className="text-sm font-semibold">
+            What PECR regulation 5A requires here
+          </h2>
           {pecr ? (
             <>
               <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
                 {pecr.obligations.map((o) => (
-                  <li key={o.kind} className="space-y-1 px-4 py-3">
+                  <li
+                    key={o.kind}
+                    className="space-y-1 px-4 py-3"
+                  >
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4">
                       <span className="text-sm font-medium">{o.what}</span>
-                      <span className="font-mono text-[11px] text-ink-soft">{o.basis}</span>
+                      <span className="font-mono text-[11px] text-ink-soft">
+                        {o.basis}
+                      </span>
                     </div>
                     <p className="text-xs text-ink-soft">{o.deadlineWords}</p>
                   </li>
@@ -183,17 +245,20 @@ export default async function BreachPage({
               <p className="max-w-prose text-xs text-ink-soft">
                 {entityName} is a public communications provider
                 {breach.pecrServiceBreach === null
-                  ? ", and whether this breach arose in providing the service is not yet answered, so reg 5A is shown as applying."
-                  : ", and this breach arose in providing the service."}{" "}
-                Unlike Article 33 there is no risk test: the Information Commission is told of every such breach. Where
-                reg 5A applies, UK GDPR Article 95 means Article 33 does not add a second duty to notify;
-                if that is your position, record the Article 33 decision as not required, citing Article 95.
+                  ? ', and whether this breach arose in providing the service is not yet answered, so reg 5A is shown as applying.'
+                  : ', and this breach arose in providing the service.'}{' '}
+                Unlike Article 33 there is no risk test: the Information
+                Commission is told of every such breach. Where reg 5A applies,
+                UK GDPR Article 95 means Article 33 does not add a second duty
+                to notify; if that is your position, record the Article 33
+                decision as not required, citing Article 95.
               </p>
             </>
           ) : (
             <p className="max-w-prose text-sm text-ink-soft">
-              {entityName} is a public communications provider, but this breach did not arise in providing
-              the service, so reg 5A does not apply and Article 33 is the duty.
+              {entityName} is a public communications provider, but this breach
+              did not arise in providing the service, so reg 5A does not apply
+              and Article 33 is the duty.
             </p>
           )}
         </section>
@@ -201,7 +266,9 @@ export default async function BreachPage({
 
       {outstandingContent.length > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold">Not yet recorded for a notification</h2>
+          <h2 className="text-sm font-semibold">
+            Not yet recorded for a notification
+          </h2>
           <ul className="space-y-1.5">
             {outstandingContent.map((element) => (
               <li
@@ -213,33 +280,38 @@ export default async function BreachPage({
             ))}
           </ul>
           <p className="max-w-prose text-xs text-ink-soft">
-            {breach.regime === "dpa_part3" ? "Section 67(5)" : "Article 33(4)"} allows information to be given in phases where it is
-            not all available at once, so an incomplete notification is lawful.
-            Better to know which parts are missing before the deadline than
-            after it.
+            {breach.regime === 'dpa_part3' ? 'Section 67(5)' : 'Article 33(4)'}{' '}
+            allows information to be given in phases where it is not all
+            available at once, so an incomplete notification is lawful. Better
+            to know which parts are missing before the deadline than after it.
           </p>
         </section>
       ) : null}
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Decisions ({decisions.length})</h2>
+        <h2 className="text-sm font-semibold">
+          Decisions ({decisions.length})
+        </h2>
         <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
           {decisions.map((d) => (
-            <li key={d.id} className="space-y-1 px-4 py-3">
+            <li
+              key={d.id}
+              className="space-y-1 px-4 py-3"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-sm font-medium">
-                  {d.kind.replace(/_/g, " ")} — {d.outcome.replace(/_/g, " ")}
+                  {d.kind.replace(/_/g, ' ')} - {d.outcome.replace(/_/g, ' ')}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
-                  {d.statutoryBasis ?? "not required by law"}
+                  {d.statutoryBasis ?? 'not required by law'}
                 </span>
               </div>
               <p className="max-w-prose text-sm">{d.rationale}</p>
               <p className="font-mono text-[11px] text-ink-soft">
                 {d.decidedByEmail ?? d.decidedByLabel} · {stamp(d.decidedAt)}
-                {d.recipient ? ` · to ${d.recipient}` : ""}
-                {d.externalRef ? ` · ${d.externalRef}` : ""}
-                {d.completedAt ? ` · done ${stamp(d.completedAt)}` : ""}
+                {d.recipient ? ` · to ${d.recipient}` : ''}
+                {d.externalRef ? ` · ${d.externalRef}` : ''}
+                {d.completedAt ? ` · done ${stamp(d.completedAt)}` : ''}
               </p>
               {d.lateReason ? (
                 <p className="max-w-prose text-xs text-amber-900">
@@ -250,16 +322,22 @@ export default async function BreachPage({
           ))}
           {decisions.length === 0 ? (
             <li className="px-4 py-5 text-sm text-ink-soft">
-              Nothing decided yet. The first judgement is whether{" "}
-              {breach.regime === "dpa_part3"
-                ? "section 67 requires the Information Commission to be told."
-                : "Article 33 requires the supervisory authority to be told."}
+              Nothing decided yet. The first judgement is whether{' '}
+              {breach.regime === 'dpa_part3'
+                ? 'section 67 requires the Information Commission to be told.'
+                : 'Article 33 requires the supervisory authority to be told.'}
             </li>
           ) : null}
         </ul>
       </section>
 
-      {mayEdit ? <DecisionForm breachId={breach.id} pecr={publicCommsProvider} part3={breach.regime === "dpa_part3"} /> : null}
+      {mayEdit ? (
+        <DecisionForm
+          breachId={breach.id}
+          pecr={publicCommsProvider}
+          part3={breach.regime === 'dpa_part3'}
+        />
+      ) : null}
 
       {mayEdit ? (
         <EditForm
@@ -270,38 +348,77 @@ export default async function BreachPage({
           <h2 className="text-sm font-semibold">The record</h2>
           <p className="max-w-prose text-xs text-ink-soft">
             Article 33(5): the facts, the effects, and the remedial action.
-            Article 33(3) asks for categories and approximate numbers — an
+            Article 33(3) asks for categories and approximate numbers - an
             estimate recorded beats a blank field.
           </p>
 
-          <Field label="What happened" name="title" defaultValue={breach.title} />
-          <Area label="Description" name="description" defaultValue={breach.description} rows={3} />
+          <Field
+            label="What happened"
+            name="title"
+            defaultValue={breach.title}
+          />
+          <Area
+            label="Description"
+            name="description"
+            defaultValue={breach.description}
+            rows={3}
+          />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="When it happened" name="occurredAt" type="datetime-local"
-              defaultValue={breach.occurredAt?.toISOString().slice(0, 16) ?? ""} />
-            <Field label="When it was contained" name="containedAt" type="datetime-local"
-              defaultValue={breach.containedAt?.toISOString().slice(0, 16) ?? ""} />
+            <Field
+              label="When it happened"
+              name="occurredAt"
+              type="datetime-local"
+              defaultValue={breach.occurredAt?.toISOString().slice(0, 16) ?? ''}
+            />
+            <Field
+              label="When it was contained"
+              name="containedAt"
+              type="datetime-local"
+              defaultValue={
+                breach.containedAt?.toISOString().slice(0, 16) ?? ''
+              }
+            />
           </div>
 
-          <Area label="Categories of data subject" name="subjectCategories"
-            hint="Article 33(3)(a)" defaultValue={breach.subjectCategories.join("\n")} />
-          <Area label="Categories of personal data" name="dataCategories"
-            hint="Article 33(3)(a)" defaultValue={breach.dataCategories.join("\n")} />
+          <Area
+            label="Categories of data subject"
+            name="subjectCategories"
+            hint="Article 33(3)(a)"
+            defaultValue={breach.subjectCategories.join('\n')}
+          />
+          <Area
+            label="Categories of personal data"
+            name="dataCategories"
+            hint="Article 33(3)(a)"
+            defaultValue={breach.dataCategories.join('\n')}
+          />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="People affected, approximately" name="subjectsAffected" type="number"
-              defaultValue={breach.subjectsAffected?.toString() ?? ""} />
-            <Field label="Records affected, approximately" name="recordsAffected" type="number"
-              defaultValue={breach.recordsAffected?.toString() ?? ""} />
+            <Field
+              label="People affected, approximately"
+              name="subjectsAffected"
+              type="number"
+              defaultValue={breach.subjectsAffected?.toString() ?? ''}
+            />
+            <Field
+              label="Records affected, approximately"
+              name="recordsAffected"
+              type="number"
+              defaultValue={breach.recordsAffected?.toString() ?? ''}
+            />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Tri label="Special category data involved?" name="specialCategory" value={breach.specialCategory} />
+            <Tri
+              label="Special category data involved?"
+              name="specialCategory"
+              value={breach.specialCategory}
+            />
             <Tri
               label="Was the data unintelligible?"
               name="dataUnintelligible"
-              hint="Encryption or effective pseudonymisation — the Article 34(3)(a) exemption."
+              hint="Encryption or effective pseudonymisation - the Article 34(3)(a) exemption."
               value={breach.dataUnintelligible}
             />
           </div>
@@ -315,22 +432,34 @@ export default async function BreachPage({
             />
           ) : null}
 
-          <Area label="Likely consequences" name="likelyConsequences" hint="Article 33(3)(c)"
-            defaultValue={breach.likelyConsequences ?? ""} />
-          <Area label="Measures taken or proposed" name="measuresTaken"
+          <Area
+            label="Likely consequences"
+            name="likelyConsequences"
+            hint="Article 33(3)(c)"
+            defaultValue={breach.likelyConsequences ?? ''}
+          />
+          <Area
+            label="Measures taken or proposed"
+            name="measuresTaken"
             hint="Article 33(3)(d), including anything to mitigate adverse effects"
-            defaultValue={breach.measuresTaken ?? ""} />
+            defaultValue={breach.measuresTaken ?? ''}
+          />
 
-          {competentAuthority || breach.regime === "dpa_part3" ? (
+          {competentAuthority || breach.regime === 'dpa_part3' ? (
             <label className="block space-y-1">
               <Label
                 text="Regime"
                 hint="A breach of law enforcement processing is notified and communicated under ss.67–68 of the Data Protection Act 2018, not Articles 33–34."
               />
-              <select name="regime" defaultValue={breach.regime}
-                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm">
+              <select
+                name="regime"
+                defaultValue={breach.regime}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
                 <option value="uk_gdpr">UK GDPR (Articles 33–34)</option>
-                <option value="dpa_part3">Law enforcement processing (Part 3, ss.67–68)</option>
+                <option value="dpa_part3">
+                  Law enforcement processing (Part 3, ss.67–68)
+                </option>
               </select>
             </label>
           ) : null}
@@ -338,8 +467,11 @@ export default async function BreachPage({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1">
               <Label text="Your role" />
-              <select name="controllerRole" defaultValue={breach.controllerRole}
-                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm">
+              <select
+                name="controllerRole"
+                defaultValue={breach.controllerRole}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
                 <option value="controller">Controller</option>
                 <option value="joint_controller">Joint controller</option>
                 <option value="processor">Processor</option>
@@ -347,11 +479,19 @@ export default async function BreachPage({
             </label>
             <label className="block space-y-1">
               <Label text="Handled by" />
-              <select name="ownerId" defaultValue={breach.ownerId ?? ""}
-                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm">
+              <select
+                name="ownerId"
+                defaultValue={breach.ownerId ?? ''}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
                 <option value="">Nobody yet</option>
                 {colleagues.map((c) => (
-                  <option key={c.id} value={c.id}>{c.email}</option>
+                  <option
+                    key={c.id}
+                    value={c.id}
+                  >
+                    {c.email}
+                  </option>
                 ))}
               </select>
             </label>
@@ -362,20 +502,30 @@ export default async function BreachPage({
               What kind of breach
             </legend>
             {[
-              ["confidentiality", "Confidentiality"],
-              ["integrity", "Integrity"],
-              ["availability", "Availability"],
+              ['confidentiality', 'Confidentiality'],
+              ['integrity', 'Integrity'],
+              ['availability', 'Availability']
             ].map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2.5 text-sm">
-                <input type="checkbox" name="categories" value={value}
-                  defaultChecked={breach.categories.includes(value)} className="accent-brand" />
+              <label
+                key={value}
+                className="flex items-center gap-2.5 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  name="categories"
+                  value={value}
+                  defaultChecked={breach.categories.includes(value)}
+                  className="accent-brand"
+                />
                 <span>{label}</span>
               </label>
             ))}
           </fieldset>
 
-          <button type="submit"
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+          <button
+            type="submit"
+            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
             Save the record
           </button>
         </EditForm>
@@ -383,8 +533,12 @@ export default async function BreachPage({
 
       {breach.closedAt ? (
         <section className="space-y-1 rounded border border-line bg-surface p-5">
-          <h2 className="text-sm font-semibold">Closed {stamp(breach.closedAt)}</h2>
-          <p className="max-w-prose text-sm text-ink-soft">{breach.closureRationale}</p>
+          <h2 className="text-sm font-semibold">
+            Closed {stamp(breach.closedAt)}
+          </h2>
+          <p className="max-w-prose text-sm text-ink-soft">
+            {breach.closureRationale}
+          </p>
         </section>
       ) : null}
 
@@ -402,44 +556,96 @@ function Label({ text, hint }: { text: string; hint?: string }) {
   return (
     <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
       {text}
-      {hint ? <span className="block font-normal normal-case tracking-normal">{hint}</span> : null}
+      {hint ? (
+        <span className="block font-normal normal-case tracking-normal">
+          {hint}
+        </span>
+      ) : null}
     </span>
   );
 }
 
 function Field({
-  label, name, hint, type = "text", defaultValue,
-}: { label: string; name: string; hint?: string; type?: string; defaultValue?: string }) {
+  label,
+  name,
+  hint,
+  type = 'text',
+  defaultValue
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  type?: string;
+  defaultValue?: string;
+}) {
   return (
     <label className="block space-y-1">
-      <Label text={label} hint={hint} />
-      <input name={name} type={type} defaultValue={defaultValue}
-        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand" />
+      <Label
+        text={label}
+        hint={hint}
+      />
+      <input
+        name={name}
+        type={type}
+        defaultValue={defaultValue}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand"
+      />
     </label>
   );
 }
 
 function Area({
-  label, name, hint, defaultValue, rows = 2,
-}: { label: string; name: string; hint?: string; defaultValue?: string; rows?: number }) {
+  label,
+  name,
+  hint,
+  defaultValue,
+  rows = 2
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  defaultValue?: string;
+  rows?: number;
+}) {
   return (
     <label className="block space-y-1">
-      <Label text={label} hint={hint} />
-      <textarea name={name} rows={rows} defaultValue={defaultValue}
-        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand" />
+      <Label
+        text={label}
+        hint={hint}
+      />
+      <textarea
+        name={name}
+        rows={rows}
+        defaultValue={defaultValue}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand"
+      />
     </label>
   );
 }
 
 /** Three states, because "not yet known" is a real answer at hour one. */
 function Tri({
-  label, name, hint, value,
-}: { label: string; name: string; hint?: string; value: boolean | null }) {
+  label,
+  name,
+  hint,
+  value
+}: {
+  label: string;
+  name: string;
+  hint?: string;
+  value: boolean | null;
+}) {
   return (
     <label className="block space-y-1">
-      <Label text={label} hint={hint} />
-      <select name={name} defaultValue={value === null ? "" : value ? "yes" : "no"}
-        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm">
+      <Label
+        text={label}
+        hint={hint}
+      />
+      <select
+        name={name}
+        defaultValue={value === null ? '' : value ? 'yes' : 'no'}
+        className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+      >
         <option value="">Not yet known</option>
         <option value="yes">Yes</option>
         <option value="no">No</option>

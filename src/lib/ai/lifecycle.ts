@@ -13,19 +13,25 @@
  * refuse on the same reasoning.
  */
 
-export type Stage = "proposed" | "development" | "pilot" | "production" | "retiring" | "retired";
+export type Stage =
+  | 'proposed'
+  | 'development'
+  | 'pilot'
+  | 'production'
+  | 'retiring'
+  | 'retired';
 
 export const STAGE_ORDER: readonly Stage[] = [
-  "proposed",
-  "development",
-  "pilot",
-  "production",
-  "retiring",
-  "retired",
+  'proposed',
+  'development',
+  'pilot',
+  'production',
+  'retiring',
+  'retired'
 ];
 
 /** Stages in which the system reaches real people. */
-export const LIVE: readonly Stage[] = ["pilot", "production"];
+export const LIVE: readonly Stage[] = ['pilot', 'production'];
 
 export type GateContext = {
   from: Stage;
@@ -45,18 +51,20 @@ export type GateContext = {
 };
 
 export type GateCondition =
-  | "named_owner"
-  | "approved_assessment"
-  | "assessment_current"
-  | "assessed_since_change"
-  | "ico_consulted";
+  | 'named_owner'
+  | 'approved_assessment'
+  | 'assessment_current'
+  | 'assessed_since_change'
+  | 'ico_consulted';
 
 export const GATE_WORDS: Record<GateCondition, string> = {
-  named_owner: "A named senior responsible owner",
-  approved_assessment: "An approved AI assessment",
-  assessment_current: "An assessment that is not past its review date",
-  assessed_since_change: "An assessment approved since the last change to the model, data or use",
-  ico_consulted: "The Information Commission's advice on the high risk its DPIA leaves (Article 36)",
+  named_owner: 'A named senior responsible owner',
+  approved_assessment: 'An approved AI assessment',
+  assessment_current: 'An assessment that is not past its review date',
+  assessed_since_change:
+    'An assessment approved since the last change to the model, data or use',
+  ico_consulted:
+    "The Information Commission's advice on the high risk its DPIA leaves (Article 36)"
 };
 
 /**
@@ -72,25 +80,31 @@ export function unmetConditions(to: Stage, ctx: GateContext): GateCondition[] {
   const enteringLive =
     LIVE.includes(to) &&
     // Pilot to production is a new exposure; production back to pilot is not.
-    !(to === "pilot" && ctx.from === "production") &&
+    !(to === 'pilot' && ctx.from === 'production') &&
     to !== ctx.from;
   if (!enteringLive) return [];
 
   const now = ctx.now ?? new Date();
   const unmet: GateCondition[] = [];
-  if (!ctx.hasOwner) unmet.push("named_owner");
+  if (!ctx.hasOwner) unmet.push('named_owner');
   // Checked before the assessment, because it is a legal precondition on the
   // processing whatever the AI assessment says.
-  if (ctx.icoConsultationOutstanding) unmet.push("ico_consulted");
+  if (ctx.icoConsultationOutstanding) unmet.push('ico_consulted');
   if (!ctx.assessedAt) {
-    unmet.push("approved_assessment");
+    unmet.push('approved_assessment');
     return unmet;
   }
-  if (ctx.assessmentReviewDue && ctx.assessmentReviewDue.getTime() <= now.getTime()) {
-    unmet.push("assessment_current");
+  if (
+    ctx.assessmentReviewDue &&
+    ctx.assessmentReviewDue.getTime() <= now.getTime()
+  ) {
+    unmet.push('assessment_current');
   }
-  if (ctx.lastMaterialChangeAt && ctx.lastMaterialChangeAt.getTime() > ctx.assessedAt.getTime()) {
-    unmet.push("assessed_since_change");
+  if (
+    ctx.lastMaterialChangeAt &&
+    ctx.lastMaterialChangeAt.getTime() > ctx.assessedAt.getTime()
+  ) {
+    unmet.push('assessed_since_change');
   }
   return unmet;
 }

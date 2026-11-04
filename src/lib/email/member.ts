@@ -1,6 +1,7 @@
-import { waivernHosted } from "@/lib/hosting";
-import { PRODUCT_NAME } from "@/lib/product";
-import { transportConfig, type Email, type EmailConfig } from "./resend";
+import { waivernHosted } from '@/lib/hosting';
+import { PRODUCT_NAME } from '@/lib/product';
+
+import { transportConfig, type Email, type EmailConfig } from './resend';
 
 /**
  * Alert and action emails to an organisation's own people: a task that names
@@ -25,24 +26,24 @@ import { transportConfig, type Email, type EmailConfig } from "./resend";
 
 export type MemberEmailState =
   /** Waivern's shared service: never, whatever is set. */
-  | "hosted"
+  | 'hosted'
   /** `NOTIFICATION_EMAILS` is not "true". */
-  | "off"
+  | 'off'
   /** Switched on, but there is no Resend key or sender to send with. */
-  | "not_configured"
-  | "on";
+  | 'not_configured'
+  | 'on';
 
 type Env = Record<string, string | undefined>;
 
 export function memberEmailState(env: Env = process.env): MemberEmailState {
-  if (waivernHosted(env)) return "hosted";
-  if (env.NOTIFICATION_EMAILS !== "true") return "off";
-  return transportConfig(env) ? "on" : "not_configured";
+  if (waivernHosted(env)) return 'hosted';
+  if (env.NOTIFICATION_EMAILS !== 'true') return 'off';
+  return transportConfig(env) ? 'on' : 'not_configured';
 }
 
 /** What sending member email needs, or null where it should not be sent. */
 export function memberEmailConfig(env: Env = process.env): EmailConfig | null {
-  return memberEmailState(env) === "on" ? transportConfig(env) : null;
+  return memberEmailState(env) === 'on' ? transportConfig(env) : null;
 }
 
 /**
@@ -53,10 +54,10 @@ export const STALE_AFTER_HOURS = 48;
 
 /** The kinds of notification that are emailed, and what each is called. */
 export const EMAILED_KINDS = {
-  "task.raised": "New work for you",
-  "task.sla_breached": "Overdue work",
-  mention: "Mentions",
-  "assessment.decided": "Decisions on your assessments",
+  'task.raised': 'New work for you',
+  'task.sla_breached': 'Overdue work',
+  mention: 'Mentions',
+  'assessment.decided': 'Decisions on your assessments'
 } as const;
 
 export type EmailedKind = keyof typeof EMAILED_KINDS;
@@ -80,35 +81,41 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /** The deployment's own address, for links back into it. */
 function appUrl(env: Env = process.env): string {
-  return (env.AUTH_URL ?? "").replace(/\/+$/, "");
+  return (env.AUTH_URL ?? '').replace(/\/+$/, '');
 }
 
 /** One person's email about one notification. Pure, so the wording can be tested. */
-export function memberEmail(notice: MemberNotice, url = appUrl()): Omit<Email, "to"> {
+export function memberEmail(
+  notice: MemberNotice,
+  url = appUrl()
+): Omit<Email, 'to'> {
   const where = `in ${notice.organisationName}`;
-  const due = notice.task?.dueAt ? ` It is due ${day(notice.task.dueAt)}.` : "";
+  const due = notice.task?.dueAt ? ` It is due ${day(notice.task.dueAt)}.` : '';
   const lead = (() => {
     switch (notice.kind) {
-      case "task.raised":
+      case 'task.raised':
         return `There is new work for you ${where}: ${notice.task?.title ?? notice.subject}.${due}`;
-      case "task.sla_breached":
+      case 'task.sla_breached':
         return `Work ${where} is overdue: ${notice.task?.title ?? notice.subject}.${due}`;
-      case "mention":
+      case 'mention':
         return `${notice.subject} ${where}.`;
-      case "assessment.decided":
+      case 'assessment.decided':
         return `${notice.subject} ${where}.`;
     }
   })();
   return {
-    subject: notice.kind === "task.raised" ? `New task: ${notice.task?.title ?? notice.subject}` : notice.subject,
+    subject:
+      notice.kind === 'task.raised'
+        ? `New task: ${notice.task?.title ?? notice.subject}`
+        : notice.subject,
     text: [
       lead,
-      "",
+      '',
       `Open it: ${url}${notice.path}`,
-      "",
-      "—",
-      `Sent by ${PRODUCT_NAME} because you asked for alert and action emails. To stop them, turn them off on your profile: ${url}/app/profile`,
-    ].join("\n"),
-    tag: notice.kind.replace(".", "-"),
+      '',
+      '-',
+      `Sent by ${PRODUCT_NAME} because you asked for alert and action emails. To stop them, turn them off on your profile: ${url}/app/profile`
+    ].join('\n'),
+    tag: notice.kind.replace('.', '-')
   };
 }

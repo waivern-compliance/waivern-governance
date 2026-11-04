@@ -1,21 +1,30 @@
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
-import { db, type Db, withOrganisation } from "@/db/client";
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+
+import { db, withOrganisation, type Db } from '@/db/client';
 import {
   aiUseCases,
   assessments,
   dpas,
   entities,
   evidence,
-  integrationConnections,
   processingActivities,
   recordLinks,
   referenceCounters,
   risks,
   scanFindings,
-  suppliers,
-} from "@/db/schema";
-import { appendAuditEvent } from "@/lib/audit";
-import { connectionActor, type AuthedConnection } from "@/lib/integration/auth";
+  suppliers
+} from '@/db/schema';
+import { appendAuditEvent } from '@/lib/audit';
+import {
+  AutomatedDecisionRefused,
+  cleanAdm
+} from '@/lib/gdpr/automated-decisions';
+import {
+  cleanFurtherProcessing,
+  FurtherProcessingRefused
+} from '@/lib/gdpr/further-processing';
+import { basesFromText } from '@/lib/gdpr/lawful-basis';
+import { connectionActor, type AuthedConnection } from '@/lib/integration/auth';
 import type {
   AiUseCaseIn,
   DpaIn,
@@ -23,23 +32,28 @@ import type {
   IngestOutcome,
   ProcessingActivityIn,
   ScanBatchIn,
-  VendorIn,
-} from "@/lib/integration/contracts";
-import { sql } from "drizzle-orm";
-import type { Actor } from "./templates";
-import { createUseCase } from "./ai-register";
-import { canonicalise as canonicaliseByHand } from "./third-party";
-import { basesFromText } from "@/lib/gdpr/lawful-basis";
-import { cleanLawfulBases } from "./ropa";
-import { AutomatedDecisionRefused, cleanAdm } from "@/lib/gdpr/automated-decisions";
-import { FurtherProcessingRefused, cleanFurtherProcessing } from "@/lib/gdpr/further-processing";
-import { admFromWire, furtherFromWire, researchFromWire } from "@/lib/integration/duaa";
+  VendorIn
+} from '@/lib/integration/contracts';
+import {
+  admFromWire,
+  furtherFromWire,
+  researchFromWire
+} from '@/lib/integration/duaa';
+
+import { createUseCase } from './ai-register';
+import { cleanLawfulBases } from './ropa';
+import type { Actor } from './templates';
+import { canonicalise as canonicaliseByHand } from './third-party';
 
 /** A record the Act's rules refuse is skipped with the reason, not the whole batch. */
 class RecordRefused extends Error {}
 
 function refusedBy(error: unknown): string | null {
-  if (error instanceof AutomatedDecisionRefused || error instanceof FurtherProcessingRefused || error instanceof RecordRefused) {
+  if (
+    error instanceof AutomatedDecisionRefused ||
+    error instanceof FurtherProcessingRefused ||
+    error instanceof RecordRefused
+  ) {
     return error.message;
   }
   return null;
@@ -60,11 +74,11 @@ function furtherRecordOf(row: typeof processingActivities.$inferSelect) {
     researchSafeguards: row.researchSafeguards,
     approvedMedicalResearch: row.approvedMedicalResearch,
     art13Exemption: row.art13Exemption,
-    publicInformationUrl: row.publicInformationUrl,
+    publicInformationUrl: row.publicInformationUrl
   };
 }
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * Resolve the entity a record belongs to.
@@ -76,17 +90,23 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 async function resolveEntity(
   organisationId: string,
   connection: AuthedConnection,
-  named: string | undefined,
+  named: string | undefined
 ): Promise<{ ok: true; entityId: string } | { ok: false; reason: string }> {
   if (!named) {
-    if (connection.defaultEntityId) return { ok: true, entityId: connection.defaultEntityId };
+    if (connection.defaultEntityId)
+      return { ok: true, entityId: connection.defaultEntityId };
     const [fallback] = await db
       .select()
       .from(entities)
-      .where(and(eq(entities.organisationId, organisationId), eq(entities.isDefault, true)));
+      .where(
+        and(
+          eq(entities.organisationId, organisationId),
+          eq(entities.isDefault, true)
+        )
+      );
     return fallback
       ? { ok: true, entityId: fallback.id }
-      : { ok: false, reason: "No entity named and no default configured" };
+      : { ok: false, reason: 'No entity named and no default configured' };
   }
 
   const [match] = await db
@@ -95,15 +115,20 @@ async function resolveEntity(
     .where(
       and(
         eq(entities.organisationId, organisationId),
-        or(eq(entities.name, named), eq(entities.legalEntityRef, named)),
-      ),
+        or(eq(entities.name, named), eq(entities.legalEntityRef, named))
+      )
     );
   return match
     ? { ok: true, entityId: match.id }
     : { ok: false, reason: `Unknown entity "${named}"` };
 }
 
-async function nextReference(tx: Tx, organisationId: string, prefix: string, year: number) {
+async function nextReference(
+  tx: Tx,
+  organisationId: string,
+  prefix: string,
+  year: number
+) {
   const rows = await tx.execute<{ next_value: number | string }>(sql`
     insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
     values (${organisationId}, ${prefix}, ${year}, 1)
@@ -111,162 +136,208 @@ async function nextReference(tx: Tx, organisationId: string, prefix: string, yea
       do update set next_value = ${referenceCounters}.next_value + 1
     returning next_value
   `);
-  return `${prefix}-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, "0")}`;
+  return `${prefix}-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 /** Two spellings of one vendor should not become two suppliers. */
 export function canonicalise(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\b(ltd|limited|inc|llc|plc|gmbh|sa|bv|corp|corporation|co)\b/g, "")
-    .replace(/[^a-z0-9]/g, "");
+    .replace(
+      /\b(ltd|limited|inc|llc|plc|gmbh|sa|bv|corp|corporation|co)\b/g,
+      ''
+    )
+    .replace(/[^a-z0-9]/g, '');
 }
 
 export async function ingestProcessingActivities(
   connection: AuthedConnection,
-  records: ProcessingActivityIn[],
+  records: ProcessingActivityIn[]
 ): Promise<IngestOutcome> {
   return withOrganisation(connection.organisationId, async () => {
-    const outcome: IngestOutcome = { received: records.length, created: 0, updated: 0, skipped: [] };
+    const outcome: IngestOutcome = {
+      received: records.length,
+      created: 0,
+      updated: 0,
+      skipped: []
+    };
     const actor = connectionActor(connection);
     const year = new Date().getUTCFullYear();
 
     for (const r of records) {
-      const entity = await resolveEntity(connection.organisationId, connection, r.entity);
+      const entity = await resolveEntity(
+        connection.organisationId,
+        connection,
+        r.entity
+      );
       if (!entity.ok) {
-        outcome.skipped.push({ externalRef: r.externalRef, reason: entity.reason });
+        outcome.skipped.push({
+          externalRef: r.externalRef,
+          reason: entity.reason
+        });
         continue;
       }
 
       try {
-      await db.transaction(async (tx) => {
-        const [existing] = await tx
-          .select()
-          .from(processingActivities)
-          .where(
-            and(
-              eq(processingActivities.organisationId, connection.organisationId),
-              eq(processingActivities.sourceConnectionId, connection.id),
-              eq(processingActivities.externalRef, r.externalRef),
-            ),
-          );
+        await db.transaction(async (tx) => {
+          const [existing] = await tx
+            .select()
+            .from(processingActivities)
+            .where(
+              and(
+                eq(
+                  processingActivities.organisationId,
+                  connection.organisationId
+                ),
+                eq(processingActivities.sourceConnectionId, connection.id),
+                eq(processingActivities.externalRef, r.externalRef)
+              )
+            );
 
-        // The Act's records, group by group. A group sent replaces what is
-        // recorded for it; one left out is left alone, because a push that
-        // says nothing about research has no view on it.
-        const recorded: string[] = [];
-        const duaa: Record<string, unknown> = {};
-        if (r.automatedDecisions) {
-          Object.assign(duaa, cleanAdm(admFromWire(r.automatedDecisions)));
-          recorded.push("automatedDecisions");
-        }
-        if (r.furtherProcessing || r.research) {
-          let originalActivityId = existing?.originalActivityId ?? null;
-          if (r.furtherProcessing) {
-            const ref = r.furtherProcessing.originalExternalRef;
-            if (ref === r.externalRef) throw new RecordRefused("An activity cannot be further processing of itself.");
-            // Only an activity this connection sent: the reference is the
-            // Portal's own, and means nothing against another source's.
-            const [original] = ref
-              ? await tx
-                  .select({ id: processingActivities.id })
-                  .from(processingActivities)
-                  .where(
-                    and(
-                      eq(processingActivities.organisationId, connection.organisationId),
-                      eq(processingActivities.sourceConnectionId, connection.id),
-                      eq(processingActivities.externalRef, ref),
-                    ),
-                  )
-              : [];
-            originalActivityId = original?.id ?? null;
-            recorded.push("furtherProcessing");
+          // The Act's records, group by group. A group sent replaces what is
+          // recorded for it; one left out is left alone, because a push that
+          // says nothing about research has no view on it.
+          const recorded: string[] = [];
+          const duaa: Record<string, unknown> = {};
+          if (r.automatedDecisions) {
+            Object.assign(duaa, cleanAdm(admFromWire(r.automatedDecisions)));
+            recorded.push('automatedDecisions');
           }
-          if (r.research) recorded.push("research");
-          Object.assign(
-            duaa,
-            cleanFurtherProcessing({
-              ...(existing ? furtherRecordOf(existing) : {}),
-              ...(r.furtherProcessing ? furtherFromWire(r.furtherProcessing) : {}),
-              ...(r.research ? researchFromWire(r.research) : {}),
-              originalActivityId,
-            }),
+          if (r.furtherProcessing || r.research) {
+            let originalActivityId = existing?.originalActivityId ?? null;
+            if (r.furtherProcessing) {
+              const ref = r.furtherProcessing.originalExternalRef;
+              if (ref === r.externalRef)
+                throw new RecordRefused(
+                  'An activity cannot be further processing of itself.'
+                );
+              // Only an activity this connection sent: the reference is the
+              // Portal's own, and means nothing against another source's.
+              const [original] = ref
+                ? await tx
+                    .select({ id: processingActivities.id })
+                    .from(processingActivities)
+                    .where(
+                      and(
+                        eq(
+                          processingActivities.organisationId,
+                          connection.organisationId
+                        ),
+                        eq(
+                          processingActivities.sourceConnectionId,
+                          connection.id
+                        ),
+                        eq(processingActivities.externalRef, ref)
+                      )
+                    )
+                : [];
+              originalActivityId = original?.id ?? null;
+              recorded.push('furtherProcessing');
+            }
+            if (r.research) recorded.push('research');
+            Object.assign(
+              duaa,
+              cleanFurtherProcessing({
+                ...(existing ? furtherRecordOf(existing) : {}),
+                ...(r.furtherProcessing
+                  ? furtherFromWire(r.furtherProcessing)
+                  : {}),
+                ...(r.research ? researchFromWire(r.research) : {}),
+                originalActivityId
+              })
+            );
+          }
+          if (r.childrenLikely !== undefined) {
+            duaa.childrenLikely = r.childrenLikely;
+            recorded.push('childrenLikely');
+          }
+
+          // Structured bases win; otherwise read them from the text where it is
+          // unambiguous. Where neither says anything, a basis somebody chose in
+          // Govern is left alone rather than wiped by a push that had no view.
+          const bases =
+            r.lawfulBases ?? basesFromText(r.lawfulBasis) ?? undefined;
+          const condition =
+            r.recognisedCondition ??
+            (bases?.includes('recognised_legitimate_interests')
+              ? existing?.recognisedCondition
+              : undefined);
+          const values = {
+            name: r.name,
+            description: r.description,
+            purposes: r.purposes,
+            lawfulBasis: r.lawfulBasis,
+            ...(bases ? cleanLawfulBases(bases, condition ?? null) : {}),
+            dataCategories: r.dataCategories,
+            subjectCategories: r.subjectCategories,
+            recipients: r.recipients,
+            systems: r.systems,
+            transfers: r.transfers,
+            retention: r.retention,
+            securityMeasures: r.securityMeasures,
+            controllerRole: r.controllerRole,
+            controllerName: r.controllerName,
+            reviewDueAt: r.reviewDueAt ? new Date(r.reviewDueAt) : undefined,
+            ...duaa,
+            updatedAt: new Date()
+          };
+
+          if (existing) {
+            await tx
+              .update(processingActivities)
+              .set(values)
+              .where(eq(processingActivities.id, existing.id));
+            outcome.updated += 1;
+            await appendAuditEvent(tx, {
+              ...actor,
+              organisationId: connection.organisationId,
+              action: 'processing_activity.updated',
+              subjectType: 'processing_activity',
+              subjectId: existing.id,
+              entityId: existing.entityId,
+              before: { name: existing.name },
+              after: {
+                name: r.name,
+                externalRef: r.externalRef,
+                ...(recorded.length ? { recorded } : {})
+              }
+            });
+            return;
+          }
+
+          const reference = await nextReference(
+            tx,
+            connection.organisationId,
+            'ROPA',
+            year
           );
-        }
-        if (r.childrenLikely !== undefined) {
-          duaa.childrenLikely = r.childrenLikely;
-          recorded.push("childrenLikely");
-        }
-
-        // Structured bases win; otherwise read them from the text where it is
-        // unambiguous. Where neither says anything, a basis somebody chose in
-        // Govern is left alone rather than wiped by a push that had no view.
-        const bases = r.lawfulBases ?? basesFromText(r.lawfulBasis) ?? undefined;
-        const condition =
-          r.recognisedCondition ??
-          (bases?.includes("recognised_legitimate_interests") ? existing?.recognisedCondition : undefined);
-        const values = {
-          name: r.name,
-          description: r.description,
-          purposes: r.purposes,
-          lawfulBasis: r.lawfulBasis,
-          ...(bases ? cleanLawfulBases(bases, condition ?? null) : {}),
-          dataCategories: r.dataCategories,
-          subjectCategories: r.subjectCategories,
-          recipients: r.recipients,
-          systems: r.systems,
-          transfers: r.transfers,
-          retention: r.retention,
-          securityMeasures: r.securityMeasures,
-          controllerRole: r.controllerRole,
-          controllerName: r.controllerName,
-          reviewDueAt: r.reviewDueAt ? new Date(r.reviewDueAt) : undefined,
-          ...duaa,
-          updatedAt: new Date(),
-        };
-
-        if (existing) {
-          await tx
-            .update(processingActivities)
-            .set(values)
-            .where(eq(processingActivities.id, existing.id));
-          outcome.updated += 1;
+          const [row] = await tx
+            .insert(processingActivities)
+            .values({
+              organisationId: connection.organisationId,
+              entityId: entity.entityId,
+              reference,
+              sourceConnectionId: connection.id,
+              externalRef: r.externalRef,
+              ...values
+            })
+            .returning();
+          outcome.created += 1;
           await appendAuditEvent(tx, {
             ...actor,
             organisationId: connection.organisationId,
-            action: "processing_activity.updated",
-            subjectType: "processing_activity",
-            subjectId: existing.id,
-            entityId: existing.entityId,
-            before: { name: existing.name },
-            after: { name: r.name, externalRef: r.externalRef, ...(recorded.length ? { recorded } : {}) },
-          });
-          return;
-        }
-
-        const reference = await nextReference(tx, connection.organisationId, "ROPA", year);
-        const [row] = await tx
-          .insert(processingActivities)
-          .values({
-            organisationId: connection.organisationId,
+            action: 'processing_activity.created',
+            subjectType: 'processing_activity',
+            subjectId: row.id,
             entityId: entity.entityId,
-            reference,
-            sourceConnectionId: connection.id,
-            externalRef: r.externalRef,
-            ...values,
-          })
-          .returning();
-        outcome.created += 1;
-        await appendAuditEvent(tx, {
-          ...actor,
-          organisationId: connection.organisationId,
-          action: "processing_activity.created",
-          subjectType: "processing_activity",
-          subjectId: row.id,
-          entityId: entity.entityId,
-          after: { reference, name: r.name, externalRef: r.externalRef, ...(recorded.length ? { recorded } : {}) },
+            after: {
+              reference,
+              name: r.name,
+              externalRef: r.externalRef,
+              ...(recorded.length ? { recorded } : {})
+            }
+          });
         });
-      });
       } catch (error) {
         const reason = refusedBy(error);
         if (reason === null) throw error;
@@ -279,16 +350,24 @@ export async function ingestProcessingActivities(
 
 export async function ingestVendors(
   connection: AuthedConnection,
-  records: VendorIn[],
+  records: VendorIn[]
 ): Promise<IngestOutcome> {
   return withOrganisation(connection.organisationId, async () => {
-    const outcome: IngestOutcome = { received: records.length, created: 0, updated: 0, skipped: [] };
+    const outcome: IngestOutcome = {
+      received: records.length,
+      created: 0,
+      updated: 0,
+      skipped: []
+    };
     const actor = connectionActor(connection);
 
     for (const r of records) {
       const key = canonicalise(r.name);
       if (!key) {
-        outcome.skipped.push({ externalRef: r.externalRef ?? r.name, reason: "Name is not usable" });
+        outcome.skipped.push({
+          externalRef: r.externalRef ?? r.name,
+          reason: 'Name is not usable'
+        });
         continue;
       }
 
@@ -302,7 +381,7 @@ export async function ingestVendors(
             description: r.description,
             categories: r.categories,
             sourceConnectionId: connection.id,
-            externalRef: r.externalRef,
+            externalRef: r.externalRef
           })
           .onConflictDoUpdate({
             target: [suppliers.organisationId, suppliers.canonicalKey],
@@ -315,8 +394,8 @@ export async function ingestVendors(
                 from jsonb_array_elements(${suppliers.categories} || ${JSON.stringify(r.categories)}::jsonb)
               )`,
               description: sql`coalesce(${suppliers.description}, ${r.description ?? null})`,
-              updatedAt: new Date(),
-            },
+              updatedAt: new Date()
+            }
           })
           .returning();
 
@@ -324,10 +403,10 @@ export async function ingestVendors(
         await appendAuditEvent(tx, {
           ...actor,
           organisationId: connection.organisationId,
-          action: "supplier.upserted",
-          subjectType: "supplier",
+          action: 'supplier.upserted',
+          subjectType: 'supplier',
           subjectId: row.id,
-          after: { name: r.name, canonicalKey: key },
+          after: { name: r.name, canonicalKey: key }
         });
       });
     }
@@ -348,16 +427,28 @@ export async function ingestVendors(
  */
 export async function ingestAiUseCases(
   connection: AuthedConnection,
-  records: AiUseCaseIn[],
+  records: AiUseCaseIn[]
 ): Promise<IngestOutcome> {
   return withOrganisation(connection.organisationId, async () => {
-    const outcome: IngestOutcome = { received: records.length, created: 0, updated: 0, skipped: [] };
+    const outcome: IngestOutcome = {
+      received: records.length,
+      created: 0,
+      updated: 0,
+      skipped: []
+    };
     const actor = connectionActor(connection);
 
     for (const r of records) {
-      const entity = await resolveEntity(connection.organisationId, connection, r.entity);
+      const entity = await resolveEntity(
+        connection.organisationId,
+        connection,
+        r.entity
+      );
       if (!entity.ok) {
-        outcome.skipped.push({ externalRef: r.externalRef, reason: entity.reason });
+        outcome.skipped.push({
+          externalRef: r.externalRef,
+          reason: entity.reason
+        });
         continue;
       }
 
@@ -371,8 +462,11 @@ export async function ingestAiUseCases(
           .where(
             and(
               eq(suppliers.organisationId, connection.organisationId),
-              inArray(suppliers.canonicalKey, [canonicalise(r.supplierName), canonicaliseByHand(r.supplierName)]),
-            ),
+              inArray(suppliers.canonicalKey, [
+                canonicalise(r.supplierName),
+                canonicaliseByHand(r.supplierName)
+              ])
+            )
           )
           .limit(1);
         supplierId = match?.id ?? null;
@@ -380,7 +474,9 @@ export async function ingestAiUseCases(
 
       let adm: ReturnType<typeof cleanAdm> | null = null;
       try {
-        adm = r.automatedDecisions ? cleanAdm(admFromWire(r.automatedDecisions)) : null;
+        adm = r.automatedDecisions
+          ? cleanAdm(admFromWire(r.automatedDecisions))
+          : null;
       } catch (error) {
         const reason = refusedBy(error);
         if (reason === null) throw error;
@@ -396,8 +492,8 @@ export async function ingestAiUseCases(
             and(
               eq(aiUseCases.organisationId, connection.organisationId),
               eq(aiUseCases.sourceConnectionId, connection.id),
-              eq(aiUseCases.externalRef, r.externalRef),
-            ),
+              eq(aiUseCases.externalRef, r.externalRef)
+            )
           );
 
         const described = {
@@ -411,7 +507,7 @@ export async function ingestAiUseCases(
           modelName: r.modelName,
           deployedIn: r.deployedIn,
           processesPersonalData: r.processesPersonalData,
-          dataCategories: r.dataCategories,
+          dataCategories: r.dataCategories
         };
 
         if (existing) {
@@ -423,19 +519,24 @@ export async function ingestAiUseCases(
               ...(adm ?? {}),
               // A link somebody made here is kept; the push only fills an empty one.
               supplierId: existing.supplierId ?? supplierId,
-              updatedAt: new Date(),
+              updatedAt: new Date()
             })
             .where(eq(aiUseCases.id, existing.id));
           outcome.updated += 1;
           await appendAuditEvent(tx, {
             ...actor,
             organisationId: connection.organisationId,
-            action: "ai_use_case.updated",
-            subjectType: "ai_use_case",
+            action: 'ai_use_case.updated',
+            subjectType: 'ai_use_case',
             subjectId: existing.id,
             entityId: existing.entityId,
             before: { name: existing.name, purpose: existing.purpose },
-            after: { name: r.name, purpose: r.purpose, externalRef: r.externalRef, ...(adm ? { recorded: ["automatedDecisions"] } : {}) },
+            after: {
+              name: r.name,
+              purpose: r.purpose,
+              externalRef: r.externalRef,
+              ...(adm ? { recorded: ['automatedDecisions'] } : {})
+            }
           });
           return;
         }
@@ -446,16 +547,20 @@ export async function ingestAiUseCases(
             entityId: entity.entityId,
             ...described,
             deploymentPattern: r.deploymentPattern ?? null,
-            lifecycleStage: r.lifecycleStage ?? "proposed",
+            lifecycleStage: r.lifecycleStage ?? 'proposed',
             supplierId,
             source: { connectionId: connection.id, externalRef: r.externalRef },
-            actor,
+            actor
           },
-          tx,
+          tx
         );
         // createUseCase records what a system is, field by field; the
         // automated-decision record goes on alongside, in the same transaction.
-        if (adm) await tx.update(aiUseCases).set(adm).where(eq(aiUseCases.id, created.id));
+        if (adm)
+          await tx
+            .update(aiUseCases)
+            .set(adm)
+            .where(eq(aiUseCases.id, created.id));
         outcome.created += 1;
       });
     }
@@ -465,10 +570,15 @@ export async function ingestAiUseCases(
 
 export async function ingestDpas(
   connection: AuthedConnection,
-  records: DpaIn[],
+  records: DpaIn[]
 ): Promise<IngestOutcome> {
   return withOrganisation(connection.organisationId, async () => {
-    const outcome: IngestOutcome = { received: records.length, created: 0, updated: 0, skipped: [] };
+    const outcome: IngestOutcome = {
+      received: records.length,
+      created: 0,
+      updated: 0,
+      skipped: []
+    };
     const actor = connectionActor(connection);
 
     for (const r of records) {
@@ -480,11 +590,11 @@ export async function ingestDpas(
             organisationId: connection.organisationId,
             name: r.vendorName,
             canonicalKey: key,
-            sourceConnectionId: connection.id,
+            sourceConnectionId: connection.id
           })
           .onConflictDoUpdate({
             target: [suppliers.organisationId, suppliers.canonicalKey],
-            set: { updatedAt: new Date() },
+            set: { updatedAt: new Date() }
           })
           .returning();
 
@@ -501,7 +611,7 @@ export async function ingestDpas(
             subProcessors: r.subProcessors,
             terms: r.terms,
             sourceConnectionId: connection.id,
-            externalRef: r.externalRef,
+            externalRef: r.externalRef
           })
           .returning();
 
@@ -509,10 +619,14 @@ export async function ingestDpas(
         await appendAuditEvent(tx, {
           ...actor,
           organisationId: connection.organisationId,
-          action: "dpa.recorded",
-          subjectType: "dpa",
+          action: 'dpa.recorded',
+          subjectType: 'dpa',
           subjectId: row.id,
-          after: { supplier: r.vendorName, title: r.title, expiresAt: r.expiresAt ?? null },
+          after: {
+            supplier: r.vendorName,
+            title: r.title,
+            expiresAt: r.expiresAt ?? null
+          }
         });
       });
     }
@@ -526,9 +640,12 @@ async function resolveAttachment(organisationId: string, reference: string) {
     .select({ id: assessments.id })
     .from(assessments)
     .where(
-      and(eq(assessments.organisationId, organisationId), eq(assessments.reference, reference)),
+      and(
+        eq(assessments.organisationId, organisationId),
+        eq(assessments.reference, reference)
+      )
     );
-  if (assessment) return { type: "assessment" as const, id: assessment.id };
+  if (assessment) return { type: 'assessment' as const, id: assessment.id };
 
   const [activity] = await db
     .select({ id: processingActivities.id })
@@ -536,16 +653,22 @@ async function resolveAttachment(organisationId: string, reference: string) {
     .where(
       and(
         eq(processingActivities.organisationId, organisationId),
-        eq(processingActivities.reference, reference),
-      ),
+        eq(processingActivities.reference, reference)
+      )
     );
-  if (activity) return { type: "processing_activity" as const, id: activity.id };
+  if (activity)
+    return { type: 'processing_activity' as const, id: activity.id };
 
   const [risk] = await db
     .select({ id: risks.id })
     .from(risks)
-    .where(and(eq(risks.organisationId, organisationId), eq(risks.reference, reference)));
-  if (risk) return { type: "risk" as const, id: risk.id };
+    .where(
+      and(
+        eq(risks.organisationId, organisationId),
+        eq(risks.reference, reference)
+      )
+    );
+  if (risk) return { type: 'risk' as const, id: risk.id };
 
   return null;
 }
@@ -553,9 +676,15 @@ async function resolveAttachment(organisationId: string, reference: string) {
 async function link(
   tx: Tx,
   organisationId: string,
-  from: { type: "evidence" | "processing_activity" | "assessment" | "risk"; id: string },
-  to: { type: "evidence" | "processing_activity" | "assessment" | "risk"; id: string },
-  relation: string,
+  from: {
+    type: 'evidence' | 'processing_activity' | 'assessment' | 'risk';
+    id: string;
+  },
+  to: {
+    type: 'evidence' | 'processing_activity' | 'assessment' | 'risk';
+    id: string;
+  },
+  relation: string
 ) {
   await tx
     .insert(recordLinks)
@@ -565,23 +694,35 @@ async function link(
       fromId: from.id,
       toType: to.type,
       toId: to.id,
-      relation,
+      relation
     })
     .onConflictDoNothing();
 }
 
 export async function ingestEvidence(
   connection: AuthedConnection,
-  records: EvidenceIn[],
+  records: EvidenceIn[]
 ): Promise<IngestOutcome> {
   return withOrganisation(connection.organisationId, async () => {
-    const outcome: IngestOutcome = { received: records.length, created: 0, updated: 0, skipped: [] };
+    const outcome: IngestOutcome = {
+      received: records.length,
+      created: 0,
+      updated: 0,
+      skipped: []
+    };
     const actor = connectionActor(connection);
 
     for (const r of records) {
-      const entity = await resolveEntity(connection.organisationId, connection, r.entity);
+      const entity = await resolveEntity(
+        connection.organisationId,
+        connection,
+        r.entity
+      );
       if (!entity.ok) {
-        outcome.skipped.push({ externalRef: r.externalRef, reason: entity.reason });
+        outcome.skipped.push({
+          externalRef: r.externalRef,
+          reason: entity.reason
+        });
         continue;
       }
 
@@ -591,7 +732,7 @@ export async function ingestEvidence(
       if (r.attachTo && !attachment) {
         outcome.skipped.push({
           externalRef: r.externalRef,
-          reason: `Nothing here is referenced "${r.attachTo}"`,
+          reason: `Nothing here is referenced "${r.attachTo}"`
         });
         continue;
       }
@@ -610,30 +751,48 @@ export async function ingestEvidence(
             collectedAt: r.collectedAt ? new Date(r.collectedAt) : undefined,
             payload: r.payload,
             sourceConnectionId: connection.id,
-            externalRef: r.externalRef,
+            externalRef: r.externalRef
           })
           .onConflictDoUpdate({
-            target: [evidence.organisationId, evidence.sourceConnectionId, evidence.externalRef],
+            target: [
+              evidence.organisationId,
+              evidence.sourceConnectionId,
+              evidence.externalRef
+            ],
             // The unique index is partial, so the predicate has to be repeated
             // here or Postgres will not match it to a constraint.
             targetWhere: sql`${evidence.externalRef} is not null`,
-            set: { title: r.title, description: r.description, payload: r.payload },
+            set: {
+              title: r.title,
+              description: r.description,
+              payload: r.payload
+            }
           })
           .returning();
 
         if (attachment) {
-          await link(tx, connection.organisationId, { type: "evidence", id: row.id }, attachment, "supports");
+          await link(
+            tx,
+            connection.organisationId,
+            { type: 'evidence', id: row.id },
+            attachment,
+            'supports'
+          );
         }
 
         outcome.created += 1;
         await appendAuditEvent(tx, {
           ...actor,
           organisationId: connection.organisationId,
-          action: "evidence.received",
-          subjectType: "evidence",
+          action: 'evidence.received',
+          subjectType: 'evidence',
           subjectId: row.id,
           entityId: entity.entityId,
-          after: { title: r.title, kind: r.kind, attachedTo: r.attachTo ?? null },
+          after: {
+            title: r.title,
+            kind: r.kind,
+            attachedTo: r.attachTo ?? null
+          }
         });
       });
     }
@@ -658,10 +817,14 @@ export type ScanIngestOutcome = IngestOutcome & {
  */
 export async function ingestScan(
   connection: AuthedConnection,
-  batch: ScanBatchIn,
+  batch: ScanBatchIn
 ): Promise<ScanIngestOutcome> {
   return withOrganisation(connection.organisationId, async () => {
-    const entity = await resolveEntity(connection.organisationId, connection, batch.entity);
+    const entity = await resolveEntity(
+      connection.organisationId,
+      connection,
+      batch.entity
+    );
     if (!entity.ok) {
       return {
         received: batch.findings.length,
@@ -669,7 +832,7 @@ export async function ingestScan(
         updated: 0,
         skipped: [{ externalRef: batch.scanRef, reason: entity.reason }],
         evidenceId: null,
-        proposed: 0,
+        proposed: 0
       };
     }
 
@@ -681,9 +844,14 @@ export async function ingestScan(
         received: batch.findings.length,
         created: 0,
         updated: 0,
-        skipped: [{ externalRef: batch.scanRef, reason: `Nothing here is referenced "${batch.attachTo}"` }],
+        skipped: [
+          {
+            externalRef: batch.scanRef,
+            reason: `Nothing here is referenced "${batch.attachTo}"`
+          }
+        ],
         evidenceId: null,
-        proposed: 0,
+        proposed: 0
       };
     }
 
@@ -694,7 +862,7 @@ export async function ingestScan(
       updated: 0,
       skipped: [],
       evidenceId: null,
-      proposed: 0,
+      proposed: 0
     };
 
     await db.transaction(async (tx) => {
@@ -703,25 +871,38 @@ export async function ingestScan(
         .values({
           organisationId: connection.organisationId,
           entityId: entity.entityId,
-          kind: "scan",
-          title: `Scan ${batch.scanRef}${batch.scannedUrl ? ` — ${batch.scannedUrl}` : ""}`,
+          kind: 'scan',
+          title: `Scan ${batch.scanRef}${batch.scannedUrl ? ` - ${batch.scannedUrl}` : ''}`,
           description: `${batch.findings.length} findings from ${connection.name}.`,
           uri: batch.scannedUrl,
           collectedAt: batch.scannedAt ? new Date(batch.scannedAt) : new Date(),
           payload: batch.summary,
           sourceConnectionId: connection.id,
-          externalRef: `scan:${batch.scanRef}`,
+          externalRef: `scan:${batch.scanRef}`
         })
         .onConflictDoUpdate({
-          target: [evidence.organisationId, evidence.sourceConnectionId, evidence.externalRef],
+          target: [
+            evidence.organisationId,
+            evidence.sourceConnectionId,
+            evidence.externalRef
+          ],
           targetWhere: sql`${evidence.externalRef} is not null`,
-          set: { payload: batch.summary, description: `${batch.findings.length} findings.` },
+          set: {
+            payload: batch.summary,
+            description: `${batch.findings.length} findings.`
+          }
         })
         .returning();
       outcome.evidenceId = ev.id;
 
       if (attachment) {
-        await link(tx, connection.organisationId, { type: "evidence", id: ev.id }, attachment, "supports");
+        await link(
+          tx,
+          connection.organisationId,
+          { type: 'evidence', id: ev.id },
+          attachment,
+          'supports'
+        );
       }
 
       for (const f of batch.findings) {
@@ -743,7 +924,7 @@ export async function ingestScan(
             thirdCountry: f.thirdCountry,
             advisory: f.advisory,
             sourceConnectionId: connection.id,
-            externalRef: f.externalRef,
+            externalRef: f.externalRef
           })
           .onConflictDoUpdate({
             target: [scanFindings.organisationId, scanFindings.externalRef],
@@ -752,19 +933,19 @@ export async function ingestScan(
               title: f.title,
               detail: f.detail,
               advisory: f.advisory,
-              setBeforeConsent: f.setBeforeConsent,
-            },
+              setBeforeConsent: f.setBeforeConsent
+            }
           })
           .returning();
         if (row) outcome.created += 1;
-        if (f.severity === "high" || f.setBeforeConsent) outcome.proposed += 1;
+        if (f.severity === 'high' || f.setBeforeConsent) outcome.proposed += 1;
       }
 
       await appendAuditEvent(tx, {
         ...actor,
         organisationId: connection.organisationId,
-        action: "scan.received",
-        subjectType: "evidence",
+        action: 'scan.received',
+        subjectType: 'evidence',
         subjectId: ev.id,
         entityId: entity.entityId,
         after: {
@@ -774,15 +955,14 @@ export async function ingestScan(
           // Named as a suggestion in the record itself, so nobody reading the
           // audit trail later mistakes it for a decision the platform took.
           advisoryForReview: outcome.proposed,
-          attachedTo: batch.attachTo ?? null,
-        },
+          attachedTo: batch.attachTo ?? null
+        }
       });
     });
 
     return outcome;
   });
 }
-
 
 /**
  * Turn a scan finding into a risk on the register.
@@ -810,13 +990,14 @@ export async function convertFindingToRisk(input: {
       .where(
         and(
           eq(scanFindings.id, input.findingId),
-          eq(scanFindings.organisationId, input.organisationId),
-        ),
+          eq(scanFindings.organisationId, input.organisationId)
+        )
       );
-    if (!finding) throw new Error("No such finding");
-    if (finding.convertedRiskId) throw new Error("This finding is already on the register");
+    if (!finding) throw new Error('No such finding');
+    if (finding.convertedRiskId)
+      throw new Error('This finding is already on the register');
 
-    const { createRisk } = await import("./risks");
+    const { createRisk } = await import('./risks');
     const risk = await createRisk({
       organisationId: input.organisationId,
       entityId: finding.entityId,
@@ -826,8 +1007,8 @@ export async function convertFindingToRisk(input: {
       likelihood: input.likelihood,
       impact: input.impact,
       ownerId: input.ownerId,
-      source: "integration",
-      actor: input.actor,
+      source: 'integration',
+      actor: input.actor
     });
 
     await db.transaction(async (tx) => {
@@ -840,17 +1021,17 @@ export async function convertFindingToRisk(input: {
         await link(
           tx,
           input.organisationId,
-          { type: "evidence", id: finding.evidenceId },
-          { type: "risk", id: risk.id },
-          "supports",
+          { type: 'evidence', id: finding.evidenceId },
+          { type: 'risk', id: risk.id },
+          'supports'
         );
       }
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "scan_finding.raised_as_risk",
-        subjectType: "scan_finding",
+        action: 'scan_finding.raised_as_risk',
+        subjectType: 'scan_finding',
         subjectId: finding.id,
         entityId: finding.entityId,
         after: {
@@ -859,8 +1040,8 @@ export async function convertFindingToRisk(input: {
           // what the person decided, and that they were not the same act.
           scannerSeverity: finding.severity,
           ratedBy: input.actor.actorLabel,
-          rating: { likelihood: input.likelihood, impact: input.impact },
-        },
+          rating: { likelihood: input.likelihood, impact: input.impact }
+        }
       });
     });
 
@@ -875,7 +1056,8 @@ export async function dismissFinding(input: {
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
-    if (!input.reason.trim()) throw new Error("A reason is required to dismiss a finding");
+    if (!input.reason.trim())
+      throw new Error('A reason is required to dismiss a finding');
     return db.transaction(async (tx) => {
       const [row] = await tx
         .update(scanFindings)
@@ -883,27 +1065,30 @@ export async function dismissFinding(input: {
         .where(
           and(
             eq(scanFindings.id, input.findingId),
-            eq(scanFindings.organisationId, input.organisationId),
-          ),
+            eq(scanFindings.organisationId, input.organisationId)
+          )
         )
         .returning();
-      if (!row) throw new Error("No such finding");
+      if (!row) throw new Error('No such finding');
 
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
-        action: "scan_finding.dismissed",
-        subjectType: "scan_finding",
+        action: 'scan_finding.dismissed',
+        subjectType: 'scan_finding',
         subjectId: row.id,
         entityId: row.entityId,
-        after: { title: row.title, reason: input.reason },
+        after: { title: row.title, reason: input.reason }
       });
       return row;
     });
   });
 }
 
-export async function openFindings(organisationId: string, entityIds: string[] | null) {
+export async function openFindings(
+  organisationId: string,
+  entityIds: string[] | null
+) {
   return withOrganisation(organisationId, async () => {
     return db
       .select({ finding: scanFindings, evidence: evidence })
@@ -916,8 +1101,8 @@ export async function openFindings(organisationId: string, entityIds: string[] |
           isNull(scanFindings.convertedRiskId),
           entityIds === null
             ? undefined
-            : inArray(scanFindings.entityId, entityIds),
-        ),
+            : inArray(scanFindings.entityId, entityIds)
+        )
       )
       .orderBy(scanFindings.createdAt);
   });

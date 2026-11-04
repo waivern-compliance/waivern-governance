@@ -1,8 +1,8 @@
-import { ingestRoute } from "@/lib/integration/handler";
-import { vendorBatch } from "@/lib/integration/contracts";
-import { ingestVendors } from "@/services/ingest";
+import { vendorBatch } from '@/lib/integration/contracts';
+import { ingestRoute } from '@/lib/integration/handler';
+import { ingestVendors } from '@/services/ingest';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 /**
  * Suppliers. Accepted from the scanner as well as the portal: a tracker seen on
@@ -11,6 +11,6 @@ export const dynamic = "force-dynamic";
  */
 export const POST = ingestRoute({
   schema: vendorBatch,
-  kinds: ["waivern_portal", "har_analyser", "other"],
-  handle: (connection, input) => ingestVendors(connection, input.records),
+  kinds: ['waivern_portal', 'har_analyser', 'other'],
+  handle: (connection, input) => ingestVendors(connection, input.records)
 });

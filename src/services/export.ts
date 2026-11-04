@@ -1,9 +1,11 @@
-import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
-import { db, withOrganisation } from "@/db/client";
+import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+
+import { db, withOrganisation } from '@/db/client';
 import {
   approvals,
   assessmentRevisions,
   assessments,
+  atrsRecords,
   dpas,
   entities,
   evidence,
@@ -14,20 +16,20 @@ import {
   riskAcceptances,
   risks,
   suppliers,
-  templateVersions,
   templates,
-  atrsRecords,
-  users,
-} from "@/db/schema";
-import { listRegister } from "./ai-register";
+  templateVersions,
+  users
+} from '@/db/schema';
 import {
   admToWire,
   furtherToWire,
   researchToWire,
   type AutomatedDecisionsWire,
   type FurtherProcessingWire,
-  type ResearchWire,
-} from "@/lib/integration/duaa";
+  type ResearchWire
+} from '@/lib/integration/duaa';
+
+import { listRegister } from './ai-register';
 
 /**
  * What this platform hands back.
@@ -46,7 +48,7 @@ import {
  * 1.1 adds `aiSystems`. Additive: a reader of 1.0 that ignores unknown keys
  * reads 1.1 unchanged.
  */
-export const CONTEXT_VERSION = "1.2";
+export const CONTEXT_VERSION = '1.2';
 
 export type ExportScope = {
   organisationId: string;
@@ -103,7 +105,12 @@ export type ContextAiSystem = {
   dataCategories: string[];
   transparency: { scope: string | null; publishedAt: string | null };
   /** The latest approved assessment, or null where none is approved. */
-  assessment: { reference: string; tier: string | null; band: string | null; approvedAt: string | null } | null;
+  assessment: {
+    reference: string;
+    tier: string | null;
+    band: string | null;
+    approvedAt: string | null;
+  } | null;
   nextReviewAt: string | null;
   gaps: string[];
   /** Articles 22A–22C, in the same shape the Portal sends. */
@@ -139,7 +146,9 @@ export type ContextActivity = {
   /** Articles 22A–22C. */
   automatedDecisions: AutomatedDecisionsWire;
   /** Article 8A, naming the original activity by its reference here and the Portal's. */
-  furtherProcessing: FurtherProcessingWire & { originalReference: string | null };
+  furtherProcessing: FurtherProcessingWire & {
+    originalReference: string | null;
+  };
   /** Articles 84A–84C and 13(5)–(7). */
   research: ResearchWire;
   /** Article 25(1A). */
@@ -180,7 +189,12 @@ export type ContextRisk = {
   description: string;
   status: string;
   inherent: { likelihood: number; impact: number; score: number; tier: string };
-  residual: { likelihood: number; impact: number; score: number; tier: string } | null;
+  residual: {
+    likelihood: number;
+    impact: number;
+    score: number;
+    tier: string;
+  } | null;
   mitigations: Array<{
     description: string;
     controlRef: string | null;
@@ -231,24 +245,31 @@ async function resolveEntities(organisationId: string, named?: string[]) {
     .where(eq(entities.organisationId, organisationId));
   if (!named || named.length === 0) return { all, selected: all };
   const selected = all.filter(
-    (e) => named.includes(e.name) || (e.legalEntityRef && named.includes(e.legalEntityRef)),
+    (e) =>
+      named.includes(e.name) ||
+      (e.legalEntityRef && named.includes(e.legalEntityRef))
   );
   return { all, selected };
 }
 
-export async function governanceContext(scope: ExportScope): Promise<GovernanceContext> {
+export async function governanceContext(
+  scope: ExportScope
+): Promise<GovernanceContext> {
   return withOrganisation(scope.organisationId, async () => {
     const [org] = await db
       .select()
       .from(organisations)
       .where(eq(organisations.id, scope.organisationId));
-    if (!org) throw new Error("No such organisation");
+    if (!org) throw new Error('No such organisation');
 
-    const { all, selected } = await resolveEntities(scope.organisationId, scope.entities);
+    const { all, selected } = await resolveEntities(
+      scope.organisationId,
+      scope.entities
+    );
     const entityIds = selected.map((e) => e.id);
     const nameOf = new Map(all.map((e) => [e.id, e.name]));
     const limit = Math.min(scope.limit ?? DEFAULT_LIMIT, 1000);
-    const inScope = entityIds.length > 0 ? entityIds : [""];
+    const inScope = entityIds.length > 0 ? entityIds : [''];
 
     const activityRows = await db
       .select()
@@ -257,8 +278,10 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
         and(
           eq(processingActivities.organisationId, scope.organisationId),
           inArray(processingActivities.entityId, inScope),
-          scope.since ? gt(processingActivities.updatedAt, scope.since) : undefined,
-        ),
+          scope.since
+            ? gt(processingActivities.updatedAt, scope.since)
+            : undefined
+        )
       )
       .orderBy(asc(processingActivities.reference))
       .limit(limit);
@@ -266,17 +289,24 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
     // Only approved assessments. A draft is unfinished work, and a document
     // generated from one would read as settled when it is not.
     const assessmentRows = await db
-      .select({ assessment: assessments, template: templates, version: templateVersions })
+      .select({
+        assessment: assessments,
+        template: templates,
+        version: templateVersions
+      })
       .from(assessments)
-      .innerJoin(templateVersions, eq(templateVersions.id, assessments.templateVersionId))
+      .innerJoin(
+        templateVersions,
+        eq(templateVersions.id, assessments.templateVersionId)
+      )
       .innerJoin(templates, eq(templates.id, templateVersions.templateId))
       .where(
         and(
           eq(assessments.organisationId, scope.organisationId),
           inArray(assessments.entityId, inScope),
-          eq(assessments.status, "approved"),
-          scope.since ? gt(assessments.updatedAt, scope.since) : undefined,
-        ),
+          eq(assessments.status, 'approved'),
+          scope.since ? gt(assessments.updatedAt, scope.since) : undefined
+        )
       )
       .orderBy(desc(assessments.completedAt))
       .limit(limit);
@@ -294,7 +324,7 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
           .from(assessmentRevisions)
           .where(eq(assessmentRevisions.assessmentId, row.assessment.id))
           .orderBy(desc(assessmentRevisions.revision))
-          .limit(1),
+          .limit(1)
       ]);
 
       // The frozen snapshot, not the live answers: it is what was approved, and
@@ -309,18 +339,20 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
 
       contextAssessments.push({
         reference: row.assessment.reference,
-        entity: nameOf.get(row.assessment.entityId) ?? "",
+        entity: nameOf.get(row.assessment.entityId) ?? '',
         title: row.assessment.title,
         kind: row.template.kind,
         templateName: row.template.name,
         templateVersion: row.version.version,
         status: row.assessment.status,
         score:
-          row.assessment.scoreValue !== null && row.assessment.scoreBand && row.assessment.scoreTier
+          row.assessment.scoreValue !== null &&
+          row.assessment.scoreBand &&
+          row.assessment.scoreTier
             ? {
                 value: row.assessment.scoreValue,
                 band: row.assessment.scoreBand,
-                tier: row.assessment.scoreTier,
+                tier: row.assessment.scoreTier
               }
             : null,
         approvedAt: row.assessment.completedAt?.toISOString() ?? null,
@@ -330,10 +362,10 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
           by: g.decidedByLabel,
           at: g.decidedAt?.toISOString() ?? null,
           rationale: g.rationale,
-          reason: g.reason,
+          reason: g.reason
         })),
         answers: (snapshot?.answers ?? {}) as Record<string, unknown>,
-        notApplicable,
+        notApplicable
       });
     }
 
@@ -344,8 +376,8 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
         and(
           eq(risks.organisationId, scope.organisationId),
           inArray(risks.entityId, inScope),
-          scope.since ? gt(risks.updatedAt, scope.since) : undefined,
-        ),
+          scope.since ? gt(risks.updatedAt, scope.since) : undefined
+        )
       )
       .orderBy(asc(risks.reference))
       .limit(limit);
@@ -361,21 +393,21 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
             and(
               eq(riskAcceptances.riskId, r.id),
               isNull(riskAcceptances.supersededAt),
-              isNull(riskAcceptances.revokedAt),
-            ),
+              isNull(riskAcceptances.revokedAt)
+            )
           ),
         r.assessmentId
           ? db
               .select({ reference: assessments.reference })
               .from(assessments)
               .where(eq(assessments.id, r.assessmentId))
-          : Promise.resolve([]),
+          : Promise.resolve([])
       ]);
 
       const acceptance = live[0];
       contextRisks.push({
         reference: r.reference,
-        entity: nameOf.get(r.entityId) ?? "",
+        entity: nameOf.get(r.entityId) ?? '',
         title: r.title,
         description: r.description,
         status: r.status,
@@ -383,7 +415,7 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
           likelihood: r.inherentLikelihood,
           impact: r.inherentImpact,
           score: r.inherentScore,
-          tier: r.inherentTier,
+          tier: r.inherentTier
         },
         residual:
           r.residualLikelihood !== null && r.residualTier
@@ -391,7 +423,7 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
                 likelihood: r.residualLikelihood,
                 impact: r.residualImpact!,
                 score: r.residualScore!,
-                tier: r.residualTier,
+                tier: r.residualTier
               }
             : null,
         mitigations: treatments.map((m) => ({
@@ -399,7 +431,7 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
           controlRef: m.controlRef,
           status: m.status,
           dueAt: m.dueAt?.toISOString() ?? null,
-          verifiedAt: m.verifiedAt?.toISOString() ?? null,
+          verifiedAt: m.verifiedAt?.toISOString() ?? null
         })),
         acceptance: acceptance
           ? {
@@ -407,15 +439,15 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
               rationale: acceptance.rationale,
               residualAtAcceptance: {
                 score: acceptance.residualScoreAtAcceptance,
-                tier: acceptance.residualTierAtAcceptance,
+                tier: acceptance.residualTierAtAcceptance
               },
               expiresAt: acceptance.expiresAt.toISOString(),
               // Stated rather than left for the reader to work out, so a document
               // generated from this cannot present a lapsed acceptance as current.
-              expired: acceptance.expiresAt.getTime() <= Date.now(),
+              expired: acceptance.expiresAt.getTime() <= Date.now()
             }
           : null,
-        raisedFrom: from[0]?.reference ?? null,
+        raisedFrom: from[0]?.reference ?? null
       });
     }
 
@@ -432,8 +464,8 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
           .where(
             inArray(
               dpas.supplierId,
-              supplierRows.map((s) => s.id),
-            ),
+              supplierRows.map((s) => s.id)
+            )
           )
       : [];
 
@@ -444,8 +476,8 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
         and(
           eq(evidence.organisationId, scope.organisationId),
           inArray(evidence.entityId, inScope),
-          scope.since ? gt(evidence.createdAt, scope.since) : undefined,
-        ),
+          scope.since ? gt(evidence.createdAt, scope.since) : undefined
+        )
       )
       .orderBy(desc(evidence.createdAt))
       .limit(limit);
@@ -461,42 +493,73 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
               eq(recordLinks.organisationId, scope.organisationId),
               inArray(
                 recordLinks.fromId,
-                evidenceRows.map((e) => e.id),
-              ),
-            ),
+                evidenceRows.map((e) => e.id)
+              )
+            )
           )
       : [];
     const referenceOf = new Map<string, string>([
       ...activityRows.map((a) => [a.id, a.reference] as const),
-      ...assessmentRows.map((a) => [a.assessment.id, a.assessment.reference] as const),
-      ...riskRows.map((r) => [r.id, r.reference] as const),
+      ...assessmentRows.map(
+        (a) => [a.assessment.id, a.assessment.reference] as const
+      ),
+      ...riskRows.map((r) => [r.id, r.reference] as const)
     ]);
 
-    const aiRows = await aiSystemsFor(scope.organisationId, inScope, nameOf, scope.since, limit);
+    const aiRows = await aiSystemsFor(
+      scope.organisationId,
+      inScope,
+      nameOf,
+      scope.since,
+      limit
+    );
 
     // The original activity of further processing may sit outside this slice,
     // so it is looked up by id rather than from the rows exported.
-    const originalIds = [...new Set(activityRows.flatMap((a) => (a.originalActivityId ? [a.originalActivityId] : [])))];
+    const originalIds = [
+      ...new Set(
+        activityRows.flatMap((a) =>
+          a.originalActivityId ? [a.originalActivityId] : []
+        )
+      )
+    ];
     const originals = originalIds.length
       ? await db
-          .select({ id: processingActivities.id, reference: processingActivities.reference, externalRef: processingActivities.externalRef })
+          .select({
+            id: processingActivities.id,
+            reference: processingActivities.reference,
+            externalRef: processingActivities.externalRef
+          })
           .from(processingActivities)
-          .where(and(eq(processingActivities.organisationId, scope.organisationId), inArray(processingActivities.id, originalIds)))
+          .where(
+            and(
+              eq(processingActivities.organisationId, scope.organisationId),
+              inArray(processingActivities.id, originalIds)
+            )
+          )
       : [];
-    const originalOf = new Map(originals.map((o) => [o.id, { reference: o.reference, externalRef: o.externalRef }]));
+    const originalOf = new Map(
+      originals.map((o) => [
+        o.id,
+        { reference: o.reference, externalRef: o.externalRef }
+      ])
+    );
 
     return {
       contextVersion: CONTEXT_VERSION,
       generatedAt: new Date().toISOString(),
       organisation: { name: org.name, slug: org.slug },
-      entities: selected.map((e) => ({ name: e.name, legalEntityRef: e.legalEntityRef })),
+      entities: selected.map((e) => ({
+        name: e.name,
+        legalEntityRef: e.legalEntityRef
+      })),
       scope: {
         entities: scope.entities?.length ? scope.entities : null,
-        since: scope.since?.toISOString() ?? null,
+        since: scope.since?.toISOString() ?? null
       },
       processingActivities: activityRows.map((a) => ({
         reference: a.reference,
-        entity: nameOf.get(a.entityId) ?? "",
+        entity: nameOf.get(a.entityId) ?? '',
         name: a.name,
         description: a.description,
         purposes: a.purposes,
@@ -513,10 +576,15 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
         controllerRole: a.controllerRole,
         controllerName: a.controllerName,
         automatedDecisions: admToWire(a),
-        furtherProcessing: furtherToWire(a, a.originalActivityId ? (originalOf.get(a.originalActivityId) ?? null) : null),
+        furtherProcessing: furtherToWire(
+          a,
+          a.originalActivityId
+            ? (originalOf.get(a.originalActivityId) ?? null)
+            : null
+        ),
         research: researchToWire(a),
         childrenLikely: a.childrenLikely,
-        updatedAt: a.updatedAt.toISOString(),
+        updatedAt: a.updatedAt.toISOString()
       })),
       assessments: contextAssessments,
       risks: contextRisks,
@@ -531,21 +599,21 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
             signedAt: d.signedAt?.toISOString() ?? null,
             expiresAt: d.expiresAt?.toISOString() ?? null,
             transferMechanism: d.transferMechanism,
-            subProcessors: d.subProcessors,
-          })),
+            subProcessors: d.subProcessors
+          }))
       })),
       aiSystems: aiRows,
       evidence: evidenceRows.map((e) => ({
         title: e.title,
         kind: e.kind,
-        entity: nameOf.get(e.entityId) ?? "",
+        entity: nameOf.get(e.entityId) ?? '',
         uri: e.uri,
         sha256: e.sha256,
         collectedAt: e.collectedAt?.toISOString() ?? null,
         supports: links
           .filter((l) => l.fromId === e.id)
           .map((l) => referenceOf.get(l.toId))
-          .filter((x): x is string => Boolean(x)),
+          .filter((x): x is string => Boolean(x))
       })),
       counts: {
         processingActivities: activityRows.length,
@@ -553,8 +621,8 @@ export async function governanceContext(scope: ExportScope): Promise<GovernanceC
         risks: contextRisks.length,
         suppliers: supplierRows.length,
         evidence: evidenceRows.length,
-        aiSystems: aiRows.length,
-      },
+        aiSystems: aiRows.length
+      }
     };
   });
 }
@@ -564,7 +632,7 @@ async function aiSystemsFor(
   entityIds: string[],
   nameOf: Map<string, string>,
   since: Date | undefined,
-  limit: number,
+  limit: number
 ): Promise<ContextAiSystem[]> {
   const entries = (await listRegister(organisationId, entityIds))
     .filter((e) => !since || e.useCase.updatedAt > since)
@@ -572,35 +640,60 @@ async function aiSystemsFor(
   if (entries.length === 0) return [];
 
   const ids = entries.map((e) => e.useCase.id);
-  const officerIds = entries.map((e) => e.useCase.governanceOfficerId).filter((x): x is string => Boolean(x));
-  const supplierIds = entries.map((e) => e.useCase.supplierId).filter((x): x is string => Boolean(x));
+  const officerIds = entries
+    .map((e) => e.useCase.governanceOfficerId)
+    .filter((x): x is string => Boolean(x));
+  const supplierIds = entries
+    .map((e) => e.useCase.supplierId)
+    .filter((x): x is string => Boolean(x));
   const [officers, supplierNames, published, links] = await Promise.all([
     officerIds.length
-      ? db.select({ id: users.id, email: users.email }).from(users).where(inArray(users.id, officerIds))
+      ? db
+          .select({ id: users.id, email: users.email })
+          .from(users)
+          .where(inArray(users.id, officerIds))
       : [],
     supplierIds.length
-      ? db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(inArray(suppliers.id, supplierIds))
+      ? db
+          .select({ id: suppliers.id, name: suppliers.name })
+          .from(suppliers)
+          .where(inArray(suppliers.id, supplierIds))
       : [],
     db
       .select({ id: atrsRecords.aiUseCaseId, at: atrsRecords.publishedAt })
       .from(atrsRecords)
-      .where(and(inArray(atrsRecords.aiUseCaseId, ids), eq(atrsRecords.status, "published"))),
+      .where(
+        and(
+          inArray(atrsRecords.aiUseCaseId, ids),
+          eq(atrsRecords.status, 'published')
+        )
+      ),
     db
-      .select({ useCaseId: recordLinks.fromId, reference: processingActivities.reference })
+      .select({
+        useCaseId: recordLinks.fromId,
+        reference: processingActivities.reference
+      })
       .from(recordLinks)
-      .innerJoin(processingActivities, eq(processingActivities.id, recordLinks.toId))
+      .innerJoin(
+        processingActivities,
+        eq(processingActivities.id, recordLinks.toId)
+      )
       .where(
         and(
           eq(recordLinks.organisationId, organisationId),
-          eq(recordLinks.fromType, "ai_use_case"),
-          eq(recordLinks.toType, "processing_activity"),
-          inArray(recordLinks.fromId, ids),
-        ),
+          eq(recordLinks.fromType, 'ai_use_case'),
+          eq(recordLinks.toType, 'processing_activity'),
+          inArray(recordLinks.fromId, ids)
+        )
       )
-      .orderBy(asc(processingActivities.reference)),
+      .orderBy(asc(processingActivities.reference))
   ]);
   const linkedOf = new Map<string, string[]>();
-  for (const l of links) linkedOf.set(l.useCaseId, [...(linkedOf.get(l.useCaseId) ?? []), l.reference]);
+  for (const l of links)
+    linkedOf.set(l.useCaseId, [
+      ...(linkedOf.get(l.useCaseId) ?? []),
+      l.reference
+    ]);
   const officerOf = new Map(officers.map((o) => [o.id, o.email]));
   const supplierOf = new Map(supplierNames.map((x) => [x.id, x.name]));
   const publishedOf = new Map(published.map((p) => [p.id, p.at]));
@@ -608,7 +701,7 @@ async function aiSystemsFor(
   return entries.map(({ useCase: u, ownerEmail, assessed, gaps }) => ({
     reference: u.reference,
     externalRef: u.externalRef,
-    entity: nameOf.get(u.entityId) ?? "",
+    entity: nameOf.get(u.entityId) ?? '',
     name: u.name,
     purpose: u.purpose,
     systemType: u.systemType,
@@ -617,7 +710,9 @@ async function aiSystemsFor(
     lifecycleStage: u.lifecycleStage,
     liveSince: u.liveSince?.toISOString() ?? null,
     owner: ownerEmail,
-    governanceOfficer: u.governanceOfficerId ? (officerOf.get(u.governanceOfficerId) ?? null) : null,
+    governanceOfficer: u.governanceOfficerId
+      ? (officerOf.get(u.governanceOfficerId) ?? null)
+      : null,
     responsibleTeam: u.responsibleTeam,
     supplier: u.supplierId ? (supplierOf.get(u.supplierId) ?? null) : null,
     vendor: u.vendor,
@@ -626,7 +721,7 @@ async function aiSystemsFor(
     dataCategories: u.dataCategories,
     transparency: {
       scope: u.transparencyScope,
-      publishedAt: publishedOf.get(u.id)?.toISOString() ?? null,
+      publishedAt: publishedOf.get(u.id)?.toISOString() ?? null
     },
     // Only an approved assessment's conclusions: `assessed` carries a tier only
     // when the latest assessment is approved, and that is what is exported.
@@ -636,13 +731,13 @@ async function aiSystemsFor(
             reference: assessed.reference,
             tier: assessed.tier,
             band: assessed.band,
-            approvedAt: assessed.approvedAt.toISOString(),
+            approvedAt: assessed.approvedAt.toISOString()
           }
         : null,
     nextReviewAt: u.nextReviewAt?.toISOString() ?? null,
     gaps,
     automatedDecisions: admToWire(u),
     processingActivities: linkedOf.get(u.id) ?? [],
-    updatedAt: u.updatedAt.toISOString(),
+    updatedAt: u.updatedAt.toISOString()
   }));
 }

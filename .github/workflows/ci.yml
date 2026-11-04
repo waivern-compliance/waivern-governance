@@ -12,16 +12,16 @@ on:
   push:
     branches: [main]
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
-    name: Typecheck, lint, test and build
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -43,32 +43,34 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://govern:govern@localhost:55432/govern_test
-      # Next reads these at build time; nothing here signs anybody in.
-      AUTH_SECRET: ci-build-only-not-a-secret
-      AUTH_URL: http://localhost:3000
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - id: setup
+        uses: ./.github/actions/setup
 
       # Seals integration secrets in the tests. Fresh each run, and thrown away
       # with the runner: it never protects anything real.
       - name: Generate a throwaway integration key
         run: echo "INTEGRATION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
-      - run: pnpm typecheck
+      # Each check runs even when an earlier one fails, so one push reports
+      # every problem at once.
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm typecheck
 
-      - run: pnpm lint
+      - name: Lint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm lint
+
+      - name: Format
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm format
 
       - name: Help page matches its source
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           pnpm help:md
           git diff --exit-code docs/help.md || {
@@ -76,12 +78,76 @@ jobs:
             exit 1
           }
 
-      - name: Migrate the test database
+      - id: migrate
+        name: Migrate the test database
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm db:migrate
 
       # The same command as `pnpm test`, without its pretest step, which
       # creates the database through the local Docker container.
       - name: Test
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         run: pnpm exec tsx --test 'tests/**/*.test.ts'
 
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Next reads these at build time; nothing here signs anybody in. The
+      # .env.example values can't be used, because ALLOW_DEV_SIGN_IN=true makes
+      # a production build refuse to start.
+      DATABASE_URL: postgresql://govern:govern@localhost:55432/govern
+      AUTH_SECRET: ci-build-only-not-a-secret
+      AUTH_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
       - run: pnpm build
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: govern
+          POSTGRES_PASSWORD: govern
+          POSTGRES_DB: govern
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U govern -d govern"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DATABASE_URL: postgresql://govern:govern@localhost:55432/govern
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      # The command production deploys run, so a migration that only works
+      # through drizzle-kit fails here.
+      - name: Apply migrations to an empty database
+        run: pnpm db:migrate:deploy
+
+      # Fails when the Drizzle schema has changes that no migration captures.
+      - name: Check schema matches migrations
+        run: |
+          pnpm db:generate
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            git status --porcelain drizzle
+            echo "::error::src/db/schema has changes with no migration. Run pnpm db:generate and commit the result."
+            exit 1
+          fi
