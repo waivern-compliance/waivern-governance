@@ -125,8 +125,6 @@ Where it is not possible to provide all of the above information at the time of 
 
 6.5 **Controller Third-Party Services are not Sub-Processors.** The Controller engages a Controller Third-Party Service itself, under its own contract, and that provider is not the Processor's Sub-Processor. When the Controller connects one, it instructs the Processor to send it the data that the Controller's configuration calls for. For the AI assistant, that is the text users send to it, after the Governance Tool Service has removed common identifiers such as email addresses and phone numbers. The Controller is responsible for its contract with that provider, including any Article 28 terms and transfer safeguards. The Processor supplies no AI model and no fallback model.
 
-6.6 **Sign-in.** Users sign in to the Governance Tool Service with their own Google accounts. Google acts as the user's identity provider: it confirms who the user is and passes the Processor their name and email address. **[Confirm with solicitor: on that basis, Google is not engaged by the Processor to Process the Controller's Personal Data, and so is not a Sub-Processor.]**
-
 ## 7. International Transfers
 
 7.1 The Processor SHALL not transfer Personal Data outside the United Kingdom unless such transfer is made in compliance with an appropriate safeguard or transfer mechanism under the UK GDPR, including:
