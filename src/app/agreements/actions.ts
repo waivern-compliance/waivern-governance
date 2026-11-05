@@ -1,7 +1,8 @@
 'use server';
 
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
+import { waivernHosted } from '@/lib/hosting';
 import {
   acceptanceOrigin,
   entityAgreementFrom,
@@ -18,6 +19,9 @@ import {
 export type AgreementResult = { ok: boolean; message: string } | null;
 
 async function signedIn() {
+  // The terms are Waivern's, for its hosted service. A copy run by anybody else
+  // has none to accept, whatever is posted to these actions.
+  if (!waivernHosted()) notFound();
   const active = await getActiveSession(undefined, { agreements: 'skip' });
   if (!active) redirect('/sign-in');
   return active;

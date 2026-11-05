@@ -4,6 +4,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid
 } from 'drizzle-orm/pg-core';
 
@@ -41,7 +42,8 @@ export const termsAcceptances = pgTable(
       .notNull()
       .defaultNow()
   },
-  (t) => [index('terms_acceptance_user_idx').on(t.userId, t.termsVersion)]
+  // One acceptance per version: a second, from another tab, adds nothing.
+  (t) => [uniqueIndex('terms_acceptance_user_idx').on(t.userId, t.termsVersion)]
 );
 
 /**
@@ -87,7 +89,9 @@ export const entityAgreements = pgTable(
       .defaultNow()
   },
   (t) => [
-    index('entity_agreement_entity_idx').on(
+    // One acceptance per entity and pair of versions, however many owners
+    // accept at once.
+    uniqueIndex('entity_agreement_entity_idx').on(
       t.entityId,
       t.termsVersion,
       t.dpaVersion

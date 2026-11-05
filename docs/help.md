@@ -1627,6 +1627,8 @@ Every person accepts the Terms of Service for themselves the first time they sig
 
 Somebody whose access covers the whole organisation waits for every entity; somebody confined to one entity waits only for theirs.
 
+What is outstanding holds up only the organisation it belongs to. Somebody who belongs to more than one can switch to another from the acceptance page and work there meanwhile.
+
 ### Who may accept for an entity
 
 Only an owner: of the whole organisation, or of that entity. They tick three separate boxes - accepting the terms, accepting the Data Processing Agreement, and confirming they have authority to bind the entity - and give their full name and position. Anybody else sees which owners to ask.

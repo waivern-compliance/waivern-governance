@@ -134,8 +134,22 @@ export async function acceptTerms(
       ipAddress: short(input.ipAddress, 64),
       userAgent: short(input.userAgent, 400)
     })
+    // Accepted already, from another tab: the first acceptance is the evidence.
+    .onConflictDoNothing({
+      target: [termsAcceptances.userId, termsAcceptances.termsVersion]
+    })
     .returning();
-  return row;
+  if (row) return row;
+  const [existing] = await db
+    .select()
+    .from(termsAcceptances)
+    .where(
+      and(
+        eq(termsAcceptances.userId, input.userId),
+        eq(termsAcceptances.termsVersion, terms.version)
+      )
+    );
+  return existing;
 }
 
 /** The entities of this organisation with no acceptance of the current documents. */
@@ -311,7 +325,29 @@ export async function recordEntityAgreement(
       ipAddress: short(input.ipAddress, 64),
       userAgent: short(input.userAgent, 400)
     })
+    // Another owner got there first, or this one from another tab: theirs is
+    // the acceptance, and nothing new happened to audit.
+    .onConflictDoNothing({
+      target: [
+        entityAgreements.entityId,
+        entityAgreements.termsVersion,
+        entityAgreements.dpaVersion
+      ]
+    })
     .returning();
+  if (!row) {
+    const [existing] = await tx
+      .select()
+      .from(entityAgreements)
+      .where(
+        and(
+          eq(entityAgreements.entityId, input.entity.id),
+          eq(entityAgreements.termsVersion, terms.version),
+          eq(entityAgreements.dpaVersion, dpa.version)
+        )
+      );
+    return existing;
+  }
   await appendAuditEvent(tx, {
     ...input.actor,
     organisationId: input.organisationId,

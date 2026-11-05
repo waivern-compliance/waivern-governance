@@ -366,6 +366,53 @@ describe("an entity's acceptance", () => {
   });
 });
 
+describe('accepting twice', () => {
+  it('keeps the first acceptance when a person accepts the terms again', async () => {
+    const user = await person('twice');
+    const accept = () =>
+      acceptTerms({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        accepted: true,
+        termsVersion: currentDocument('terms').version
+      });
+    const [first, second] = await Promise.all([accept(), accept()]);
+    assert.equal(second.id, first.id);
+    const rows = await db
+      .select()
+      .from(termsAcceptances)
+      .where(eq(termsAcceptances.userId, user.id));
+    assert.equal(rows.length, 1);
+  });
+
+  it('records and audits one acceptance when two owners accept an entity at once', async () => {
+    const w = await world();
+    const accept = () =>
+      acceptForEntity({
+        ...signed(),
+        organisationId: w.org.id,
+        entityId: w.main.id,
+        grants: WHOLE_OWNER,
+        user: { id: w.owner.id, email: w.owner.email },
+        actor: SYSTEM
+      });
+    const [first, second] = await Promise.all([accept(), accept()]);
+    assert.equal(second.id, first.id);
+    const rows = await db
+      .select()
+      .from(entityAgreements)
+      .where(eq(entityAgreements.entityId, w.main.id));
+    assert.equal(rows.length, 1);
+    const events = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.subjectId, w.main.id));
+    assert.equal(events.length, 1);
+    assert.equal((await verifyAuditChain(w.org.id)).ok, true);
+  });
+});
+
 describe('the record of acceptances', () => {
   it('can be added to but never changed or removed', async () => {
     const w = await world();

@@ -14,6 +14,7 @@ import { PRODUCT_SUFFIX, PRODUCT_VENDOR } from '@/lib/product';
 import { getActiveSession } from '@/lib/session';
 import { agreementStatus } from '@/services/agreements';
 
+import { switchOrganisationAction } from '../app/actions';
 import { signOutAction } from '../welcome/actions';
 import { EntityAgreementForm, PersonalTermsForm } from './AgreementForms';
 
@@ -188,14 +189,52 @@ export default async function AgreementsPage() {
         </section>
       ) : null}
 
-      <form action={signOutAction}>
-        <button
-          type="submit"
-          className="rounded border border-line px-3 py-1.5 text-sm hover:border-brand"
-        >
-          Sign out
-        </button>
-      </form>
+      <div className="flex flex-wrap items-center gap-4">
+        {active.organisations.length > 1 ? (
+          // What is outstanding here holds up only this organisation, so
+          // somebody in others can go and work there meanwhile.
+          <form
+            action={switchOrganisationAction}
+            className="flex items-center gap-1.5"
+          >
+            <label
+              htmlFor="organisation-switcher"
+              className="text-sm text-ink-soft"
+            >
+              Work in another organisation
+            </label>
+            <select
+              id="organisation-switcher"
+              name="organisationId"
+              defaultValue={active.membership.organisationId}
+              className="rounded border border-line px-2 py-1.5 text-sm"
+            >
+              {active.organisations.map((o) => (
+                <option
+                  key={o.organisationId}
+                  value={o.organisationId}
+                >
+                  {o.organisationName}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded border border-line px-3 py-1.5 text-sm hover:border-brand"
+            >
+              Switch
+            </button>
+          </form>
+        ) : null}
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="rounded border border-line px-3 py-1.5 text-sm hover:border-brand"
+          >
+            Sign out
+          </button>
+        </form>
+      </div>
 
       <p className="text-xs text-ink-soft">
         You can read these documents at any time, and save or print them, from{' '}

@@ -1875,7 +1875,8 @@ describe("changing another organisation's records", () => {
           organisationId: A.org.id,
           entityId: B.entity.id,
           grants: [{ role: 'owner', scope: 'organisation' }],
-          user: { id: crypto.randomUUID(), email: 'a@example.com' },
+          // A real user of A's, so only the organisation check can refuse it.
+          user: { id: A.owner.user.id, email: A.owner.user.email },
           actor: as(),
           acceptTerms: true,
           acceptDpa: true,

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 
@@ -10,6 +11,7 @@ import {
   organisationRequestEmail
 } from '@/lib/email/platform-alerts';
 import { requestsOpen } from '@/lib/platform';
+import { ORGANISATION_COOKIE } from '@/lib/session';
 import {
   requestOrganisation,
   RequestRefused
@@ -52,5 +54,9 @@ export async function requestOrganisationAction(
 }
 
 export async function signOutAction() {
+  // The next person to sign in on this browser starts from their own default,
+  // and somebody held at the agreements page is not sent back to the same
+  // organisation.
+  (await cookies()).delete(ORGANISATION_COOKIE);
   await signOut({ redirectTo: '/sign-in' });
 }

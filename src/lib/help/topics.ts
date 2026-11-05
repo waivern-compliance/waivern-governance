@@ -1997,7 +1997,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           "This applies only on Waivern's own hosted service. Anybody running their own copy of the open-source software makes their own arrangements, and sees none of it.",
           'Every person accepts the Terms of Service for themselves the first time they sign in, whoever invited them. Each legal entity accepts the Terms of Service and the Data Processing Agreement too, because each one is a controller and Waivern holds its records as its processor (UK GDPR Article 28(3)). Until both are in place nobody can work in that entity: signing in leads to the acceptance page instead.',
-          'Somebody whose access covers the whole organisation waits for every entity; somebody confined to one entity waits only for theirs.'
+          'Somebody whose access covers the whole organisation waits for every entity; somebody confined to one entity waits only for theirs.',
+          'What is outstanding holds up only the organisation it belongs to. Somebody who belongs to more than one can switch to another from the acceptance page and work there meanwhile.'
         ]
       },
       {
