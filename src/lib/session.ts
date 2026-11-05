@@ -1,7 +1,11 @@
+import { cache } from 'react';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 import { auth, loadMemberships, type SessionMembership } from '@/auth';
+import { agreementStatus } from '@/services/agreements';
 
+import { waivernHosted } from './hosting';
 import { resolvePersona, type Persona } from './persona';
 import { can, scopedEntityIds, type Capability } from './rbac';
 
@@ -73,6 +77,21 @@ async function preferredOrganisation(): Promise<string | null> {
   }
 }
 
+/** Where somebody goes to accept what is outstanding. */
+export const AGREEMENTS_PATH = '/agreements';
+
+/** Once per request, however many times a page and its actions ask. */
+const outstandingAgreements = cache(
+  async (userId: string, organisationId: string, grantsKey: string) =>
+    !(
+      await agreementStatus({
+        userId,
+        organisationId,
+        grants: JSON.parse(grantsKey)
+      })
+    ).clear
+);
+
 /**
  * Resolve the caller and the organisation they are acting in.
  *
@@ -80,9 +99,17 @@ async function preferredOrganisation(): Promise<string | null> {
  * several. A caller that names an organisation gets exactly that one or
  * nothing. Otherwise it is the one the person last switched to, else the
  * first by name.
+ *
+ * On Waivern's hosted service this is also where the terms are enforced. Every
+ * page, form action and download resolves its caller here, so anybody who has
+ * not accepted the terms, or who can see an entity that has not accepted the
+ * terms and the Data Processing Agreement, is sent to accept them before
+ * anything is read or written. Only the acceptance page itself asks with
+ * `agreements: 'skip'`.
  */
 export async function getActiveSession(
-  organisationId?: string
+  organisationId?: string,
+  opts: { agreements?: 'enforce' | 'skip' } = {}
 ): Promise<ActiveSession | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
@@ -96,6 +123,18 @@ export async function getActiveSession(
     ? memberships.find((m) => m.organisationId === organisationId)
     : chooseMembership(memberships, await preferredOrganisation());
   if (!membership) return null;
+
+  if (
+    opts.agreements !== 'skip' &&
+    waivernHosted() &&
+    (await outstandingAgreements(
+      session.user.id,
+      membership.organisationId,
+      JSON.stringify(membership.grants)
+    ))
+  ) {
+    redirect(AGREEMENTS_PATH);
+  }
 
   return {
     userId: session.user.id,
