@@ -18,7 +18,7 @@ export const TERMS_2026_11_09 = `
 
 1.4 **Not for law enforcement bodies.** You may not use the free Service if you are a competent authority under Part 3 of the Data Protection Act 2018, such as a police force, prosecutor, or prison or probation service. Use a dedicated instance instead, either hosted by Waivern under a separate agreement or run by your own organisation under the open-source licence.
 
-1.5 **Other documents.** These terms also take in our Privacy Notice **[link]**. They also take in our Data Processing Agreement (published at /legal/dpa), which applies whenever we process personal data for you. If these terms and the Data Processing Agreement conflict about personal data, the Data Processing Agreement wins.
+1.5 **Other documents.** These terms also take in our [Privacy Notice](https://www.waivern.com/privacy-policy). They also take in our [Data Processing Agreement](https://www.waivern.com/data-processing-agreement), which applies whenever we process personal data for you. If these terms and the Data Processing Agreement conflict about personal data, the Data Processing Agreement wins.
 
 1.6 **Paid services.** A dedicated instance, technical support, training and custom modifications are not part of the free Service. They are provided only under a separate written agreement signed by Waivern.
 
@@ -27,7 +27,7 @@ export const TERMS_2026_11_09 = `
 | Term | Meaning |
 | --- | --- |
 | **Customer**, **you** | The organisation or individual using the Service, and each person who uses it on that organisation's behalf |
-| **Service** | The free, shared hosted Waivern Governance Tool service at **[service address]**, including its public pages, request forms and integration API |
+| **Service** | The free, shared hosted Waivern Governance Tool service at **https://govern.waivern.com**, including its public pages, request forms and integration API |
 | **Software** | The Waivern Governance Tool source code, published under the GNU Affero General Public License v3.0 (AGPL) |
 | **Customer Data** | Everything you or your users put into the service, or that reaches it on your behalf. This includes records, files, request-form submissions, integration traffic and assistant conversations |
 | **Authorised User** | A person you invite to your organisation in the service, or who signs in through an email domain you have verified |
@@ -38,7 +38,7 @@ export const TERMS_2026_11_09 = `
 
 3.1 **What it is.** The Service lets your organisation keep its records of processing, assessments, risks, data protection requests, breaches, complaints and AI systems. It also routes decisions about them to named people and keeps an audit trail. It is provided free of charge.
 
-3.2 **Shared service.** The Service is shared by many organisations and individuals on one application and database. It is hosted by Railway, in its EU West (Amsterdam) region. Records are kept apart by technical controls described on our Security page at **[service address]**/security. That page describes how the Service currently works. It is not a promise that it will always work that way, except where these terms or the Data Processing Agreement say so.
+3.2 **Shared service.** The Service is shared by many organisations and individuals on one application and database. It is hosted by Railway, in its EU West (Amsterdam) region. Records are kept apart by technical controls described on our Security page at https://govern.waivern.com/security. That page describes how the Service currently works. It is not a promise that it will always work that way, except where these terms or the Data Processing Agreement say so.
 
 3.3 **Asking for an organisation.** You can ask for an organisation after signing in with a Google account whose address Google has verified. We decide whether to approve a request, at our discretion and without having to give reasons. We may also stop accepting new requests at any time.
 

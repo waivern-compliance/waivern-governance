@@ -83,7 +83,7 @@ The Processor SHALL comply with the following obligations in respect of all Pers
 
 **(b) Confidentiality.** The Processor SHALL ensure that persons authorised to Process the Personal Data have committed themselves to confidentiality or are under an appropriate statutory obligation of confidentiality.
 
-**(c) Security.** The Processor SHALL implement and maintain appropriate technical and organisational measures to ensure a level of security appropriate to the risk, in accordance with Article 32 of the UK GDPR. The Processor's technical and organisational measures are described in Annex 2, which references the Processor's Information Security Policy and the ISO27001 ISMS Statement of Applicability rather than reproducing those measures in full. Those documents do not currently cover the Governance Tool Service. For it, the measures are those set out in Annex 2, Part B. The Processor SHALL not materially reduce the overall level of security maintained during the term of the Main Agreement.
+**(c) Security.** The Processor SHALL implement and maintain appropriate technical and organisational measures to ensure a level of security appropriate to the risk, in accordance with Article 32 of the UK GDPR. The Processor's technical and organisational measures are described in Annex 2, which references the Processor's Information Security Policy and the ISO27001 ISMS Statement of Applicability rather than reproducing those measures in full. The Governance Tool Service is within the scope of the Processor's ISO 27001 information security management system (ISMS), so those documents cover it as they cover the compliance readiness services. Annex 2, Part B also describes the measures built into the Governance Tool Service itself. The Processor SHALL not materially reduce the overall level of security maintained during the term of the Main Agreement.
 
 **(d) Sub-Processors.** The Processor SHALL respect the conditions for engaging Sub-Processors set out in clause 6 of this Agreement.
 
@@ -96,10 +96,10 @@ The Processor SHALL comply with the following obligations in respect of all Pers
 - communication of a Personal Data Breach to affected Data Subjects (Article 34); and
 - data protection impact assessments and prior consultation (Articles 35 and 36).
 
-**(g) Breach notification.** The Processor SHALL notify the Controller without undue delay, and in any event within seventy-two (72) hours of becoming aware of a Personal Data Breach affecting Personal Data Processed under this Agreement. Such notification SHALL include, to the extent then known:
+**(g) Breach notification.** The Processor SHALL notify the Controller without undue delay, and in any event within forty-eight (48) hours of becoming aware of a Personal Data Breach affecting Personal Data Processed under this Agreement. Such notification SHALL include, to the extent then known:
 
 - a description of the nature of the Personal Data Breach including, where possible, the categories and approximate number of Data Subjects concerned and the categories and approximate number of Personal Data records concerned;
-- the name and contact details of the Processor's data protection contact;
+- the name and contact details of the Processor's data protection contact (reachable at info@waivern.com);
 - a description of the likely consequences of the Personal Data Breach; and
 - a description of the measures taken or proposed to be taken to address the Personal Data Breach, including, where appropriate, measures to mitigate its possible adverse effects.
 
@@ -111,7 +111,7 @@ Where it is not possible to provide all of the above information at the time of 
 - the Processor SHALL delete the Controller's Personal Data, including its audit trail, from the live service within 30 days after the Service ends for the Controller; and
 - copies in backups are overwritten in the normal backup cycle, within a further 27 days.
 
-**(i) Audit and information.** The Processor SHALL make available to the Controller all information necessary to demonstrate compliance with the obligations set out in Article 28 of the UK GDPR, and SHALL allow for and contribute to audits, including inspections, conducted by the Controller or an auditor mandated by the Controller. The Processor SHALL inform the Controller immediately if, in its opinion, an instruction infringes the Data Protection Laws. Audits shall be conducted with reasonable prior written notice, no more than once per calendar year except where there are reasonable grounds to suspect non-compliance, at the Controller's cost, and subject to appropriate confidentiality obligations. For the shared Governance Tool Service, the Processor will first answer an audit request with documents, such as its Security page, the Governance Tool's public source code and test results and its hosting provider's security reports. Any inspection SHALL be limited so that it does not expose other customers' data or weaken the security of the shared service.
+**(i) Audit and information.** The Processor SHALL make available to the Controller all information necessary to demonstrate compliance with the obligations set out in Article 28 of the UK GDPR, and SHALL allow for and contribute to audits, including inspections, conducted by the Controller or an auditor mandated by the Controller. The Processor SHALL inform the Controller immediately if, in its opinion, an instruction infringes the Data Protection Laws. Audits shall be conducted with reasonable prior written notice, no more than once per calendar year except where there are reasonable grounds to suspect non-compliance, at the Controller's cost, and subject to appropriate confidentiality obligations. For the shared Governance Tool Service, the Processor will first answer an audit request with documents, such as its Security page, its ISO 27001 Statement of Applicability and the relevant records of its ISMS, the Governance Tool's public source code and test results, and its hosting provider's security reports. Any inspection SHALL be limited so that it does not expose other customers' data or weaken the security of the shared service.
 
 ## 6. Sub-Processors
 
@@ -208,7 +208,7 @@ The authoritative and current processing particulars are maintained in the Recor
 
 ## Annex 2 - Technical and Organisational Measures
 
-### Part A - Compliance readiness services
+### Part A - All Services: the Processor's ISMS
 
 The Processor's technical and organisational measures implemented pursuant to Article 32 of the UK GDPR are not reproduced in full in this Agreement. They are documented in the following reference documents, which are incorporated by reference:
 
@@ -221,7 +221,7 @@ The Processor shall not materially reduce the level of security documented in th
 
 ### Part B - Governance Tool Service
 
-The Information Security Policy and the Statement of Applicability in Part A do not currently cover the Governance Tool Service. For it, the Processor's measures are those below, and the Service's security page describes them in more detail. The Processor shall not materially reduce them during the term of the Main Agreement without prior notice to the Controller. They are:
+The measures in Part A apply to the Governance Tool Service, which is within the scope of the Processor's ISMS and its Statement of Applicability. In addition, the following measures are built into the Service itself, and the Service's security page describes them in more detail. The Processor shall not materially reduce them during the term of the Main Agreement without prior notice to the Controller. They are:
 
 - **Sign-in.** No passwords: users sign in through Google, and only invited addresses or addresses at a domain the Controller has verified are admitted. Sessions last 12 hours. Permissions are checked on every request, so removing access takes effect immediately.
 - **Separating customers.** PostgreSQL row-level security on every table holding an organisation's records. An automated test that tries to reach one organisation's records from another runs before every release.
@@ -246,12 +246,8 @@ For the shared Governance Tool Service, the Sub-Processor List at the date of th
 
 | Sub-Processor | What it does | Location | Transfer mechanism |
 | --- | --- | --- | --- |
-| **[Railway Corporation]** | Hosts the application, its database, backups and the virus scanner | EU West (Amsterdam) | UK approval of transfers to the EEA. **[Confirm the mechanism for any access from the US.]** |
-
-The following are **not** Sub-Processors for the Governance Tool Service:
-
-- **Controller Third-Party Services**, including the Controller's AI model provider (clause 6.5).
-- **Google**, as the user's sign-in provider (clause 6.6).
-- **Waivern's Cookie Consent Analyser**, which the Processor runs itself. When the Controller uses it, it receives the addresses of websites to scan, not the Controller's records.
-- **Resend**, which the Processor uses only to email its own operators about organisation requests and feedback. That is the Processor's own data (clause 3.4).
+| **Railway Corporation** | Hosts the application, its database, backups and the virus scanner | EU West (Amsterdam) | UK approval of transfers to the EU/EEA as meeting adequacy requirements and EU SCCs amended by the UK Addendum for transfers to the US. |
+| **Resend** | Transactional email delivery | United States | EU SCCs amended by the UK Addendum for transfers to the US. |
+| **Google** | The user’s sign-in provider | United States | EU SCCs amended by the UK Addendum for transfers to the US. |
+| **Microsoft** | The user’s sign-in provider | United States | EU SCCs amended by the UK Addendum for transfers to the US. |
 `;

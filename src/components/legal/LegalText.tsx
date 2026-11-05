@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
  * A contract document, rendered from the Markdown it is stored as.
  *
  * Deliberately small: headings, paragraphs, bulleted and numbered lists,
- * tables, bold and italic, which is everything the documents use. The text is
+ * tables, bold, italic and links, which is everything the documents use. The text is
  * Waivern's own and fixed per version, never anybody's input, and it is turned
  * into React elements rather than HTML, so nothing in it can run.
  */
@@ -58,11 +58,26 @@ function parse(markdown: string): Block[] {
     });
 }
 
+const LINK = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/;
+
 function inline(text: string): ReactNode[] {
   return text
-    .split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+    .split(/(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*\*[^*]+\*\*|\*[^*]+\*)/g)
     .filter(Boolean)
     .map((part, i) => {
+      const link = LINK.exec(part);
+      if (link)
+        return (
+          <a
+            key={i}
+            href={link[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
+          >
+            {link[1]}
+          </a>
+        );
       if (part.startsWith('**') && part.endsWith('**'))
         return <strong key={i}>{part.slice(2, -2)}</strong>;
       if (part.startsWith('*') && part.endsWith('*') && part.length > 2)
