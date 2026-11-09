@@ -1,7 +1,6 @@
 # Plan: freedom of information requests, and request forms a client can embed
 
-Status: scope settled 9 November 2026; the decisions marked _open_ below are still to
-settle. Nothing built yet.
+Status: all decisions settled 9 November 2026, as recommended. Phase 0 built.
 
 ## What is asked for
 
@@ -90,16 +89,39 @@ s.47).
 | s.21                            | Review decided within **20 working days**; the notice states the s.47 right to apply to the Commissioner and the s.56 appeal.                                                        |
 | Coronavirus (Scotland) Act 2020 | The temporary 60 days has gone; the text reads 20 again.                                                                                                                             |
 
-### What still has to be checked before the phase that needs it
+### Checked on 9 November 2026, for Phase 0
 
-- FOI(S)A: its exemptions (absolute and qualified), cost limit and fees (S.S.I.
-  2004/467), the working day definition, and what the pending 2025 asp 8 and asp 12
-  effects change.
-- EI(S)R 2004 in full: the time limits, extension, review and exceptions.
-- EIR reg 13: the DUAA s.88 changes are shown as not yet applied on legislation.gov.uk.
-- Whether the Information Commission's guidance treats an oral EIR request as valid
-  (the regulation does not require writing; the ICO page could not be fetched).
-- The names of FOIA's qualified exemptions, which were not fetched section by section.
+- **Working days differ by Act.** FOIA s.10(6) (and EIR reg 2(1)) excludes Christmas
+  Day, Good Friday and bank holidays **in any part of the UK**. FOI(S)A s.73 (and EI(S)R
+  reg 2(1)) excludes Christmas Day and bank holidays **in Scotland** only. So 13 July
+  2026 (Northern Ireland) stops an English authority's clock and not a Scottish one's.
+- **FOI(S)A:** cost limit **£600**, staff time at no more than **£15 an hour** (S.S.I.
+  2004/467 regs 3 and 5); no fee up to £100, then at most 10% of the cost above £100
+  (reg 4). Fees notice: three months to pay, days to payment disregarded (ss.9(3),
+  10(3)). Clarification restarts the count (s.10(1)(b)). No public interest extension;
+  only the Scottish Ministers may extend, by regulations, to the 60th working day
+  (s.10(4)), used for grant-aided and independent special schools (S.S.I. 2016/346,
+  responses and reviews). Refusal notices (ss.16, 19) give the complaints procedure and
+  the s.20 and s.47 rights. Absolute exemptions (s.2(2)): ss.25, 26, 36(2), 37,
+  38(1)(a), (c), (d), and 38(1)(b) where the first condition is met. The review window
+  runs from the **deadline**, or from a late response (s.20(5)), not from an early
+  response.
+- **FOI(S)A pending effects:** 2025 asp 8 and asp 12 add two bodies to Schedule 1, not
+  yet in force. The clock is unchanged.
+- **EI(S)R:** 20 working days (reg 5); extension to 40 for volume and complexity (reg
+  7); charges payable within 60 working days, clock paused (reg 8); clarification
+  restarts it (reg 9); exceptions with a presumption in favour of disclosure, (5)(d)–(g)
+  not for emissions (reg 10); own personal data excluded by **reg 11(1)**; refusal
+  contents (reg 13); review asked within 40 working days, decided within 20 (reg 16);
+  the Scottish Information Commissioner (reg 17).
+- **EIR reg 13:** the outstanding DUAA s.88(11)–(12) change is in force from 5 September
+  2025; it adds the new DPA 2018 s.78A national security exemption as a ground. The
+  same change is pending at EI(S)R reg 11(4A)(b). No effect on the clock.
+- **Oral environmental requests:** confirmed for Scotland by the Scottish Information
+  Commissioner (foi.scot). The ICO's pages could not be fetched; decision 7 stands on
+  the regulations, which do not require writing.
+- **FOIA Part II:** headings confirmed from the Act's contents page; s.25 is
+  supplementary (certificates), not an exemption.
 
 ## Where Govern stands
 
@@ -115,34 +137,34 @@ s.47).
 ## Decisions
 
 Settled 9 November 2026: regimes (all four), embedding (listed sites only), separate
-forms. The rest are _open_, each with a recommendation.
+forms, and decisions 1-10 below, all as recommended.
 
-1. **Which Act an entity is under** (_open_). _Recommendation:_ a new
+1. **Which Act an entity is under** (settled). _Recommendation:_ a new
    `entity.foi_regime`: `none` | `foia` | `foisa`, set on the Organisation page. Setting
    it to `foia` or `foisa` also sets `public_authority`, because DPA s.7 makes them the
    same thing. Each request then picks FOIA or EIR (or FOI(S)A or EI(S)R) within that.
-2. **Partly covered authorities** (_open_). Some bodies are public authorities only for
+2. **Partly covered authorities** (settled). Some bodies are public authorities only for
    some information (a GP practice, for its NHS work). _Recommendation:_ a free-text
    "covered for" note on the entity, shown on each request, not a rule.
-3. **Longer limits** (_open_). _Recommendation:_ a `foi_time_profile` on the entity:
+3. **Longer limits** (settled). _Recommendation:_ a `foi_time_profile` on the entity:
    `standard`, `school` or `archive`. Schools get the 60th working day as a hard limit
    and the handler records the 20-school-day date, because Govern cannot know term
    dates. The armed forces and overseas extensions are recorded per request, as a date
    the Commission set.
-4. **Who sees the register** (_open_). Requests hold the requester's name and address.
+4. **Who sees the register** (settled). Requests hold the requester's name and address.
    _Recommendation:_ a new capability, `foi.handle`, given to the same roles as
    `dsr.handle`, which keeps it separate for organisations that split the jobs.
-5. **Requests for one's own data** (_open_). _Recommendation:_ the handler can convert
+5. **Requests for one's own data** (settled). _Recommendation:_ the handler can convert
    an FOI request into a data subject request in one step. The DSR keeps the original
    receipt date, and both records link to each other. The FOI form also tells people
    asking for their own data where to go instead.
-6. **Mixed requests** (_open_). One letter can ask for environmental and other
+6. **Mixed requests** (settled). One letter can ask for environmental and other
    information. _Recommendation:_ one request record with a regime per part, rather
    than two records, because one response answers it.
-7. **Oral EIR requests** (_open_). _Recommendation:_ staff can log one with the channel
+7. **Oral EIR requests** (settled). _Recommendation:_ staff can log one with the channel
    "in person" or "by phone", and the FOI form says a request does not have to come
    through it.
-8. **Embedding mechanics** (_open_). _Recommendation:_
+8. **Embedding mechanics** (settled). _Recommendation:_
    - Each form keeps up to ten **website origins** (`https://` plus host, exact match,
      no wildcards), added and removed by a privacy admin and audited.
    - The proxy sends `frame-ancestors` with those origins for that form's address
@@ -154,10 +176,10 @@ forms. The rest are _open_, each with a recommendation.
      origin, so the frame grows to fit the form.
    - Because the form sets no cookies, browsers that block third-party cookies make
      no difference.
-9. **Welsh language** (_open_). Welsh public bodies may be bound by the Welsh Language
+9. **Welsh language** (settled). Welsh public bodies may be bound by the Welsh Language
    Standards to offer a Welsh form. _Recommendation:_ not in the first version. Build
    the form so its text can take a second language later.
-10. **A disclosure log** (_open_). Many authorities publish what they released.
+10. **A disclosure log** (settled). Many authorities publish what they released.
     _Recommendation:_ later. Record now whether each response was published, so a
     log can be produced from it.
 
@@ -245,11 +267,28 @@ wanted, and the preferred format. It says:
 
 Each phase is its own PR.
 
-### Phase 0: the law and the clock (no visible change)
+### Phase 0: the law and the clock (built)
 
-- Finish the checks listed under "What still has to be checked".
+- The law checks above.
 - `lib/foi/statutory.ts` with tests: UK-wide bank holidays, each regime's deadline,
   pauses and extensions, school and archive profiles, review windows.
+
+Built as:
+
+- `lib/dsr/bank-holidays.ts` now holds Scotland's and Northern Ireland's bank holidays
+  (gov.uk, 2025–2028) as well as England and Wales's, with
+  `BANK_HOLIDAYS_ANY_PART_OF_UK` for FOIA and `BANK_HOLIDAYS_SCOTLAND` for FOI(S)A.
+  The coverage test fails once any list runs out.
+- `lib/foi/statutory.ts`: `isWorkingDay` per Act; `workingDayAfter`, which skips fee
+  pauses (both ends included); `clockStartsAt`, where clarification restarts the count;
+  `responseDeadline` (20, archive 30, environmental extension 40, school-days date or a
+  Commission-set date capped at the 60th); the FOIA public interest guide date (code
+  4.6); fee lapse; `REVIEW` with `reviewRequestDeadline` and `reviewDeadline`; cost
+  limits and the FOI(S)A maximum fee; the FOIA aggregation window; the exemption and
+  exception lists for all four regimes, marking which are absolute and which cannot
+  withhold information on emissions; and what each regime's refusal notice must say.
+- `tests/foi-statutory.test.ts`: 24 cases, including deadlines that fall differently
+  under FOIA and FOI(S)A because their bank holidays differ.
 
 ### Phase 1: who FOI applies to, and the register
 
