@@ -12,7 +12,7 @@ import {
   STAGE_LABEL,
   type LifecycleStage
 } from '@/services/ai-register';
-import { anyEntityUnderUkLaw } from '@/services/entities';
+import { anyEntityUnderFoi, anyEntityUnderUkLaw } from '@/services/entities';
 import { dashboardMetrics } from '@/services/metrics';
 
 import { aiEstate, myAssessments, myMitigations, myTasks } from './data';
@@ -374,8 +374,11 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
 /* ------------------------------------------------------------------ */
 
 async function QuickLinks({ active }: { active: ActiveSession }) {
-  const ukLaw = await anyEntityUnderUkLaw(active.membership.organisationId);
-  const items = navFor(active.membership.grants, { ukLaw }).filter(
+  const [ukLaw, foi] = await Promise.all([
+    anyEntityUnderUkLaw(active.membership.organisationId),
+    anyEntityUnderFoi(active.membership.organisationId)
+  ]);
+  const items = navFor(active.membership.grants, { ukLaw, foi }).filter(
     (i) => i.href !== '/app/tasks'
   );
   // Administration is a different kind of thing from a register. Mixed into

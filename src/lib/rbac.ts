@@ -71,7 +71,14 @@ export const CAPABILITIES = [
    * because a complaint is often about a request and the same people answer
    * them.
    */
-  'dsr.handle'
+  'dsr.handle',
+  /**
+   * Read and handle freedom of information requests. Separate from
+   * `dsr.handle` so an organisation can give FOI to a different team; the
+   * requester's name and address are still personal data, so not under
+   * `record.read` either.
+   */
+  'foi.handle'
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -95,7 +102,8 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
     'audit.read',
     'audit.export',
     'concern.confidential',
-    'dsr.handle'
+    'dsr.handle',
+    'foi.handle'
   ],
   privacy_analyst: [
     'record.read',
@@ -105,7 +113,8 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
     'assessment.submit',
     'risk.manage',
     'schedule.manage',
-    'dsr.handle'
+    'dsr.handle',
+    'foi.handle'
   ],
   ai_governance: [
     'record.read',

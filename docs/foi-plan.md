@@ -1,6 +1,6 @@
 # Plan: freedom of information requests, and request forms a client can embed
 
-Status: all decisions settled 9 November 2026, as recommended. Phase 0 built.
+Status: all decisions settled 9 November 2026, as recommended. Phases 0 and 1 built.
 
 ## What is asked for
 
@@ -290,13 +290,39 @@ Built as:
 - `tests/foi-statutory.test.ts`: 24 cases, including deadlines that fall differently
   under FOIA and FOI(S)A because their bank holidays differ.
 
-### Phase 1: who FOI applies to, and the register
+### Phase 1: who FOI applies to, and the register (built)
 
 - The `entity` columns (decisions 1–3), on the Organisation page, audited.
 - `information_request`, the `foi.handle` capability, list and detail pages, logging
   a request by hand, and conversion to a data subject request (decision 5).
 - Help topic and nav entry. Row-level security on every new table, with its tenant
   isolation test.
+
+Built as:
+
+- `entity.foi_act` (null, `foia` or `foisa`), `foi_time_profile` and `foi_covered_for`
+  (migration 0090), set on the Organisation page by `setFreedomOfInformation` and
+  audited as `entity.foi_changed`. Setting an Act turns `public_authority` on, and
+  `setPublicAuthority` refuses to turn it off while an Act applies. Refused for an
+  entity under EU law only.
+- `information_request` (`src/db/schema/foi.ts`), row-level security as for every
+  tenant table. The Act and time profile are copied from the entity when the request
+  is recorded. Decision 6 is a `regimes` list on the request rather than a parts table:
+  one response answers it, and the earliest deadline of its regimes is the one shown
+  (`requestDeadline`).
+- `services/information-requests.ts`: record (refusing a spoken request unless every
+  regime is environmental, and a regime from the other Act), correct, clarification
+  sought and received, respond (a late response needs its reason), close, and convert
+  to a subject access request (`dsr.handle` needed as well). References are
+  `FOI-2026-0001`, four digits like the other registers. The requester's name and
+  address stay out of the audit chain.
+- `foi.handle`, for owners, privacy administrators and analysts. Pages at
+  `/app/information-requests`; the nav item shows only where some entity has an Act.
+  The subject access request page links back to the FOI request it came from.
+- Help topic `information-requests`; tests in `tests/information-requests.test.ts` and
+  the tenant isolation suite.
+- Not yet: decisions with exemptions and the public interest test, and deadline tasks
+  (Phase 2).
 
 ### Phase 2: decisions and deadlines
 

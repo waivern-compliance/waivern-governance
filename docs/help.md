@@ -35,6 +35,7 @@ Every help topic the application carries, in the order it presents them.
 - [Personal data breaches](#personal-data-breaches) - Record every breach, decide the two statutory questions separately, and keep the reasoning for both.
 - [Data subject requests](#data-subject-requests) - Record every request from a person exercising their rights, run the month to answer it, and keep the reasoning for each decision.
 - [Data protection complaints](#data-protection-complaints) - Record each complaint a person makes to you about how their data was handled, acknowledge it within 30 days, and keep what you looked into and what you told them.
+- [Freedom of information requests](#freedom-of-information-requests) - Record every request for information a public authority holds, under FOIA, the EIR or the Scottish Acts, and run the twenty working days to answer it.
 - [Cookies and similar technologies](#cookies-and-similar-technologies) - Inventory every cookie, pixel and stored item on your websites and apps, from Consent Analyser reports or by hand, and record the basis each relies on under UK PECR.
 - [Electronic marketing](#electronic-marketing) - Every campaign that markets by email, text or phone, and the basis it relies on under UK PECR, from consent to the soft opt-in.
 - [The AI register](#the-ai-register) - Every AI system the organisation is accountable for, including the ones nobody has assessed.
@@ -936,6 +937,45 @@ It will not decide whether a complaint is justified, write to the complainant, o
 **See also:** Data subject requests · Personal data breaches · The audit trail
 
 <sub>Also searchable as: complaint, complaints, 164a, section 164a, dpa 2018, data use and access act, duaa, acknowledge, acknowledgement, 30 days, thirty days, undue delay, outcome, grievance, information commission, ico, regulator, progress update, deadline, task, timeliness, metrics, 164b, return, counts, web form, public form, complaint form, online, intake</sub>
+
+## Freedom of information requests
+
+*Record every request for information a public authority holds, under FOIA, the EIR or the Scottish Acts, and run the twenty working days to answer it.*
+
+**Screen:** `/app/information-requests`
+
+### Who it is for
+
+A public authority must answer requests for the information it holds: in England, Wales and Northern Ireland, and for UK-wide bodies, under the Freedom of Information Act 2000; in Scotland, under the Freedom of Information (Scotland) Act 2002. Environmental information is answered under the environmental information regulations of each instead.
+
+An owner sets which Act applies to each entity on the Organisation page, and whether it is a school or an archive, which get longer. Setting an Act also marks the entity as a public authority for the Data Protection Act 2018, because the two mean the same thing. Where an authority is covered only for some of its information, such as a GP practice for its NHS work, say what for: it is shown on every request.
+
+### Record it the day it arrives
+
+Anyone can ask, for any reason, and need not name the law. Do not ask why they want it. A request under either Act must be in writing - an email, a letter, a web form or a social media message all count - with the requester's name and an address for the reply. A request for environmental information need not be: record a phone call or a conversation too.
+
+Under the Acts a pseudonym makes a request invalid, so mark a name that looks like one and ask for the real name. Record only the name, the address and what was asked. The register is restricted to the people who handle requests, because the name and address are the requester's personal data.
+
+### How the twenty working days are counted
+
+From the day after the request arrives. Under FOIA and the EIR, a working day is not a weekend, Christmas Day, Good Friday or a bank holiday in any part of the UK, so a Scottish or Northern Irish bank holiday stops an English authority's clock too. Under the Scottish Acts, only Scotland's bank holidays count.
+
+Where you need more to identify what is wanted, ask and record it. Nothing is owed until they answer, and the twenty days start again from the answer.
+
+- Environmental requests can be extended to forty working days, but only where they are both complex and voluminous, and you must say so within the first twenty.
+- Schools and academies have the twentieth school day, never later than the sixtieth working day. Give the school-days date on the request; without it, the sixtieth is shown.
+- Archives have thirty working days for transferred public records not designated open.
+- Under FOIA you may take longer to weigh the public interest, but the refusal notice saying so is still due in the twenty days. The Scottish Act has no such extension.
+
+### Responding, and requests for their own data
+
+Record the response when it is sent: what was released, refused or not held, and where the letter is kept. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.
+
+A request for the requester's own personal data is exempt from freedom of information and is a subject access request instead. Convert it on the request page: a subject access request is recorded with the month running from the day the request arrived, and the two records point at each other.
+
+**See also:** Data subject requests · Data protection complaints · The organisation and its legal entities
+
+<sub>Also searchable as: foi, foia, freedom of information, freedom of information act 2000, foisa, foi(s)a, scotland, eir, environmental information, environmental information regulations, ei(s)r, public authority, twenty working days, 20 working days, refusal notice, section 17, exemption, public interest test, information commission, scottish information commissioner, internal review, disclosure log, school days, archive</sub>
 
 ## Cookies and similar technologies
 

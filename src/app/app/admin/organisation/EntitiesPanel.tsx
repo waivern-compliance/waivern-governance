@@ -14,6 +14,7 @@ import {
   renameEntityAction,
   setCompetentAuthorityAction,
   setDataProtectionLawAction,
+  setFreedomOfInformationAction,
   setProviderAction,
   setPublicAuthorityAction,
   type AdminResult
@@ -29,6 +30,9 @@ type Entity = {
   competentAuthority: boolean;
   defaultRegime: string;
   dataProtectionLaw: DataProtectionLaw;
+  foiAct: 'foia' | 'foisa' | null;
+  foiTimeProfile: string;
+  foiCoveredFor: string | null;
 };
 
 const input =
@@ -178,6 +182,10 @@ function EntityRow({ entity }: { entity: Entity }) {
     {
       resetOnSuccess: false
     }
+  );
+  const foi = useRefusableAction<AdminResult>(
+    setFreedomOfInformationAction.bind(null, entity.id),
+    { resetOnSuccess: false }
   );
   const law = useRefusableAction<AdminResult>(
     setDataProtectionLawAction.bind(null, entity.id),
@@ -356,6 +364,62 @@ function EntityRow({ entity }: { entity: Entity }) {
           </form>
           <Outcome result={authority.result} />
           <Outcome result={competent.result} />
+          <form
+            key={savedKey(
+              entity.foiAct,
+              entity.foiTimeProfile,
+              entity.foiCoveredFor
+            )}
+            {...foi.formProps}
+            className="flex flex-wrap items-baseline gap-2 text-xs"
+          >
+            <label className="flex flex-wrap items-baseline gap-2">
+              <span className="text-ink-soft">Freedom of information:</span>
+              <select
+                name="foiAct"
+                defaultValue={entity.foiAct ?? 'none'}
+                className="rounded border border-line bg-ground px-2 py-1 text-xs"
+              >
+                <option value="none">Does not answer FOI requests</option>
+                <option value="foia">
+                  Freedom of Information Act 2000 and the EIR
+                </option>
+                <option value="foisa">
+                  Freedom of Information (Scotland) Act 2002 and the EI(S)R
+                </option>
+              </select>
+            </label>
+            <label className="flex flex-wrap items-baseline gap-2">
+              <span className="text-ink-soft">Time limits:</span>
+              <select
+                name="foiTimeProfile"
+                defaultValue={entity.foiTimeProfile}
+                className="rounded border border-line bg-ground px-2 py-1 text-xs"
+              >
+                <option value="standard">Standard</option>
+                <option value="school">A school or academy</option>
+                <option value="archive">An archive</option>
+              </select>
+            </label>
+            <label className="flex flex-wrap items-baseline gap-2">
+              <span className="text-ink-soft">
+                Covered only for (leave blank if for everything):
+              </span>
+              <input
+                name="foiCoveredFor"
+                defaultValue={entity.foiCoveredFor ?? ''}
+                className="rounded border border-line bg-ground px-2 py-1 text-xs"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={foi.pending}
+              className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+            >
+              Save
+            </button>
+          </form>
+          <Outcome result={foi.result} />
         </>
       ) : (
         <p className="text-xs text-ink-soft">

@@ -23,6 +23,7 @@ const PATHS: Record<string, (id: string) => string> = {
   data_subject_request: (id) => `/app/requests/${id}`,
   data_subject_request_decision: () => '/app/requests',
   data_protection_complaint: (id) => `/app/complaints/${id}`,
+  information_request: (id) => `/app/information-requests/${id}`,
   digital_property: (id) => `/app/cookies/${id}`,
   storage_item: () => '/app/cookies',
   storage_decision: () => '/app/cookies',

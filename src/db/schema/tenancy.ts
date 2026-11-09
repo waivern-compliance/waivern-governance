@@ -14,6 +14,7 @@ import {
 import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import type { Dpo } from '@/lib/dpa2018/public-authority';
+import type { FoiAct, TimeProfile } from '@/lib/foi/statutory';
 
 import {
   aiFramework,
@@ -161,6 +162,24 @@ export const entities = pgTable(
       .$type<Regime>()
       .notNull()
       .default('uk_gdpr'),
+    /**
+     * The freedom of information Act the entity answers requests under: the
+     * Freedom of Information Act 2000 (with the EIR) or the Freedom of
+     * Information (Scotland) Act 2002 (with the EI(S)R). Either makes it a
+     * public authority for the Data Protection Act 2018 s.7 as well. Null where
+     * neither applies. See `lib/foi/statutory.ts`.
+     */
+    foiAct: text('foi_act').$type<FoiAct>(),
+    /**
+     * Where the authority is covered only for some of its information, what
+     * for: "its NHS work". Shown on each request; not a rule.
+     */
+    foiCoveredFor: text('foi_covered_for'),
+    /** Schools and archives get longer to respond. */
+    foiTimeProfile: text('foi_time_profile')
+      .$type<TimeProfile>()
+      .notNull()
+      .default('standard'),
     /** This entity's own data protection officer, where it is not the organisation's. */
     dpo: jsonb('dpo').$type<Dpo>(),
     createdAt: timestamp('created_at', { withTimezone: true })

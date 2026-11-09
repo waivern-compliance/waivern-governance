@@ -89,7 +89,10 @@ export default async function OrganisationPage() {
           publicAuthority: e.publicAuthority,
           competentAuthority: e.competentAuthority,
           dataProtectionLaw: e.dataProtectionLaw,
-          defaultRegime: e.defaultRegime
+          defaultRegime: e.defaultRegime,
+          foiAct: e.foiAct,
+          foiTimeProfile: e.foiTimeProfile,
+          foiCoveredFor: e.foiCoveredFor
         }))}
       />
 
