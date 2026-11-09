@@ -1,6 +1,6 @@
 # Plan: freedom of information requests, and request forms a client can embed
 
-Status: all decisions settled 9 November 2026, as recommended. Phases 0 and 1 built.
+Status: all decisions settled 9 November 2026, as recommended. Phases 0 to 2 built.
 
 ## What is asked for
 
@@ -324,11 +324,38 @@ Built as:
 - Not yet: decisions with exemptions and the public interest test, and deadline tasks
   (Phase 2).
 
-### Phase 2: decisions and deadlines
+### Phase 2: decisions and deadlines (built)
 
 - Decisions with exemptions, the public interest test, fees, cost limit and s.14.
 - The refusal notice checklist.
 - Deadlines raised as tasks by the sweep, including the s.10(3) estimated date.
+
+Built as:
+
+- `information_request_decision` (migration 0094, row-level security), append-only in
+  code like the decisions on data subject requests. Kinds: held, neither confirm nor
+  deny, exemption, public interest extension, complexity extension, fees notice, fee
+  paid, fee lapsed, cost limit, vexatious, repeated, transferred, advice. Each needs a
+  reason.
+- `recordInformationRequestDecision` checks each against the law:
+  - an exemption must be the regime's own, and a qualified one, or any environmental
+    exception, needs the factors on each side;
+  - the requester's own data is refused, with conversion offered instead;
+  - the four emissions-barred exceptions need the handler to confirm the information
+    is not on emissions;
+  - the public interest extension is FOIA only, names a qualified exemption, and must
+    be given by the ordinary deadline with a later estimated date;
+  - reg 7 extension only for environmental requests, within twenty working days;
+  - a fees notice within the time for responding, one at a time, with its lapse date;
+  - the cost limit only above it, and never under the environmental regulations,
+    which point to reg 12(4)(b) instead; vexatious and repeated likewise.
+- The clock reads the decisions: fee notice to payment is paused, an unpaid fee waits,
+  and a public interest extension moves the deadline to its estimated date.
+- A response after any refusing decision needs `refusal_notice_checked`, ticked
+  against the list of what that regime's notice must say.
+- The sweep raises a `foi_deadline` task when a response is due within five working
+  days or overdue, keyed on the request, state and due date.
+- Request page: decision history, and a form per kind. Help topic extended.
 
 ### Phase 3: reviews and the regulator
 

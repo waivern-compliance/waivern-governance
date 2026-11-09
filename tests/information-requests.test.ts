@@ -9,9 +9,11 @@ import {
   entities,
   memberships,
   organisations,
+  tasks,
   users
 } from '@/db/schema';
 import { verifyAuditChain } from '@/lib/audit';
+import { requestDeadline } from '@/lib/foi/statutory';
 import { can } from '@/lib/rbac';
 import { loadRequest } from '@/services/data-subject-requests';
 import {
@@ -30,9 +32,11 @@ import {
   loadInformationRequest,
   recordClarification,
   recordInformationRequest,
+  recordInformationRequestDecision,
   respondToInformationRequest,
   updateInformationRequest
 } from '@/services/information-requests';
+import { sweepOrganisation } from '@/services/sweep';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -435,5 +439,240 @@ describe('who may handle requests', () => {
       ],
       [true, true, true, false, false]
     );
+  });
+});
+
+const decide = (
+  w: Awaited<ReturnType<typeof world>>,
+  requestId: string,
+  over: Partial<Parameters<typeof recordInformationRequestDecision>[0]>
+) =>
+  recordInformationRequestDecision({
+    organisationId: w.org.id,
+    requestId,
+    kind: 'advice',
+    rationale: 'Because.',
+    actor: SYSTEM,
+    ...over
+  });
+
+describe('decisions', () => {
+  it('needs the public interest for a qualified exemption, not an absolute one', async () => {
+    const w = await world('exempt');
+    const request = await aRequest(w);
+    await assert.rejects(
+      decide(w, request.id, { kind: 'exemption', provision: 's.43' }),
+      refusedWith(/public interest test/)
+    );
+    const qualified = await decide(w, request.id, {
+      kind: 'exemption',
+      provision: 's.43',
+      detail: {
+        factorsFor: 'Spending of public money.',
+        factorsAgainst: 'Rates would harm the agency in its next tender.'
+      }
+    });
+    assert.equal(qualified.detail.absolute, false);
+    const absolute = await decide(w, request.id, {
+      kind: 'exemption',
+      provision: 's.21'
+    });
+    assert.equal(absolute.detail.absolute, true);
+    await assert.rejects(
+      decide(w, request.id, { kind: 'exemption', provision: 'reg 12(5)(e)' }),
+      refusedWith(/Choose an exemption/)
+    );
+  });
+
+  it("refuses the requester's own data as an exemption, and emissions under the commercial exception", async () => {
+    const w = await world('exempt-eir');
+    const request = await aRequest(w, { kind: 'both' });
+    await assert.rejects(
+      decide(w, request.id, { kind: 'exemption', provision: 's.40(1)' }),
+      refusedWith(/Convert the request/)
+    );
+    const factors = { factorsFor: 'a', factorsAgainst: 'b' };
+    await assert.rejects(
+      decide(w, request.id, {
+        kind: 'exemption',
+        regime: 'eir',
+        provision: 'reg 12(5)(e)',
+        detail: { ...factors, emissions: true }
+      }),
+      refusedWith(/emissions/)
+    );
+    const ok = await decide(w, request.id, {
+      kind: 'exemption',
+      regime: 'eir',
+      provision: 'reg 12(5)(e)',
+      detail: { ...factors, emissions: false }
+    });
+    assert.equal(ok.regime, 'eir');
+  });
+
+  it('gives FOIA alone more time for the public interest, if the notice went in time', async () => {
+    const w = await world('pit');
+    const request = await aRequest(w, { receivedAt: daysAgo(10) });
+    const estimated = new Date(Date.now() + 40 * DAY);
+    await decide(w, request.id, {
+      kind: 'public_interest_extension',
+      provision: 's.43',
+      detail: { estimatedDate: estimated.toISOString() }
+    });
+    const loaded = await loadInformationRequest(request.id, w.org.id);
+    assert.equal(loaded?.clock.state, 'running');
+    assert.ok(
+      'dueAt' in loaded!.clock &&
+        loaded!.clock.dueAt.toISOString().slice(0, 10) ===
+          estimated.toISOString().slice(0, 10)
+    );
+
+    const late = await aRequest(w, { receivedAt: daysAgo(60) });
+    await assert.rejects(
+      decide(w, late.id, {
+        kind: 'public_interest_extension',
+        provision: 's.43',
+        detail: { estimatedDate: estimated.toISOString() }
+      }),
+      refusedWith(/due by the ordinary deadline/)
+    );
+
+    const scotland = await world('pit-s', 'foisa');
+    const scottish = await aRequest(scotland);
+    await assert.rejects(
+      decide(scotland, scottish.id, {
+        kind: 'public_interest_extension',
+        provision: 's.33',
+        detail: { estimatedDate: estimated.toISOString() }
+      }),
+      refusedWith(/Only FOIA/)
+    );
+  });
+
+  it('stops the clock from a fees notice to payment', async () => {
+    const w = await world('fees');
+    const request = await aRequest(w, { receivedAt: daysAgo(10) });
+    const from = daysAgo(8);
+    const to = daysAgo(3);
+    await decide(w, request.id, {
+      kind: 'fees_notice',
+      detail: { amount: 25 },
+      effectiveAt: from
+    });
+    let loaded = await loadInformationRequest(request.id, w.org.id);
+    assert.equal(loaded?.clock.state, 'waiting');
+    await assert.rejects(
+      decide(w, request.id, {
+        kind: 'fees_notice',
+        detail: { amount: 10 },
+        effectiveAt: daysAgo(7)
+      }),
+      refusedWith(/already awaited/)
+    );
+    await assert.rejects(
+      decide(w, request.id, { kind: 'fee_lapsed', effectiveAt: daysAgo(2) }),
+      refusedWith(/not run out/)
+    );
+    await decide(w, request.id, { kind: 'fee_paid', effectiveAt: to });
+    loaded = await loadInformationRequest(request.id, w.org.id);
+    const expected = requestDeadline({
+      regimes: ['foia'],
+      startsAt: request.receivedAt,
+      feePauses: [{ from, to }]
+    });
+    assert.ok('dueAt' in loaded!.clock);
+    assert.equal(
+      (loaded!.clock as { dueAt: Date }).dueAt.getTime(),
+      expected.getTime()
+    );
+  });
+
+  it('refuses for cost only above the limit, and never under the EIR', async () => {
+    const w = await world('cost');
+    const request = await aRequest(w, { kind: 'both' });
+    await assert.rejects(
+      decide(w, request.id, {
+        kind: 'cost_limit',
+        detail: { estimatedHours: 18 }
+      }),
+      refusedWith(/within the limit/)
+    );
+    await assert.rejects(
+      decide(w, request.id, {
+        kind: 'cost_limit',
+        regime: 'eir',
+        detail: { estimatedHours: 100 }
+      }),
+      refusedWith(/no cost limit/)
+    );
+    const over = await decide(w, request.id, {
+      kind: 'cost_limit',
+      detail: { estimatedHours: 19, aggregated: true }
+    });
+    assert.equal(over.provision, 's.12');
+    assert.equal(over.detail.aggregated, true);
+  });
+
+  it('extends an environmental request within the first twenty days only', async () => {
+    const w = await world('reg7');
+    const request = await aRequest(w, { kind: 'environmental' });
+    await decide(w, request.id, { kind: 'complexity_extension' });
+    const loaded = await loadInformationRequest(request.id, w.org.id);
+    assert.equal(loaded?.extendedForComplexity, true);
+
+    const late = await aRequest(w, {
+      kind: 'environmental',
+      receivedAt: daysAgo(40)
+    });
+    await assert.rejects(
+      decide(w, late.id, { kind: 'complexity_extension' }),
+      refusedWith(/too late/)
+    );
+  });
+
+  it('needs the refusal notice checked before a refusal is recorded as sent', async () => {
+    const w = await world('notice');
+    const request = await aRequest(w);
+    await decide(w, request.id, { kind: 'exemption', provision: 's.21' });
+    const respond = (refusalNoticeChecked?: boolean) =>
+      respondToInformationRequest({
+        organisationId: w.org.id,
+        requestId: request.id,
+        respondedAt: new Date(),
+        summary: 'Refused: already published.',
+        refusalNoticeChecked,
+        actor: SYSTEM
+      });
+    await assert.rejects(respond(), refusedWith(/refusal notice/));
+    const responded = await respond(true);
+    assert.equal(responded.refusalNoticeChecked, true);
+  });
+
+  it('keeps the reason, and refuses a decision without one', async () => {
+    const w = await world('reason');
+    const request = await aRequest(w);
+    await assert.rejects(
+      decide(w, request.id, { rationale: ' ' }),
+      refusedWith(/Record why/)
+    );
+  });
+});
+
+describe('deadline tasks', () => {
+  it('raises one task for an overdue request, and not again', async () => {
+    const w = await world('sweep');
+    const request = await aRequest(w, { receivedAt: daysAgo(60) });
+    await aRequest(w, { receivedAt: daysAgo(1) });
+    const first = await sweepOrganisation(w.org.id);
+    assert.equal(first.foiDeadlinesRaised, 1);
+    const again = await sweepOrganisation(w.org.id);
+    assert.equal(again.foiDeadlinesRaised, 0, 'idempotent');
+    const [task] = await db
+      .select()
+      .from(tasks)
+      .where(
+        and(eq(tasks.organisationId, w.org.id), eq(tasks.type, 'foi_deadline'))
+      );
+    assert.equal(task.subjectId, request.id);
   });
 });

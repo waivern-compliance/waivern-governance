@@ -12,7 +12,10 @@ import {
 
 import type { FoiAct, FoiRegime, TimeProfile } from '@/lib/foi/statutory';
 
-import { informationRequestStatus } from './enums';
+import {
+  informationRequestDecisionKind,
+  informationRequestStatus
+} from './enums';
 import { dataSubjectRequests } from './requests';
 import { entities, organisations, users } from './tenancy';
 
@@ -91,6 +94,12 @@ export const informationRequests = pgTable(
     }),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
     responseSummary: text('response_summary'),
+    /**
+     * The handler confirmed the refusal notice says everything the regime
+     * requires (FOIA s.17, EIR reg 14, FOI(S)A ss.16 and 19, EI(S)R reg 13).
+     * Required to record a response that refuses anything.
+     */
+    refusalNoticeChecked: boolean('refusal_notice_checked'),
     /** Where the response is kept: a document system, a mailbox. */
     responseLink: text('response_link'),
     lateReason: text('late_reason'),
@@ -124,9 +133,61 @@ export const informationRequests = pgTable(
   ]
 );
 
+/**
+ * A judgement or a step on a freedom of information request, and the reason
+ * for it. Append-only, like the decisions on data subject requests: a changed
+ * mind is a new decision, so the record shows what was decided when.
+ *
+ * `detail` holds what the kind needs: whether information is held, the hours
+ * estimated against the cost limit, the public interest factors on each side,
+ * the date given for a public interest decision, a fee's amount.
+ */
+export const informationRequestDecisions = pgTable(
+  'information_request_decision',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => informationRequests.id, { onDelete: 'cascade' }),
+    kind: informationRequestDecisionKind('kind').notNull(),
+    /** The regime of the request it is under, where that matters. */
+    regime: text('regime').$type<FoiRegime>(),
+    /** The section or regulation relied on: "s.43", "reg 12(4)(b)". */
+    provision: text('provision'),
+    detail: jsonb('detail')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    /** Never optional: the record has to say why. */
+    rationale: text('rationale').notNull(),
+    /** When it happened, where that differs from when it was recorded. */
+    effectiveAt: timestamp('effective_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    decidedBy: uuid('decided_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    decidedByLabel: text('decided_by_label').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [
+    index('information_request_decision_request_idx').on(
+      t.requestId,
+      t.decidedAt
+    ),
+    index('information_request_decision_kind_idx').on(t.organisationId, t.kind)
+  ]
+);
+
 export const informationRequestsRelations = relations(
   informationRequests,
-  ({ one }) => ({
+  ({ one, many }) => ({
+    decisions: many(informationRequestDecisions),
     entity: one(entities, {
       fields: [informationRequests.entityId],
       references: [entities.id]
@@ -138,6 +199,16 @@ export const informationRequestsRelations = relations(
     convertedTo: one(dataSubjectRequests, {
       fields: [informationRequests.convertedToRequestId],
       references: [dataSubjectRequests.id]
+    })
+  })
+);
+
+export const informationRequestDecisionsRelations = relations(
+  informationRequestDecisions,
+  ({ one }) => ({
+    request: one(informationRequests, {
+      fields: [informationRequestDecisions.requestId],
+      references: [informationRequests.id]
     })
   })
 );

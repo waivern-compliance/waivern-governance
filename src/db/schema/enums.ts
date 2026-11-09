@@ -80,7 +80,8 @@ export const recordType = pgEnum('record_type', [
   // Added with the data sharing agreement register.
   'sharing_agreement',
   // Added with the register of freedom of information requests.
-  'information_request'
+  'information_request',
+  'information_request_decision'
 ]);
 
 /**
@@ -272,6 +273,31 @@ export const informationRequestStatus = pgEnum('information_request_status', [
   'closed',
   'converted'
 ]);
+
+/**
+ * What a decision about a freedom of information request was about. Fee
+ * notices and payments move the clock (FOIA s.10(2)), so they are decisions
+ * kept, not fields overwritten: the deadline has to be reproducible from the
+ * record. The rest are the judgements the Acts call for.
+ */
+export const informationRequestDecisionKind = pgEnum(
+  'information_request_decision_kind',
+  [
+    'held',
+    'neither_confirm_nor_deny',
+    'exemption',
+    'public_interest_extension',
+    'complexity_extension',
+    'fees_notice',
+    'fee_paid',
+    'fee_lapsed',
+    'cost_limit',
+    'vexatious',
+    'repeated',
+    'transferred',
+    'advice'
+  ]
+);
 
 /**
  * Where a request from a data subject is in its handling.
@@ -578,7 +604,13 @@ export const taskType = pgEnum('task_type', [
   /** A cookie scan found something the inventory does not yet reflect, or a cookie newly set before consent. */
   'pecr_scan_changes',
   /** A live-call marketing activity is due to be screened against the TPS and CTPS again (every 28 days). */
-  'marketing_tps_screening'
+  'marketing_tps_screening',
+  /**
+   * The twenty working days to answer a freedom of information request, or
+   * the date given for finishing a public interest test. Set by statute, and
+   * computed from the request.
+   */
+  'foi_deadline'
 ]);
 
 export const taskStatus = pgEnum('task_status', [

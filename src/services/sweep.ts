@@ -43,6 +43,7 @@ import {
   requestsNeedingAttention
 } from './data-subject-requests';
 import { pruneIntakeAttempts } from './dsr-intake';
+import { informationRequestsNeedingAttention } from './information-requests';
 import { activitiesDueTpsScreening } from './marketing';
 import { deliverNotifications } from './member-email';
 import { appetitesDueForReview } from './risk-policy';
@@ -83,6 +84,7 @@ export type SweepResult = {
   conversationsForgotten: number;
   breachDeadlinesRaised: number;
   requestDeadlinesRaised: number;
+  foiDeadlinesRaised: number;
   complaintDeadlinesRaised: number;
   rescansRaised: number;
   tpsScreeningsRaised: number;
@@ -584,6 +586,50 @@ async function raiseRequestDeadlines(organisationId: string): Promise<number> {
         // The statutory deadline, not a service level counted from now.
         dueAt: clock.dueAt,
         idempotencyKey: `dsr-deadline:${request.id}:${clock.state}:${extended ? 'extended' : 'original'}`,
+        actor: SYSTEM
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
+ * Freedom of information requests whose twenty working days, or the date given
+ * for a public interest decision, are close or gone. One task per request and
+ * clock state, like the other statutory deadlines.
+ */
+async function raiseInformationRequestDeadlines(
+  organisationId: string
+): Promise<number> {
+  const pressing = await informationRequestsNeedingAttention(organisationId);
+  let raised = 0;
+  for (const { request, publicInterestDate, clock } of pressing) {
+    if (!('dueAt' in clock)) continue;
+    const overdue = clock.state === 'overdue';
+    const weighing = publicInterestDate !== null;
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: request.entityId,
+        type: 'foi_deadline',
+        title: overdue
+          ? `${request.reference}: past the deadline to respond`
+          : `${request.reference}: deadline to respond is close`,
+        description:
+          `${clock.words} ` +
+          (overdue
+            ? 'The response is still owed. Send it, and record why it was late; the requester can complain about the delay.'
+            : weighing
+              ? 'Finish the public interest test and respond by the date the refusal notice gave.'
+              : 'Respond, or send the refusal notice, before the deadline.'),
+        subjectType: 'information_request',
+        subjectId: request.id,
+        ...(request.ownerId
+          ? { assigneeUserId: request.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
+        dueAt: clock.dueAt,
+        idempotencyKey: `foi-deadline:${request.id}:${clock.state}:${clock.dueAt.toISOString().slice(0, 10)}`,
         actor: SYSTEM
       });
       if (task) raised += 1;
@@ -1141,6 +1187,7 @@ export async function sweepOrganisation(
     conversationsForgotten: await forgetExpiredConversations(organisationId),
     breachDeadlinesRaised: await raiseBreachDeadlines(organisationId),
     requestDeadlinesRaised: await raiseRequestDeadlines(organisationId),
+    foiDeadlinesRaised: await raiseInformationRequestDeadlines(organisationId),
     complaintDeadlinesRaised: await raiseComplaintDeadlines(organisationId),
     // Scans nobody stayed to watch: take their reports in, or give up on them.
     // Before rescans, so a scan finished here moves the next due date on.

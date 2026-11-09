@@ -12,7 +12,11 @@ import {
 } from '@/lib/foi/statutory';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
-import { loadInformationRequest } from '@/services/information-requests';
+import {
+  feePausesOf,
+  loadInformationRequest,
+  refuses
+} from '@/services/information-requests';
 
 import { ActionForm } from '../../requests/ActionForm';
 import {
@@ -30,6 +34,7 @@ import {
   RegimesField,
   STATUS_LABEL
 } from '../fields';
+import { DecisionForms, DecisionHistory } from './Decisions';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
 const longDate = (d: Date) =>
@@ -64,6 +69,8 @@ export default async function InformationRequestPage({
   }
 
   const open = request.status === 'open';
+  const refusing = refuses(request.decisions);
+  const feeAwaited = feePausesOf(request.decisions).some((p) => p.to === null);
   const written = request.regimes.filter((r) => REGIME[r].mustBeInWriting);
   const environmental = request.regimes.some(
     (r) => r === 'eir' || r === 'eisr'
@@ -177,6 +184,23 @@ export default async function InformationRequestPage({
           ) : null}
         </section>
       ) : null}
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Decisions</h2>
+        <p className="max-w-prose text-sm text-ink-soft">
+          Each step and judgement, with its reason. Nothing is changed or
+          removed: a changed mind is a new decision. The ordinary deadline is{' '}
+          {longDate(request.ordinaryDeadline)}.
+        </p>
+        <DecisionHistory decisions={request.decisions} />
+        {open ? (
+          <DecisionForms
+            requestId={request.id}
+            regimes={request.regimes}
+            feeAwaited={feeAwaited}
+          />
+        ) : null}
+      </section>
 
       {request.status === 'closed' ? (
         <section className="space-y-2 rounded border border-line bg-surface p-5 text-sm">
@@ -323,6 +347,20 @@ export default async function InformationRequestPage({
                   className={inputClass}
                 />
               </label>
+              {refusing ? (
+                <label className="flex items-start gap-2.5 rounded border border-amber-700 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <input
+                    type="checkbox"
+                    name="refusalNoticeChecked"
+                    required
+                    className="mt-1 accent-brand"
+                  />
+                  <span>
+                    Something was refused, so this is a refusal notice. I have
+                    checked it says everything listed above.
+                  </span>
+                </label>
+              ) : null}
             </ActionForm>
           </section>
 

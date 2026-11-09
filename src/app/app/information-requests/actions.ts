@@ -12,6 +12,7 @@ import {
   loadInformationRequest,
   recordClarification,
   recordInformationRequest,
+  recordInformationRequestDecision,
   respondToInformationRequest,
   updateInformationRequest
 } from '@/services/information-requests';
@@ -187,6 +188,7 @@ export async function respondAction(
       link: text(formData.get('link')) || null,
       lateReason: text(formData.get('lateReason')) || null,
       published: published === '' ? null : published === 'yes',
+      refusalNoticeChecked: formData.get('refusalNoticeChecked') === 'on',
       actor: actorOf(active)
     });
   }, 'Response recorded.');
@@ -239,4 +241,68 @@ export async function convertAction(
   revalidate(requestId);
   revalidatePath('/app/requests');
   redirect(`/app/requests/${dsrId}`);
+}
+
+const DECISION_KINDS = [
+  'held',
+  'neither_confirm_nor_deny',
+  'exemption',
+  'public_interest_extension',
+  'complexity_extension',
+  'fees_notice',
+  'fee_paid',
+  'fee_lapsed',
+  'cost_limit',
+  'vexatious',
+  'repeated',
+  'transferred',
+  'advice'
+] as const;
+
+export async function recordDecisionAction(
+  requestId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const kind = text(formData.get('kind'));
+  if (!(DECISION_KINDS as readonly string[]).includes(kind))
+    return { ok: false, message: 'Choose what is being decided.' };
+  const emissions = text(formData.get('emissions'));
+  const number = (name: string) => {
+    const raw = text(formData.get(name));
+    return raw === '' ? undefined : Number(raw);
+  };
+  const result = await refused(async () => {
+    await recordInformationRequestDecision({
+      organisationId: active.membership.organisationId,
+      requestId,
+      kind: kind as (typeof DECISION_KINDS)[number],
+      regime:
+        (text(formData.get('regime')) as
+          | 'foia'
+          | 'eir'
+          | 'foisa'
+          | 'eisr'
+          | '') || null,
+      provision: text(formData.get('provision')) || null,
+      detail: {
+        held: text(formData.get('held')) || undefined,
+        factorsFor: text(formData.get('factorsFor')) || undefined,
+        factorsAgainst: text(formData.get('factorsAgainst')) || undefined,
+        emissions:
+          emissions === '' ? undefined : emissions === 'yes' ? true : false,
+        estimatedDate: text(formData.get('estimatedDate')) || undefined,
+        amount: number('amount'),
+        estimatedHours: number('estimatedHours'),
+        centralGovernment: formData.get('centralGovernment') === 'on',
+        aggregated: formData.get('aggregated') === 'on'
+      },
+      rationale: text(formData.get('rationale')),
+      effectiveAt: when(formData.get('effectiveAt')) ?? undefined,
+      actor: actorOf(active)
+    });
+  }, 'Recorded.');
+  revalidate(requestId);
+  return result;
 }

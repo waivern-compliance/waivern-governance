@@ -28,6 +28,7 @@ async function main() {
       r.conversationsForgotten +
       r.breachDeadlinesRaised +
       r.requestDeadlinesRaised +
+      r.foiDeadlinesRaised +
       r.complaintDeadlinesRaised +
       r.rescansRaised +
       r.tpsScreeningsRaised +
@@ -66,6 +67,8 @@ async function main() {
             `${r.breachDeadlinesRaised} breach deadline(s) flagged`,
           r.requestDeadlinesRaised &&
             `${r.requestDeadlinesRaised} data subject request deadline(s) flagged`,
+          r.foiDeadlinesRaised &&
+            `${r.foiDeadlinesRaised} freedom of information deadline(s) flagged`,
           r.complaintDeadlinesRaised &&
             `${r.complaintDeadlinesRaised} complaint deadline(s) flagged`,
           r.rescansRaised && `${r.rescansRaised} cookie rescan(s) due`,

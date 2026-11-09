@@ -1,21 +1,30 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
   dataSubjectRequests,
   entities,
+  informationRequestDecisions,
   informationRequests,
   referenceCounters,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import {
+  allowsPublicInterestExtension,
+  costLimit,
+  exceedsCostLimit,
+  exemptionsFor,
+  feeLapsesAt,
   FOI_ACT_REGIMES,
   informationRequestClock,
+  OWN_DATA_PROVISIONS,
   REGIME,
+  requestDeadline,
   type FoiAct,
   type FoiRegime,
-  type InformationRequestClock
+  type InformationRequestClock,
+  type Pause
 } from '@/lib/foi/statutory';
 
 import { recordRequest } from './data-subject-requests';
@@ -35,6 +44,9 @@ import { assertEntityIn, assertMemberOf } from './tenancy-guards';
  */
 
 export type InformationRequest = typeof informationRequests.$inferSelect;
+export type InformationRequestDecision =
+  typeof informationRequestDecisions.$inferSelect;
+export type DecisionKind = InformationRequestDecision['kind'];
 
 /**
  * How a request arrived. A FOIA or FOI(S)A request must be in writing (s.8);
@@ -422,7 +434,53 @@ export async function recordClarification(input: {
   );
 }
 
-function clockOf(row: InformationRequest, now = new Date()) {
+/** Fee notice to payment, read off the decisions. An unpaid notice leaves `to` null. */
+export function feePausesOf(
+  decisions: readonly InformationRequestDecision[]
+): Pause[] {
+  const pauses: Pause[] = [];
+  for (const d of [...decisions].sort(
+    (a, b) => a.effectiveAt.getTime() - b.effectiveAt.getTime()
+  )) {
+    if (d.kind === 'fees_notice')
+      pauses.push({ from: d.effectiveAt, to: null });
+    if (d.kind === 'fee_paid') {
+      const open = pauses.find((p) => p.to === null);
+      if (open) open.to = d.effectiveAt;
+    }
+  }
+  return pauses;
+}
+
+/** The latest date given for deciding the public interest (FOIA s.10(3)). */
+export function publicInterestDateOf(
+  decisions: readonly InformationRequestDecision[]
+): Date | null {
+  const dates = decisions
+    .filter((d) => d.kind === 'public_interest_extension')
+    .map((d) => new Date(String(d.detail.estimatedDate)))
+    .filter((d) => !Number.isNaN(d.getTime()));
+  return dates.length > 0 ? dates.reduce((a, b) => (b > a ? b : a)) : null;
+}
+
+/** The kinds that refuse some or all of what was asked, and so need a refusal notice. */
+const REFUSING: readonly DecisionKind[] = [
+  'exemption',
+  'neither_confirm_nor_deny',
+  'cost_limit',
+  'vexatious',
+  'repeated'
+];
+
+export function refuses(decisions: readonly InformationRequestDecision[]) {
+  return decisions.some((d) => REFUSING.includes(d.kind));
+}
+
+function clockOf(
+  row: InformationRequest,
+  decisions: readonly InformationRequestDecision[],
+  now = new Date()
+) {
   return informationRequestClock({
     regimes: row.regimes,
     receivedAt: row.receivedAt,
@@ -432,10 +490,335 @@ function clockOf(row: InformationRequest, now = new Date()) {
     extendedForComplexity: row.extendedForComplexity,
     schoolDaysDeadline: row.schoolDaysDeadline,
     commissionSetDeadline: row.commissionSetDeadline,
+    feePauses: feePausesOf(decisions),
+    publicInterestDate: publicInterestDateOf(decisions),
     respondedAt: row.respondedAt,
     closedWithoutResponse:
       row.status === 'closed' || row.status === 'converted',
     now
+  });
+}
+
+/** The ordinary deadline, before any public interest extension. */
+function ordinaryDeadline(
+  row: InformationRequest,
+  decisions: readonly InformationRequestDecision[]
+): Date {
+  const startsAt =
+    row.clarificationSoughtAt && row.clarificationReceivedAt
+      ? row.clarificationReceivedAt
+      : row.receivedAt;
+  return requestDeadline({
+    regimes: row.regimes,
+    startsAt,
+    profile: row.timeProfile,
+    extendedForComplexity: row.extendedForComplexity,
+    schoolDaysDeadline: row.schoolDaysDeadline,
+    commissionSetDeadline: row.commissionSetDeadline,
+    feePauses: feePausesOf(decisions)
+  });
+}
+
+async function decisionsOf(
+  organisationId: string,
+  requestIds: string[]
+): Promise<Map<string, InformationRequestDecision[]>> {
+  const out = new Map<string, InformationRequestDecision[]>();
+  if (requestIds.length === 0) return out;
+  const rows = await db
+    .select()
+    .from(informationRequestDecisions)
+    .where(
+      and(
+        eq(informationRequestDecisions.organisationId, organisationId),
+        inArray(informationRequestDecisions.requestId, requestIds)
+      )
+    )
+    .orderBy(asc(informationRequestDecisions.decidedAt));
+  for (const row of rows) {
+    const list = out.get(row.requestId) ?? [];
+    list.push(row);
+    out.set(row.requestId, list);
+  }
+  return out;
+}
+
+const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+/**
+ * Record a decision or step, with its reason. Each kind is checked against
+ * what the regimes allow; nothing is decided here.
+ */
+export async function recordInformationRequestDecision(input: {
+  organisationId: string;
+  requestId: string;
+  kind: DecisionKind;
+  regime?: FoiRegime | null;
+  provision?: string | null;
+  detail?: Record<string, unknown>;
+  rationale: string;
+  effectiveAt?: Date;
+  actor: Actor;
+}) {
+  const rationale = clean(input.rationale);
+  if (!rationale)
+    throw new InformationRequestRefused(
+      'Record why. The reason is what the requester, a reviewer or the regulator will ask for.'
+    );
+  const effectiveAt = input.effectiveAt ?? new Date();
+  if (effectiveAt.getTime() > Date.now() + 60_000)
+    throw new InformationRequestRefused('That date is in the future.');
+
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await lockedRequest(input.organisationId, input.requestId);
+      stillOpen(before);
+      if (effectiveAt < before.receivedAt)
+        throw new InformationRequestRefused(
+          'That is before the request arrived.'
+        );
+      const regime = input.regime ?? before.regimes[0];
+      if (!before.regimes.includes(regime))
+        throw new InformationRequestRefused(
+          `This request is not under the ${REGIME[regime].label}. Correct the record first if it should be.`
+        );
+      const existing =
+        (await decisionsOf(input.organisationId, [before.id])).get(before.id) ??
+        [];
+      const detail: Record<string, unknown> = { ...(input.detail ?? {}) };
+      let provision = clean(input.provision);
+      const ordinary = ordinaryDeadline(before, existing);
+      const environmental = regime === 'eir' || regime === 'eisr';
+
+      switch (input.kind) {
+        case 'held': {
+          if (!['held', 'not_held', 'part_held'].includes(text(detail.held)))
+            throw new InformationRequestRefused(
+              'Say whether the information is held, not held, or held in part.'
+            );
+          break;
+        }
+        case 'neither_confirm_nor_deny': {
+          if (!provision)
+            throw new InformationRequestRefused(
+              'Name the provision that removes the duty to confirm or deny.'
+            );
+          break;
+        }
+        case 'exemption': {
+          const exemption = exemptionsFor(regime).find(
+            (e) => e.provision === provision
+          );
+          if (!exemption)
+            throw new InformationRequestRefused(
+              `Choose an exemption from the ${REGIME[regime].label}.`
+            );
+          if (OWN_DATA_PROVISIONS.includes(exemption.provision))
+            throw new InformationRequestRefused(
+              "The requester's own personal data is a subject access request. Convert the request instead of refusing it."
+            );
+          if (exemption.notForEmissions && detail.emissions !== false)
+            throw new InformationRequestRefused(
+              `${exemption.provision} cannot withhold information on emissions. Confirm the information is not about emissions.`
+            );
+          if (!exemption.absolute) {
+            if (!text(detail.factorsFor) || !text(detail.factorsAgainst))
+              throw new InformationRequestRefused(
+                environmental
+                  ? 'Every exception needs the public interest test, weighed with a presumption in favour of disclosure. Record the factors on each side.'
+                  : 'A qualified exemption needs the public interest test. Record the factors for disclosure and for withholding.'
+              );
+            detail.factorsFor = text(detail.factorsFor);
+            detail.factorsAgainst = text(detail.factorsAgainst);
+          }
+          detail.absolute = exemption.absolute;
+          detail.title = exemption.title;
+          break;
+        }
+        case 'public_interest_extension': {
+          if (!allowsPublicInterestExtension(regime))
+            throw new InformationRequestRefused(
+              `Only FOIA allows more time to weigh the public interest. Under the ${REGIME[regime].label} it is weighed within the ordinary time.`
+            );
+          const exemption = exemptionsFor(regime).find(
+            (e) => e.provision === provision
+          );
+          if (!exemption || exemption.absolute)
+            throw new InformationRequestRefused(
+              'Name the qualified exemption whose public interest test needs the time.'
+            );
+          const estimated = new Date(text(detail.estimatedDate));
+          if (Number.isNaN(estimated.getTime()) || estimated <= ordinary)
+            throw new InformationRequestRefused(
+              'Give the date the refusal notice says the decision is expected by, after the ordinary deadline.'
+            );
+          if (effectiveAt > ordinary)
+            throw new InformationRequestRefused(
+              'The refusal notice saying the public interest is still being weighed was due by the ordinary deadline (s.17(2)). Record the response as late instead.'
+            );
+          detail.estimatedDate = estimated.toISOString();
+          break;
+        }
+        case 'complexity_extension': {
+          if (!environmental)
+            throw new InformationRequestRefused(
+              'Only environmental information can be extended for complexity and volume (reg 7).'
+            );
+          if (effectiveAt > ordinary)
+            throw new InformationRequestRefused(
+              'The requester had to be told within the first twenty working days (reg 7(2)). It is too late to extend.'
+            );
+          provision = 'reg 7';
+          break;
+        }
+        case 'fees_notice': {
+          const amount = Number(detail.amount);
+          if (!Number.isFinite(amount) || amount <= 0)
+            throw new InformationRequestRefused('Give the amount asked for.');
+          if (feePausesOf(existing).some((p) => p.to === null))
+            throw new InformationRequestRefused(
+              'A fee is already awaited. Record it paid or lapsed first.'
+            );
+          if (effectiveAt > ordinary)
+            throw new InformationRequestRefused(
+              'A fees notice has to be given within the time for responding.'
+            );
+          detail.amount = amount;
+          detail.lapsesAt = feeLapsesAt(regime, effectiveAt).toISOString();
+          provision = regime === 'foia' || regime === 'foisa' ? 's.9' : 'reg 8';
+          break;
+        }
+        case 'fee_paid':
+        case 'fee_lapsed': {
+          const open = [...existing]
+            .reverse()
+            .find((d) => d.kind === 'fees_notice');
+          if (!open || !feePausesOf(existing).some((p) => p.to === null))
+            throw new InformationRequestRefused('No fee is awaited.');
+          if (effectiveAt < open.effectiveAt)
+            throw new InformationRequestRefused(
+              'That is before the fees notice.'
+            );
+          if (
+            input.kind === 'fee_lapsed' &&
+            effectiveAt < new Date(String(open.detail.lapsesAt))
+          )
+            throw new InformationRequestRefused(
+              'The time to pay has not run out yet.'
+            );
+          break;
+        }
+        case 'cost_limit': {
+          if (environmental)
+            throw new InformationRequestRefused(
+              'The environmental regulations have no cost limit. Where the cost makes a request manifestly unreasonable, record the reg 12(4)(b) exception instead.'
+            );
+          const hours = Number(detail.estimatedHours);
+          if (!Number.isFinite(hours) || hours <= 0)
+            throw new InformationRequestRefused(
+              'Give the estimate in hours, counting only determining whether it is held, locating, retrieving and extracting it.'
+            );
+          const central = detail.centralGovernment === true;
+          if (!exceedsCostLimit(regime, hours, { centralGovernment: central }))
+            throw new InformationRequestRefused(
+              `${hours} hours is within the limit of ${costLimit(regime, { centralGovernment: central })?.hours} hours, so the request must be answered.`
+            );
+          detail.estimatedHours = hours;
+          detail.centralGovernment = central;
+          detail.aggregated = detail.aggregated === true;
+          provision = 's.12';
+          break;
+        }
+        case 'vexatious':
+        case 'repeated': {
+          if (environmental)
+            throw new InformationRequestRefused(
+              'The environmental regulations have no vexatious or repeated request provision. Record the reg 12(4)(b) exception (manifestly unreasonable) instead.'
+            );
+          provision = input.kind === 'vexatious' ? 's.14(1)' : 's.14(2)';
+          break;
+        }
+        case 'transferred':
+        case 'advice':
+          break;
+      }
+
+      const [row] = await tx
+        .insert(informationRequestDecisions)
+        .values({
+          organisationId: input.organisationId,
+          requestId: before.id,
+          kind: input.kind,
+          regime,
+          provision,
+          detail,
+          rationale,
+          effectiveAt,
+          decidedBy: input.actor.actorUserId ?? null,
+          decidedByLabel: input.actor.actorLabel
+        })
+        .returning();
+      if (
+        input.kind === 'complexity_extension' &&
+        !before.extendedForComplexity
+      )
+        await tx
+          .update(informationRequests)
+          .set({ extendedForComplexity: true, updatedAt: new Date() })
+          .where(eq(informationRequests.id, before.id));
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: before.entityId,
+        action: 'foi.decision_recorded',
+        subjectType: 'information_request',
+        subjectId: before.id,
+        after: {
+          decisionId: row.id,
+          kind: row.kind,
+          regime,
+          provision,
+          effectiveAt: effectiveAt.toISOString()
+        }
+      });
+      return row;
+    })
+  );
+}
+
+/**
+ * Open requests whose time is close or gone, for the sweep to raise as tasks.
+ */
+export async function informationRequestsNeedingAttention(
+  organisationId: string
+) {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select()
+      .from(informationRequests)
+      .where(
+        and(
+          eq(informationRequests.organisationId, organisationId),
+          eq(informationRequests.status, 'open')
+        )
+      );
+    const decisions = await decisionsOf(
+      organisationId,
+      rows.map((r) => r.id)
+    );
+    const now = new Date();
+    return rows
+      .map((request) => {
+        const own = decisions.get(request.id) ?? [];
+        return {
+          request,
+          publicInterestDate: publicInterestDateOf(own),
+          clock: clockOf(request, own, now)
+        };
+      })
+      .filter(
+        (r) => r.clock.state === 'due_soon' || r.clock.state === 'overdue'
+      );
   });
 }
 
@@ -451,6 +834,8 @@ export async function respondToInformationRequest(input: {
   link?: string | null;
   lateReason?: string | null;
   published?: boolean | null;
+  /** The refusal notice says everything its regime requires. */
+  refusalNoticeChecked?: boolean;
   actor: Actor;
 }) {
   const summary = clean(input.summary);
@@ -470,7 +855,17 @@ export async function respondToInformationRequest(input: {
         throw new InformationRequestRefused(
           'The response cannot come before the request.'
         );
-      const clock = clockOf({ ...before, respondedAt: input.respondedAt });
+      const decisions =
+        (await decisionsOf(input.organisationId, [before.id])).get(before.id) ??
+        [];
+      if (refuses(decisions) && !input.refusalNoticeChecked)
+        throw new InformationRequestRefused(
+          'Something was refused, so the response is a refusal notice. Confirm it says everything the law requires: the list is beside the form.'
+        );
+      const clock = clockOf(
+        { ...before, respondedAt: input.respondedAt },
+        decisions
+      );
       const lateReason = clean(input.lateReason);
       if (clock.state === 'late' && !lateReason)
         throw new InformationRequestRefused(
@@ -485,6 +880,9 @@ export async function respondToInformationRequest(input: {
           responseLink: clean(input.link),
           lateReason: clock.state === 'late' ? lateReason : null,
           published: input.published ?? null,
+          refusalNoticeChecked: refuses(decisions)
+            ? (input.refusalNoticeChecked ?? false)
+            : null,
           updatedAt: new Date()
         })
         .where(eq(informationRequests.id, before.id))
@@ -604,6 +1002,8 @@ export async function convertToSubjectAccessRequest(input: {
 }
 
 export type LoadedInformationRequest = InformationRequest & {
+  decisions: InformationRequestDecision[];
+  ordinaryDeadline: Date;
   entityName: string;
   entityCoveredFor: string | null;
   ownerEmail: string | null;
@@ -639,13 +1039,19 @@ export async function loadInformationRequest(
         )
       );
     if (!row) return null;
+    const own =
+      (await decisionsOf(organisationId, [row.request.id])).get(
+        row.request.id
+      ) ?? [];
     return {
       ...row.request,
       entityName: row.entityName,
       entityCoveredFor: row.entityCoveredFor,
       ownerEmail: row.ownerEmail,
       convertedToReference: row.convertedToReference,
-      clock: clockOf(row.request)
+      decisions: own,
+      ordinaryDeadline: ordinaryDeadline(row.request, own),
+      clock: clockOf(row.request, own)
     };
   });
 }
@@ -675,10 +1081,14 @@ export async function informationRequestRegister(
       )
       .orderBy(desc(informationRequests.receivedAt));
     const now = new Date();
+    const decisions = await decisionsOf(
+      organisationId,
+      rows.map((r) => r.request.id)
+    );
     const withClock = rows.map((r) => ({
       ...r.request,
       entityName: r.entityName,
-      clock: clockOf(r.request, now)
+      clock: clockOf(r.request, decisions.get(r.request.id) ?? [], now)
     }));
     return {
       total: withClock.length,

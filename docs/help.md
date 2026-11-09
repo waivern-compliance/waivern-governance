@@ -967,6 +967,19 @@ Where you need more to identify what is wanted, ask and record it. Nothing is ow
 - Archives have thirty working days for transferred public records not designated open.
 - Under FOIA you may take longer to weigh the public interest, but the refusal notice saying so is still due in the twenty days. The Scottish Act has no such extension.
 
+### Decisions, exemptions and refusals
+
+Record each step and judgement on the request page, with the reason: whether the information is held, each exemption or exception applied, a fees notice and its payment, the cost limit, a vexatious or repeated request, a transfer, and advice given. Decisions are kept, never edited: a changed mind is a new decision.
+
+An absolute exemption needs no public interest test. A qualified one does, and every environmental exception does, with a presumption in favour of disclosure; record the factors on each side. Four environmental exceptions cannot withhold information on emissions, so you are asked whether it is.
+
+Where something is refused, the response is a refusal notice, and you confirm it says what the law requires before recording it as sent.
+
+- Fees: the days from the notice to payment do not count. The fee lapses after three months under the Acts, or sixty working days under the environmental regulations.
+- Cost limit: FOIA only counts determining whether it is held, locating, retrieving and extracting, at £25 an hour, against £600 for central government and £450 for everyone else; the Scottish Act is £600 at £15 an hour. The environmental regulations have no cost limit.
+- Public interest: under FOIA alone you may take longer to weigh it, if the refusal notice saying so, with an estimated date, went out within the twenty days. The clock then runs to that date.
+- Deadlines: a task goes to the handler, or the privacy team, when a response is due within five working days or overdue.
+
 ### Responding, and requests for their own data
 
 Record the response when it is sent: what was released, refused or not held, and where the letter is kept. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.

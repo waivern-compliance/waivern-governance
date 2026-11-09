@@ -2002,6 +2002,17 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'foi.recordInformationRequestDecision',
+      () =>
+        foi.recordInformationRequestDecision({
+          organisationId: A.org.id,
+          requestId: B.foiRequest.id,
+          kind: 'advice',
+          rationale: 'taken',
+          actor: as()
+        })
+    ],
+    [
       'foi.closeInformationRequest',
       () =>
         foi.closeInformationRequest({
@@ -3142,6 +3153,10 @@ describe('lists', () => {
         [
           'foi.informationRequestRegister',
           foi.informationRequestRegister(o, null)
+        ] as const,
+        [
+          'foi.informationRequestsNeedingAttention',
+          foi.informationRequestsNeedingAttention(o)
         ] as const,
         [
           'policyDocs.policyDocumentRegister',

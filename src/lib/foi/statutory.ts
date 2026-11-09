@@ -831,6 +831,7 @@ export function requestDeadline(input: {
   extendedForComplexity?: boolean;
   schoolDaysDeadline?: Date | null;
   commissionSetDeadline?: Date | null;
+  feePauses?: readonly Pause[];
   now?: Date;
 }): Date {
   const dues = input.regimes.map((regime) =>
@@ -849,6 +850,14 @@ export function informationRequestClock(input: {
   extendedForComplexity?: boolean;
   schoolDaysDeadline?: Date | null;
   commissionSetDeadline?: Date | null;
+  /** Fee notice to payment; `to` null while the fee is unpaid. */
+  feePauses?: readonly Pause[];
+  /**
+   * FOIA s.10(3): the date given in the refusal notice for deciding the public
+   * interest. The response is owed by then rather than by the ordinary
+   * deadline, so long as the notice went out in time.
+   */
+  publicInterestDate?: Date | null;
   respondedAt?: Date | null;
   /** Closed without a response being owed, or converted to a subject access request. */
   closedWithoutResponse?: boolean;
@@ -866,7 +875,11 @@ export function informationRequestClock(input: {
         'Waiting for the requester to say more about what they want. The twenty working days start again when they do. Nothing is owed until then.'
     };
 
-  const dueAt = requestDeadline({ ...input, startsAt, now });
+  const ordinary = requestDeadline({ ...input, startsAt, now });
+  const piDate = input.publicInterestDate
+    ? endOfDay(input.publicInterestDate)
+    : null;
+  const dueAt = piDate && piDate > ordinary ? piDate : ordinary;
   if (input.respondedAt)
     return input.respondedAt <= dueAt
       ? {
@@ -881,6 +894,12 @@ export function informationRequestClock(input: {
           respondedAt: input.respondedAt,
           words: `Responded on ${longDate(input.respondedAt)}, after the deadline of ${longDate(dueAt)}.`
         };
+
+  if (!input.respondedAt && (input.feePauses ?? []).some((p) => p.to === null))
+    return {
+      state: 'waiting',
+      words: `Waiting for the fee. Nothing is owed until it is paid, and the days until then do not count. If it were paid today, the deadline would be ${longDate(dueAt)}.`
+    };
 
   const act = actOf(input.regimes[0] ?? 'foia');
   if (dueAt < now) {
@@ -904,6 +923,28 @@ export function informationRequestClock(input: {
     state: 'running',
     daysRemaining: remaining,
     dueAt,
-    words: `Due by ${longDate(dueAt)}.`
+    words:
+      piDate && dueAt === piDate
+        ? `The public interest is being weighed. The refusal notice gave ${longDate(dueAt)} for the decision.`
+        : `Due by ${longDate(dueAt)}.`
   };
 }
+
+/** The exemptions or exceptions a regime offers. */
+export function exemptionsFor(
+  regime: FoiRegime
+): readonly (Exemption & { notForEmissions?: boolean })[] {
+  return {
+    foia: FOIA_EXEMPTIONS,
+    eir: EIR_EXCEPTIONS,
+    foisa: FOISA_EXEMPTIONS,
+    eisr: EISR_EXCEPTIONS
+  }[regime];
+}
+
+/**
+ * The requester's own personal data. Not an exemption to apply and answer:
+ * the request is a subject access request instead (FOIA s.40(1), FOI(S)A
+ * s.38(1)(a); the environmental regulations exclude it from the start).
+ */
+export const OWN_DATA_PROVISIONS: readonly string[] = ['s.40(1)', 's.38(1)(a)'];
