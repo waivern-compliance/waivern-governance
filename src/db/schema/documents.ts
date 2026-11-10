@@ -1,6 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
 import {
-  customType,
   index,
   integer,
   pgTable,
@@ -9,15 +8,9 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import { bytea } from '../columns';
 import { recordType } from './enums';
 import { entities, organisations, users } from './tenancy';
-
-/** Postgres bytea, which drizzle does not ship a helper for. */
-const bytea = customType<{ data: Buffer; default: false }>({
-  dataType() {
-    return 'bytea';
-  }
-});
 
 /**
  * A file attached to a record.

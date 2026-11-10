@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { HelpLink } from '@/components/help/HelpLink';
+import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
@@ -26,6 +27,7 @@ import {
   issueIntakeLinkAction,
   recordRequestAction,
   revokeIntakeLinkAction,
+  setIntakeAppearanceAction,
   setIntakeComplaintsAction,
   setIntakeFrameOriginsAction,
   setJurisdictionAction,
@@ -463,6 +465,15 @@ export default async function RequestsPage() {
                 setOrigins={
                   mayConfigure
                     ? setIntakeFrameOriginsAction.bind(null, link.id)
+                    : null
+                }
+              />
+              <AppearancePanel
+                slug={link.slug}
+                link={link}
+                setAppearance={
+                  mayConfigure
+                    ? setIntakeAppearanceAction.bind(null, link.id)
                     : null
                 }
               />

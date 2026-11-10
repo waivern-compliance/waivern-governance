@@ -1446,6 +1446,19 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'setIntakeLinkAppearance',
+      () =>
+        dsrIntake.setIntakeLinkAppearance({
+          linkId: B.intakeLink.id,
+          organisationId: A.org.id,
+          kind: 'data_protection',
+          showPoweredBy: false,
+          accent: '#000000',
+          background: '',
+          actor: as()
+        })
+    ],
+    [
       'passToController',
       () =>
         dsr.passToController({
@@ -3516,6 +3529,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'the published address is the authority, and carries its organisation',
   'dsr-intake.submitComplaintIntake':
     'the published address is the authority, and carries its organisation',
+  'dsr-intake.intakeFormLogo':
+    'the published address is the authority; returns only the logo the form shows publicly',
   'frame-origins.frameOriginsForSlug':
     'the published address is the authority; returns only the websites that may frame it, which the browser is told anyway',
   'dsr-intake.admit':

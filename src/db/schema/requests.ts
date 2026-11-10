@@ -19,6 +19,7 @@ import type {
 import type { Regime } from '@/lib/dpa2018/part3';
 import type { Part3Restriction } from '@/lib/dpa2018/part3-rights';
 
+import { bytea } from '../columns';
 import {
   dataProtectionJurisdiction,
   dsrDecisionKind,
@@ -86,6 +87,19 @@ export const dsrIntakeLinks = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * How the public form looks: see `lib/form-appearance.ts`. A small
+     * "Powered by Waivern" line at the foot, on unless switched off; an accent
+     * colour for links and the button; the page background (a colour, or
+     * `transparent` to show the host page through a frame). Colours are
+     * checked for contrast when set. The logo, if any, is in
+     * `intake_form_logo`, kept apart so loading a form never loads an image.
+     */
+    showPoweredBy: boolean('show_powered_by').notNull().default(true),
+    accentColour: text('accent_colour'),
+    background: text('background'),
+    /** The logo's SHA-256, which also busts caches when it changes. */
+    logoSha256: text('logo_sha256'),
     submissions: integer('submissions').notNull().default(0),
     lastSubmittedAt: timestamp('last_submitted_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => users.id, {
@@ -101,6 +115,21 @@ export const dsrIntakeLinks = pgTable(
   },
   (t) => [index('dsr_intake_link_org_idx').on(t.organisationId, t.entityId)]
 );
+
+/** A public form's logo: a small PNG, JPEG or WebP, served from the form's own address. */
+export const intakeFormLogos = pgTable('intake_form_logo', {
+  linkId: uuid('link_id')
+    .primaryKey()
+    .references(() => dsrIntakeLinks.id, { onDelete: 'cascade' }),
+  organisationId: uuid('organisation_id')
+    .notNull()
+    .references(() => organisations.id, { onDelete: 'cascade' }),
+  contentType: text('content_type').notNull(),
+  content: bytea('content').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+});
 
 /**
  * One submission attempt through a web form, kept for a day to limit how

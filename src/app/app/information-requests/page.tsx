@@ -5,6 +5,7 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
+import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
@@ -21,6 +22,7 @@ import {
   issueFoiFormAction,
   recordInformationRequestAction,
   revokeFoiFormAction,
+  setFoiFormAppearanceAction,
   setFoiFormOriginsAction
 } from './actions';
 import {
@@ -299,17 +301,28 @@ export default async function InformationRequestsPage() {
                 : null
             }
             extra={(link, entityName) => (
-              <EmbedPanel
-                appOrigin={origin}
-                slug={link.slug}
-                title={`Make a freedom of information request to ${entityName}`}
-                frameOrigins={link.frameOrigins}
-                setOrigins={
-                  mayConfigure
-                    ? setFoiFormOriginsAction.bind(null, link.id)
-                    : null
-                }
-              />
+              <>
+                <EmbedPanel
+                  appOrigin={origin}
+                  slug={link.slug}
+                  title={`Make a freedom of information request to ${entityName}`}
+                  frameOrigins={link.frameOrigins}
+                  setOrigins={
+                    mayConfigure
+                      ? setFoiFormOriginsAction.bind(null, link.id)
+                      : null
+                  }
+                />
+                <AppearancePanel
+                  slug={link.slug}
+                  link={link}
+                  setAppearance={
+                    mayConfigure
+                      ? setFoiFormAppearanceAction.bind(null, link.id)
+                      : null
+                  }
+                />
+              </>
             )}
           />
           {mayConfigure && foiEntities.length > 0 ? (

@@ -1,4 +1,4 @@
-import { cache } from 'react';
+import { cache, type CSSProperties } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -20,6 +20,7 @@ import { ENVIRONMENTAL_ASKS, FOI_FIELD_LIMITS } from '@/services/foi-intake';
 
 import { FoiRequestForm } from './FoiRequestForm';
 import { FrameResize } from './FrameResize';
+import { PoweredBy } from './PoweredBy';
 import { RequestForm } from './RequestForm';
 
 /** One lookup per request, shared by the title and the page. */
@@ -47,13 +48,16 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const form = await openIntakeLink((await params).slug);
+  const title =
+    form?.kind === 'foi'
+      ? 'Make a freedom of information request'
+      : form?.takesComplaints
+        ? 'Make a request or complaint about your personal data'
+        : 'Make a request about your personal data';
   return {
-    title:
-      form?.kind === 'foi'
-        ? 'Make a freedom of information request'
-        : form?.takesComplaints
-          ? 'Make a request or complaint about your personal data'
-          : 'Make a request about your personal data',
+    // With the "Powered by" line switched off, the tab names only the form,
+    // not the product, so nothing on the page is ours but the address.
+    title: form && !form.appearance.showPoweredBy ? { absolute: title } : title,
     robots: { index: false, follow: false }
   };
 }
@@ -72,9 +76,31 @@ export default async function RequestPage({
   const { slug } = await params;
   const form = await openIntakeLink(slug);
 
+  const look = form?.appearance;
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-6 py-12">
+    <main
+      className="mx-auto max-w-2xl space-y-8 px-6 py-12"
+      style={
+        look?.accentColour
+          ? ({ '--color-brand': look.accentColour } as CSSProperties)
+          : undefined
+      }
+    >
+      {/* Checked colours only (lib/form-appearance.ts), so safe to write here. */}
+      {look?.background === 'transparent' ? (
+        <style>{'html[data-framed] body{background:transparent}'}</style>
+      ) : look?.background ? (
+        <style>{`body{background:${look.background}}`}</style>
+      ) : null}
       <FrameResize slug={slug} />
+      {form && look?.logoSha256 ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a small logo from the form's own address; no optimiser needed
+        <img
+          src={`/request/${slug}/logo?v=${look.logoSha256.slice(0, 16)}`}
+          alt={form.controllerName}
+          className="h-12 w-auto max-w-full object-contain object-left"
+        />
+      ) : null}
       {form?.kind === 'foi' && form.foiAct ? (
         <>
           <header className="space-y-3 border-b border-line pb-6">
@@ -183,6 +209,7 @@ export default async function RequestPage({
           </p>
         </section>
       )}
+      {look?.showPoweredBy ? <PoweredBy /> : null}
     </main>
   );
 }

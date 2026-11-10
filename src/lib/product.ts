@@ -20,3 +20,6 @@ export const PRODUCT_SUFFIX = PRODUCT_NAME.slice(PRODUCT_VENDOR.length).trim();
 
 /** One line describing it, used in metadata and on the sign-in page. */
 export const PRODUCT_DESCRIPTION = 'Privacy and AI governance workflow';
+
+/** Waivern's own website, for the line at the foot of a public form. */
+export const VENDOR_URL = 'https://www.waivern.com';

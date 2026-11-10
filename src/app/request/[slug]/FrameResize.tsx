@@ -13,6 +13,9 @@ import { RESIZE_MESSAGE } from '@/lib/embedding';
 export function FrameResize({ slug }: { slug: string }) {
   useEffect(() => {
     if (window.parent === window) return;
+    // Lets a form set to show the host page through it drop its own
+    // background, only when it is in a frame.
+    document.documentElement.dataset.framed = '';
     // The page's own content, not the document: a document is never shorter
     // than the frame it is in, so measuring it would let the frame grow but
     // never shrink, as it must when the form is replaced by the confirmation.
