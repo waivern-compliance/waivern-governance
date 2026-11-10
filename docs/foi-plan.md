@@ -1,6 +1,6 @@
 # Plan: freedom of information requests, and request forms a client can embed
 
-Status: all decisions settled 9 November 2026, as recommended. Phases 0 to 2 built.
+Status: all decisions settled 9 November 2026, as recommended. Phases 0 to 4 built.
 
 ## What is asked for
 
@@ -391,11 +391,32 @@ Built as:
 - Request page: review cards with their clocks and forms, and the regulator's case
   with its events. Help topic extended.
 
-### Phase 4: the public FOI form
+### Phase 4: the public FOI form (built)
 
 - `kind` on the form, the FOI page, and admin to issue and withdraw FOI forms beside
   data protection ones.
 - Signposting between the two forms.
+
+Built as:
+
+- Migration 0096: `dsr_intake_link.kind` (`data_protection` or `foi`),
+  `information_request.intake_link_id`, and the `foi_intake` task type.
+- `issueIntakeLink`, `revokeIntakeLink` and `intakeLinksFor` take the kind, so each
+  register lists and withdraws only its own forms. An FOI form needs an entity with an
+  FOI Act, and never takes complaints. `openIntakeLink` returns the kind, the Act and the
+  other kind's open form for the same entity.
+- `services/foi-intake.ts`: the same checks as the data protection form (address,
+  hidden field, fill time, rate limits shared per form), then a name, an address for
+  correspondence, a description, an optional preferred means, and whether it is
+  environmental (yes, partly, no, not sure; not sure is filed as general). Somebody
+  saying it is about themselves is turned back with the way to ask, and nothing is
+  recorded. A submission records the request with its form, raises a `foi_intake`
+  task and returns the reference and the deadline. Each form refuses the other kind of
+  submission.
+- `/request/[slug]` serves both kinds, each signposting to the other. The FOI form keeps
+  what was typed when refused.
+- FOI register page: the public form section, to create and withdraw forms, for
+  somebody who handles FOI and configures the organisation.
 
 ### Phase 5: embedding both forms
 

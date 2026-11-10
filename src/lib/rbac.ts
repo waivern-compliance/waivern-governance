@@ -233,6 +233,22 @@ export function mayChooseAiFramework(grants: readonly Grant[]): boolean {
  * administrator. These settings apply to every entity, so a grant confined to
  * one entity is not enough.
  */
+/**
+ * Whether these grants may publish or withdraw a freedom of information web
+ * form: as for data protection forms, somebody who handles the requests and
+ * configures the whole organisation.
+ */
+export function mayConfigureInformationRequests(
+  grants: readonly Grant[]
+): boolean {
+  return grants.some(
+    (g) =>
+      g.scope === 'organisation' &&
+      ROLE_CAPABILITIES[g.role].includes('foi.handle') &&
+      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+  );
+}
+
 export function mayConfigureRequests(grants: readonly Grant[]): boolean {
   return grants.some(
     (g) =>

@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { and, eq, isNotNull } from 'drizzle-orm';
@@ -9,11 +10,16 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { REGIME } from '@/lib/foi/statutory';
-import { can } from '@/lib/rbac';
+import { can, mayConfigureInformationRequests } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { intakeLinksFor } from '@/services/dsr-intake';
 import { informationRequestRegister } from '@/services/information-requests';
 
-import { recordInformationRequestAction } from './actions';
+import {
+  issueFoiFormAction,
+  recordInformationRequestAction,
+  revokeFoiFormAction
+} from './actions';
 import {
   FOI_CHANNEL_LABEL,
   inputClass,
@@ -36,7 +42,7 @@ export default async function InformationRequestsPage() {
   }
 
   const org = active.membership.organisationId;
-  const [register, foiEntities] = await Promise.all([
+  const [register, foiEntities, forms] = await Promise.all([
     informationRequestRegister(org, visibleEntityIds(active, 'foi.handle')),
     scoped(org, () =>
       db
@@ -45,8 +51,14 @@ export default async function InformationRequestsPage() {
         .where(
           and(eq(entities.organisationId, org), isNotNull(entities.foiAct))
         )
-    )
+    ),
+    intakeLinksFor(org, visibleEntityIds(active, 'foi.handle'), 'foi')
   ]);
+  const h = await headers();
+  const origin = `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
+  const mayConfigure = mayConfigureInformationRequests(
+    active.membership.grants
+  );
   const mayRecordIn = foiEntities.filter((e) =>
     can(active.membership.grants, 'foi.handle', e.id)
   );
@@ -249,6 +261,92 @@ export default async function InformationRequestsPage() {
             </label>
           </RefusableForm>
         </details>
+      ) : null}
+
+      {foiEntities.length > 0 ? (
+        <section className="space-y-3 rounded border border-line bg-surface p-5">
+          <h2 className="text-sm font-semibold">Public request form</h2>
+          <p className="max-w-prose text-xs text-ink-soft">
+            A web form anyone can use to make a request without an account, one
+            per entity. Publish its address on your freedom of information page.
+            Each submission lands in this register as received by web form, with
+            the twenty working days running from that day, and raises a task for
+            the team. The form asks only what a valid request needs, never why
+            they want it, and sends anybody asking for their own personal data
+            to your data protection form if you have one. It shows nothing back
+            except a reference and the deadline.
+          </p>
+          {forms.length > 0 ? (
+            <ul className="divide-y divide-line overflow-hidden rounded border border-line">
+              {forms.map(({ link, entityName }) => (
+                <li
+                  key={link.id}
+                  className="space-y-1 px-3 py-2.5 text-sm"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">
+                      {link.label}{' '}
+                      <span className="text-xs font-normal text-ink-soft">
+                        · {entityName}
+                      </span>
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-soft">
+                      {link.revokedAt
+                        ? `withdrawn ${link.revokedAt.toISOString().slice(0, 10)}`
+                        : `${link.submissions} submission${link.submissions === 1 ? '' : 's'}`}
+                    </span>
+                  </div>
+                  {!link.revokedAt ? (
+                    <>
+                      <p className="break-all font-mono text-xs">{`${origin}/request/${link.slug}`}</p>
+                      {mayConfigure ? (
+                        <RefusableForm
+                          action={revokeFoiFormAction.bind(null, link.id)}
+                          submit="Withdraw this form"
+                          className="pt-1"
+                        >
+                          <span className="sr-only">Withdraw {link.label}</span>
+                        </RefusableForm>
+                      ) : null}
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {mayConfigure ? (
+            <RefusableForm
+              action={issueFoiFormAction}
+              submit="Create a form"
+              className="flex flex-wrap items-end gap-3"
+            >
+              <label className="block space-y-1">
+                <Label text="Entity" />
+                <select
+                  name="entityId"
+                  className={inputClass}
+                >
+                  {foiEntities.map((e) => (
+                    <option
+                      key={e.id}
+                      value={e.id}
+                    >
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block flex-1 space-y-1">
+                <Label text="Where it will be published" />
+                <input
+                  name="label"
+                  placeholder="Freedom of information page"
+                  className={inputClass}
+                />
+              </label>
+            </RefusableForm>
+          ) : null}
+        </section>
       ) : null}
 
       <ul className="space-y-3">

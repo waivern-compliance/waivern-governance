@@ -3483,6 +3483,12 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'the published address is the authority, and carries its organisation',
   'dsr-intake.submitComplaintIntake':
     'the published address is the authority, and carries its organisation',
+  'dsr-intake.admit':
+    'the published address is the authority, and carries its organisation',
+  'dsr-intake.withinLimits':
+    "counts attempts against the form it is given, inside that form's organisation",
+  'foi-intake.submitInformationRequestIntake':
+    'the published address is the authority, and carries its organisation',
   'dsr-intake.pruneIntakeAttempts':
     'acts only on the organisation it is given; run by the sweep',
   'data-subject-requests.setObjectionReviewThreshold':

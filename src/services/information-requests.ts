@@ -179,6 +179,8 @@ export async function recordInformationRequest(input: {
   pseudonymous?: boolean;
   preferredMeans?: string | null;
   ownerId?: string | null;
+  /** The published web form it came through. */
+  intakeLinkId?: string | null;
   actor: Actor;
 }) {
   const description = clean(input.description);
@@ -249,7 +251,8 @@ export async function recordInformationRequest(input: {
           correspondenceAddress: clean(input.correspondenceAddress),
           pseudonymous: input.pseudonymous ?? false,
           preferredMeans: clean(input.preferredMeans),
-          ownerId: input.ownerId ?? null
+          ownerId: input.ownerId ?? null,
+          intakeLinkId: input.intakeLinkId ?? null
         })
         .returning();
 

@@ -122,6 +122,7 @@ const DEFAULT_SLA_HOURS: Record<TaskType, number> = {
    */
   dsr_deadline: 24 * 7,
   foi_deadline: 24 * 5,
+  foi_intake: 24,
   // The month is already running; somebody should know about it within a day.
   dsr_intake: 24,
   /** Placeholder, as for the other statutory deadlines: the sweep sets the due date from the complaint. */

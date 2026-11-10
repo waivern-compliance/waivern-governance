@@ -45,6 +45,7 @@ import { raiseTask } from './workflow';
  */
 
 export type IntakeLink = typeof dsrIntakeLinks.$inferSelect;
+export type IntakeFormKind = IntakeLink['kind'];
 
 /** Submissions from one address to one form in an hour, and to one form from anywhere. */
 export const PER_ADDRESS_PER_HOUR = 5;
@@ -108,8 +109,11 @@ export async function issueIntakeLink(input: {
   organisationId: string;
   entityId: string;
   label: string;
+  /** A data protection form unless said otherwise. */
+  kind?: IntakeFormKind;
   actor: Actor;
 }) {
+  const kind = input.kind ?? 'data_protection';
   const label = input.label.trim();
   if (!label)
     throw new RequestRefused(
@@ -117,6 +121,16 @@ export async function issueIntakeLink(input: {
     );
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
+    if (kind === 'foi') {
+      const [entity] = await db
+        .select({ foiAct: entities.foiAct })
+        .from(entities)
+        .where(eq(entities.id, input.entityId));
+      if (!entity?.foiAct)
+        throw new RequestRefused(
+          'No freedom of information Act applies to this entity. An owner sets that on the Organisation page.'
+        );
+    }
     return db.transaction(async (tx) => {
       const [row] = await tx
         .insert(dsrIntakeLinks)
@@ -125,6 +139,9 @@ export async function issueIntakeLink(input: {
           entityId: input.entityId,
           slug: randomBytes(16).toString('base64url'),
           label,
+          kind,
+          // Complaints are about personal data, under DPA 2018 s.164A.
+          takesComplaints: kind === 'data_protection',
           createdBy: input.actor.actorUserId ?? null
         })
         .returning();
@@ -132,10 +149,11 @@ export async function issueIntakeLink(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: input.entityId,
-        action: 'dsr.intake_link_issued',
+        action:
+          kind === 'foi' ? 'foi.intake_link_issued' : 'dsr.intake_link_issued',
         subjectType: 'organisation',
         subjectId: input.organisationId,
-        after: { link: row.id, label }
+        after: { link: row.id, label, kind }
       });
       return row;
     });
@@ -146,8 +164,11 @@ export async function issueIntakeLink(input: {
 export async function revokeIntakeLink(input: {
   linkId: string;
   organisationId: string;
+  /** Only a form of this kind: each register withdraws its own. */
+  kind?: IntakeFormKind;
   actor: Actor;
 }) {
+  const kind = input.kind ?? 'data_protection';
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
       const [row] = await tx
@@ -160,6 +181,7 @@ export async function revokeIntakeLink(input: {
           and(
             eq(dsrIntakeLinks.id, input.linkId),
             eq(dsrIntakeLinks.organisationId, input.organisationId),
+            eq(dsrIntakeLinks.kind, kind),
             isNull(dsrIntakeLinks.revokedAt)
           )
         )
@@ -172,7 +194,10 @@ export async function revokeIntakeLink(input: {
         ...input.actor,
         organisationId: input.organisationId,
         entityId: row.entityId,
-        action: 'dsr.intake_link_revoked',
+        action:
+          kind === 'foi'
+            ? 'foi.intake_link_revoked'
+            : 'dsr.intake_link_revoked',
         subjectType: 'organisation',
         subjectId: input.organisationId,
         after: { link: row.id, label: row.label, submissions: row.submissions }
@@ -184,7 +209,8 @@ export async function revokeIntakeLink(input: {
 
 export async function intakeLinksFor(
   organisationId: string,
-  entityIds: string[] | null
+  entityIds: string[] | null,
+  kind: IntakeFormKind = 'data_protection'
 ) {
   return withOrganisation(organisationId, async () => {
     return db
@@ -192,12 +218,13 @@ export async function intakeLinksFor(
       .from(dsrIntakeLinks)
       .innerJoin(entities, eq(entities.id, dsrIntakeLinks.entityId))
       .where(
-        entityIds === null
-          ? eq(dsrIntakeLinks.organisationId, organisationId)
-          : and(
-              eq(dsrIntakeLinks.organisationId, organisationId),
-              inArray(dsrIntakeLinks.entityId, entityIds)
-            )
+        and(
+          eq(dsrIntakeLinks.organisationId, organisationId),
+          eq(dsrIntakeLinks.kind, kind),
+          entityIds === null
+            ? undefined
+            : inArray(dsrIntakeLinks.entityId, entityIds)
+        )
       )
       .orderBy(desc(dsrIntakeLinks.createdAt));
   });
@@ -214,6 +241,7 @@ export async function openIntakeLink(slug: string) {
     .select({
       link: dsrIntakeLinks,
       entityName: entities.name,
+      foiAct: entities.foiAct,
       organisationName: organisations.name
     })
     .from(dsrIntakeLinks)
@@ -226,12 +254,33 @@ export async function openIntakeLink(slug: string) {
       and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
     );
   if (!row) return null;
+  // The other kind of form for the same entity, if one is open, so each form
+  // can send people to the other when they have come to the wrong one.
+  const [other] = await db
+    .select({ slug: dsrIntakeLinks.slug })
+    .from(dsrIntakeLinks)
+    .where(
+      and(
+        eq(dsrIntakeLinks.entityId, row.link.entityId),
+        eq(
+          dsrIntakeLinks.kind,
+          row.link.kind === 'foi' ? 'data_protection' : 'foi'
+        ),
+        isNull(dsrIntakeLinks.revokedAt)
+      )
+    )
+    .orderBy(desc(dsrIntakeLinks.createdAt))
+    .limit(1);
   return {
     linkId: row.link.id,
     organisationId: row.link.organisationId,
     entityId: row.link.entityId,
     label: row.link.label,
-    takesComplaints: row.link.takesComplaints,
+    kind: row.link.kind,
+    takesComplaints:
+      row.link.kind === 'data_protection' && row.link.takesComplaints,
+    foiAct: row.foiAct,
+    otherFormSlug: other?.slug ?? null,
     // Who the person is writing to: the entity, which is the controller.
     controllerName:
       row.entityName === row.organisationName
@@ -253,24 +302,30 @@ const clip = (value: string, max: number) => value.trim().slice(0, max);
  * that a form turns away is still a request if it reaches the organisation
  * some other way, and the form must not leave anybody thinking otherwise.
  */
-type OpenForm = NonNullable<Awaited<ReturnType<typeof openIntakeLink>>>;
+export type OpenForm = NonNullable<Awaited<ReturnType<typeof openIntakeLink>>>;
 
 /**
  * The checks every submission passes before anything is recorded: the form is
  * open, the hidden field is empty, and it was neither sent too quickly to be a
  * person nor left open too long to trust.
  */
-async function admit(
+export async function admit(
   slug: string,
   started: string,
   trap: string | undefined,
-  now: Date
+  now: Date,
+  kind: IntakeFormKind = 'data_protection'
 ): Promise<{ form: OpenForm } | { refused: string }> {
   const form = await openIntakeLink(slug);
   if (!form)
     return {
       refused:
         'This form is no longer taking requests. Contact the organisation another way - by email or post - and your request still counts.'
+    };
+  if (form.kind !== kind)
+    return {
+      refused:
+        'This form takes a different kind of request. Reload the page and use the form shown.'
     };
   if (trap)
     return {
@@ -298,7 +353,7 @@ async function admit(
  * complaints share the limits: they are one form, and one address.
  * Called inside the form's organisation.
  */
-async function withinLimits(
+export async function withinLimits(
   form: OpenForm,
   address: string,
   now: Date
@@ -339,7 +394,7 @@ async function withinLimits(
   return true;
 }
 
-const TOO_MANY =
+export const TOO_MANY =
   'Too many have been sent from here in the last hour. Try again later, or contact the organisation by email or post - it counts either way.';
 
 export async function submitIntake(input: {
@@ -639,7 +694,8 @@ export async function setIntakeLinkComplaints(input: {
         .where(
           and(
             eq(dsrIntakeLinks.id, input.linkId),
-            eq(dsrIntakeLinks.organisationId, input.organisationId)
+            eq(dsrIntakeLinks.organisationId, input.organisationId),
+            eq(dsrIntakeLinks.kind, 'data_protection')
           )
         )
         .returning();
