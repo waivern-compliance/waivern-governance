@@ -962,6 +962,76 @@ export const HELP_TOPICS: HelpTopic[] = [
     related: ['risks', 'service-levels', 'audit', 'ropa']
   },
   {
+    id: 'information-requests',
+    title: 'Freedom of information requests',
+    summary:
+      'Record every request for information a public authority holds, under FOIA, the EIR or the Scottish Acts, and run the twenty working days to answer it.',
+    path: '/app/information-requests',
+    keywords: [
+      'foi',
+      'foia',
+      'freedom of information',
+      'freedom of information act 2000',
+      'foisa',
+      'foi(s)a',
+      'scotland',
+      'eir',
+      'environmental information',
+      'environmental information regulations',
+      'ei(s)r',
+      'public authority',
+      'twenty working days',
+      '20 working days',
+      'refusal notice',
+      'section 17',
+      'exemption',
+      'public interest test',
+      'information commission',
+      'scottish information commissioner',
+      'internal review',
+      'disclosure log',
+      'school days',
+      'archive'
+    ],
+    sections: [
+      {
+        heading: 'Who it is for',
+        body: [
+          'A public authority must answer requests for the information it holds: in England, Wales and Northern Ireland, and for UK-wide bodies, under the Freedom of Information Act 2000; in Scotland, under the Freedom of Information (Scotland) Act 2002. Environmental information is answered under the environmental information regulations of each instead.',
+          'An owner sets which Act applies to each entity on the Organisation page, and whether it is a school or an archive, which get longer. Setting an Act also marks the entity as a public authority for the Data Protection Act 2018, because the two mean the same thing. Where an authority is covered only for some of its information, such as a GP practice for its NHS work, say what for: it is shown on every request.'
+        ]
+      },
+      {
+        heading: 'Record it the day it arrives',
+        body: [
+          "Anyone can ask, for any reason, and need not name the law. Do not ask why they want it. A request under either Act must be in writing - an email, a letter, a web form or a social media message all count - with the requester's name and an address for the reply. A request for environmental information need not be: record a phone call or a conversation too.",
+          "Under the Acts a pseudonym makes a request invalid, so mark a name that looks like one and ask for the real name. Record only the name, the address and what was asked. The register is restricted to the people who handle requests, because the name and address are the requester's personal data."
+        ]
+      },
+      {
+        heading: 'How the twenty working days are counted',
+        body: [
+          "From the day after the request arrives. Under FOIA and the EIR, a working day is not a weekend, Christmas Day, Good Friday or a bank holiday in any part of the UK, so a Scottish or Northern Irish bank holiday stops an English authority's clock too. Under the Scottish Acts, only Scotland's bank holidays count.",
+          'Where you need more to identify what is wanted, ask and record it. Nothing is owed until they answer, and the twenty days start again from the answer.'
+        ],
+        points: [
+          'Environmental requests can be extended to forty working days, but only where they are both complex and voluminous, and you must say so within the first twenty.',
+          'Schools and academies have the twentieth school day, never later than the sixtieth working day. Give the school-days date on the request; without it, the sixtieth is shown.',
+          'Archives have thirty working days for transferred public records not designated open.',
+          'Under FOIA you may take longer to weigh the public interest, but the refusal notice saying so is still due in the twenty days. The Scottish Act has no such extension.'
+        ]
+      },
+      {
+        heading: 'Responding, and requests for their own data',
+        body: [
+          'Record the response when it is sent: what was released, refused or not held, and where the letter is kept. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.',
+          "A request for the requester's own personal data is exempt from freedom of information and is a subject access request instead. Convert it on the request page: a subject access request is recorded with the month running from the day the request arrived, and the two records point at each other."
+        ]
+      }
+    ],
+    related: ['data-subject-requests', 'complaints', 'organisation']
+  },
+  {
     id: 'data-subject-requests',
     title: 'Data subject requests',
     summary:
@@ -2465,6 +2535,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'breaches',
       'data-subject-requests',
       'complaints',
+      'information-requests',
       'cookies',
       'marketing',
       'ai-register',

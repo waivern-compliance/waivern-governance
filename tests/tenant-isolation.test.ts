@@ -64,6 +64,7 @@ import * as extraction from '@/services/extraction';
 import * as graph from '@/services/graph';
 import * as guidance from '@/services/guidance';
 import * as handover from '@/services/handover';
+import * as foi from '@/services/information-requests';
 import * as ingest from '@/services/ingest';
 import * as marketingSvc from '@/services/marketing';
 import * as metrics from '@/services/metrics';
@@ -265,6 +266,44 @@ async function populated() {
     label: "B's form",
     actor: SYSTEM
   });
+  // A council of B's that answers freedom of information requests, kept
+  // apart from B's main entity so nothing else here sees it as a public
+  // authority.
+  const [foiEntity] = await db
+    .insert(entities)
+    .values({ organisationId: id, name: "B's council" })
+    .returning();
+  await entitiesSvc.setFreedomOfInformation({
+    organisationId: id,
+    entityId: foiEntity.id,
+    act: 'foia',
+    timeProfile: 'standard',
+    actor: SYSTEM
+  });
+  const foiRequest = await foi.recordInformationRequest({
+    organisationId: id,
+    entityId: foiEntity.id,
+    channel: 'email',
+    receivedAt: new Date(),
+    description: "B's requester's secret FOI request.",
+    requesterName: "B's FOI requester",
+    actor: SYSTEM
+  });
+  const foiToConvert = await foi.recordInformationRequest({
+    organisationId: id,
+    entityId: foiEntity.id,
+    channel: 'email',
+    receivedAt: new Date(),
+    description: 'Everything about me.',
+    requesterName: "B's other FOI requester",
+    actor: SYSTEM
+  });
+  const { dataSubjectRequest: foiConvertedDsr } =
+    await foi.convertToSubjectAccessRequest({
+      organisationId: id,
+      requestId: foiToConvert.id,
+      actor: SYSTEM
+    });
   const requestScope = await dsr.addScopeEntry({
     requestId: subjectRequest.id,
     organisationId: id,
@@ -554,6 +593,9 @@ async function populated() {
     activity,
     breach,
     subjectRequest,
+    foiEntity,
+    foiRequest,
+    foiConvertedDsr,
     requestScope,
     complaint,
     webProperty,
@@ -865,6 +907,14 @@ describe("reading another organisation's records", () => {
     ['recordsFor', () => atrs.recordsFor(B.useCase.id, A.org.id)],
     ['loadBreach', () => breachesSvc.loadBreach(B.breach.id, A.org.id)],
     ['dsr.loadRequest', () => dsr.loadRequest(B.subjectRequest.id, A.org.id)],
+    [
+      'foi.loadInformationRequest',
+      () => foi.loadInformationRequest(B.foiRequest.id, A.org.id)
+    ],
+    [
+      'foi.convertedFrom',
+      () => foi.convertedFrom(B.foiConvertedDsr.id, A.org.id)
+    ],
     [
       'complaintsSvc.loadComplaint',
       () => complaintsSvc.loadComplaint(B.complaint.id, A.org.id)
@@ -1913,6 +1963,81 @@ describe("changing another organisation's records", () => {
           organisationId: A.org.id,
           entityId: B.entity.id,
           competentAuthority: true,
+          actor: as()
+        })
+    ],
+    [
+      'setFreedomOfInformation',
+      () =>
+        entitiesSvc.setFreedomOfInformation({
+          organisationId: A.org.id,
+          entityId: B.foiEntity.id,
+          act: null,
+          timeProfile: 'standard',
+          actor: as()
+        })
+    ],
+    [
+      'foi.recordInformationRequest',
+      () =>
+        foi.recordInformationRequest({
+          organisationId: A.org.id,
+          entityId: B.foiEntity.id,
+          channel: 'email',
+          receivedAt: new Date(),
+          description: 'planted',
+          requesterName: 'planted',
+          actor: as()
+        })
+    ],
+    [
+      'foi.updateInformationRequest',
+      () =>
+        foi.updateInformationRequest({
+          organisationId: A.org.id,
+          requestId: B.foiRequest.id,
+          description: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'foi.recordClarification',
+      () =>
+        foi.recordClarification({
+          organisationId: A.org.id,
+          requestId: B.foiRequest.id,
+          step: 'sought',
+          at: new Date(),
+          actor: as()
+        })
+    ],
+    [
+      'foi.respondToInformationRequest',
+      () =>
+        foi.respondToInformationRequest({
+          organisationId: A.org.id,
+          requestId: B.foiRequest.id,
+          respondedAt: new Date(),
+          summary: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'foi.closeInformationRequest',
+      () =>
+        foi.closeInformationRequest({
+          organisationId: A.org.id,
+          requestId: B.foiRequest.id,
+          rationale: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'foi.convertToSubjectAccessRequest',
+      () =>
+        foi.convertToSubjectAccessRequest({
+          organisationId: A.org.id,
+          requestId: B.foiRequest.id,
           actor: as()
         })
     ],
@@ -3032,6 +3157,14 @@ describe('lists', () => {
           entitiesSvc.anyEntityUnderUkLaw(o)
         ] as const,
         [
+          'entitiesSvc.anyEntityUnderFoi',
+          entitiesSvc.anyEntityUnderFoi(o)
+        ] as const,
+        [
+          'foi.informationRequestRegister',
+          foi.informationRequestRegister(o, null)
+        ] as const,
+        [
           'policyDocs.policyDocumentRegister',
           policyDocs.policyDocumentRegister(o, null)
         ] as const,
@@ -3058,6 +3191,8 @@ describe('lists', () => {
       B.activity.id,
       B.breach.id,
       B.subjectRequest.id,
+      B.foiRequest.id,
+      B.foiEntity.id,
       B.complaint.id,
       B.webProperty.id,
       B.storageItem.id,

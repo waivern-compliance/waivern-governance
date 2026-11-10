@@ -10,6 +10,12 @@ import {
 } from '@/lib/dpa2018/applies';
 import { isRegime, type Regime } from '@/lib/dpa2018/part3';
 import { cleanDpo, dpoMissing, type Dpo } from '@/lib/dpa2018/public-authority';
+import {
+  REGIME,
+  REGULATOR,
+  type FoiAct,
+  type TimeProfile
+} from '@/lib/foi/statutory';
 
 import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
 import type { Actor } from './templates';
@@ -390,6 +396,10 @@ export async function setPublicAuthority(input: {
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.publicAuthority === input.publicAuthority) return before;
+      if (!input.publicAuthority && before.foiAct)
+        throw new EntityRefused(
+          `${before.name} answers requests under the ${REGIME[before.foiAct].label}, which makes it a public authority. Turn freedom of information off first.`
+        );
       if (input.publicAuthority)
         ukLawOnly(
           before,
@@ -413,6 +423,109 @@ export async function setPublicAuthority(input: {
       return after;
     })
   );
+}
+
+const FOI_ACTS: readonly FoiAct[] = ['foia', 'foisa'];
+const TIME_PROFILES: readonly TimeProfile[] = ['standard', 'school', 'archive'];
+const COVERED_FOR_LIMIT = 300;
+
+/**
+ * Which freedom of information Act the entity answers requests under, if any,
+ * how long it has to respond, and what it is covered for where it is covered
+ * only in part.
+ *
+ * Either Act makes the entity a public authority for the Data Protection Act
+ * 2018 s.7 too, so setting one turns that on; turning the Act off leaves it,
+ * since a body can be a public authority by regulations without either.
+ */
+export async function setFreedomOfInformation(input: {
+  organisationId: string;
+  entityId: string;
+  act: FoiAct | null;
+  timeProfile: TimeProfile;
+  coveredFor?: string | null;
+  actor: Actor;
+}) {
+  if (input.act !== null && !FOI_ACTS.includes(input.act))
+    throw new EntityRefused(
+      'Choose the Freedom of Information Act 2000, the Scottish Act, or neither.'
+    );
+  if (!TIME_PROFILES.includes(input.timeProfile))
+    throw new EntityRefused(
+      'Choose the standard time, a school or an archive.'
+    );
+  const coveredFor = input.coveredFor?.trim().replace(/\s+/g, ' ') || null;
+  if (coveredFor && coveredFor.length > COVERED_FOR_LIMIT)
+    throw new EntityRefused(
+      `Keep what it is covered for to ${COVERED_FOR_LIMIT} characters.`
+    );
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await entityIn(tx, input.organisationId, input.entityId);
+      const act = input.act;
+      const timeProfile = act ? input.timeProfile : 'standard';
+      const covered = act ? coveredFor : null;
+      if (
+        before.foiAct === act &&
+        before.foiTimeProfile === timeProfile &&
+        before.foiCoveredFor === covered
+      )
+        return before;
+      if (act) {
+        if (!ukLawApplies(before.dataProtectionLaw))
+          throw new EntityRefused(
+            `Freedom of information is UK law, and ${before.name} is recorded as subject to EU law only. Change that first.`
+          );
+      }
+      const publicAuthority = act ? true : before.publicAuthority;
+      const [after] = await tx
+        .update(entities)
+        .set({
+          foiAct: act,
+          foiTimeProfile: timeProfile,
+          foiCoveredFor: covered,
+          publicAuthority,
+          updatedAt: new Date()
+        })
+        .where(eq(entities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'entity.foi_changed',
+        subjectType: 'entity',
+        subjectId: before.id,
+        entityId: before.id,
+        before: {
+          foiAct: before.foiAct,
+          foiTimeProfile: before.foiTimeProfile,
+          foiCoveredFor: before.foiCoveredFor,
+          publicAuthority: before.publicAuthority
+        },
+        after: {
+          foiAct: act,
+          foiTimeProfile: timeProfile,
+          foiCoveredFor: covered,
+          publicAuthority,
+          regulator: act ? REGULATOR[act] : null
+        }
+      });
+      return after;
+    })
+  );
+}
+
+/** Whether any entity of the organisation answers freedom of information requests. */
+export async function anyEntityUnderFoi(
+  organisationId: string
+): Promise<boolean> {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select({ act: entities.foiAct })
+      .from(entities)
+      .where(eq(entities.organisationId, organisationId));
+    return rows.some((r) => r.act !== null);
+  });
 }
 
 /**

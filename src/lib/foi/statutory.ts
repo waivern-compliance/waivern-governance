@@ -795,3 +795,115 @@ export const REFUSAL_MUST_SAY: Record<FoiRegime, readonly string[]> = {
     'The rights to a review under reg 16 and to apply to the Scottish Information Commissioner under reg 17 (reg 13)'
   ]
 };
+
+export type InformationRequestClock =
+  | { state: 'waiting'; words: string }
+  | { state: 'running'; daysRemaining: number; dueAt: Date; words: string }
+  | { state: 'due_soon'; daysRemaining: number; dueAt: Date; words: string }
+  | { state: 'overdue'; daysOver: number; dueAt: Date; words: string }
+  | { state: 'met'; dueAt: Date; respondedAt: Date; words: string }
+  | { state: 'late'; dueAt: Date; respondedAt: Date; words: string }
+  | { state: 'closed'; words: string };
+
+/** Working days left before the deadline at which a request counts as due soon. */
+export const DUE_SOON_WORKING_DAYS = 5;
+
+const longDate = (d: Date) =>
+  d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+
+const workingDays = (n: number) =>
+  n === 1 ? '1 working day' : `${n} working days`;
+
+/**
+ * The deadline for a request that may fall under more than one regime: the
+ * earliest of its parts, because one response answers it and the part with
+ * the shortest time sets when that response is due.
+ */
+export function requestDeadline(input: {
+  regimes: readonly FoiRegime[];
+  startsAt: Date;
+  profile?: TimeProfile;
+  extendedForComplexity?: boolean;
+  schoolDaysDeadline?: Date | null;
+  commissionSetDeadline?: Date | null;
+  now?: Date;
+}): Date {
+  const dues = input.regimes.map((regime) =>
+    responseDeadline({ ...input, regime })
+  );
+  return dues.reduce((a, b) => (b < a ? b : a));
+}
+
+/** How the request stands, said in words a handler can act on. */
+export function informationRequestClock(input: {
+  regimes: readonly FoiRegime[];
+  receivedAt: Date;
+  profile?: TimeProfile;
+  clarificationSoughtAt?: Date | null;
+  clarificationReceivedAt?: Date | null;
+  extendedForComplexity?: boolean;
+  schoolDaysDeadline?: Date | null;
+  commissionSetDeadline?: Date | null;
+  respondedAt?: Date | null;
+  /** Closed without a response being owed, or converted to a subject access request. */
+  closedWithoutResponse?: boolean;
+  now?: Date;
+}): InformationRequestClock {
+  const now = input.now ?? new Date();
+  if (input.closedWithoutResponse && !input.respondedAt)
+    return { state: 'closed', words: 'Closed without a response being owed.' };
+
+  const startsAt = clockStartsAt(input);
+  if (!startsAt)
+    return {
+      state: 'waiting',
+      words:
+        'Waiting for the requester to say more about what they want. The twenty working days start again when they do. Nothing is owed until then.'
+    };
+
+  const dueAt = requestDeadline({ ...input, startsAt, now });
+  if (input.respondedAt)
+    return input.respondedAt <= dueAt
+      ? {
+          state: 'met',
+          dueAt,
+          respondedAt: input.respondedAt,
+          words: `Responded on ${longDate(input.respondedAt)}, within the time allowed.`
+        }
+      : {
+          state: 'late',
+          dueAt,
+          respondedAt: input.respondedAt,
+          words: `Responded on ${longDate(input.respondedAt)}, after the deadline of ${longDate(dueAt)}.`
+        };
+
+  const act = actOf(input.regimes[0] ?? 'foia');
+  if (dueAt < now) {
+    const over = Math.max(1, workingDaysBetween(dueAt, now, act));
+    return {
+      state: 'overdue',
+      daysOver: over,
+      dueAt,
+      words: `${workingDays(over)} past the deadline of ${longDate(dueAt)}. The response is still owed, and the requester can complain to ${REGULATOR[act]}.`
+    };
+  }
+  const remaining = workingDaysBetween(now, dueAt, act);
+  if (remaining <= DUE_SOON_WORKING_DAYS)
+    return {
+      state: 'due_soon',
+      daysRemaining: remaining,
+      dueAt,
+      words: `${workingDays(remaining)} left, to ${longDate(dueAt)}. Respond, or send the refusal notice, by then.`
+    };
+  return {
+    state: 'running',
+    daysRemaining: remaining,
+    dueAt,
+    words: `Due by ${longDate(dueAt)}.`
+  };
+}

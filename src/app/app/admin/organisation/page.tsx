@@ -108,6 +108,9 @@ export default async function OrganisationPage() {
           competentAuthority: e.competentAuthority,
           dataProtectionLaw: e.dataProtectionLaw,
           defaultRegime: e.defaultRegime,
+          foiAct: e.foiAct,
+          foiTimeProfile: e.foiTimeProfile,
+          foiCoveredFor: e.foiCoveredFor,
           agreement: (() => {
             const a = latestAgreement.get(e.id);
             return a

@@ -44,6 +44,7 @@ import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { complaintsAboutRequest } from '@/services/complaints';
 import { loadRequest } from '@/services/data-subject-requests';
+import { convertedFrom } from '@/services/information-requests';
 
 import { ActionForm } from '../ActionForm';
 import {
@@ -118,6 +119,10 @@ export default async function RequestPage({
       };
     });
   const complaints = await complaintsAboutRequest(
+    request.id,
+    active.membership.organisationId
+  );
+  const fromFoi = await convertedFrom(
     request.id,
     active.membership.organisationId
   );
@@ -198,6 +203,23 @@ export default async function RequestPage({
           {CHANNEL_LABEL[request.channel]?.toLowerCase() ?? request.channel}
         </p>
         <RequestClock clock={clock} />
+        {fromFoi ? (
+          <p className="rounded border border-line bg-surface px-4 py-3 text-sm">
+            Made as freedom of information request{' '}
+            {can(active.membership.grants, 'foi.handle', request.entityId) ? (
+              <Link
+                href={`/app/information-requests/${fromFoi.id}`}
+                className="font-mono text-brand underline"
+              >
+                {fromFoi.reference}
+              </Link>
+            ) : (
+              <span className="font-mono">{fromFoi.reference}</span>
+            )}
+            , and converted because it was for the requester&apos;s own personal
+            data. The month runs from the day that request arrived.
+          </p>
+        ) : null}
         {request.controllerRole === 'processor' &&
         !request.passedToControllerAt ? (
           <p className="max-w-prose rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">

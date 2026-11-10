@@ -19,6 +19,8 @@ export type NavItem = {
   capability?: Capability;
   /** Offered only where some entity is subject to UK law: the page is the Data Protection Act 2018's. */
   ukLaw?: true;
+  /** Offered only where some entity answers freedom of information requests. */
+  foi?: true;
   /**
    * Administration is a different kind of thing from a register, and filing
    * it under "everything else" is how the owner of a platform ends up unable
@@ -122,6 +124,14 @@ export const NAV: NavItem[] = [
     capability: 'dsr.handle'
   },
   {
+    href: '/app/information-requests',
+    label: 'Freedom of information requests',
+    hint: 'FOIA, the EIR and the Scottish Acts, and the twenty working days',
+    capability: 'foi.handle',
+    ukLaw: true,
+    foi: true
+  },
+  {
     href: '/app/risks',
     label: 'Risk register',
     hint: 'mitigations, residual rating, acceptance',
@@ -188,11 +198,12 @@ export const NAV: NavItem[] = [
 
 export function navFor(
   grants: readonly Grant[],
-  options: { ukLaw?: boolean } = {}
+  options: { ukLaw?: boolean; foi?: boolean } = {}
 ): NavItem[] {
   return NAV.filter(
     (item) =>
       (!item.capability || can(grants, item.capability)) &&
-      (options.ukLaw !== false || !item.ukLaw)
+      (options.ukLaw !== false || !item.ukLaw) &&
+      (options.foi !== false || !item.foi)
   );
 }

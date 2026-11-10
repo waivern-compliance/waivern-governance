@@ -46,6 +46,7 @@ import {
   setCompetentAuthority,
   setDataProtectionLaw,
   setDpo,
+  setFreedomOfInformation,
   setPublicAuthority,
   setPublicCommsProvider
 } from '@/services/entities';
@@ -564,6 +565,35 @@ export async function setCompetentAuthorityAction(
     return updated.competentAuthority
       ? `${updated.name} is a competent authority. Part 3 is available on its processing activities${updated.defaultRegime === 'dpa_part3' ? ' (new ones start under it)' : ''}. It needs a data protection officer.`
       : `${updated.name} is not marked as a competent authority.`;
+  });
+}
+
+/**
+ * Which freedom of information Act an entity answers requests under, its time
+ * profile, and what it is covered for where only in part.
+ */
+export async function setFreedomOfInformationAction(
+  entityId: string,
+  _prev: AdminResult,
+  formData: FormData
+): Promise<AdminResult> {
+  return entityResult(async (active) => {
+    const act = String(formData.get('foiAct') ?? '');
+    const profile = String(formData.get('foiTimeProfile') ?? 'standard');
+    const updated = await setFreedomOfInformation({
+      organisationId: active.membership.organisationId,
+      entityId,
+      act: act === 'foia' || act === 'foisa' ? act : null,
+      timeProfile:
+        profile === 'school' || profile === 'archive' ? profile : 'standard',
+      coveredFor: String(formData.get('foiCoveredFor') ?? ''),
+      actor: actorOf(active)
+    });
+    return updated.foiAct === 'foia'
+      ? `${updated.name} answers requests under the Freedom of Information Act 2000 and the Environmental Information Regulations 2004, and is a public authority.`
+      : updated.foiAct === 'foisa'
+        ? `${updated.name} answers requests under the Freedom of Information (Scotland) Act 2002 and the Environmental Information (Scotland) Regulations 2004, and is a public authority.`
+        : `${updated.name} is not recorded as answering freedom of information requests.`;
   });
 }
 

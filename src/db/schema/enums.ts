@@ -78,7 +78,9 @@ export const recordType = pgEnum('record_type', [
   // Added with the appropriate policy document register.
   'policy_document',
   // Added with the data sharing agreement register.
-  'sharing_agreement'
+  'sharing_agreement',
+  // Added with the register of freedom of information requests.
+  'information_request'
 ]);
 
 /**
@@ -258,6 +260,18 @@ export const dataProtectionJurisdiction = pgEnum(
   'data_protection_jurisdiction',
   ['uk', 'eu']
 );
+
+/**
+ * Where a freedom of information request is in its handling. `converted`: it
+ * was for the requester's own personal data, which is exempt (FOIA s.40(1),
+ * FOI(S)A s.38(1)(a)) and is handled as a subject access request instead.
+ */
+export const informationRequestStatus = pgEnum('information_request_status', [
+  'open',
+  'responded',
+  'closed',
+  'converted'
+]);
 
 /**
  * Where a request from a data subject is in its handling.
