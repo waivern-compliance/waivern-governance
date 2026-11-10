@@ -520,12 +520,29 @@ export function publicInterestDateOf(
 }
 
 /** The kinds that refuse some or all of what was asked, and so need a refusal notice. */
-const REFUSING: readonly DecisionKind[] = [
+export const REFUSING: readonly DecisionKind[] = [
   'exemption',
   'neither_confirm_nor_deny',
   'cost_limit',
   'vexatious',
   'repeated'
+];
+
+/** What a response can come to. See `informationRequestOutcome`. */
+export const RESPONSE_OUTCOMES = [
+  'released_in_full',
+  'released_in_part',
+  'withheld_in_full',
+  'refused_request',
+  'not_held'
+] as const;
+export type ResponseOutcome = (typeof RESPONSE_OUTCOMES)[number];
+
+/** Outcomes that withhold something, and so need a recorded ground. */
+const WITHHOLDING: readonly ResponseOutcome[] = [
+  'released_in_part',
+  'withheld_in_full',
+  'refused_request'
 ];
 
 export function refuses(decisions: readonly InformationRequestDecision[]) {
@@ -922,10 +939,16 @@ export async function respondToInformationRequest(input: {
   link?: string | null;
   lateReason?: string | null;
   published?: boolean | null;
+  /** What it came to, for the figures. */
+  outcome: ResponseOutcome;
   /** The refusal notice says everything its regime requires. */
   refusalNoticeChecked?: boolean;
   actor: Actor;
 }) {
+  if (!RESPONSE_OUTCOMES.includes(input.outcome))
+    throw new InformationRequestRefused(
+      'Say what the response came to: released in full or in part, withheld, the request refused, or not held.'
+    );
   const summary = clean(input.summary);
   if (!summary)
     throw new InformationRequestRefused(
@@ -946,6 +969,14 @@ export async function respondToInformationRequest(input: {
       const decisions =
         (await decisionsOf(input.organisationId, [before.id])).get(before.id) ??
         [];
+      if (input.outcome === 'released_in_full' && refuses(decisions))
+        throw new InformationRequestRefused(
+          'A refusal is recorded on this request, so it was not released in full. Choose in part, withheld, or the request refused.'
+        );
+      if (WITHHOLDING.includes(input.outcome) && !refuses(decisions))
+        throw new InformationRequestRefused(
+          'Nothing is recorded as refused. Record the exemption, exception or other ground first, so the record says why.'
+        );
       if (refuses(decisions) && !input.refusalNoticeChecked)
         throw new InformationRequestRefused(
           'Something was refused, so the response is a refusal notice. Confirm it says everything the law requires: the list is beside the form.'
@@ -965,6 +996,7 @@ export async function respondToInformationRequest(input: {
           status: 'responded',
           respondedAt: input.respondedAt,
           responseSummary: summary,
+          outcome: input.outcome,
           responseLink: clean(input.link),
           lateReason: clock.state === 'late' ? lateReason : null,
           published: input.published ?? null,
@@ -990,6 +1022,7 @@ export async function respondToInformationRequest(input: {
         after: {
           respondedAt: input.respondedAt.toISOString(),
           onTime: clock.state === 'met',
+          outcome: input.outcome,
           published: input.published ?? null
         }
       });

@@ -444,12 +444,29 @@ DENY` everywhere else.
 - Both registers: "Show it on your website", with the websites, the titled frame and the
   script, for somebody who configures the organisation.
 
-### Phase 6: reporting
+### Phase 6: reporting (built)
 
 - On-time rates by regime, and outcomes by exemption: the figures authorities publish
   and the Commission asks about.
 - Overdue requests and reviews on the dashboard.
 - Requests in the export.
+
+As built: a response records what it came to (`information_request.outcome`: released
+in full or in part, withheld in full, the request refused as a whole, or not held),
+because the free-text summary cannot be counted. It must agree with the decisions:
+released in full with a refusal recorded is refused, and so is withholding anything
+with no ground recorded. Responses from before migration 0098 count as not recorded.
+
+`lib/foi/report.ts` counts, purely, for the requests received in a calendar year or
+quarter: received, in time, late, overdue now, in progress and no response owed, under
+each regime and in total (a request under both counts under each, once in the total);
+the in-time rate over those whose time has run; outcomes; each exemption, exception or
+refusal ground once per request it was relied on in; and reviews and regulator steps
+counted with the request they are about. `services/foi-reporting.ts` loads the records
+for `/app/information-requests/report` and the dashboard's three FOI tiles (due within
+five working days, past deadline, reviews past deadline), entity-scoped and behind
+`foi.handle`. The `information-requests` export follows the data subject request
+export: no requester, request text or response text.
 
 ## Rough size
 

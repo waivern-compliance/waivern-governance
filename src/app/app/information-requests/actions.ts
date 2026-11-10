@@ -24,7 +24,8 @@ import {
   recordInformationRequest,
   recordInformationRequestDecision,
   respondToInformationRequest,
-  updateInformationRequest
+  updateInformationRequest,
+  type ResponseOutcome
 } from '@/services/information-requests';
 
 import { setFormOrigins } from '../intake-form-origins';
@@ -196,6 +197,7 @@ export async function respondAction(
       link: text(formData.get('link')) || null,
       lateReason: text(formData.get('lateReason')) || null,
       published: published === '' ? null : published === 'yes',
+      outcome: text(formData.get('outcome')) as ResponseOutcome,
       refusalNoticeChecked: formData.get('refusalNoticeChecked') === 'on',
       actor: actorOf(active)
     });

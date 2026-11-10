@@ -61,6 +61,7 @@ import * as entitiesSvc from '@/services/entities';
 import * as exportSvc from '@/services/export';
 import * as exportsSvc from '@/services/exports';
 import * as extraction from '@/services/extraction';
+import * as foiReporting from '@/services/foi-reporting';
 import * as graph from '@/services/graph';
 import * as guidance from '@/services/guidance';
 import * as handover from '@/services/handover';
@@ -315,6 +316,7 @@ async function populated() {
     actor: SYSTEM
   });
   await foi.respondToInformationRequest({
+    outcome: 'released_in_full',
     organisationId: id,
     requestId: foiAnswered.id,
     respondedAt: new Date(),
@@ -2083,6 +2085,7 @@ describe("changing another organisation's records", () => {
       'foi.respondToInformationRequest',
       () =>
         foi.respondToInformationRequest({
+          outcome: 'released_in_full',
           organisationId: A.org.id,
           requestId: B.foiRequest.id,
           respondedAt: new Date(),
@@ -3240,6 +3243,15 @@ describe('lists', () => {
         [
           'exportsSvc.exportRequests',
           exportsSvc.exportRequests(o, null)
+        ] as const,
+        [
+          'exportsSvc.exportInformationRequests',
+          exportsSvc.exportInformationRequests(o, null)
+        ] as const,
+        ['foiReporting.foiReport', foiReporting.foiReport(o, null)] as const,
+        [
+          'foiReporting.foiAttention',
+          foiReporting.foiAttention(o, null)
         ] as const,
         ['dsr.requestMetrics', dsr.requestMetrics(o, null)] as const,
         [

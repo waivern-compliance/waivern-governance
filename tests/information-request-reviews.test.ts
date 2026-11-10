@@ -90,6 +90,7 @@ async function answered(
     ...over
   });
   await respondToInformationRequest({
+    outcome: 'released_in_full',
     organisationId: w.org.id,
     requestId: request.id,
     respondedAt: daysAgo(respondedDaysAgo),

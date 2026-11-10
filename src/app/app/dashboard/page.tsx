@@ -11,7 +11,8 @@ import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { complaintRegister } from '@/services/complaints';
 import { requestRegister } from '@/services/data-subject-requests';
-import { anyEntityUnderUkLaw } from '@/services/entities';
+import { anyEntityUnderFoi, anyEntityUnderUkLaw } from '@/services/entities';
+import { foiAttention } from '@/services/foi-reporting';
 import { dashboardMetrics } from '@/services/metrics';
 import { propertyRegister } from '@/services/storage-inventory';
 
@@ -49,6 +50,17 @@ export default async function Dashboard() {
       ? await complaintRegister(
           active.membership.organisationId,
           visibleEntityIds(active, 'dsr.handle')
+        )
+      : null;
+
+  // Freedom of information requests carry the requester's name, so likewise
+  // only for those who handle them, and only where an FOI Act applies.
+  const foi =
+    can(active.membership.grants, 'foi.handle') &&
+    (await anyEntityUnderFoi(active.membership.organisationId))
+      ? await foiAttention(
+          active.membership.organisationId,
+          visibleEntityIds(active, 'foi.handle')
         )
       : null;
 
@@ -170,6 +182,41 @@ export default async function Dashboard() {
               href="/app/complaints"
               tone={complaints.acknowledgementOverdue > 0 ? 'critical' : 'good'}
               note="the acknowledgement is still owed"
+            />
+          </>
+        ) : null}
+        {foi ? (
+          <>
+            <Tile
+              label="FOI requests due this week"
+              value={foi.dueSoon}
+              href="/app/information-requests"
+              tone={foi.dueSoon > 0 ? 'warning' : 'good'}
+              note="within five working days of the deadline"
+            />
+            <Tile
+              label="FOI requests past deadline"
+              value={foi.overdue}
+              href="/app/information-requests"
+              tone={foi.overdue > 0 ? 'critical' : 'good'}
+              note="the response is still owed"
+            />
+            <Tile
+              label="FOI reviews past deadline"
+              value={foi.reviewsOverdue}
+              href="/app/information-requests"
+              tone={
+                foi.reviewsOverdue > 0
+                  ? 'critical'
+                  : foi.reviewsDueSoon > 0
+                    ? 'warning'
+                    : 'good'
+              }
+              note={
+                foi.reviewsDueSoon > 0
+                  ? `${foi.reviewsDueSoon} more due within five working days`
+                  : 'the review decision is still owed'
+              }
             />
           </>
         ) : null}

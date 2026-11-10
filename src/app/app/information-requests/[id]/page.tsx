@@ -5,6 +5,7 @@ import { InformationRequestClock } from '@/components/foi/InformationRequestCloc
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { OUTCOME_HINT, OUTCOME_LABEL, type Outcome } from '@/lib/foi/report';
 import {
   REFUSAL_MUST_SAY,
   REGIME,
@@ -171,6 +172,7 @@ export default async function InformationRequestPage({
           <h2 className="font-semibold">Response</h2>
           <p>
             Sent {longDate(request.respondedAt)}.{' '}
+            {request.outcome ? `${OUTCOME_LABEL[request.outcome]}. ` : ''}
             {request.published === true
               ? 'Published on the disclosure log.'
               : request.published === false
@@ -344,10 +346,33 @@ export default async function InformationRequestPage({
                   </select>
                 </label>
               </div>
+              <fieldset className="space-y-1.5">
+                <legend className="text-sm font-medium">What it came to</legend>
+                {(Object.keys(OUTCOME_LABEL) as Outcome[]).map((o) => (
+                  <label
+                    key={o}
+                    className="flex items-start gap-2.5 text-sm"
+                  >
+                    <input
+                      type="radio"
+                      name="outcome"
+                      value={o}
+                      required
+                      className="mt-1 accent-brand"
+                    />
+                    <span>
+                      {OUTCOME_LABEL[o]}
+                      <span className="block text-xs text-ink-soft">
+                        {OUTCOME_HINT[o]}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
               <label className="block space-y-1">
                 <Label
-                  text="What the response was"
-                  hint="Released in full, in part, refused (and under what), or not held."
+                  text="What the response said"
+                  hint="In a sentence or two: what was sent, and what was withheld under what."
                 />
                 <textarea
                   name="summary"
