@@ -1,10 +1,16 @@
 'use client';
 
 import {
+  EntityAgreementFields,
+  KeyTerms,
+  versionLabel
+} from '@/components/legal/AgreementParts';
+import {
   DATA_PROTECTION_LAWS,
   ukLawApplies,
   type DataProtectionLaw
 } from '@/lib/dpa2018/applies';
+import { documentPath, type DocumentRef } from '@/lib/legal/shared';
 import { savedKey } from '@/lib/saved-key';
 import { useRefusableAction } from '@/lib/use-refusable-action';
 
@@ -29,7 +35,22 @@ type Entity = {
   competentAuthority: boolean;
   defaultRegime: string;
   dataProtectionLaw: DataProtectionLaw;
+  /** The latest acceptance of the terms and agreement, on the hosted service. */
+  agreement?: {
+    acceptedByName: string;
+    acceptedByPosition: string;
+    acceptedAt: string;
+    termsVersion: string;
+    dpaVersion: string;
+  } | null;
 };
+
+/** On the hosted service: what a new entity accepts as it is added. */
+type AgreementTerms = {
+  terms: DocumentRef;
+  dpa: DocumentRef;
+  defaultName: string;
+} | null;
 
 const input =
   'rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
@@ -55,10 +76,12 @@ function Outcome({ result }: { result: AdminResult }) {
  */
 export function EntitiesPanel({
   entities,
-  mayManage
+  mayManage,
+  agreementTerms
 }: {
   entities: Entity[];
   mayManage: boolean;
+  agreementTerms: AgreementTerms;
 }) {
   const add = useRefusableAction<AdminResult>(addEntityAction);
 
@@ -82,6 +105,7 @@ export function EntitiesPanel({
             <EntityRow
               key={e.id}
               entity={e}
+              showAgreement={agreementTerms !== null}
             />
           ) : (
             <li
@@ -98,6 +122,7 @@ export function EntitiesPanel({
                 {e.publicAuthority ? ' · public authority' : ''}
                 {e.competentAuthority ? ' · competent authority (Part 3)' : ''}
               </span>
+              {agreementTerms ? <AgreementRecord entity={e} /> : null}
             </li>
           )
         )}
@@ -127,12 +152,50 @@ export function EntitiesPanel({
                 className={`${input} w-48 font-mono`}
               />
             </label>
+            {agreementTerms ? (
+              <div className="w-full space-y-3 rounded border border-line bg-ground p-4">
+                <p className="max-w-prose text-sm">
+                  A new legal entity is a new controller, and Waivern holds its
+                  records as its processor. Adding it accepts the{' '}
+                  <a
+                    href={documentPath(agreementTerms.terms)}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-brand underline underline-offset-2"
+                  >
+                    Terms of Service
+                  </a>{' '}
+                  and the{' '}
+                  <a
+                    href={documentPath(agreementTerms.dpa)}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-brand underline underline-offset-2"
+                  >
+                    Data Processing Agreement
+                  </a>{' '}
+                  for it. Read both before you tick the boxes.
+                </p>
+                <KeyTerms />
+                <EntityAgreementFields
+                  entityName="the new legal entity"
+                  terms={agreementTerms.terms}
+                  dpa={agreementTerms.dpa}
+                  defaultName={agreementTerms.defaultName}
+                  idPrefix="new-entity"
+                />
+              </div>
+            ) : null}
             <button
               type="submit"
               disabled={add.pending}
               className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-50"
             >
-              {add.pending ? 'Adding…' : 'Add'}
+              {add.pending
+                ? 'Adding…'
+                : agreementTerms
+                  ? 'Accept and add'
+                  : 'Add'}
             </button>
           </form>
           <Outcome result={add.result} />
@@ -153,7 +216,13 @@ export function EntitiesPanel({
   );
 }
 
-function EntityRow({ entity }: { entity: Entity }) {
+function EntityRow({
+  entity,
+  showAgreement
+}: {
+  entity: Entity;
+  showAgreement: boolean;
+}) {
   const rename = useRefusableAction<AdminResult>(
     renameEntityAction.bind(null, entity.id),
     { resetOnSuccess: false }
@@ -189,6 +258,7 @@ function EntityRow({ entity }: { entity: Entity }) {
 
   return (
     <li className="space-y-2 px-4 py-3">
+      {showAgreement ? <AgreementRecord entity={entity} /> : null}
       {/* Keyed on the saved values, so a save rebuilds the fields from them; the
           row itself is not, so the message saying it saved survives. */}
       <form
@@ -364,5 +434,30 @@ function EntityRow({ entity }: { entity: Entity }) {
         </p>
       )}
     </li>
+  );
+}
+
+/** Who accepted the terms and agreement for an entity, and when. */
+function AgreementRecord({ entity }: { entity: Entity }) {
+  const a = entity.agreement;
+  if (!a)
+    return (
+      <p className="w-full text-xs text-red-800">
+        The Terms of Service and Data Processing Agreement have not been
+        accepted for this entity.
+      </p>
+    );
+  return (
+    <p className="w-full text-xs text-ink-soft">
+      Terms ({versionLabel(a.termsVersion)}) and Data Processing Agreement (
+      {versionLabel(a.dpaVersion)}) accepted by {a.acceptedByName},{' '}
+      {a.acceptedByPosition}, on{' '}
+      {new Date(a.acceptedAt).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })}
+      .
+    </p>
   );
 }

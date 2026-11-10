@@ -1950,6 +1950,12 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Terms and Data Processing Agreement',
+        body: [
+          "On Waivern's hosted service, adding a legal entity accepts the Terms of Service and the Data Processing Agreement for it: the owner adding it ticks the boxes and gives their name and position in the same form. Each entity's row shows who accepted for it and when."
+        ]
+      },
+      {
         heading: 'Who creates what',
         body: [
           "Legal entities within an organisation are its owners' to add. A new organisation - a separate account with its own people, registers and audit log - is not: whoever will own it signs in and asks, and Waivern approves the request. No owner, here or elsewhere, can create an organisation."
@@ -1965,7 +1971,60 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       }
     ],
-    related: ['managing-people', 'exports', 'audit']
+    related: ['managing-people', 'terms-and-agreements', 'exports', 'audit']
+  },
+  {
+    id: 'terms-and-agreements',
+    title: "Accepting Waivern's terms and Data Processing Agreement",
+    summary:
+      "On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.",
+    path: '/agreements',
+    keywords: [
+      'terms of service',
+      'terms and conditions',
+      'contract',
+      'dpa',
+      'data processing agreement',
+      'article 28',
+      'processor',
+      'accept',
+      'click-through',
+      'signature'
+    ],
+    sections: [
+      {
+        heading: 'Who accepts what',
+        body: [
+          "This applies only on Waivern's own hosted service. Anybody running their own copy of the open-source software makes their own arrangements, and sees none of it.",
+          'Every person accepts the Terms of Service for themselves the first time they sign in, whoever invited them. Each legal entity accepts the Terms of Service and the Data Processing Agreement too, because each one is a controller and Waivern holds its records as its processor (UK GDPR Article 28(3)). Until both are in place nobody can work in that entity: signing in leads to the acceptance page instead.',
+          'Somebody whose access covers the whole organisation waits for every entity; somebody confined to one entity waits only for theirs.',
+          'What is outstanding holds up only the organisation it belongs to. Somebody who belongs to more than one can switch to another from the acceptance page and work there meanwhile.'
+        ]
+      },
+      {
+        heading: 'Who may accept for an entity',
+        body: [
+          'Only an owner: of the whole organisation, or of that entity. They tick three separate boxes - accepting the terms, accepting the Data Processing Agreement, and confirming they have authority to bind the entity - and give their full name and position. Anybody else sees which owners to ask.',
+          'Adding a legal entity on the Organisation page accepts both documents for it in the same step, so a new entity is never open without them. The Organisation page shows who accepted for each entity, and when.'
+        ]
+      },
+      {
+        heading: 'What is recorded, and why',
+        body: [
+          'Each acceptance records the version of each document and a SHA-256 digest of its exact text, who accepted, the name and position they gave, the time, and the network address and browser it came from. For an entity it is also written to the audit log. Acceptances can only ever be added, never changed or removed: the database refuses.',
+          'That record is what shows, if it is ever questioned, that the contract was made, by whom and on which text. Every version of both documents stays readable, and printable, at its own address under /legal, with its digest.'
+        ]
+      },
+      {
+        heading: 'When the documents change',
+        body: [
+          'Each person, and each entity, accepts once. A later version of either document is not accepted again: it applies from the date it takes effect, by notice under clause 12.1 of the terms, so nobody is stopped from working when the documents change.',
+          'When a new version takes effect, every owner of the organisation is emailed with a summary of what changed and a link to it, whatever their notification settings, because it is notice under the contract. The notice is recorded in the audit log. If the organisation does not agree, an owner may end its use of the service by emailing info@waivern.com within 30 days of the change, or of that email if later.',
+          'Somebody accepting for the first time, or an entity added later, accepts the version current at the time.'
+        ]
+      }
+    ],
+    related: ['organisation', 'managing-people', 'security']
   },
   {
     id: 'assistant',
@@ -2437,6 +2496,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'ai-framework',
       'integrations',
       'organisation',
+      'terms-and-agreements',
       'managing-people',
       'assistant'
     ]

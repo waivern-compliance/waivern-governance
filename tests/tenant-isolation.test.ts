@@ -31,7 +31,9 @@ import {
   roleAssignments,
   users
 } from '@/db/schema';
+import { currentDocument } from '@/lib/legal/documents';
 import * as access from '@/services/access';
+import * as agreements from '@/services/agreements';
 import * as aiAssurance from '@/services/ai-assurance';
 import * as aiIncidents from '@/services/ai-incidents';
 import * as aiIntake from '@/services/ai-intake';
@@ -1867,6 +1869,25 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'acceptForEntity',
+      () =>
+        agreements.acceptForEntity({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          grants: [{ role: 'owner', scope: 'organisation' }],
+          // A real user of A's, so only the organisation check can refuse it.
+          user: { id: A.owner.user.id, email: A.owner.user.email },
+          actor: as(),
+          acceptTerms: true,
+          acceptDpa: true,
+          confirmAuthority: true,
+          signatoryName: 'A Owner',
+          signatoryPosition: 'Director',
+          termsVersion: currentDocument('terms').version,
+          dpaVersion: currentDocument('dpa').version
+        })
+    ],
+    [
       'makeDefaultEntity',
       () =>
         entitiesSvc.makeDefaultEntity({
@@ -3088,6 +3109,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'platform job; each delivery carries its organisation',
   'member-email.deliverNotifications':
     "platform job run by the sweep for the organisation it is given; reads and marks only that organisation's notifications",
+  'agreement-notices.notifyAgreementChanges':
+    'platform job run by the sweep for the organisation it is given; reads its agreements and owners and audits only there',
   'member-email.setEmailNotifications':
     "a person's own choice, held on their user row, which belongs to no organisation",
   'member-email.emailNotificationsFor':
@@ -3204,6 +3227,16 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "updates the caller's own system templates",
   'domains.claimDomain': "claims a domain for the caller's own organisation",
   'entities.addEntity': "adds an entity to the caller's own organisation",
+  // Agreements: a person's own acceptance is the platform's; an entity's runs
+  // inside its organisation's scope.
+  'agreements.hasAcceptedTerms':
+    "the caller's own acceptance; belongs to no organisation",
+  'agreements.acceptTerms':
+    "the caller's own acceptance; belongs to no organisation",
+  'agreements.agreementStatus': "reads the caller's own organisation",
+  'agreements.agreementsOf': "reads the caller's own organisation",
+  'agreements.recordEntityAgreement':
+    "runs inside a transaction already scoped to the caller's own organisation",
   // Requests for new organisations: the platform's, before any organisation exists.
   'organisation-requests.requestOrganisation':
     "belongs to no organisation; the requester's own",

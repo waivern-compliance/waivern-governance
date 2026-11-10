@@ -631,6 +631,27 @@
       "when": 1793639518871,
       "tag": "0089_member_email_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1793809093961,
+      "tag": "0090_entity_agreements",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1793809105777,
+      "tag": "0091_agreement_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1793900114906,
+      "tag": "0092_unique_acceptances",
+      "breakpoints": true
     }
   ]
 }

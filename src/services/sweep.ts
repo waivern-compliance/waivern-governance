@@ -32,6 +32,7 @@ import { objectionReviewDue } from '@/lib/dsr/statutory';
 import { log } from '@/lib/log';
 import { scopeLabel } from '@/lib/risk/appetite';
 
+import { notifyAgreementChanges } from './agreement-notices';
 import { forgetExpiredConversations } from './assistant';
 import { breachesNeedingAttention } from './breaches';
 import { complaintsNeedingAttention } from './complaints';
@@ -97,6 +98,7 @@ export type SweepResult = {
   webhooksDelivered: number;
   webhooksFailed: number;
   notificationsEmailed: number;
+  agreementNoticesSent: number;
 };
 
 /** Turn schedules that are within their lead time into tasks. */
@@ -1157,7 +1159,8 @@ export async function sweepOrganisation(
     documentsQuarantined: 0,
     webhooksDelivered: 0,
     webhooksFailed: 0,
-    notificationsEmailed: 0
+    notificationsEmailed: 0,
+    agreementNoticesSent: 0
   };
 
   // Only where this deployment runs a scanner; otherwise nothing is read.
@@ -1174,6 +1177,9 @@ export async function sweepOrganisation(
   result.notificationsEmailed = (
     await deliverNotifications(organisationId)
   ).emailed;
+  // Notice to owners of a new version of the terms or the Data Processing
+  // Agreement, which applies without being accepted again (terms 12.1).
+  result.agreementNoticesSent = await notifyAgreementChanges(organisationId);
   return result;
 }
 
