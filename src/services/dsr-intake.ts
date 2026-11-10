@@ -1,9 +1,4 @@
-import {
-  createHash,
-  createHmac,
-  randomBytes,
-  timingSafeEqual
-} from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   and,
   count,
@@ -21,7 +16,6 @@ import {
   dsrIntakeAttempts,
   dsrIntakeLinks,
   entities,
-  intakeFormLogos,
   organisations
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
@@ -31,15 +25,11 @@ import {
 } from '@/lib/complaints/statutory';
 import { requestClock } from '@/lib/dsr/statutory';
 import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
-import {
-  AppearanceRefused,
-  checkAppearance,
-  checkLogo,
-  type Background
-} from '@/lib/form-appearance';
+import { formIsOpen } from '@/lib/intake-forms';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
 import { recordRequest, RequestRefused } from './data-subject-requests';
+import { appearanceForLink } from './form-appearance';
 import { forgetFrameOrigins } from './frame-origins';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
@@ -268,10 +258,7 @@ export async function openIntakeLink(slug: string) {
     .where(
       and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
     );
-  if (!row) return null;
-  // An FOI form is open only while an FOI Act applies to its entity. Clearing
-  // the Act withdraws its forms; this covers any made before that rule.
-  if (row.link.kind === 'foi' && !row.foiAct) return null;
+  if (!row || !formIsOpen({ ...row.link, foiAct: row.foiAct })) return null;
   // The other kind of form for the same entity, if one is open, so each form
   // can send people to the other when they have come to the wrong one.
   const otherKind = row.link.kind === 'foi' ? 'data_protection' : 'foi';
@@ -301,12 +288,7 @@ export async function openIntakeLink(slug: string) {
     foiAct: row.foiAct,
     foiTimeProfile: row.foiTimeProfile,
     otherFormSlug: other?.slug ?? null,
-    appearance: {
-      showPoweredBy: row.link.showPoweredBy,
-      accentColour: row.link.accentColour,
-      background: row.link.background as Background,
-      logoSha256: row.link.logoSha256
-    },
+    appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.
     controllerName:
       row.entityName === row.organisationName
@@ -797,127 +779,6 @@ export async function setIntakeLinkFrameOrigins(input: {
       return row;
     });
   }).finally(forgetFrameOrigins);
-}
-
-/**
- * How a form looks: the "Powered by Waivern" line, accent colour, background
- * and logo. Colours are checked for contrast (`lib/form-appearance.ts`).
- * `logo` undefined keeps the current one, null removes it.
- */
-export async function setIntakeLinkAppearance(input: {
-  linkId: string;
-  organisationId: string;
-  kind: IntakeFormKind;
-  showPoweredBy: boolean;
-  accent: string;
-  background: string;
-  logo?: Uint8Array | null;
-  actor: Actor;
-}) {
-  let checked: ReturnType<typeof checkAppearance>;
-  let logoContentType: string | null = null;
-  try {
-    checked = checkAppearance(input);
-    if (input.logo) logoContentType = checkLogo(input.logo);
-  } catch (error) {
-    if (error instanceof AppearanceRefused)
-      throw new RequestRefused(error.message);
-    throw error;
-  }
-  const logoSha256 = input.logo
-    ? createHash('sha256').update(input.logo).digest('hex')
-    : undefined;
-  return withOrganisation(input.organisationId, async () => {
-    const row = await db.transaction(async (tx) => {
-      const [before] = await tx
-        .select({
-          id: dsrIntakeLinks.id,
-          entityId: dsrIntakeLinks.entityId,
-          label: dsrIntakeLinks.label,
-          showPoweredBy: dsrIntakeLinks.showPoweredBy,
-          accentColour: dsrIntakeLinks.accentColour,
-          background: dsrIntakeLinks.background,
-          logoSha256: dsrIntakeLinks.logoSha256
-        })
-        .from(dsrIntakeLinks)
-        .where(
-          and(
-            eq(dsrIntakeLinks.id, input.linkId),
-            eq(dsrIntakeLinks.organisationId, input.organisationId),
-            eq(dsrIntakeLinks.kind, input.kind),
-            isNull(dsrIntakeLinks.revokedAt)
-          )
-        )
-        .for('update');
-      if (!before)
-        throw new RequestRefused('That form is withdrawn, or is not yours.');
-      if (input.logo && logoContentType)
-        await tx
-          .insert(intakeFormLogos)
-          .values({
-            linkId: before.id,
-            organisationId: input.organisationId,
-            contentType: logoContentType,
-            content: Buffer.from(input.logo)
-          })
-          .onConflictDoUpdate({
-            target: intakeFormLogos.linkId,
-            set: {
-              contentType: logoContentType,
-              content: Buffer.from(input.logo),
-              updatedAt: new Date()
-            }
-          });
-      if (input.logo === null)
-        await tx
-          .delete(intakeFormLogos)
-          .where(eq(intakeFormLogos.linkId, before.id));
-      const after = {
-        showPoweredBy: input.showPoweredBy,
-        accentColour: checked.accentColour,
-        background: checked.background,
-        logoSha256:
-          input.logo === null ? null : (logoSha256 ?? before.logoSha256)
-      };
-      await tx
-        .update(dsrIntakeLinks)
-        .set(after)
-        .where(eq(dsrIntakeLinks.id, before.id));
-      const { id: _id, entityId: _e, label: _l, ...was } = before;
-      await appendAuditEvent(tx, {
-        ...input.actor,
-        organisationId: input.organisationId,
-        entityId: before.entityId,
-        action: 'intake.appearance_set',
-        subjectType: 'organisation',
-        subjectId: input.organisationId,
-        before: { link: before.id, ...was },
-        after: { link: before.id, label: before.label, ...after }
-      });
-      return { ...before, ...after };
-    });
-    return row;
-  });
-}
-
-/**
- * A form's logo, for its public address. None for a withdrawn form. Read
- * before any organisation is known: the address is the only authority.
- */
-export async function intakeFormLogo(
-  slug: string
-): Promise<{ contentType: string; content: Buffer } | null> {
-  const [row] = await db
-    .select({
-      contentType: intakeFormLogos.contentType,
-      content: intakeFormLogos.content
-    })
-    .from(intakeFormLogos)
-    .innerJoin(dsrIntakeLinks, eq(dsrIntakeLinks.id, intakeFormLogos.linkId))
-    .where(
-      and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
-    );
-  return row ?? null;
 }
 
 /** Forget attempts older than a day. They exist only to rate-limit. */

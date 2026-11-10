@@ -1,24 +1,32 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
+import { GET as logoRoute } from '@/app/request/[slug]/logo/route';
 import { db, sql as pg } from '@/db/client';
 import { auditEvents, entities, organisations } from '@/db/schema';
 import {
   AppearanceRefused,
+  backgroundStyle,
   checkAppearance,
   checkLogo,
   contrast,
+  pageTitle,
   parseHex
 } from '@/lib/form-appearance';
 import { RequestRefused } from '@/services/data-subject-requests';
 import {
-  intakeFormLogo,
   issueIntakeLink,
   openIntakeLink,
-  revokeIntakeLink,
-  setIntakeLinkAppearance
+  revokeIntakeLink
 } from '@/services/dsr-intake';
+import {
+  clearFormAppearance,
+  formAppearancesFor,
+  formLogo,
+  setFormAppearance,
+  STANDARD_APPEARANCE
+} from '@/services/form-appearance';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -107,90 +115,214 @@ describe('logos', () => {
   });
 });
 
-describe('setting how a form looks', () => {
-  it('is saved, shown on the form, audited, and kept to its own kind', async () => {
-    const [org] = await db
-      .insert(organisations)
-      .values({ name: 'Look', slug: `look-${crypto.randomUUID().slice(0, 8)}` })
-      .returning();
-    const [entity] = await db
-      .insert(entities)
-      .values({ organisationId: org.id, name: 'Council', isDefault: true })
-      .returning();
-    const link = await issueIntakeLink({
+describe('the page', () => {
+  it('is transparent from its first paint in a frame, and only there', () => {
+    assert.equal(
+      backgroundStyle('transparent', true),
+      'body{background:transparent}'
+    );
+    assert.equal(
+      backgroundStyle('transparent', false),
+      'html[data-framed] body{background:transparent}'
+    );
+    assert.equal(backgroundStyle('#ffffff', false), 'body{background:#ffffff}');
+    assert.equal(backgroundStyle(null, true), null);
+    // Nothing unchecked reaches the CSS.
+    assert.equal(backgroundStyle('#fff}body{x' as `#${string}`, false), null);
+  });
+
+  it('leaves the product out of the tab title with the line switched off', () => {
+    assert.equal(pageTitle('Make a request', true), 'Make a request');
+    assert.deepEqual(pageTitle('Make a request', false), {
+      absolute: 'Make a request'
+    });
+  });
+});
+
+async function anOrg(label: string, foiAct: 'foia' | null = null) {
+  const [org] = await db
+    .insert(organisations)
+    .values({
+      name: label,
+      slug: `${label.toLowerCase()}-${crypto.randomUUID().slice(0, 8)}`
+    })
+    .returning();
+  const [entity] = await db
+    .insert(entities)
+    .values({
+      organisationId: org.id,
+      name: 'Council',
+      isDefault: true,
+      foiAct
+    })
+    .returning();
+  const form = (kind: 'data_protection' | 'foi' = 'data_protection') =>
+    issueIntakeLink({
       organisationId: org.id,
       entityId: entity.id,
-      label: 'Privacy notice',
+      kind,
+      label: kind === 'foi' ? 'FOI page' : 'Privacy notice',
       actor: SYSTEM
     });
-    const standard = await openIntakeLink(link.slug);
-    assert.deepEqual(standard?.appearance, {
-      showPoweredBy: true,
-      accentColour: null,
-      background: null,
-      logoSha256: null
-    });
+  return { org, entity, form };
+}
 
-    const set = (
-      over: Partial<Parameters<typeof setIntakeLinkAppearance>[0]>
-    ) =>
-      setIntakeLinkAppearance({
-        linkId: link.id,
+describe('how forms look', () => {
+  it('follows the organisation, so a logo is set once and new forms start in it', async () => {
+    const { org, form } = await anOrg('Look', 'foia');
+    const privacy = await form();
+    assert.deepEqual(
+      (await openIntakeLink(privacy.slug))?.appearance,
+      STANDARD_APPEARANCE
+    );
+    await assert.rejects(
+      setFormAppearance({
         organisationId: org.id,
-        kind: 'data_protection',
+        linkId: null,
         showPoweredBy: true,
-        accent: '',
+        accent: '#ffff00',
         background: '',
-        actor: SYSTEM,
-        ...over
-      });
-
-    await assert.rejects(set({ kind: 'foi' }), RequestRefused);
-    await assert.rejects(set({ accent: '#ffff00' }), RequestRefused);
-
-    await set({
+        actor: SYSTEM
+      }),
+      RequestRefused
+    );
+    await setFormAppearance({
+      organisationId: org.id,
+      linkId: null,
       showPoweredBy: false,
       accent: '#0b6e4f',
       background: 'transparent',
-      logo: PNG
+      logo: PNG,
+      actor: SYSTEM
     });
-    const styled = await openIntakeLink(link.slug);
-    assert.equal(styled?.appearance.showPoweredBy, false);
-    assert.equal(styled?.appearance.accentColour, '#0b6e4f');
-    assert.equal(styled?.appearance.background, 'transparent');
-    assert.match(styled?.appearance.logoSha256 ?? '', /^[0-9a-f]{64}$/);
-    const logo = await intakeFormLogo(link.slug);
-    assert.equal(logo?.contentType, 'image/png');
-    assert.deepEqual(new Uint8Array(logo!.content), PNG);
+    const foi = await form('foi');
+    for (const slug of [privacy.slug, foi.slug]) {
+      const look = (await openIntakeLink(slug))?.appearance;
+      assert.equal(look?.accentColour, '#0b6e4f', slug);
+      assert.equal(look?.showPoweredBy, false, slug);
+      const logo = await formLogo(slug);
+      assert.deepEqual(new Uint8Array(logo!.content), PNG, slug);
+    }
+    const listed = await formAppearancesFor(org.id);
+    assert.equal(listed.forLink(foi.id).source, 'organisation');
+  });
 
-    // Keeping the logo when none is uploaded, and removing it when asked.
-    await set({ accent: '#1c4371' });
-    assert.ok(await intakeFormLogo(link.slug));
-    await set({ logo: null });
-    assert.equal(await intakeFormLogo(link.slug), null);
+  it('lets one form have its own, keeping the logo it showed, and go back', async () => {
+    const { org, form } = await anOrg('Own');
+    const main = await form();
+    await setFormAppearance({
+      organisationId: org.id,
+      linkId: null,
+      showPoweredBy: true,
+      accent: '#0b6e4f',
+      background: '',
+      logo: PNG,
+      actor: SYSTEM
+    });
+    const own = { ...main };
+    await assert.rejects(
+      setFormAppearance({
+        organisationId: org.id,
+        linkId: own.id,
+        kind: 'foi',
+        showPoweredBy: true,
+        accent: '',
+        background: '',
+        actor: SYSTEM
+      }),
+      RequestRefused
+    );
+    await setFormAppearance({
+      organisationId: org.id,
+      linkId: own.id,
+      kind: 'data_protection',
+      showPoweredBy: true,
+      accent: '#1c4371',
+      background: '#ffffff',
+      actor: SYSTEM
+    });
+    const look = (await openIntakeLink(own.slug))?.appearance;
+    assert.equal(look?.accentColour, '#1c4371');
+    assert.equal(look?.background, '#ffffff');
+    // It kept the organisation's logo, as its own copy.
+    assert.ok(look?.logoSha256);
+    assert.ok(await formLogo(own.slug));
     assert.equal(
-      (await openIntakeLink(link.slug))?.appearance.logoSha256,
-      null
+      (await formAppearancesFor(org.id)).forLink(own.id).source,
+      'form'
     );
 
-    const events = await db
-      .select()
-      .from(auditEvents)
-      .where(
-        and(
-          eq(auditEvents.organisationId, org.id),
-          eq(auditEvents.action, 'intake.appearance_set')
-        )
-      );
-    assert.equal(events.length, 3);
+    await clearFormAppearance({
+      organisationId: org.id,
+      linkId: own.id,
+      kind: 'data_protection',
+      actor: SYSTEM
+    });
+    assert.equal(
+      (await openIntakeLink(own.slug))?.appearance.accentColour,
+      '#0b6e4f'
+    );
+    const actions = (
+      await db
+        .select({ action: auditEvents.action })
+        .from(auditEvents)
+        .where(eq(auditEvents.organisationId, org.id))
+    ).map((e) => e.action);
+    assert.equal(
+      actions.filter((a) => a === 'intake.appearance_set').length,
+      2
+    );
+    assert.ok(actions.includes('intake.appearance_cleared'));
+  });
 
-    // A withdrawn form shows no logo.
-    await set({ logo: PNG });
+  it('shows no logo for a withdrawn form, or an FOI form whose entity has no Act', async () => {
+    const { org, entity, form } = await anOrg('Closed', 'foia');
+    await setFormAppearance({
+      organisationId: org.id,
+      linkId: null,
+      showPoweredBy: true,
+      accent: '',
+      background: '',
+      logo: PNG,
+      actor: SYSTEM
+    });
+    const foi = await form('foi');
+    const privacy = await form();
+    assert.ok(await formLogo(foi.slug));
+    await db
+      .update(entities)
+      .set({ foiAct: null })
+      .where(eq(entities.id, entity.id));
+    assert.equal(await formLogo(foi.slug), null);
     await revokeIntakeLink({
-      linkId: link.id,
+      linkId: privacy.id,
       organisationId: org.id,
       actor: SYSTEM
     });
-    assert.equal(await intakeFormLogo(link.slug), null);
+    assert.equal(await formLogo(privacy.slug), null);
+  });
+
+  it('is served from the form address with its type, cached by its hash', async () => {
+    const { org, form } = await anOrg('Route');
+    const privacy = await form();
+    const get = (slug: string) =>
+      logoRoute(new Request(`http://govern.test/request/${slug}/logo`), {
+        params: Promise.resolve({ slug })
+      });
+    assert.equal((await get(privacy.slug)).status, 404);
+    await setFormAppearance({
+      organisationId: org.id,
+      linkId: null,
+      showPoweredBy: true,
+      accent: '',
+      background: '',
+      logo: PNG,
+      actor: SYSTEM
+    });
+    const response = await get(privacy.slug);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/png');
+    assert.match(response.headers.get('cache-control') ?? '', /immutable/);
+    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), PNG);
   });
 });

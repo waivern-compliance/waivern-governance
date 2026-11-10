@@ -1,4 +1,4 @@
-import { intakeFormLogo } from '@/services/dsr-intake';
+import { formLogo } from '@/services/form-appearance';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const logo = await intakeFormLogo((await params).slug);
+  const logo = await formLogo((await params).slug);
   if (!logo) return new Response(null, { status: 404 });
   return new Response(new Uint8Array(logo.content), {
     headers: {

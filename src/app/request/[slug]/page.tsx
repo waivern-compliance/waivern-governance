@@ -1,5 +1,6 @@
 import { cache, type CSSProperties } from 'react';
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 
 import {
@@ -10,6 +11,7 @@ import {
   type FoiAct,
   type TimeProfile
 } from '@/lib/foi/statutory';
+import { backgroundStyle, pageTitle } from '@/lib/form-appearance';
 import {
   COMPLAINT_ASKS,
   FIELD_LIMITS,
@@ -57,7 +59,7 @@ export async function generateMetadata({
   return {
     // With the "Powered by" line switched off, the tab names only the form,
     // not the product, so nothing on the page is ours but the address.
-    title: form && !form.appearance.showPoweredBy ? { absolute: title } : title,
+    title: form ? pageTitle(title, form.appearance.showPoweredBy) : title,
     robots: { index: false, follow: false }
   };
 }
@@ -77,6 +79,10 @@ export default async function RequestPage({
   const form = await openIntakeLink(slug);
 
   const look = form?.appearance;
+  // Browsers say when a page is loading in a frame, so a transparent form is
+  // transparent from its first paint rather than after its script runs.
+  const framed = (await headers()).get('sec-fetch-dest') === 'iframe';
+  const css = look ? backgroundStyle(look.background, framed) : null;
   return (
     <main
       className="mx-auto max-w-2xl space-y-8 px-6 py-12"
@@ -86,18 +92,14 @@ export default async function RequestPage({
           : undefined
       }
     >
-      {/* Checked colours only (lib/form-appearance.ts), so safe to write here. */}
-      {look?.background === 'transparent' ? (
-        <style>{'html[data-framed] body{background:transparent}'}</style>
-      ) : look?.background ? (
-        <style>{`body{background:${look.background}}`}</style>
-      ) : null}
+      {css ? <style>{css}</style> : null}
       <FrameResize slug={slug} />
       {form && look?.logoSha256 ? (
         // eslint-disable-next-line @next/next/no-img-element -- a small logo from the form's own address; no optimiser needed
         <img
           src={`/request/${slug}/logo?v=${look.logoSha256.slice(0, 16)}`}
-          alt={form.controllerName}
+          // Decorative: the organisation is named in the text just below.
+          alt=""
           className="h-12 w-auto max-w-full object-contain object-left"
         />
       ) : null}

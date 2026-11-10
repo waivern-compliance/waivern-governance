@@ -87,19 +87,6 @@ export const dsrIntakeLinks = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
-    /**
-     * How the public form looks: see `lib/form-appearance.ts`. A small
-     * "Powered by Waivern" line at the foot, on unless switched off; an accent
-     * colour for links and the button; the page background (a colour, or
-     * `transparent` to show the host page through a frame). Colours are
-     * checked for contrast when set. The logo, if any, is in
-     * `intake_form_logo`, kept apart so loading a form never loads an image.
-     */
-    showPoweredBy: boolean('show_powered_by').notNull().default(true),
-    accentColour: text('accent_colour'),
-    background: text('background'),
-    /** The logo's SHA-256, which also busts caches when it changes. */
-    logoSha256: text('logo_sha256'),
     submissions: integer('submissions').notNull().default(0),
     lastSubmittedAt: timestamp('last_submitted_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => users.id, {
@@ -116,19 +103,52 @@ export const dsrIntakeLinks = pgTable(
   (t) => [index('dsr_intake_link_org_idx').on(t.organisationId, t.entityId)]
 );
 
-/** A public form's logo: a small PNG, JPEG or WebP, served from the form's own address. */
-export const intakeFormLogos = pgTable('intake_form_logo', {
-  linkId: uuid('link_id')
+/**
+ * How public forms look: the organisation's default (`linkId` null), which
+ * every form uses, or one form's own, which replaces it for that form. See
+ * `lib/form-appearance.ts`. Colours are checked for contrast when set; the
+ * logo is in `form_appearance_logo`, apart, so loading an appearance never
+ * loads an image.
+ */
+export const formAppearances = pgTable(
+  'form_appearance',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    linkId: uuid('link_id')
+      .unique()
+      .references(() => dsrIntakeLinks.id, { onDelete: 'cascade' }),
+    /** A small "Powered by Waivern" line at the foot of the form. */
+    showPoweredBy: boolean('show_powered_by').notNull().default(true),
+    /** For links and the button. Null: the standard blue. */
+    accentColour: text('accent_colour'),
+    /** A colour, or `transparent` to show the host page through a frame. Null: the standard grey. */
+    background: text('background'),
+    /** The logo's SHA-256, which also makes its address change with it. */
+    logoSha256: text('logo_sha256'),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [
+    uniqueIndex('form_appearance_default_key')
+      .on(t.organisationId)
+      .where(sql`${t.linkId} is null`)
+  ]
+);
+
+/** The logo of a form appearance: a small PNG, JPEG or WebP. */
+export const formAppearanceLogos = pgTable('form_appearance_logo', {
+  appearanceId: uuid('appearance_id')
     .primaryKey()
-    .references(() => dsrIntakeLinks.id, { onDelete: 'cascade' }),
+    .references(() => formAppearances.id, { onDelete: 'cascade' }),
   organisationId: uuid('organisation_id')
     .notNull()
     .references(() => organisations.id, { onDelete: 'cascade' }),
   contentType: text('content_type').notNull(),
-  content: bytea('content').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow()
+  content: bytea('content').notNull()
 });
 
 /**

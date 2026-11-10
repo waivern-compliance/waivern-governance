@@ -1,3 +1,4 @@
+import { inputClass } from '@/components/form-classes';
 import { RIGHT_KEYS, RIGHTS } from '@/lib/dsr/statutory';
 
 /** Shared by the register's server pages and its client forms, so not a client module. */
@@ -14,8 +15,7 @@ export function Label({ text, hint }: { text: string; hint?: string }) {
   );
 }
 
-export const inputClass =
-  'w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
+export { inputClass };
 
 export const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',

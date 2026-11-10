@@ -1,16 +1,20 @@
 import { revalidatePath } from 'next/cache';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { LOGO_MAX_BYTES } from '@/lib/form-appearance';
 import {
   mayConfigureInformationRequests,
   mayConfigureRequests
 } from '@/lib/rbac';
 import { requireCapability } from '@/lib/session';
 import {
-  setIntakeLinkAppearance,
   setIntakeLinkFrameOrigins,
   type IntakeFormKind
 } from '@/services/dsr-intake';
+import {
+  clearFormAppearance,
+  setFormAppearance
+} from '@/services/form-appearance';
 
 /** What differs between the two registers' public forms. */
 const REGISTER = {
@@ -80,37 +84,87 @@ export async function setFormOrigins(
     : result;
 }
 
-/** Set how a public form looks, for either register's action. */
-export async function setFormAppearance(
+/**
+ * How a public form looks, from either register: the organisation's
+ * appearance (`linkId` null), which every form uses, or one form's own.
+ * Checks what it can before reading the upload, so a large file is refused
+ * without being read.
+ */
+export async function setFormAppearanceFrom(
   kind: IntakeFormKind,
-  linkId: string,
+  linkId: string | null,
   formData: FormData
 ): Promise<EditResult> {
   const who = await configurer(kind);
   if (who.refused) return who.refused;
+  const organisationId = who.active.membership.organisationId;
+
+  if (linkId && formData.get('inherit') === 'on') {
+    const cleared = await refusable(() =>
+      clearFormAppearance({ organisationId, linkId, kind, actor: who.actor })
+    );
+    revalidatePath(who.register.path);
+    return cleared?.ok
+      ? {
+          ok: true,
+          message: "Saved. It now uses the organisation's appearance."
+        }
+      : cleared;
+  }
+
   const mode = String(formData.get('backgroundMode') ?? '');
+  const colour = String(formData.get('backgroundColour') ?? '').trim();
+  if (mode === 'colour' && !colour)
+    return {
+      ok: false,
+      message: 'Give the background colour as a hex code, such as #ffffff.'
+    };
   const file = formData.get('logo');
-  const upload =
-    file instanceof File && file.size > 0
-      ? new Uint8Array(await file.arrayBuffer())
+  const uploading = file instanceof File && file.size > 0;
+  const removing = formData.get('removeLogo') === 'on';
+  if (uploading && removing)
+    return {
+      ok: false,
+      message:
+        'Choose a new logo or remove the current one, not both. Clear the file or untick removing it.'
+    };
+  if (uploading && file.size > LOGO_MAX_BYTES)
+    return {
+      ok: false,
+      message: `The logo is ${Math.ceil(file.size / 1024)} KB. Keep it to ${LOGO_MAX_BYTES / 1024} KB: a logo on a form needs no more.`
+    };
+  const logo = uploading
+    ? new Uint8Array(await file.arrayBuffer())
+    : removing
+      ? null
       : undefined;
+
   const result = await refusable(() =>
-    setIntakeLinkAppearance({
+    setFormAppearance({
+      organisationId,
       linkId,
-      organisationId: who.active.membership.organisationId,
-      kind,
+      kind: linkId ? kind : undefined,
       showPoweredBy: formData.get('showPoweredBy') === 'on',
       accent: String(formData.get('accent') ?? ''),
       background:
         mode === 'transparent'
           ? 'transparent'
           : mode === 'colour'
-            ? String(formData.get('backgroundColour') ?? '')
+            ? colour
             : '',
-      logo: upload ?? (formData.get('removeLogo') === 'on' ? null : undefined),
+      logo,
       actor: who.actor
     })
   );
-  revalidatePath(who.register.path);
-  return result?.ok ? { ok: true, message: 'Saved.' } : result;
+  // Both registers show the organisation's appearance.
+  revalidatePath('/app/requests');
+  revalidatePath('/app/information-requests');
+  return result?.ok
+    ? {
+        ok: true,
+        message: linkId
+          ? 'Saved, for this form only.'
+          : 'Saved. Every form without its own appearance now looks like this.'
+      }
+    : result;
 }

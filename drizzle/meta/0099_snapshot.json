@@ -1,5 +1,5 @@
 {
-  "id": "5b3bfc04-d0d2-49d2-b7bd-c4ebf0d29f9d",
+  "id": "c11791da-8742-41e9-9d26-76c44ceeb279",
   "prevId": "ba43130e-e94c-47ee-9aa0-7a0daa92fa14",
   "version": "7",
   "dialect": "postgresql",
@@ -11747,31 +11747,6 @@
           "notNull": true,
           "default": "'{}'::text[]"
         },
-        "show_powered_by": {
-          "name": "show_powered_by",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "accent_colour": {
-          "name": "accent_colour",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "background": {
-          "name": "background",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "logo_sha256": {
-          "name": "logo_sha256",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "submissions": {
           "name": "submissions",
           "type": "integer",
@@ -11902,12 +11877,12 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.intake_form_logo": {
-      "name": "intake_form_logo",
+    "public.form_appearance_logo": {
+      "name": "form_appearance_logo",
       "schema": "",
       "columns": {
-        "link_id": {
-          "name": "link_id",
+        "appearance_id": {
+          "name": "appearance_id",
           "type": "uuid",
           "primaryKey": true,
           "notNull": true
@@ -11929,23 +11904,16 @@
           "type": "bytea",
           "primaryKey": false,
           "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "intake_form_logo_link_id_dsr_intake_link_id_fk": {
-          "name": "intake_form_logo_link_id_dsr_intake_link_id_fk",
-          "tableFrom": "intake_form_logo",
-          "tableTo": "dsr_intake_link",
+        "form_appearance_logo_appearance_id_form_appearance_id_fk": {
+          "name": "form_appearance_logo_appearance_id_form_appearance_id_fk",
+          "tableFrom": "form_appearance_logo",
+          "tableTo": "form_appearance",
           "columnsFrom": [
-            "link_id"
+            "appearance_id"
           ],
           "columnsTo": [
             "id"
@@ -11953,9 +11921,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "intake_form_logo_organisation_id_organisation_id_fk": {
-          "name": "intake_form_logo_organisation_id_organisation_id_fk",
-          "tableFrom": "intake_form_logo",
+        "form_appearance_logo_organisation_id_organisation_id_fk": {
+          "name": "form_appearance_logo_organisation_id_organisation_id_fk",
+          "tableFrom": "form_appearance_logo",
           "tableTo": "organisation",
           "columnsFrom": [
             "organisation_id"
@@ -11969,6 +11937,122 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.form_appearance": {
+      "name": "form_appearance",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organisation_id": {
+          "name": "organisation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "show_powered_by": {
+          "name": "show_powered_by",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "accent_colour": {
+          "name": "accent_colour",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "background": {
+          "name": "background",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logo_sha256": {
+          "name": "logo_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "form_appearance_default_key": {
+          "name": "form_appearance_default_key",
+          "columns": [
+            {
+              "expression": "organisation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"form_appearance\".\"link_id\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "form_appearance_organisation_id_organisation_id_fk": {
+          "name": "form_appearance_organisation_id_organisation_id_fk",
+          "tableFrom": "form_appearance",
+          "tableTo": "organisation",
+          "columnsFrom": [
+            "organisation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "form_appearance_link_id_dsr_intake_link_id_fk": {
+          "name": "form_appearance_link_id_dsr_intake_link_id_fk",
+          "tableFrom": "form_appearance",
+          "tableTo": "dsr_intake_link",
+          "columnsFrom": [
+            "link_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "form_appearance_link_id_unique": {
+          "name": "form_appearance_link_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "link_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

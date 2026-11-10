@@ -115,6 +115,40 @@ export function checkAppearance(input: {
 }
 
 // ---------------------------------------------------------------------------
+// The page
+
+/**
+ * The CSS a form's page needs for its background, or null for the standard
+ * one. Transparent applies only in a frame. `framed` is what the server knows
+ * from the request (`Sec-Fetch-Dest: iframe`), so the page is transparent from
+ * its first paint; the `data-framed` rule covers browsers that do not say.
+ * Only checked colours reach here, so they are safe to write into CSS.
+ */
+export function backgroundStyle(
+  background: Background,
+  framed: boolean
+): string | null {
+  if (background === 'transparent')
+    return framed
+      ? 'body{background:transparent}'
+      : 'html[data-framed] body{background:transparent}';
+  if (background && parseHex(background) === background)
+    return `body{background:${background}}`;
+  return null;
+}
+
+/**
+ * The browser tab's title: with the "Powered by" line switched off, only the
+ * form's, so nothing on the page names the product but its address.
+ */
+export function pageTitle(
+  title: string,
+  showPoweredBy: boolean
+): string | { absolute: string } {
+  return showPoweredBy ? title : { absolute: title };
+}
+
+// ---------------------------------------------------------------------------
 // Logos
 
 /** The largest logo accepted. A logo is a few kilobytes; this leaves room. */
