@@ -17,6 +17,7 @@ import {
   type TimeProfile
 } from '@/lib/foi/statutory';
 
+import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
 import type { Actor } from './templates';
 import { assertMemberOf, NotInOrganisation } from './tenancy-guards';
 
@@ -107,14 +108,29 @@ export async function entitiesOf(organisationId: string) {
   );
 }
 
+/**
+ * Add a legal entity.
+ *
+ * On Waivern's hosted service a new entity is a new controller, and Waivern may
+ * hold none of its records without a Data Processing Agreement, so the owner
+ * adding it accepts the terms and the agreement for it in the same transaction:
+ * either both are recorded or neither is.
+ */
 export async function addEntity(input: {
   organisationId: string;
   name: string;
   legalEntityRef?: string | null;
   actor: Actor;
+  agreementRequired?: boolean;
+  agreement?: EntityAgreementInput & { user: { id: string; email: string } };
 }) {
   const name = cleanName(input.name);
   const legalEntityRef = cleanRef(input.legalEntityRef);
+  const agreement = input.agreement;
+  if (input.agreementRequired && !agreement)
+    throw new EntityRefused(
+      'Accept the terms and the Data Processing Agreement for the new legal entity.'
+    );
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       await assertDistinct(tx, input.organisationId, name, legalEntityRef);
@@ -131,6 +147,13 @@ export async function addEntity(input: {
         entityId: created.id,
         after: { name, legalEntityRef }
       });
+      if (agreement)
+        await recordEntityAgreement(tx, {
+          ...agreement,
+          organisationId: input.organisationId,
+          entity: created,
+          actor: input.actor
+        });
       return created;
     })
   );

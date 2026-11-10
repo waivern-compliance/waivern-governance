@@ -419,11 +419,7 @@ describe('who may handle requests', () => {
   it('is owners, privacy administrators and analysts, not auditors or approvers', () => {
     const org = (
       role:
-        | 'privacy_admin'
-        | 'privacy_analyst'
-        | 'auditor'
-        | 'approver'
-        | 'owner'
+        'privacy_admin' | 'privacy_analyst' | 'auditor' | 'approver' | 'owner'
     ) => can([{ role, scope: 'organisation' }], 'foi.handle');
     assert.deepEqual(
       [

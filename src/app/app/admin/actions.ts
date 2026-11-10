@@ -10,6 +10,8 @@ import {
 } from '@/lib/dpa2018/applies';
 import { DpoRefused } from '@/lib/dpa2018/public-authority';
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { waivernHosted } from '@/lib/hosting';
+import { entityAgreementFrom } from '@/lib/legal/acceptance';
 import { PERSONAS, type Persona } from '@/lib/persona';
 import { mayManageEntities, ROLES, type AppRole } from '@/lib/rbac';
 import { isScaleId, SCALES } from '@/lib/risk/scale';
@@ -22,6 +24,7 @@ import {
   setMembershipActive,
   setPersona
 } from '@/services/access';
+import { AgreementRefused } from '@/services/agreements';
 import {
   mismatchedWireFormat,
   removeProvider,
@@ -420,6 +423,7 @@ async function entityResult(
   } catch (error) {
     if (
       error instanceof EntityRefused ||
+      error instanceof AgreementRefused ||
       error instanceof NotInOrganisation ||
       error instanceof DpoRefused
     ) {
@@ -434,11 +438,21 @@ export async function addEntityAction(
   formData: FormData
 ): Promise<AdminResult> {
   return entityResult(async (active) => {
+    // On the hosted service the owner adding an entity accepts the terms and
+    // the Data Processing Agreement for it in the same step.
+    const hosted = waivernHosted();
     const created = await addEntity({
       organisationId: active.membership.organisationId,
       name: text(formData.get('name')),
       legalEntityRef: text(formData.get('legalEntityRef')),
-      actor: actorOf(active)
+      actor: actorOf(active),
+      agreementRequired: hosted,
+      agreement: hosted
+        ? {
+            ...(await entityAgreementFrom(formData)),
+            user: { id: active.userId, email: active.email }
+          }
+        : undefined
     });
     return `Added ${created.name}.`;
   });
