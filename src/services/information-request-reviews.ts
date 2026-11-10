@@ -875,21 +875,19 @@ export async function reviewsAndRegulator(
         : null;
     const now = new Date();
     return {
-      reviews: reviews.map(
-        (r): LoadedReview => ({
-          ...r,
-          clock: reviewClockOf(r, request, now),
-          askedLate:
-            deadline !== null &&
-            reviewAskedLate({
-              regimes: r.regimes,
-              requestedAt: r.requestedAt,
-              respondedAt: request.respondedAt,
-              deadline
-            }).length === r.regimes.length,
-          lastDayToAsk: lastDay(r.regimes)
-        })
-      ),
+      reviews: reviews.map((r): LoadedReview => ({
+        ...r,
+        clock: reviewClockOf(r, request, now),
+        askedLate:
+          deadline !== null &&
+          reviewAskedLate({
+            regimes: r.regimes,
+            requestedAt: r.requestedAt,
+            respondedAt: request.respondedAt,
+            deadline
+          }).length === r.regimes.length,
+        lastDayToAsk: lastDay(r.regimes)
+      })),
       lastDayToAsk: lastDay(request.regimes),
       mayAskForReview:
         request.status === 'responded' ||
