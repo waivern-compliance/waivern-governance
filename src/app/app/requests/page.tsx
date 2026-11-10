@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { HelpLink } from '@/components/help/HelpLink';
+import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
@@ -20,16 +21,19 @@ import {
   requestRegister
 } from '@/services/data-subject-requests';
 import { intakeLinksFor } from '@/services/dsr-intake';
+import { formAppearancesFor } from '@/services/form-appearance';
 
 import { ActionForm } from './ActionForm';
 import {
   issueIntakeLinkAction,
   recordRequestAction,
   revokeIntakeLinkAction,
+  setIntakeAppearanceAction,
   setIntakeComplaintsAction,
   setIntakeFrameOriginsAction,
   setJurisdictionAction,
-  setObjectionThresholdAction
+  setObjectionThresholdAction,
+  setOrganisationFormAppearanceAction
 } from './actions';
 import {
   CHANNEL_LABEL,
@@ -53,17 +57,25 @@ export default async function RequestsPage() {
   }
 
   const org = active.membership.organisationId;
-  const [register, orgEntities, jurisdiction, threshold, metrics, intakeLinks] =
-    await Promise.all([
-      requestRegister(org, visibleEntityIds(active, 'dsr.handle')),
-      scoped(org, () =>
-        db.select().from(entities).where(eq(entities.organisationId, org))
-      ),
-      defaultJurisdiction(org),
-      objectionReviewThreshold(org),
-      requestMetrics(org, visibleEntityIds(active, 'dsr.handle')),
-      intakeLinksFor(org, visibleEntityIds(active, 'dsr.handle'))
-    ]);
+  const [
+    register,
+    orgEntities,
+    jurisdiction,
+    threshold,
+    metrics,
+    intakeLinks,
+    appearances
+  ] = await Promise.all([
+    requestRegister(org, visibleEntityIds(active, 'dsr.handle')),
+    scoped(org, () =>
+      db.select().from(entities).where(eq(entities.organisationId, org))
+    ),
+    defaultJurisdiction(org),
+    objectionReviewThreshold(org),
+    requestMetrics(org, visibleEntityIds(active, 'dsr.handle')),
+    intakeLinksFor(org, visibleEntityIds(active, 'dsr.handle')),
+    formAppearancesFor(org)
+  ]);
   const origin = await requestOrigin();
   const mayConfigure = mayConfigureRequests(active.membership.grants);
   const mayRecordIn = orgEntities.filter((e) =>
@@ -419,6 +431,22 @@ export default async function RequestsPage() {
           how often one address can submit. It is one route among many: requests
           by email, post or in person still count.
         </p>
+        {intakeLinks.length > 0 || mayConfigure ? (
+          <AppearancePanel
+            scope="organisation"
+            appearance={appearances.organisation}
+            previewSlug={
+              intakeLinks.find(
+                (l) =>
+                  !l.link.revokedAt &&
+                  appearances.forLink(l.link.id).source !== 'form'
+              )?.link.slug ?? null
+            }
+            setAppearance={
+              mayConfigure ? setOrganisationFormAppearanceAction : null
+            }
+          />
+        ) : null}
         <IntakeFormList
           forms={intakeLinks}
           origin={origin}
@@ -463,6 +491,17 @@ export default async function RequestsPage() {
                 setOrigins={
                   mayConfigure
                     ? setIntakeFrameOriginsAction.bind(null, link.id)
+                    : null
+                }
+              />
+              <AppearancePanel
+                scope="form"
+                appearance={appearances.forLink(link.id).appearance}
+                source={appearances.forLink(link.id).source}
+                previewSlug={link.slug}
+                setAppearance={
+                  mayConfigure
+                    ? setIntakeAppearanceAction.bind(null, link.id)
                     : null
                 }
               />

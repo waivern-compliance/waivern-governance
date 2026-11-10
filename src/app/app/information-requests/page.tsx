@@ -5,6 +5,7 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
+import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
@@ -15,13 +16,16 @@ import { can, mayConfigureInformationRequests } from '@/lib/rbac';
 import { requestOrigin } from '@/lib/request-origin';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { intakeLinksFor } from '@/services/dsr-intake';
+import { formAppearancesFor } from '@/services/form-appearance';
 import { informationRequestRegister } from '@/services/information-requests';
 
 import {
   issueFoiFormAction,
   recordInformationRequestAction,
   revokeFoiFormAction,
-  setFoiFormOriginsAction
+  setFoiFormAppearanceAction,
+  setFoiFormOriginsAction,
+  setOrganisationFoiFormAppearanceAction
 } from './actions';
 import {
   FOI_CHANNEL_LABEL,
@@ -45,7 +49,7 @@ export default async function InformationRequestsPage() {
   }
 
   const org = active.membership.organisationId;
-  const [register, foiEntities, forms] = await Promise.all([
+  const [register, foiEntities, forms, appearances] = await Promise.all([
     informationRequestRegister(org, visibleEntityIds(active, 'foi.handle')),
     scoped(org, () =>
       db
@@ -55,7 +59,8 @@ export default async function InformationRequestsPage() {
           and(eq(entities.organisationId, org), isNotNull(entities.foiAct))
         )
     ),
-    intakeLinksFor(org, visibleEntityIds(active, 'foi.handle'), 'foi')
+    intakeLinksFor(org, visibleEntityIds(active, 'foi.handle'), 'foi'),
+    formAppearancesFor(org)
   ]);
   const origin = await requestOrigin();
   const mayConfigure = mayConfigureInformationRequests(
@@ -290,6 +295,22 @@ export default async function InformationRequestsPage() {
             to your data protection form if you have one. It shows nothing back
             except a reference and the deadline.
           </p>
+          {forms.length > 0 || mayConfigure ? (
+            <AppearancePanel
+              scope="organisation"
+              appearance={appearances.organisation}
+              previewSlug={
+                forms.find(
+                  (l) =>
+                    !l.link.revokedAt &&
+                    appearances.forLink(l.link.id).source !== 'form'
+                )?.link.slug ?? null
+              }
+              setAppearance={
+                mayConfigure ? setOrganisationFoiFormAppearanceAction : null
+              }
+            />
+          ) : null}
           <IntakeFormList
             forms={forms}
             origin={origin}
@@ -299,17 +320,30 @@ export default async function InformationRequestsPage() {
                 : null
             }
             extra={(link, entityName) => (
-              <EmbedPanel
-                appOrigin={origin}
-                slug={link.slug}
-                title={`Make a freedom of information request to ${entityName}`}
-                frameOrigins={link.frameOrigins}
-                setOrigins={
-                  mayConfigure
-                    ? setFoiFormOriginsAction.bind(null, link.id)
-                    : null
-                }
-              />
+              <>
+                <EmbedPanel
+                  appOrigin={origin}
+                  slug={link.slug}
+                  title={`Make a freedom of information request to ${entityName}`}
+                  frameOrigins={link.frameOrigins}
+                  setOrigins={
+                    mayConfigure
+                      ? setFoiFormOriginsAction.bind(null, link.id)
+                      : null
+                  }
+                />
+                <AppearancePanel
+                  scope="form"
+                  appearance={appearances.forLink(link.id).appearance}
+                  source={appearances.forLink(link.id).source}
+                  previewSlug={link.slug}
+                  setAppearance={
+                    mayConfigure
+                      ? setFoiFormAppearanceAction.bind(null, link.id)
+                      : null
+                  }
+                />
+              </>
             )}
           />
           {mayConfigure && foiEntities.length > 0 ? (

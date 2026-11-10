@@ -62,6 +62,7 @@ import * as exportSvc from '@/services/export';
 import * as exportsSvc from '@/services/exports';
 import * as extraction from '@/services/extraction';
 import * as foiReporting from '@/services/foi-reporting';
+import * as formAppearance from '@/services/form-appearance';
 import * as graph from '@/services/graph';
 import * as guidance from '@/services/guidance';
 import * as handover from '@/services/handover';
@@ -1442,6 +1443,29 @@ describe("changing another organisation's records", () => {
           organisationId: A.org.id,
           kind: 'data_protection',
           origins: 'https://planted.example.org',
+          actor: as()
+        })
+    ],
+    [
+      'setFormAppearance',
+      () =>
+        formAppearance.setFormAppearance({
+          organisationId: A.org.id,
+          linkId: B.intakeLink.id,
+          kind: 'data_protection',
+          showPoweredBy: false,
+          accent: '#000000',
+          background: '',
+          actor: as()
+        })
+    ],
+    [
+      'clearFormAppearance',
+      () =>
+        formAppearance.clearFormAppearance({
+          organisationId: A.org.id,
+          linkId: B.intakeLink.id,
+          kind: 'data_protection',
           actor: as()
         })
     ],
@@ -3260,6 +3284,10 @@ describe('lists', () => {
         ] as const,
         ['foiReporting.foiReport', foiReporting.foiReport(o, null)] as const,
         [
+          'formAppearance.formAppearancesFor',
+          formAppearance.formAppearancesFor(o).then((f) => f.organisation)
+        ] as const,
+        [
           'foiReporting.foiAttention',
           foiReporting.foiAttention(o, null)
         ] as const,
@@ -3516,6 +3544,10 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'the published address is the authority, and carries its organisation',
   'dsr-intake.submitComplaintIntake':
     'the published address is the authority, and carries its organisation',
+  'form-appearance.formLogo':
+    'the published address is the authority; returns only the logo the form shows publicly',
+  'form-appearance.appearanceForLink':
+    'read for a public form, after its address was resolved; returns only how the form looks',
   'frame-origins.frameOriginsForSlug':
     'the published address is the authority; returns only the websites that may frame it, which the browser is told anyway',
   'dsr-intake.admit':

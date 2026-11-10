@@ -19,6 +19,7 @@ import type {
 import type { Regime } from '@/lib/dpa2018/part3';
 import type { Part3Restriction } from '@/lib/dpa2018/part3-rights';
 
+import { bytea } from '../columns';
 import {
   dataProtectionJurisdiction,
   dsrDecisionKind,
@@ -101,6 +102,54 @@ export const dsrIntakeLinks = pgTable(
   },
   (t) => [index('dsr_intake_link_org_idx').on(t.organisationId, t.entityId)]
 );
+
+/**
+ * How public forms look: the organisation's default (`linkId` null), which
+ * every form uses, or one form's own, which replaces it for that form. See
+ * `lib/form-appearance.ts`. Colours are checked for contrast when set; the
+ * logo is in `form_appearance_logo`, apart, so loading an appearance never
+ * loads an image.
+ */
+export const formAppearances = pgTable(
+  'form_appearance',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    linkId: uuid('link_id')
+      .unique()
+      .references(() => dsrIntakeLinks.id, { onDelete: 'cascade' }),
+    /** A small "Powered by Waivern" line at the foot of the form. */
+    showPoweredBy: boolean('show_powered_by').notNull().default(true),
+    /** For links and the button. Null: the standard blue. */
+    accentColour: text('accent_colour'),
+    /** A colour, or `transparent` to show the host page through a frame. Null: the standard grey. */
+    background: text('background'),
+    /** The logo's SHA-256, which also makes its address change with it. */
+    logoSha256: text('logo_sha256'),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [
+    uniqueIndex('form_appearance_default_key')
+      .on(t.organisationId)
+      .where(sql`${t.linkId} is null`)
+  ]
+);
+
+/** The logo of a form appearance: a small PNG, JPEG or WebP. */
+export const formAppearanceLogos = pgTable('form_appearance_logo', {
+  appearanceId: uuid('appearance_id')
+    .primaryKey()
+    .references(() => formAppearances.id, { onDelete: 'cascade' }),
+  organisationId: uuid('organisation_id')
+    .notNull()
+    .references(() => organisations.id, { onDelete: 'cascade' }),
+  contentType: text('content_type').notNull(),
+  content: bytea('content').notNull()
+});
 
 /**
  * One submission attempt through a web form, kept for a day to limit how

@@ -33,7 +33,7 @@ import {
   setIntakeLinkComplaints
 } from '@/services/dsr-intake';
 
-import { setFormOrigins } from '../intake-form-origins';
+import { setFormAppearanceFrom, setFormOrigins } from '../intake-form-settings';
 
 const text = (v: FormDataEntryValue | null) => String(v ?? '').trim();
 const lines = (v: FormDataEntryValue | null) =>
@@ -556,4 +556,20 @@ export async function setIntakeFrameOriginsAction(
   formData: FormData
 ): Promise<RequestResult> {
   return setFormOrigins('data_protection', linkId, formData);
+}
+
+export async function setIntakeAppearanceAction(
+  linkId: string,
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
+  return setFormAppearanceFrom('data_protection', linkId, formData);
+}
+
+/** The organisation's form appearance, which every form without its own uses. */
+export async function setOrganisationFormAppearanceAction(
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
+  return setFormAppearanceFrom('data_protection', null, formData);
 }

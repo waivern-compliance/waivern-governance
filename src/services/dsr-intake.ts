@@ -25,9 +25,11 @@ import {
 } from '@/lib/complaints/statutory';
 import { requestClock } from '@/lib/dsr/statutory';
 import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
+import { formIsOpen } from '@/lib/intake-forms';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
 import { recordRequest, RequestRefused } from './data-subject-requests';
+import { appearanceForLink } from './form-appearance';
 import { forgetFrameOrigins } from './frame-origins';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
@@ -256,10 +258,7 @@ export async function openIntakeLink(slug: string) {
     .where(
       and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
     );
-  if (!row) return null;
-  // An FOI form is open only while an FOI Act applies to its entity. Clearing
-  // the Act withdraws its forms; this covers any made before that rule.
-  if (row.link.kind === 'foi' && !row.foiAct) return null;
+  if (!row || !formIsOpen({ ...row.link, foiAct: row.foiAct })) return null;
   // The other kind of form for the same entity, if one is open, so each form
   // can send people to the other when they have come to the wrong one.
   const otherKind = row.link.kind === 'foi' ? 'data_protection' : 'foi';
@@ -289,6 +288,7 @@ export async function openIntakeLink(slug: string) {
     foiAct: row.foiAct,
     foiTimeProfile: row.foiTimeProfile,
     otherFormSlug: other?.slug ?? null,
+    appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.
     controllerName:
       row.entityName === row.organisationName

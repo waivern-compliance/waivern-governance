@@ -767,6 +767,8 @@ Each form also takes complaints about how personal data was handled (DPA 2018 s.
 
 To show the form inside a page of your own website, open 'Show it on your website' on the form, list the websites that may show it, and paste the frame it gives you. Only the websites listed can show it; every other site is refused, so nobody can show your form inside a page made to look like yours. Each website must use https and be named in full, with no wildcards, up to ten per form. The optional resize script grows the frame to fit the form. The form sets no cookies, so it works the same in browsers that block third-party cookies.
 
+Under 'Appearance of your forms', an owner or privacy administrator sets how every public form looks, data protection and freedom of information alike, so a logo is uploaded once and a new form starts with it: a logo (PNG, JPEG or WebP, up to 256 KB, never SVG, which can carry script), an accent colour for links and the button, and the page background. The background can be a colour of your own, or transparent when the form is in a frame, so it sits on your page like part of it; its text stays dark, so that page must be light and must not ask for a dark colour scheme, as browsers put a solid backdrop behind a frame whose colour scheme differs from the page's. Colours are checked as you save them: text and buttons must keep a contrast of at least 4.5:1, the level WCAG 2.2 AA sets and public bodies must meet. A small 'Powered by Waivern' line sits at the foot of the form and opens Waivern's website in a new tab; switch it off to show only your own name, and the browser tab then names only the form. A form can have an appearance of its own, for an entity with its own brand: untick 'Use the organisation's appearance' on that form; ticking it again puts the form back.
+
 ### How the month is counted
 
 From the day the clock starts to the same date next month. Where next month has no such date, the last day of the month. Where that falls on a weekend or a bank holiday, the next working day. That is how the ICO counts it, and the deadline shown is worked out that way.
@@ -997,7 +999,7 @@ The form asks only what a valid request needs: a real name, an address for the r
 
 Somebody asking for information about themselves is turned back before anything is recorded, and sent to your data protection request form for the same entity if there is one. That form, in turn, points people to the FOI form when they want other information you hold.
 
-It can be shown inside a page of your own website in the same way as the data protection form: list the websites under 'Show it on your website' and paste the frame. Keep the frame's title, which screen readers announce; public bodies must meet the accessibility regulations on their own pages too.
+It can be shown inside a page of your own website in the same way as the data protection form: list the websites under 'Show it on your website' and paste the frame. Keep the frame's title, which screen readers announce; public bodies must meet the accessibility regulations on their own pages too. Its logo, colours and 'Powered by Waivern' line follow the organisation's appearance, set on either register, unless the form has its own.
 
 ### Reviews and the regulator
 

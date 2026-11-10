@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { dsrIntakeLinks, entities } from '@/db/schema';
+import { formIsOpen } from '@/lib/intake-forms';
 
 /**
  * The websites that may frame a public form, for the proxy's
@@ -45,7 +46,7 @@ export async function frameOriginsForSlug(slug: string): Promise<string[]> {
       and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
     );
   const origins =
-    !row || (row.kind === 'foi' && !row.foiAct) ? [] : row.origins;
+    row && formIsOpen({ revokedAt: null, ...row }) ? row.origins : [];
 
   if (cache.size >= MAX_ENTRIES) cache.clear();
   cache.set(slug, { origins, until: now + TTL_MS });

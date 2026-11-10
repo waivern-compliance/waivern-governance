@@ -29,7 +29,7 @@ import {
   type ResponseOutcome
 } from '@/services/information-requests';
 
-import { setFormOrigins } from '../intake-form-origins';
+import { setFormAppearanceFrom, setFormOrigins } from '../intake-form-settings';
 
 type Result = { ok: boolean; message: string } | null;
 
@@ -546,4 +546,20 @@ export async function setFoiFormOriginsAction(
   formData: FormData
 ): Promise<Result> {
   return setFormOrigins('foi', linkId, formData);
+}
+
+export async function setFoiFormAppearanceAction(
+  linkId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  return setFormAppearanceFrom('foi', linkId, formData);
+}
+
+/** The organisation's form appearance, which every form without its own uses. */
+export async function setOrganisationFoiFormAppearanceAction(
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  return setFormAppearanceFrom('foi', null, formData);
 }

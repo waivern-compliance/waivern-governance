@@ -1,5 +1,6 @@
-import { cache } from 'react';
+import { cache, type CSSProperties } from 'react';
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 
 import {
@@ -10,6 +11,7 @@ import {
   type FoiAct,
   type TimeProfile
 } from '@/lib/foi/statutory';
+import { backgroundStyle, pageTitle } from '@/lib/form-appearance';
 import {
   COMPLAINT_ASKS,
   FIELD_LIMITS,
@@ -20,6 +22,7 @@ import { ENVIRONMENTAL_ASKS, FOI_FIELD_LIMITS } from '@/services/foi-intake';
 
 import { FoiRequestForm } from './FoiRequestForm';
 import { FrameResize } from './FrameResize';
+import { PoweredBy } from './PoweredBy';
 import { RequestForm } from './RequestForm';
 
 /** One lookup per request, shared by the title and the page. */
@@ -47,13 +50,16 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const form = await openIntakeLink((await params).slug);
+  const title =
+    form?.kind === 'foi'
+      ? 'Make a freedom of information request'
+      : form?.takesComplaints
+        ? 'Make a request or complaint about your personal data'
+        : 'Make a request about your personal data';
   return {
-    title:
-      form?.kind === 'foi'
-        ? 'Make a freedom of information request'
-        : form?.takesComplaints
-          ? 'Make a request or complaint about your personal data'
-          : 'Make a request about your personal data',
+    // With the "Powered by" line switched off, the tab names only the form,
+    // not the product, so nothing on the page is ours but the address.
+    title: form ? pageTitle(title, form.appearance.showPoweredBy) : title,
     robots: { index: false, follow: false }
   };
 }
@@ -72,9 +78,31 @@ export default async function RequestPage({
   const { slug } = await params;
   const form = await openIntakeLink(slug);
 
+  const look = form?.appearance;
+  // Browsers say when a page is loading in a frame, so a transparent form is
+  // transparent from its first paint rather than after its script runs.
+  const framed = (await headers()).get('sec-fetch-dest') === 'iframe';
+  const css = look ? backgroundStyle(look.background, framed) : null;
   return (
-    <main className="mx-auto max-w-2xl space-y-8 px-6 py-12">
+    <main
+      className="mx-auto max-w-2xl space-y-8 px-6 py-12"
+      style={
+        look?.accentColour
+          ? ({ '--color-brand': look.accentColour } as CSSProperties)
+          : undefined
+      }
+    >
+      {css ? <style>{css}</style> : null}
       <FrameResize slug={slug} />
+      {form && look?.logoSha256 ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a small logo from the form's own address; no optimiser needed
+        <img
+          src={`/request/${slug}/logo?v=${look.logoSha256.slice(0, 16)}`}
+          // Decorative: the organisation is named in the text just below.
+          alt=""
+          className="h-12 w-auto max-w-full object-contain object-left"
+        />
+      ) : null}
       {form?.kind === 'foi' && form.foiAct ? (
         <>
           <header className="space-y-3 border-b border-line pb-6">
@@ -183,6 +211,7 @@ export default async function RequestPage({
           </p>
         </section>
       )}
+      {look?.showPoweredBy ? <PoweredBy /> : null}
     </main>
   );
 }
