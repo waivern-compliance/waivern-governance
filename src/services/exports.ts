@@ -1013,6 +1013,14 @@ export async function exportInformationRequests(
         : []
     ]);
     const day = (d: Date) => d.toISOString().slice(0, 10);
+    const byRequest = <T extends { requestId: string }>(rows: T[]) => {
+      const out = new Map<string, T[]>();
+      for (const row of rows)
+        out.set(row.requestId, [...(out.get(row.requestId) ?? []), row]);
+      return out;
+    };
+    const reviewsOf = byRequest(reviews);
+    const eventsOf = byRequest(events);
     return {
       columns: [
         'Reference',
@@ -1062,15 +1070,13 @@ export async function exportInformationRequests(
               : '',
           r.lateReason,
           r.published === null ? '' : r.published ? 'yes' : 'no',
-          reviews
-            .filter((v) => v.requestId === r.id)
+          (reviewsOf.get(r.id) ?? [])
             .map(
               (v) =>
                 `asked ${day(v.requestedAt)}: ${v.outcome ?? v.status}${v.decidedAt ? ` ${day(v.decidedAt)}` : ''}`
             )
             .join(' | '),
-          events
-            .filter((e) => e.requestId === r.id)
+          (eventsOf.get(r.id) ?? [])
             .map(
               (e) =>
                 `${day(e.occurredAt)}: ${e.kind.replace(/_/g, ' ')}${e.caseReference ? ` (${e.caseReference})` : ''}`

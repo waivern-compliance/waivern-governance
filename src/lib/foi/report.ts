@@ -68,12 +68,31 @@ const QUARTER_MONTHS = [
   'October to December'
 ];
 
+const LONDON_HOUR = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  hour: 'numeric',
+  hourCycle: 'h23'
+});
+
+/**
+ * Midnight in the UK at the start of a month: 23:00 the day before in UTC
+ * while summer time is in force. A request made just after midnight on the
+ * first of a quarter belongs to that quarter, as the authority would count it.
+ */
+function ukMonthStart(y: number, month: number): Date {
+  const utc = Date.UTC(y, month, 1);
+  return new Date(utc - Number(LONDON_HOUR.format(new Date(utc))) * 3_600_000);
+}
+
+/** The first year a period can name. */
+const FIRST_YEAR = 2000;
+
 function year(y: number): ReportPeriod {
   return {
     key: String(y),
     label: String(y),
-    from: new Date(Date.UTC(y, 0, 1)),
-    to: new Date(Date.UTC(y + 1, 0, 1))
+    from: ukMonthStart(y, 0),
+    to: ukMonthStart(y + 1, 0)
   };
 }
 
@@ -81,8 +100,8 @@ function quarter(y: number, q: number): ReportPeriod {
   return {
     key: `${y}-Q${q}`,
     label: `${QUARTER_MONTHS[q - 1]} ${y}`,
-    from: new Date(Date.UTC(y, (q - 1) * 3, 1)),
-    to: new Date(Date.UTC(y, q * 3, 1))
+    from: ukMonthStart(y, (q - 1) * 3),
+    to: ukMonthStart(y, q * 3)
   };
 }
 
@@ -96,7 +115,7 @@ export function reportPeriod(
 ): ReportPeriod {
   const fallback = year(now.getUTCFullYear());
   const m = /^(\d{4})(?:-Q([1-4]))?$/.exec(key ?? '');
-  if (!m) return fallback;
+  if (!m || Number(m[1]) < FIRST_YEAR) return fallback;
   const period = m[2]
     ? quarter(Number(m[1]), Number(m[2]))
     : year(Number(m[1]));
@@ -112,7 +131,10 @@ export function reportPeriods(
   now = new Date()
 ): ReportPeriod[] {
   const thisYear = now.getUTCFullYear();
-  const firstYear = Math.min(first?.getUTCFullYear() ?? thisYear, thisYear);
+  const firstYear = Math.max(
+    FIRST_YEAR,
+    Math.min(first?.getUTCFullYear() ?? thisYear, thisYear)
+  );
   const out: ReportPeriod[] = [];
   for (let y = thisYear; y >= firstYear; y--) {
     out.push(year(y));
@@ -132,6 +154,12 @@ export type ReportRequest = {
   regimes: readonly FoiRegime[];
   receivedAt: Date;
   status: 'open' | 'responded' | 'closed' | 'converted';
+  /**
+   * Each part's own clock state, where the request is under more than one
+   * regime: one response answers it, but each part was in time or not by its
+   * own deadline (a FOIA public interest extension moves only the FOIA part).
+   */
+  regimeStates?: Partial<Record<FoiRegime, string>>;
   /** From the request's clock now. */
   clockState: string;
   outcome: Outcome | null;
@@ -246,7 +274,14 @@ export function foiFigures(input: {
     regime,
     label: REGIME[regime].label,
     short: REGIME[regime].short,
-    ...timeliness(requests.filter((r) => r.regimes.includes(regime)))
+    ...timeliness(
+      requests
+        .filter((r) => r.regimes.includes(regime))
+        .map((r) => ({
+          ...r,
+          clockState: r.regimeStates?.[regime] ?? r.clockState
+        }))
+    )
   })).filter((r) => r.received > 0);
 
   const responded = requests.filter((r) => r.status === 'responded');
@@ -325,7 +360,10 @@ export function foiFigures(input: {
   };
 }
 
-/** A rate as people read it: "92%", or a dash where nothing has fallen due. */
+/**
+ * A rate as people read it: "92%", or a dash where nothing has fallen due.
+ * Rounded down, so one late response never shows as 100%.
+ */
 export function percent(rate: number | null): string {
-  return rate === null ? '-' : `${Math.round(rate * 100)}%`;
+  return rate === null ? '-' : `${Math.floor(rate * 100 + 1e-9)}%`;
 }

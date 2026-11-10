@@ -15,7 +15,7 @@ import {
 } from '@/lib/foi/report';
 
 import { reviewClockOf } from './information-request-reviews';
-import { clockOf, decisionsOf, REFUSING } from './information-requests';
+import { clockOf, decisionsOf, withholds } from './information-requests';
 
 const inEntities = <T extends { entityId: unknown }>(
   table: T,
@@ -91,11 +91,20 @@ export async function foiReport(
         receivedAt: r.receivedAt,
         status: r.status,
         clockState: clockOf(r, decisions.get(r.id) ?? [], now).state,
+        regimeStates:
+          r.regimes.length > 1
+            ? Object.fromEntries(
+                r.regimes.map((g) => [
+                  g,
+                  clockOf(r, decisions.get(r.id) ?? [], now, g).state
+                ])
+              )
+            : undefined,
         outcome: r.outcome
       })),
       refusals: [...decisions.values()]
         .flat()
-        .filter((d) => REFUSING.includes(d.kind))
+        .filter(withholds)
         .map((d) => ({
           requestId: d.requestId,
           kind: d.kind,

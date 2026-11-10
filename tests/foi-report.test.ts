@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
-import { entities, memberships, organisations, users } from '@/db/schema';
+import {
+  auditEvents,
+  entities,
+  informationRequests,
+  memberships,
+  organisations,
+  users
+} from '@/db/schema';
 import {
   foiFigures,
+  percent,
   reportPeriod,
   reportPeriods,
   type ReportRequest
@@ -17,7 +26,8 @@ import {
   InformationRequestRefused,
   recordInformationRequest,
   recordInformationRequestDecision,
-  respondToInformationRequest
+  respondToInformationRequest,
+  setInformationRequestOutcome
 } from '@/services/information-requests';
 
 const SYSTEM = {
@@ -38,13 +48,23 @@ describe('periods', () => {
   it('reads a year or a quarter, and falls back to this year', () => {
     const q = reportPeriod('2026-Q2', now);
     assert.equal(q.label, 'April to June 2026');
-    assert.equal(q.from.toISOString(), '2026-04-01T00:00:00.000Z');
-    assert.equal(q.to.toISOString(), '2026-07-01T00:00:00.000Z');
+    // Midnight in the UK, which is 23:00 UTC the day before in summer.
+    assert.equal(q.from.toISOString(), '2026-03-31T23:00:00.000Z');
+    assert.equal(q.to.toISOString(), '2026-06-30T23:00:00.000Z');
     assert.equal(
       reportPeriod('2025', now).to.toISOString(),
       '2026-01-01T00:00:00.000Z'
     );
-    for (const bad of [undefined, '', 'Q3', '2026-Q5', '2027', '2027-Q1'])
+    for (const bad of [
+      undefined,
+      '',
+      'Q3',
+      '2026-Q5',
+      '2027',
+      '2027-Q1',
+      '0050',
+      '1999'
+    ])
       assert.equal(reportPeriod(bad, now).key, '2026', String(bad));
   });
 
@@ -65,6 +85,44 @@ describe('periods', () => {
       '2025-Q1'
     ]);
     assert.deepEqual(reportPeriods(null, now).map((p) => p.key)[0], '2026');
+  });
+});
+
+describe('rates', () => {
+  it('round down, so one late response never reads as 100%', () => {
+    assert.equal(percent(249 / 250), '99%');
+    assert.equal(percent(1), '100%');
+    assert.equal(percent(0.29), '29%');
+    assert.equal(percent(null), '-');
+  });
+});
+
+describe('a request under both regimes', () => {
+  it('is judged under each by its own deadline', () => {
+    const period = reportPeriod('2026-Q1', new Date('2026-11-10T00:00:00Z'));
+    const figures = foiFigures({
+      period,
+      requests: [
+        {
+          id: 'both',
+          regimes: ['foia', 'eir'],
+          receivedAt: new Date('2026-02-01T00:00:00Z'),
+          status: 'responded',
+          // Late by the EIR's twenty days, in time by FOIA's public interest date.
+          clockState: 'late',
+          regimeStates: { foia: 'met', eir: 'late' },
+          outcome: 'released_in_part'
+        }
+      ],
+      refusals: [],
+      reviews: [],
+      regulatorEvents: []
+    });
+    const [foia, eir] = figures.byRegime;
+    assert.equal(foia.inTime, 1);
+    assert.equal(foia.late, 0);
+    assert.equal(eir.late, 1);
+    assert.equal(figures.total.late, 1);
   });
 });
 
@@ -352,5 +410,198 @@ describe('the figures from the record', () => {
       assert.doesNotMatch(flat, new RegExp(personal), personal);
     assert.match(flat, /Withheld in full/);
     assert.match(flat, /exemption \(FOIA\) s\.21/);
+  });
+});
+
+describe('keeping the outcome honest', () => {
+  async function setUp(label: string) {
+    const w = await world(label);
+    const request = await recordInformationRequest({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      channel: 'email',
+      receivedAt: daysAgo(10),
+      description: 'Contract rates.',
+      requesterName: 'Alex Applicant',
+      correspondenceAddress: 'alex@example.com',
+      actor: SYSTEM
+    });
+    const decide = (
+      over: Partial<Parameters<typeof recordInformationRequestDecision>[0]>
+    ) =>
+      recordInformationRequestDecision({
+        organisationId: w.org.id,
+        requestId: request.id,
+        kind: 'exemption',
+        rationale: 'Weighed.',
+        actor: SYSTEM,
+        ...over
+      });
+    const respond = (
+      outcome: Parameters<typeof respondToInformationRequest>[0]['outcome']
+    ) =>
+      respondToInformationRequest({
+        organisationId: w.org.id,
+        requestId: request.id,
+        respondedAt: new Date(),
+        summary: 'Sent.',
+        outcome,
+        refusalNoticeChecked: true,
+        actor: SYSTEM
+      });
+    return { w, request, decide, respond };
+  }
+
+  it('lets a qualified exemption be weighed and not applied, and then released in full', async () => {
+    const { decide, respond } = await setUp('outweighed');
+    await assert.rejects(
+      decide({ provision: 's.21', detail: { applied: false } }),
+      refusedWith(/no public interest test/)
+    );
+    const weighed = await decide({
+      provision: 's.43',
+      detail: {
+        applied: false,
+        factorsFor: 'Spending of public money.',
+        factorsAgainst: 'Some commercial harm.'
+      }
+    });
+    assert.equal(weighed.detail.applied, false);
+    await assert.rejects(
+      respond('withheld_in_full'),
+      refusedWith(/Nothing is recorded as refused/)
+    );
+    const responded = await respond('released_in_full');
+    assert.equal(responded.outcome, 'released_in_full');
+    // Not a refusal: no notice was needed.
+    assert.equal(responded.refusalNoticeChecked, null);
+  });
+
+  it('keeps a refusal of the whole request to the grounds that refuse it whole', async () => {
+    const { decide, respond } = await setUp('whole');
+    await decide({ provision: 's.21' });
+    await assert.rejects(
+      respond('refused_request'),
+      refusedWith(/refused as a whole needs/)
+    );
+    await decide({
+      kind: 'cost_limit',
+      provision: null,
+      detail: { estimatedHours: 30 }
+    });
+    const responded = await respond('refused_request');
+    assert.equal(responded.outcome, 'refused_request');
+  });
+
+  it('follows what the record says is held', async () => {
+    const { decide, respond } = await setUp('held');
+    await decide({ kind: 'held', detail: { held: 'not_held' } });
+    await assert.rejects(
+      respond('released_in_full'),
+      refusedWith(/not held, so nothing was released/)
+    );
+    await decide({ kind: 'held', detail: { held: 'held' } });
+    await assert.rejects(
+      respond('not_held'),
+      refusedWith(/says the information is held/)
+    );
+    await respond('released_in_full');
+  });
+
+  it('can be corrected, or given to a response from before it was asked for, and is audited', async () => {
+    const { w, request, respond } = await setUp('correct');
+    await assert.rejects(
+      setInformationRequestOutcome({
+        organisationId: w.org.id,
+        requestId: request.id,
+        outcome: 'not_held',
+        actor: SYSTEM
+      }),
+      refusedWith(/has been responded to/)
+    );
+    await respond('released_in_full');
+    await db
+      .update(informationRequests)
+      .set({ outcome: null })
+      .where(eq(informationRequests.id, request.id));
+    await assert.rejects(
+      setInformationRequestOutcome({
+        organisationId: w.org.id,
+        requestId: request.id,
+        outcome: 'withheld_in_full',
+        actor: SYSTEM
+      }),
+      refusedWith(/Nothing is recorded as refused/)
+    );
+    const corrected = await setInformationRequestOutcome({
+      organisationId: w.org.id,
+      requestId: request.id,
+      outcome: 'not_held',
+      actor: SYSTEM
+    });
+    assert.equal(corrected.outcome, 'not_held');
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, w.org.id),
+          eq(auditEvents.action, 'foi.outcome_set')
+        )
+      );
+    assert.deepEqual(event.before, { outcome: null });
+    assert.deepEqual(event.after, { outcome: 'not_held' });
+  });
+});
+
+describe('the dashboard and the export, by entity', () => {
+  it('counts overdue reviews, and only for the entities given', async () => {
+    const w = await world('by-entity');
+    const request = await recordInformationRequest({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      channel: 'email',
+      receivedAt: daysAgo(80),
+      description: 'Agency spend.',
+      requesterName: 'Alex Applicant',
+      correspondenceAddress: 'alex@example.com',
+      actor: SYSTEM
+    });
+    await respondToInformationRequest({
+      organisationId: w.org.id,
+      requestId: request.id,
+      respondedAt: daysAgo(70),
+      summary: 'Sent.',
+      outcome: 'released_in_full',
+      actor: SYSTEM
+    });
+    await requestInformationRequestReview({
+      organisationId: w.org.id,
+      requestId: request.id,
+      requestedAt: daysAgo(60),
+      channel: 'email',
+      grounds: 'Not everything was sent.',
+      actor: SYSTEM
+    });
+    const all = await foiAttention(w.org.id, null);
+    assert.equal(all.reviewsOverdue, 1);
+    const [other] = await db
+      .insert(entities)
+      .values({ organisationId: w.org.id, name: 'Trading arm' })
+      .returning();
+    assert.equal((await foiAttention(w.org.id, [other.id])).reviewsOverdue, 0);
+    assert.equal(
+      (await foiAttention(w.org.id, [w.entity.id])).reviewsOverdue,
+      1
+    );
+
+    assert.equal(
+      (await exportInformationRequests(w.org.id, [other.id])).rows.length,
+      0
+    );
+    assert.equal(
+      (await exportInformationRequests(w.org.id, [w.entity.id])).rows.length,
+      1
+    );
   });
 });

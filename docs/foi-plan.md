@@ -455,7 +455,13 @@ As built: a response records what it came to (`information_request.outcome`: rel
 in full or in part, withheld in full, the request refused as a whole, or not held),
 because the free-text summary cannot be counted. It must agree with the decisions:
 released in full with a refusal recorded is refused, and so is withholding anything
-with no ground recorded. Responses from before migration 0098 count as not recorded.
+with no ground recorded; a request refused as a whole needs the cost limit, a
+vexatious or repeated request, or manifestly unreasonable; and released in full or not
+held must match the latest "held" decision. An outcome can be corrected, or given to a
+response from before migration 0098, and is audited (`foi.outcome_set`). A qualified
+exemption can be recorded as weighed but not applied (`detail.applied: false`), which
+is kept on the record but is not a refusal. Periods start at midnight UK time, and a
+request under both regimes is judged under each by that part's own deadline.
 
 `lib/foi/report.ts` counts, purely, for the requests received in a calendar year or
 quarter: received, in time, late, overdue now, in progress and no response owed, under

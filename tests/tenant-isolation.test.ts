@@ -2094,6 +2094,16 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'foi.setInformationRequestOutcome',
+      () =>
+        foi.setInformationRequestOutcome({
+          organisationId: A.org.id,
+          requestId: B.foiAnswered.id,
+          outcome: 'not_held',
+          actor: as()
+        })
+    ],
+    [
       'foi.recordInformationRequestDecision',
       () =>
         foi.recordInformationRequestDecision({

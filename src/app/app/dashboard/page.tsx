@@ -29,46 +29,29 @@ export default async function Dashboard() {
     );
   }
 
-  const m = await dashboardMetrics(
-    active.membership.organisationId,
-    visibleEntityIds(active)
-  );
-
-  // Requests are the requester's own personal data, so their counts are shown
-  // only to the people who handle them.
-  const requests = can(active.membership.grants, 'dsr.handle')
-    ? await requestRegister(
-        active.membership.organisationId,
-        visibleEntityIds(active, 'dsr.handle')
-      )
-    : null;
-  // Complaints likewise: the complainant's own data, behind the same capability.
-  // The 30 days are the Data Protection Act 2018's (s.164A), so only where some entity is subject to UK law.
-  const complaints =
-    can(active.membership.grants, 'dsr.handle') &&
-    (await anyEntityUnderUkLaw(active.membership.organisationId))
-      ? await complaintRegister(
-          active.membership.organisationId,
-          visibleEntityIds(active, 'dsr.handle')
-        )
-      : null;
-
-  // Freedom of information requests carry the requester's name, so likewise
-  // only for those who handle them, and only where an FOI Act applies.
-  const foi =
-    can(active.membership.grants, 'foi.handle') &&
-    (await anyEntityUnderFoi(active.membership.organisationId))
-      ? await foiAttention(
-          active.membership.organisationId,
-          visibleEntityIds(active, 'foi.handle')
-        )
-      : null;
-
+  const org = active.membership.organisationId;
+  const grants = active.membership.grants;
+  // None of these depends on another, so they load together. Requests,
+  // complaints and freedom of information requests carry somebody's name, so
+  // their counts are shown only to the people who handle them. Complaints'
+  // 30 days are the Data Protection Act 2018's (s.164A), so only where some
+  // entity is subject to UK law; FOI tiles only where an FOI Act applies.
   // Cookies hold nobody's personal data, so anyone who may read records sees them.
-  const properties = await propertyRegister(
-    active.membership.organisationId,
-    visibleEntityIds(active)
-  );
+  const [m, requests, complaints, foi, properties] = await Promise.all([
+    dashboardMetrics(org, visibleEntityIds(active)),
+    can(grants, 'dsr.handle')
+      ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
+      : null,
+    (async () =>
+      can(grants, 'dsr.handle') && (await anyEntityUnderUkLaw(org))
+        ? complaintRegister(org, visibleEntityIds(active, 'dsr.handle'))
+        : null)(),
+    (async () =>
+      can(grants, 'foi.handle') && (await anyEntityUnderFoi(org))
+        ? foiAttention(org, visibleEntityIds(active, 'foi.handle'))
+        : null)(),
+    propertyRegister(org, visibleEntityIds(active))
+  ]);
   const cookieGaps = mergeGapSummaries(properties.map((p) => p.gapSummary));
   const cookiesWithGaps = properties.reduce((n, p) => n + p.withGaps, 0);
   const scansDue = properties.filter(

@@ -162,8 +162,8 @@ export default async function InformationRequestsReport({
             {notRecorded > 0 ? (
               <p className="text-xs text-amber-900">
                 {notRecorded === 1
-                  ? '1 response was recorded before the outcome was asked for. Its summary says what it came to.'
-                  : `${notRecorded} responses were recorded before the outcome was asked for. Their summaries say what they came to.`}
+                  ? '1 response was recorded before the outcome was asked for. Record it on the request to complete these figures.'
+                  : `${notRecorded} responses were recorded before the outcome was asked for. Record it on each request to complete these figures.`}
               </p>
             ) : null}
           </Section>

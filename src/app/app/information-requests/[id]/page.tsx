@@ -26,6 +26,7 @@ import {
   convertAction,
   recordClarificationAction,
   respondAction,
+  setOutcomeAction,
   updateInformationRequestAction
 } from '../actions';
 import {
@@ -187,6 +188,52 @@ export default async function InformationRequestPage({
           ) : null}
           {request.lateReason ? (
             <p>Why it was late: {request.lateReason}</p>
+          ) : null}
+          {request.status === 'responded' ? (
+            <details
+              className="rounded border border-line"
+              open={request.outcome === null}
+            >
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+                {request.outcome
+                  ? 'Correct what it came to'
+                  : 'Record what it came to, for the figures'}
+              </summary>
+              <RefusableForm
+                action={setOutcomeAction.bind(null, request.id)}
+                submit="Save"
+                resetOnSuccess={false}
+                className="space-y-2 border-t border-line p-3"
+              >
+                <label className="block space-y-1">
+                  <Label
+                    text="What it came to"
+                    hint="Checked against the decisions, like a new response. The change is audited."
+                  />
+                  <select
+                    name="outcome"
+                    required
+                    defaultValue={request.outcome ?? ''}
+                    className={inputClass}
+                  >
+                    <option
+                      value=""
+                      disabled
+                    >
+                      Choose
+                    </option>
+                    {(Object.keys(OUTCOME_LABEL) as Outcome[]).map((o) => (
+                      <option
+                        key={o}
+                        value={o}
+                      >
+                        {OUTCOME_LABEL[o]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </RefusableForm>
+            </details>
           ) : null}
         </section>
       ) : null}
