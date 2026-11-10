@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { HelpLink } from '@/components/help/HelpLink';
+import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
@@ -26,6 +27,7 @@ import {
   recordRequestAction,
   revokeIntakeLinkAction,
   setIntakeComplaintsAction,
+  setIntakeFrameOriginsAction,
   setJurisdictionAction,
   setObjectionThresholdAction
 } from './actions';
@@ -425,7 +427,7 @@ export default async function RequestsPage() {
               ? (linkId) => revokeIntakeLinkAction.bind(null, linkId)
               : null
           }
-          extra={(link) => (
+          extra={(link, entityName) => (
             <>
               <p className="text-xs text-ink-soft">
                 {link.takesComplaints
@@ -449,6 +451,21 @@ export default async function RequestsPage() {
                   <span className="sr-only">For {link.label}</span>
                 </ActionForm>
               ) : null}
+              <EmbedPanel
+                appOrigin={origin}
+                slug={link.slug}
+                title={
+                  link.takesComplaints
+                    ? `Make a request or complaint about your personal data to ${entityName}`
+                    : `Make a request about your personal data to ${entityName}`
+                }
+                frameOrigins={link.frameOrigins}
+                setOrigins={
+                  mayConfigure
+                    ? setIntakeFrameOriginsAction.bind(null, link.id)
+                    : null
+                }
+              />
             </>
           )}
         />

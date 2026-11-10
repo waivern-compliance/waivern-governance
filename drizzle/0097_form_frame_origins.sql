@@ -1,0 +1,1 @@
+ALTER TABLE "dsr_intake_link" ADD COLUMN "frame_origins" text[] DEFAULT '{}'::text[] NOT NULL;

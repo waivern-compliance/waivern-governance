@@ -33,6 +33,8 @@ import {
   setIntakeLinkComplaints
 } from '@/services/dsr-intake';
 
+import { setFormOrigins } from '../intake-form-origins';
+
 const text = (v: FormDataEntryValue | null) => String(v ?? '').trim();
 const lines = (v: FormDataEntryValue | null) =>
   String(v ?? '')
@@ -546,4 +548,12 @@ export async function setIntakeComplaintsAction(
   revalidatePath('/app/requests');
   revalidatePath('/app/complaints');
   return result;
+}
+
+export async function setIntakeFrameOriginsAction(
+  linkId: string,
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
+  return setFormOrigins('data_protection', linkId, formData);
 }

@@ -27,6 +27,8 @@ import {
   updateInformationRequest
 } from '@/services/information-requests';
 
+import { setFormOrigins } from '../intake-form-origins';
+
 type Result = { ok: boolean; message: string } | null;
 
 const text = (v: FormDataEntryValue | null) => String(v ?? '').trim();
@@ -514,4 +516,12 @@ export async function revokeFoiFormAction(
   }, 'Withdrawn. The address now says the form is not taking requests.');
   revalidatePath('/app/information-requests');
   return result;
+}
+
+export async function setFoiFormOriginsAction(
+  linkId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  return setFormOrigins('foi', linkId, formData);
 }
