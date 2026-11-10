@@ -172,7 +172,7 @@ Where it is not possible to provide all of the above information at the time of 
 
 9.6 **Severability.** If any provision of this Agreement is held to be invalid, unlawful or unenforceable, the remaining provisions shall continue in full force and effect.
 
-9.7 **Amendments.** Any amendment to this Agreement must be agreed in writing by both parties, save that the Processor may update the Sub-Processor List in accordance with clause 6 without further formality. For the free, shared Governance Tool Service, the Processor may also amend this Agreement by giving at least 30 days' notice in the way the Governance Tool Terms allow for changes to those terms. No such amendment may remove a protection that Article 28(3) of the UK GDPR requires.
+9.7 **Amendments.** Any amendment to this Agreement must be agreed in writing by both parties, save that the Processor may update the Sub-Processor List in accordance with clause 6 without further formality. For the free, shared Governance Tool Service, the Processor may also amend this Agreement in the way clause 12.1 of the Governance Tool Terms allows for changes to those terms: by publishing the new version and notifying the owners of the Controller's organisation by email, after which the Controller MAY terminate this Agreement and the Main Agreement by written notice within thirty (30) days of the change taking effect, or of that email if later. No such amendment may remove a protection that Article 28(3) of the UK GDPR requires.
 
 ## Annex 1 - Details of the Processing
 

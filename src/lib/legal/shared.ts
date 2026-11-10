@@ -16,6 +16,8 @@ export type LegalDocument = {
   /** Markdown: headings, paragraphs, lists, tables, bold and italic. */
   body: string;
   sha256: string;
+  /** What changed from the version before, in a few plain sentences. Null for the first. */
+  changes: string | null;
 };
 
 /** Enough of a document to name it in a form, without carrying its text. */
@@ -75,6 +77,6 @@ export const KEY_TERMS: ReadonlyArray<{ clause: string; text: string }> = [
   },
   {
     clause: '11-12',
-    text: "Waivern may suspend the service, end it on 30 days' notice, and change these terms, giving 30 days' notice of a material change."
+    text: "Waivern may suspend the service and end it on 30 days' notice. It may also change these terms and the Data Processing Agreement: your owners are emailed, the new version applies without being accepted again, and you may end your use within 30 days if you do not agree."
   }
 ];

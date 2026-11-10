@@ -30,6 +30,9 @@ import type { Actor } from './templates';
  * What makes an acceptance stand up later is in the evidence kept: the exact
  * version and a SHA-256 of the text shown, the boxes ticked, who ticked them,
  * in what capacity, when and from where. The tables are append-only.
+ *
+ * Acceptance is needed once. A later version of either document binds by
+ * notice instead (terms 12.1): see `agreement-notices.ts`.
  */
 
 export class AgreementRefused extends Error {}
@@ -89,18 +92,16 @@ export function mayAcceptFor(
   );
 }
 
-/** Has this person accepted the current terms for themselves? */
+/**
+ * Has this person accepted the terms for themselves? Any version will do: a
+ * later version applies by notice under clause 12.1, without being accepted
+ * again, so nobody is shut out when the terms change.
+ */
 export async function hasAcceptedTerms(userId: string): Promise<boolean> {
-  const terms = currentDocument('terms');
   const [row] = await db
     .select({ id: termsAcceptances.id })
     .from(termsAcceptances)
-    .where(
-      and(
-        eq(termsAcceptances.userId, userId),
-        eq(termsAcceptances.termsVersion, terms.version)
-      )
-    )
+    .where(eq(termsAcceptances.userId, userId))
     .limit(1);
   return row !== undefined;
 }
@@ -152,10 +153,12 @@ export async function acceptTerms(
   return existing;
 }
 
-/** The entities of this organisation with no acceptance of the current documents. */
+/**
+ * The entities of this organisation that have never accepted the documents.
+ * As for a person, any version counts: later ones apply by notice (terms 12.1,
+ * Data Processing Agreement 9.7).
+ */
 async function entitiesWithoutAgreement(organisationId: string) {
-  const terms = currentDocument('terms');
-  const dpa = currentDocument('dpa');
   return withOrganisation(organisationId, async () => {
     const all = await db
       .select({
@@ -169,13 +172,7 @@ async function entitiesWithoutAgreement(organisationId: string) {
     const accepted = await db
       .select({ entityId: entityAgreements.entityId })
       .from(entityAgreements)
-      .where(
-        and(
-          eq(entityAgreements.organisationId, organisationId),
-          eq(entityAgreements.termsVersion, terms.version),
-          eq(entityAgreements.dpaVersion, dpa.version)
-        )
-      );
+      .where(eq(entityAgreements.organisationId, organisationId));
     const done = new Set(accepted.map((a) => a.entityId));
     return all.filter((e) => !done.has(e.id));
   });

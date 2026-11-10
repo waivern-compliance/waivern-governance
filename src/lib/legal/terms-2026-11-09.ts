@@ -1,7 +1,7 @@
 /**
  * The Terms of Service for Waivern's hosted service, version of 9 November 2026,
  * exactly as accepted. Never edit a published version: a change is a new
- * version, which everybody accepts afresh (see `documents.ts`).
+ * version, which applies by notice under clause 12.1 (see `documents.ts`).
  */
 export const TERMS_2026_11_09 = `
 ## 1. About these terms
@@ -207,11 +207,13 @@ Where it is lawful and practical, we will tell you why.
 
 ## 12. Changes to these terms, and general terms
 
-12.1 **Changing these terms.** We may change these terms at any time.
+12.1 **Changing these terms.** We may change these terms, and the Data Processing Agreement, from time to time, for example as the Service or the law changes.
 
-- We will publish the new version with its date. For a material change, we will also email your organisation's owners at least **30** days before it takes effect.
-- A change needed for legal, regulatory or security reasons may take effect sooner.
-- If you do not agree to a change, stop using the Service before it takes effect. If you keep using it after that, you accept the change.
+- We will publish each new version with the date it takes effect, and keep every earlier version available to read.
+- When a new version takes effect, we will email your organisation's owners to tell them, with a summary of what has changed and a link to the new version.
+- The new version applies to you, and to your organisation, from the date it takes effect. You do not need to accept it again to keep using the Service.
+- If your organisation does not agree to a change, an owner may end its use of the Service by emailing info@waivern.com within **30** days of the change taking effect, or of our email about it if that is later. We will then close your organisation as described in 11.2 and 11.5, without charge.
+- A change cannot remove a protection that Article 28(3) of the UK GDPR requires the Data Processing Agreement to give.
 
 12.2 **Events outside our control.** We are not liable for any delay or failure caused by events outside our reasonable control. Examples are a failure at our hosting or sign-in provider, a cyber attack, a power or network failure, industrial action or an act of government.
 

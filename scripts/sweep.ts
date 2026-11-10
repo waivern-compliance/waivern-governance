@@ -39,7 +39,8 @@ async function main() {
       r.documentsScanned +
       r.webhooksDelivered +
       r.webhooksFailed +
-      r.notificationsEmailed;
+      r.notificationsEmailed +
+      r.agreementNoticesSent;
 
     // A quiet sweep is the normal case, and saying so plainly is what makes the
     // log worth reading when something does happen.
@@ -89,7 +90,9 @@ async function main() {
           r.webhooksDelivered && `${r.webhooksDelivered} webhook(s) delivered`,
           r.webhooksFailed && `${r.webhooksFailed} webhook(s) failed`,
           r.notificationsEmailed &&
-            `${r.notificationsEmailed} notification email(s) sent`
+            `${r.notificationsEmailed} notification email(s) sent`,
+          r.agreementNoticesSent &&
+            `${r.agreementNoticesSent} notice(s) of changed terms sent to owners`
         ]
           .filter(Boolean)
           .join(', ')

@@ -3109,6 +3109,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'platform job; each delivery carries its organisation',
   'member-email.deliverNotifications':
     "platform job run by the sweep for the organisation it is given; reads and marks only that organisation's notifications",
+  'agreement-notices.notifyAgreementChanges':
+    'platform job run by the sweep for the organisation it is given; reads its agreements and owners and audits only there',
   'member-email.setEmailNotifications':
     "a person's own choice, held on their user row, which belongs to no organisation",
   'member-email.emailNotificationsFor':

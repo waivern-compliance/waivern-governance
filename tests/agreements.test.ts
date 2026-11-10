@@ -24,6 +24,11 @@ import {
 } from '@/lib/legal/documents';
 import type { Grant } from '@/lib/rbac';
 import {
+  changeNoticeEmail,
+  NOTICE_ACTION,
+  notifyAgreementChanges
+} from '@/services/agreement-notices';
+import {
   acceptForEntity,
   acceptTerms,
   AgreementRefused,
@@ -523,5 +528,147 @@ describe('adding an entity where agreement is required', () => {
       ['Group Holdings', 'Group Trading'],
       'no entity was created without its agreement'
     );
+  });
+});
+
+describe('when the documents change', () => {
+  /** An acceptance of an earlier version, as one made before a change would be. */
+  async function acceptedEarlier(w: Awaited<ReturnType<typeof world>>) {
+    for (const entity of [w.main, w.other])
+      await db.insert(entityAgreements).values({
+        organisationId: w.org.id,
+        entityId: entity.id,
+        entityName: entity.name,
+        termsVersion: '2026-01-01',
+        termsSha256: 'a'.repeat(64),
+        dpaVersion: currentDocument('dpa').version,
+        dpaSha256: currentDocument('dpa').sha256,
+        acceptedBy: w.owner.id,
+        acceptedByEmail: w.owner.email,
+        acceptedByName: 'Ada Owner',
+        acceptedByPosition: 'Director',
+        authorityConfirmed: true
+      });
+    await db.insert(termsAcceptances).values({
+      userId: w.owner.id,
+      email: w.owner.email,
+      termsVersion: '2026-01-01',
+      termsSha256: 'a'.repeat(64)
+    });
+  }
+
+  const config = { apiKey: 're_test', from: 'notices@example.com' };
+  function fakeResend() {
+    const sent: Array<{ to: string[]; subject: string; text: string }> = [];
+    const fetch = (async (_url: string, init: RequestInit) => {
+      sent.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ id: `msg-${sent.length}` }), {
+        status: 200
+      });
+    }) as unknown as typeof globalThis.fetch;
+    return { sent, fetch };
+  }
+
+  it('lets nobody be held back by an acceptance of an earlier version', async () => {
+    const w = await world();
+    await acceptedEarlier(w);
+    assert.equal(await hasAcceptedTerms(w.owner.id), true);
+    const status = await agreementStatus({
+      userId: w.owner.id,
+      organisationId: w.org.id,
+      grants: WHOLE_OWNER
+    });
+    assert.equal(status.clear, true);
+  });
+
+  it('emails the owners once about the change, and audits the notice', async () => {
+    const w = await world();
+    await acceptedEarlier(w);
+    const resend = fakeResend();
+    assert.equal(
+      await notifyAgreementChanges(w.org.id, { config, fetch: resend.fetch }),
+      1,
+      'only the terms changed'
+    );
+    assert.equal(resend.sent.length, 1);
+    assert.deepEqual(resend.sent[0].to, [w.owner.email.toLowerCase()]);
+    assert.match(resend.sent[0].subject, /Terms of Service changed/);
+    assert.match(resend.sent[0].text, /within 30 days/);
+
+    assert.equal(
+      await notifyAgreementChanges(w.org.id, { config, fetch: resend.fetch }),
+      0,
+      'once'
+    );
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, NOTICE_ACTION))
+      .then((rows) => rows.filter((r) => r.organisationId === w.org.id));
+    const terms = currentDocument('terms');
+    assert.deepEqual(
+      { kind: event.after?.kind, version: event.after?.version },
+      { kind: 'terms', version: terms.version }
+    );
+    assert.equal(event.after?.sha256, terms.sha256);
+    assert.equal((await verifyAuditChain(w.org.id)).ok, true);
+  });
+
+  it('sends nothing to an organisation that accepted the current versions', async () => {
+    const w = await world();
+    for (const entityId of [w.main.id, w.other.id])
+      await acceptForEntity({
+        ...signed(),
+        organisationId: w.org.id,
+        entityId,
+        grants: WHOLE_OWNER,
+        user: w.owner,
+        actor: SYSTEM
+      });
+    const resend = fakeResend();
+    assert.equal(
+      await notifyAgreementChanges(w.org.id, { config, fetch: resend.fetch }),
+      0
+    );
+    assert.equal(resend.sent.length, 0);
+  });
+
+  it('records nothing when the email could not be sent, so it is tried again', async () => {
+    const w = await world();
+    await acceptedEarlier(w);
+    const failing = (async () =>
+      new Response('{}', { status: 500 })) as unknown as typeof fetch;
+    assert.equal(
+      await notifyAgreementChanges(w.org.id, { config, fetch: failing }),
+      0
+    );
+    assert.equal(await notifyAgreementChanges(w.org.id, { config: null }), 0);
+    const resend = fakeResend();
+    assert.equal(
+      await notifyAgreementChanges(w.org.id, { config, fetch: resend.fetch }),
+      1
+    );
+  });
+
+  it('says what changed, links the new version and gives the right to end', () => {
+    const email = changeNoticeEmail(
+      { ...currentDocument('dpa'), changes: 'A new sub-processor.' },
+      'Agreement Group',
+      'https://govern.example'
+    );
+    assert.match(email.text, /A new sub-processor\./);
+    assert.match(
+      email.text,
+      new RegExp(
+        `https://govern\\.example/legal/dpa/${currentDocument('dpa').version}`
+      )
+    );
+    assert.match(email.text, /info@waivern\.com within 30 days/);
+  });
+
+  it('says what changed in every version after the first', () => {
+    for (const kind of LEGAL_DOCUMENT_KINDS)
+      for (const doc of versionsOf(kind).slice(1))
+        assert.ok(doc.changes, `${kind} ${doc.version} has no summary`);
   });
 });

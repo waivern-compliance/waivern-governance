@@ -2018,7 +2018,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'When the documents change',
         body: [
-          'A new version of either document is accepted afresh: everybody, and every entity, is asked again the next time they sign in, and cannot carry on until it is done.'
+          'Each person, and each entity, accepts once. A later version of either document is not accepted again: it applies from the date it takes effect, by notice under clause 12.1 of the terms, so nobody is stopped from working when the documents change.',
+          'When a new version takes effect, every owner of the organisation is emailed with a summary of what changed and a link to it, whatever their notification settings, because it is notice under the contract. The notice is recorded in the audit log. If the organisation does not agree, an owner may end its use of the service by emailing info@waivern.com within 30 days of the change, or of that email if later.',
+          'Somebody accepting for the first time, or an entity added later, accepts the version current at the time.'
         ]
       }
     ],
