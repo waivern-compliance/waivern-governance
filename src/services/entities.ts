@@ -18,6 +18,7 @@ import {
 } from '@/lib/foi/statutory';
 
 import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
+import { forgetFrameOrigins } from './frame-origins';
 import type { Actor } from './templates';
 import { assertMemberOf, NotInOrganisation } from './tenancy-guards';
 
@@ -534,7 +535,7 @@ export async function setFreedomOfInformation(input: {
       });
       return after;
     })
-  );
+  ).finally(forgetFrameOrigins);
 }
 
 /** Whether any entity of the organisation answers freedom of information requests. */

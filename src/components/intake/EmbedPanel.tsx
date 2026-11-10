@@ -55,7 +55,10 @@ export function EmbedPanel({
                 https, with no wildcards. At most {MAX_FRAME_ORIGINS}. Leave it
                 empty to allow none.
               </span>
+              {/* Keyed on the saved list, so a save shows the websites as
+                  stored (origins only), while a refusal keeps what was typed. */}
               <textarea
+                key={frameOrigins.join('\n')}
                 name="origins"
                 rows={3}
                 defaultValue={frameOrigins.join('\n')}

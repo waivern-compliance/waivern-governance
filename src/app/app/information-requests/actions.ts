@@ -6,11 +6,7 @@ import { redirect } from 'next/navigation';
 import { refusable } from '@/lib/edit-result';
 import { can, mayConfigureInformationRequests } from '@/lib/rbac';
 import { NotPermitted, requireCapability } from '@/lib/session';
-import {
-  issueIntakeLink,
-  revokeIntakeLink,
-  setIntakeLinkFrameOrigins
-} from '@/services/dsr-intake';
+import { issueIntakeLink, revokeIntakeLink } from '@/services/dsr-intake';
 import {
   decideInformationRequestReview,
   extendInformationRequestReview,
@@ -30,6 +26,8 @@ import {
   respondToInformationRequest,
   updateInformationRequest
 } from '@/services/information-requests';
+
+import { setFormOrigins } from '../intake-form-origins';
 
 type Result = { ok: boolean; message: string } | null;
 
@@ -525,22 +523,5 @@ export async function setFoiFormOriginsAction(
   _prev: Result,
   formData: FormData
 ): Promise<Result> {
-  const active = await requireCapability('foi.handle');
-  if (!mayConfigureInformationRequests(active.membership.grants))
-    return {
-      ok: false,
-      message:
-        'Only somebody who configures the whole organisation can change a form.'
-    };
-  const result = await refused(async () => {
-    await setIntakeLinkFrameOrigins({
-      linkId,
-      organisationId: active.membership.organisationId,
-      kind: 'foi',
-      origins: text(formData.get('origins')),
-      actor: actorOf(active)
-    });
-  }, 'Saved. The form can now be shown on those websites, and no others.');
-  revalidatePath('/app/information-requests');
-  return result;
+  return setFormOrigins('foi', linkId, formData);
 }

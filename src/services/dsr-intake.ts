@@ -28,6 +28,7 @@ import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
 import { recordRequest, RequestRefused } from './data-subject-requests';
+import { forgetFrameOrigins } from './frame-origins';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
 import { raiseTask } from './workflow';
@@ -205,7 +206,7 @@ export async function revokeIntakeLink(input: {
       });
       return row;
     });
-  });
+  }).finally(forgetFrameOrigins);
 }
 
 export async function intakeLinksFor(
@@ -777,22 +778,7 @@ export async function setIntakeLinkFrameOrigins(input: {
       });
       return row;
     });
-  });
-}
-
-/**
- * The websites that may frame the form at this address, for the proxy's
- * `frame-ancestors`. None for a withdrawn form or an unknown address. Read
- * before any organisation is known: the address is the only authority.
- */
-export async function frameOriginsForSlug(slug: string): Promise<string[]> {
-  const [row] = await db
-    .select({ origins: dsrIntakeLinks.frameOrigins })
-    .from(dsrIntakeLinks)
-    .where(
-      and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
-    );
-  return row?.origins ?? [];
+  }).finally(forgetFrameOrigins);
 }
 
 /** Forget attempts older than a day. They exist only to rate-limit. */

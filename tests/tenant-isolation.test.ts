@@ -3494,7 +3494,7 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'the published address is the authority, and carries its organisation',
   'dsr-intake.submitComplaintIntake':
     'the published address is the authority, and carries its organisation',
-  'dsr-intake.frameOriginsForSlug':
+  'frame-origins.frameOriginsForSlug':
     'the published address is the authority; returns only the websites that may frame it, which the browser is told anyway',
   'dsr-intake.admit':
     'the published address is the authority, and carries its organisation',

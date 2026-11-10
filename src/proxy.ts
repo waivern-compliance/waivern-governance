@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { FORM_PATH, frameAncestors } from '@/lib/embedding';
-import { frameOriginsForSlug } from '@/services/dsr-intake';
+import { frameOriginsForSlug } from '@/services/frame-origins';
 
 /**
  * Where a sign-in form may send the browser. A server action that calls
@@ -65,10 +65,13 @@ export function contentSecurityPolicy(
 /**
  * The websites that may frame this page: those listed against the form at a
  * public form address, and none anywhere else. A failed lookup frames nowhere.
+ * Null outside `/request/`, where `next.config.ts` sends X-Frame-Options; an
+ * empty list under it, where the config does not and this proxy must.
  */
 async function framingFor(pathname: string): Promise<string[] | null> {
+  if (!pathname.startsWith('/request/')) return null;
   const form = FORM_PATH.exec(pathname);
-  if (!form) return null;
+  if (!form) return [];
   try {
     return await frameOriginsForSlug(form[1]);
   } catch {
@@ -91,8 +94,8 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
-  // `next.config.ts` sends X-Frame-Options everywhere but the form addresses,
-  // because it cannot list websites. Here it is sent unless some are listed.
+  // `next.config.ts` sends X-Frame-Options everywhere but under `/request/`,
+  // because it cannot list websites. There it is sent unless some are listed.
   if (framing !== null && framing.length === 0)
     response.headers.set('X-Frame-Options', 'DENY');
   return response;

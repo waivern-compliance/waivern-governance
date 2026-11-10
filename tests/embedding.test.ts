@@ -17,11 +17,11 @@ import {
 import { contentSecurityPolicy, proxy } from '@/proxy';
 import { RequestRefused } from '@/services/data-subject-requests';
 import {
-  frameOriginsForSlug,
   issueIntakeLink,
   revokeIntakeLink,
   setIntakeLinkFrameOrigins
 } from '@/services/dsr-intake';
+import { frameOriginsForSlug } from '@/services/frame-origins';
 
 import nextConfig from '../next.config';
 
@@ -70,6 +70,20 @@ describe('which websites may show a form', () => {
       assert.throws(() => normaliseOrigin(bad), Error, bad);
   });
 
+  it('refuses localhost in production', () => {
+    assert.throws(
+      () => normaliseOrigin('http://localhost:4000', false),
+      /your own computer/
+    );
+    assert.throws(
+      () => normaliseOrigins('https://127.0.0.1', false),
+      /your own computer/
+    );
+    assert.deepEqual(normaliseOrigins('www.council.gov.uk', false), [
+      'https://www.council.gov.uk'
+    ]);
+  });
+
   it('de-duplicates a list, and stops at ten', () => {
     assert.deepEqual(
       normaliseOrigins(
@@ -97,10 +111,19 @@ describe('which websites may show a form', () => {
     const { link, iframe, script } = embedSnippets({
       appOrigin: 'https://govern.example',
       slug: 'abcdefghijklmnop',
-      title: 'Make a "request"'
+      title: 'Make a "request" to Smith &copy <Partners>'
     });
     assert.equal(link, 'https://govern.example/request/abcdefghijklmnop');
-    assert.match(iframe, /title="Make a &quot;request&quot;"/);
+    assert.match(
+      iframe,
+      /title="Make a &quot;request&quot; to Smith &amp;copy &lt;Partners&gt;"/
+    );
+    // A starting height the script can shrink, not a floor it cannot.
+    assert.match(iframe, /height:1000px/);
+    assert.doesNotMatch(iframe, /min-height/);
+    // The frame is found by the window that wrote, not by its address.
+    assert.match(script, /contentWindow === event\.source/);
+    assert.doesNotMatch(script, /iframe\[src=/);
     assert.match(script, /event\.origin !== 'https:\/\/govern\.example'/);
     assert.match(script, /data\.form !== 'abcdefghijklmnop'/);
   });
@@ -159,7 +182,9 @@ describe('the headers', () => {
     for (const path of [
       `/request/${plain.link.slug}`,
       `/request/${listed.link.slug}`,
-      '/request/not-a-real-form-slug'
+      '/request/not-a-real-form-slug',
+      '/request/short',
+      `/request/${plain.link.slug}/deeper`
     ]) {
       const response = await at(path);
       assert.match(
@@ -196,6 +221,81 @@ describe('the headers', () => {
       assert.equal(denies(path), true, path);
     assert.equal(denies('/request/abcdefghijklmnop'), false);
     assert.ok(FORM_PATH.test('/request/abcdefghijklmnop'));
+  });
+});
+
+describe('which forms may be framed', () => {
+  it('not an FOI form whose entity no longer has an Act', async () => {
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: 'Act', slug: `act-${crypto.randomUUID().slice(0, 8)}` })
+      .returning();
+    const [entity] = await db
+      .insert(entities)
+      .values({
+        organisationId: org.id,
+        name: 'Council',
+        isDefault: true,
+        foiAct: 'foia'
+      })
+      .returning();
+    const link = await issueIntakeLink({
+      organisationId: org.id,
+      entityId: entity.id,
+      kind: 'foi',
+      label: 'FOI page',
+      actor: SYSTEM
+    });
+    await setIntakeLinkFrameOrigins({
+      linkId: link.id,
+      organisationId: org.id,
+      kind: 'foi',
+      origins: 'www.council.gov.uk',
+      actor: SYSTEM
+    });
+    // Cleared the way older code did, without withdrawing the form.
+    await db
+      .update(entities)
+      .set({ foiAct: null })
+      .where(eq(entities.id, entity.id));
+    assert.deepEqual(await frameOriginsForSlug(link.slug), []);
+  });
+
+  it('sees a change at once, despite remembering answers', async () => {
+    const [org] = await db
+      .insert(organisations)
+      .values({
+        name: 'Cache',
+        slug: `cache-${crypto.randomUUID().slice(0, 8)}`
+      })
+      .returning();
+    const [entity] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Council', isDefault: true })
+      .returning();
+    const link = await issueIntakeLink({
+      organisationId: org.id,
+      entityId: entity.id,
+      label: 'Privacy notice',
+      actor: SYSTEM
+    });
+    assert.deepEqual(await frameOriginsForSlug(link.slug), []);
+    await setIntakeLinkFrameOrigins({
+      linkId: link.id,
+      organisationId: org.id,
+      kind: 'data_protection',
+      origins: 'www.council.gov.uk',
+      actor: SYSTEM
+    });
+    assert.deepEqual(await frameOriginsForSlug(link.slug), [
+      'https://www.council.gov.uk'
+    ]);
+    await revokeIntakeLink({
+      linkId: link.id,
+      organisationId: org.id,
+      actor: SYSTEM
+    });
+    assert.deepEqual(await frameOriginsForSlug(link.slug), []);
   });
 });
 

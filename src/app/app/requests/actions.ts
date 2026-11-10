@@ -30,9 +30,10 @@ import {
 import {
   issueIntakeLink,
   revokeIntakeLink,
-  setIntakeLinkComplaints,
-  setIntakeLinkFrameOrigins
+  setIntakeLinkComplaints
 } from '@/services/dsr-intake';
+
+import { setFormOrigins } from '../intake-form-origins';
 
 const text = (v: FormDataEntryValue | null) => String(v ?? '').trim();
 const lines = (v: FormDataEntryValue | null) =>
@@ -554,22 +555,5 @@ export async function setIntakeFrameOriginsAction(
   _prev: RequestResult,
   formData: FormData
 ): Promise<RequestResult> {
-  const active = await requireCapability('dsr.handle');
-  if (!mayConfigureRequests(active.membership.grants))
-    return {
-      ok: false,
-      message:
-        'Only somebody who configures the whole organisation can change a form.'
-    };
-  const result = await refused(async () => {
-    await setIntakeLinkFrameOrigins({
-      linkId,
-      organisationId: active.membership.organisationId,
-      kind: 'data_protection',
-      origins: text(formData.get('origins')),
-      actor: actorOf(active)
-    });
-  }, 'Saved. The form can now be shown on those websites, and no others.');
-  revalidatePath('/app/requests');
-  return result;
+  return setFormOrigins('data_protection', linkId, formData);
 }
