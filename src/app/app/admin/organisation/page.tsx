@@ -6,11 +6,14 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
+import { waivernHosted } from '@/lib/hosting';
+import { currentDocument, refOf } from '@/lib/legal/documents';
 import { PRODUCT_NAME } from '@/lib/product';
 import { can, mayManageEntities } from '@/lib/rbac';
 import { SCALES, type RiskScaleId } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { organisationDetail } from '@/services/access';
+import { agreementsOf } from '@/services/agreements';
 import { domainsFor } from '@/services/domains';
 import { dpoPosition, entitiesOf } from '@/services/entities';
 import { riskCount, riskScaleOf } from '@/services/risk-policy';
@@ -37,7 +40,8 @@ export default async function OrganisationPage() {
   const org = await organisationDetail(active.membership.organisationId);
   if (!org) redirect('/app');
 
-  const [legalEntities, scale, risksHeld, domains, dpo, members] =
+  const hosted = waivernHosted();
+  const [legalEntities, scale, risksHeld, domains, dpo, members, agreements] =
     await Promise.all([
       entitiesOf(org.id),
       riskScaleOf(org.id),
@@ -56,8 +60,13 @@ export default async function OrganisationPage() {
             )
           )
           .orderBy(asc(users.email))
-      )
+      ),
+      hosted ? agreementsOf(org.id) : Promise.resolve([])
     ]);
+  // The latest acceptance for each entity, for the record beside it.
+  const latestAgreement = new Map<string, (typeof agreements)[number]>();
+  for (const a of agreements)
+    if (!latestAgreement.has(a.entityId)) latestAgreement.set(a.entityId, a);
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
@@ -80,6 +89,15 @@ export default async function OrganisationPage() {
 
       <EntitiesPanel
         mayManage={mayManageEntities(active.membership.grants)}
+        agreementTerms={
+          hosted
+            ? {
+                terms: refOf(currentDocument('terms')),
+                dpa: refOf(currentDocument('dpa')),
+                defaultName: active.name ?? ''
+              }
+            : null
+        }
         entities={legalEntities.map((e) => ({
           id: e.id,
           name: e.name,
@@ -92,7 +110,19 @@ export default async function OrganisationPage() {
           defaultRegime: e.defaultRegime,
           foiAct: e.foiAct,
           foiTimeProfile: e.foiTimeProfile,
-          foiCoveredFor: e.foiCoveredFor
+          foiCoveredFor: e.foiCoveredFor,
+          agreement: (() => {
+            const a = latestAgreement.get(e.id);
+            return a
+              ? {
+                  acceptedByName: a.acceptedByName,
+                  acceptedByPosition: a.acceptedByPosition,
+                  acceptedAt: a.acceptedAt.toISOString(),
+                  termsVersion: a.termsVersion,
+                  dpaVersion: a.dpaVersion
+                }
+              : null;
+          })()
         }))}
       />
 

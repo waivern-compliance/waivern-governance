@@ -20,3 +20,4 @@ export * from './pecr';
 export * from './marketing';
 export * from './dpa2018';
 export * from './feedback';
+export * from './agreements';

@@ -88,9 +88,7 @@ export async function recordInformationRequestAction(
       organisationId: active.membership.organisationId,
       entityId,
       kind: (text(formData.get('kind')) || 'general') as
-        | 'general'
-        | 'environmental'
-        | 'both',
+        'general' | 'environmental' | 'both',
       channel: text(formData.get('channel')) || 'email',
       receivedAt,
       description: text(formData.get('description')),
