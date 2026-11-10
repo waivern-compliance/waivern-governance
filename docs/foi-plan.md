@@ -1,6 +1,6 @@
 # Plan: freedom of information requests, and request forms a client can embed
 
-Status: all decisions settled 9 November 2026, as recommended. Phases 0 to 4 built.
+Status: all decisions settled 9 November 2026, as recommended. Phases 0 to 5 built.
 
 ## What is asked for
 
@@ -418,7 +418,7 @@ Built as:
 - FOI register page: the public form section, to create and withdraw forms, for
   somebody who handles FOI and configures the organisation.
 
-### Phase 5: embedding both forms
+### Phase 5: embedding both forms (built)
 
 - `frame_origins` with its admin, audited.
 - The proxy's per-form `frame-ancestors`, and no `X-Frame-Options` on those two routes.
@@ -426,6 +426,23 @@ Built as:
 - Tests that every other page still refuses to be framed, and that an unlisted site is
   refused.
 - Check the forms at phone width inside a frame, and against WCAG 2.2 AA.
+
+Built as:
+
+- Migration 0097: `dsr_intake_link.frame_origins` (text array, empty by default).
+- `lib/embedding.ts`: an origin is `https://` and a host (plain http only for localhost),
+  no wildcards, no credentials, the path dropped; at most ten per form; the snippets.
+- `setIntakeLinkFrameOrigins`, audited as `intake.frame_origins_set` with before and
+  after, each register setting only its own kind; `frameOriginsForSlug` for the proxy.
+- The proxy looks up the form at `/request/[slug]` and sends `frame-ancestors` with its
+  websites, or `'none'` and `X-Frame-Options: DENY` where there are none, the form is
+  withdrawn or unknown, or the lookup fails. `next.config.ts` sends `X-Frame-Options:
+DENY` everywhere else.
+- The form page reports its height to the page around it (`postMessage`, height and form
+  address only); the resize script accepts it only from the form's origin and for that
+  form. Links between the forms open in the top window.
+- Both registers: "Show it on your website", with the websites, the titled frame and the
+  script, for somebody who configures the organisation.
 
 ### Phase 6: reporting
 

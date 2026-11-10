@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -77,6 +77,15 @@ export const dsrIntakeLinks = pgTable(
      * applies to.
      */
     kind: intakeFormKind('kind').notNull().default('data_protection'),
+    /**
+     * Websites that may show the form inside a frame: `https://` and a host,
+     * matched exactly, at most ten. Empty means nowhere, as for every other
+     * page. See `lib/embedding.ts`.
+     */
+    frameOrigins: text('frame_origins')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     submissions: integer('submissions').notNull().default(0),
     lastSubmittedAt: timestamp('last_submitted_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => users.id, {

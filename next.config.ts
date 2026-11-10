@@ -17,9 +17,6 @@ const nextConfig: NextConfig = {
     const headers = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-      // `frame-ancestors 'none'` in the CSP does the same for modern browsers;
-      // this covers responses the proxy does not reach.
-      { key: 'X-Frame-Options', value: 'DENY' },
       {
         key: 'Permissions-Policy',
         value: 'camera=(), microphone=(), geolocation=()'
@@ -33,7 +30,17 @@ const nextConfig: NextConfig = {
         value: 'max-age=63072000; includeSubDomains'
       });
     }
-    return [{ source: '/:path*', headers }];
+    return [
+      { source: '/:path*', headers },
+      // `frame-ancestors 'none'` in the CSP does the same for modern browsers;
+      // this covers responses the proxy does not reach. Not on a public form's
+      // address, which may be shown on the websites listed against it: the
+      // proxy decides there, and sends DENY when none are (`src/proxy.ts`).
+      {
+        source: '/:path((?!request/).*)',
+        headers: [{ key: 'X-Frame-Options', value: 'DENY' }]
+      }
+    ];
   }
 };
 

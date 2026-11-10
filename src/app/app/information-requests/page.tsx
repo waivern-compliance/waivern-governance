@@ -6,6 +6,7 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
+import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
@@ -18,7 +19,8 @@ import { informationRequestRegister } from '@/services/information-requests';
 import {
   issueFoiFormAction,
   recordInformationRequestAction,
-  revokeFoiFormAction
+  revokeFoiFormAction,
+  setFoiFormOriginsAction
 } from './actions';
 import {
   FOI_CHANNEL_LABEL,
@@ -299,6 +301,17 @@ export default async function InformationRequestsPage() {
                   {!link.revokedAt ? (
                     <>
                       <p className="break-all font-mono text-xs">{`${origin}/request/${link.slug}`}</p>
+                      <EmbedPanel
+                        appOrigin={origin}
+                        slug={link.slug}
+                        title={`Make a freedom of information request to ${entityName}`}
+                        frameOrigins={link.frameOrigins}
+                        setOrigins={
+                          mayConfigure
+                            ? setFoiFormOriginsAction.bind(null, link.id)
+                            : null
+                        }
+                      />
                       {mayConfigure ? (
                         <RefusableForm
                           action={revokeFoiFormAction.bind(null, link.id)}

@@ -4,6 +4,7 @@ import { useRefusableAction } from '@/lib/use-refusable-action';
 import type { IntakeResult } from '@/services/dsr-intake';
 
 import { submitInformationRequestAction } from './actions';
+import { Confirmation } from './Confirmation';
 
 const input = 'w-full rounded border border-line bg-surface px-3 py-2 text-sm';
 
@@ -37,10 +38,7 @@ export function FoiRequestForm({
 
   if (result?.ok) {
     return (
-      <section
-        role="status"
-        className="space-y-3 rounded border border-emerald-700 bg-emerald-50 p-5 text-emerald-950"
-      >
+      <Confirmation>
         <h2 className="text-lg font-semibold">Your request has been sent</h2>
         <p className="text-sm">
           Your reference is{' '}
@@ -54,7 +52,7 @@ export function FoiRequestForm({
           show the progress of your request; they will reply to the address you
           gave.
         </p>
-      </section>
+      </Confirmation>
     );
   }
 

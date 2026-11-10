@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { HelpLink } from '@/components/help/HelpLink';
+import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
@@ -25,6 +26,7 @@ import {
   recordRequestAction,
   revokeIntakeLinkAction,
   setIntakeComplaintsAction,
+  setIntakeFrameOriginsAction,
   setJurisdictionAction,
   setObjectionThresholdAction
 } from './actions';
@@ -445,6 +447,21 @@ export default async function RequestsPage() {
                         ? 'Takes requests and complaints.'
                         : 'Takes requests only.'}
                     </p>
+                    <EmbedPanel
+                      appOrigin={origin}
+                      slug={link.slug}
+                      title={
+                        link.takesComplaints
+                          ? `Make a request or complaint about your personal data to ${entityName}`
+                          : `Make a request about your personal data to ${entityName}`
+                      }
+                      frameOrigins={link.frameOrigins}
+                      setOrigins={
+                        mayConfigure
+                          ? setIntakeFrameOriginsAction.bind(null, link.id)
+                          : null
+                      }
+                    />
                     {mayConfigure ? (
                       <div className="flex flex-wrap gap-3 pt-1">
                         <ActionForm

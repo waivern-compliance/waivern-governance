@@ -5,6 +5,7 @@ import { useActionState, useState } from 'react';
 import type { IntakeResult } from '@/services/dsr-intake';
 
 import { submitRequestAction } from './actions';
+import { Confirmation } from './Confirmation';
 
 const input = 'w-full rounded border border-line bg-surface px-3 py-2 text-sm';
 
@@ -55,10 +56,7 @@ export function RequestForm({
 
   if (result?.ok && complaint) {
     return (
-      <section
-        role="status"
-        className="space-y-3 rounded border border-emerald-700 bg-emerald-50 p-5 text-emerald-950"
-      >
+      <Confirmation>
         <h2 className="text-lg font-semibold">Your complaint has been sent</h2>
         <p className="text-sm">
           Your reference is{' '}
@@ -71,16 +69,13 @@ export function RequestForm({
           reply to the address you gave. If you are not satisfied with how they
           deal with it, you can complain to the Information Commission.
         </p>
-      </section>
+      </Confirmation>
     );
   }
 
   if (result?.ok) {
     return (
-      <section
-        role="status"
-        className="space-y-3 rounded border border-emerald-700 bg-emerald-50 p-5 text-emerald-950"
-      >
+      <Confirmation>
         <h2 className="text-lg font-semibold">Your request has been sent</h2>
         <p className="text-sm">
           Your reference is{' '}
@@ -94,7 +89,7 @@ export function RequestForm({
           - the time then runs from when you reply. This page does not show the
           progress of your request; they will reply to the address you gave.
         </p>
-      </section>
+      </Confirmation>
     );
   }
 

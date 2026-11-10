@@ -68,7 +68,7 @@ describe('response headers', () => {
     return new Map(rules[0].headers.map((h) => [h.key, h.value]));
   }
 
-  it('are sent on every path', async () => {
+  it('are sent on every path, and framing refused outside the forms', async () => {
     const rules = await nextConfig.headers!();
     assert.equal(rules[0].source, '/:path*');
     const headers = await sent();
@@ -77,7 +77,16 @@ describe('response headers', () => {
       headers.get('Referrer-Policy'),
       'strict-origin-when-cross-origin'
     );
-    assert.equal(headers.get('X-Frame-Options'), 'DENY');
+    // X-Frame-Options has its own rule, everywhere but a public form's
+    // address, where the proxy decides (tests/embedding.test.ts).
+    const deny = rules.find((r) =>
+      r.headers.some((h) => h.key === 'X-Frame-Options')
+    );
+    assert.equal(deny?.source, '/:path((?!request/).*)');
+    assert.equal(
+      deny?.headers.find((h) => h.key === 'X-Frame-Options')?.value,
+      'DENY'
+    );
     assert.equal(
       headers.get('Permissions-Policy'),
       'camera=(), microphone=(), geolocation=()'

@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { FORM_PATH, frameAncestors } from '@/lib/embedding';
+import { frameOriginsForSlug } from '@/services/dsr-intake';
+
 /**
  * Where a sign-in form may send the browser. A server action that calls
  * `signIn` answers with a redirect to the identity provider, and browsers hold
@@ -35,8 +38,15 @@ function identityProviderOrigins(): string[] {
  * Development adds `'unsafe-eval'`, which React uses to rebuild server error
  * stacks in the browser, and leaves out the upgrade to HTTPS, which would break
  * plain-HTTP localhost.
+ *
+ * No page may be framed, except a public request form on the websites listed
+ * against it (`lib/embedding.ts`), which the caller passes in.
  */
-export function contentSecurityPolicy(nonce: string, isDev: boolean): string {
+export function contentSecurityPolicy(
+  nonce: string,
+  isDev: boolean,
+  ancestors = "'none'"
+): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
@@ -47,16 +57,32 @@ export function contentSecurityPolicy(nonce: string, isDev: boolean): string {
     "object-src 'none'",
     "base-uri 'self'",
     ["form-action 'self'", ...identityProviderOrigins()].join(' '),
-    "frame-ancestors 'none'",
+    `frame-ancestors ${ancestors}`,
     ...(isDev ? [] : ['upgrade-insecure-requests'])
   ].join('; ');
 }
 
-export function proxy(request: NextRequest) {
+/**
+ * The websites that may frame this page: those listed against the form at a
+ * public form address, and none anywhere else. A failed lookup frames nowhere.
+ */
+async function framingFor(pathname: string): Promise<string[] | null> {
+  const form = FORM_PATH.exec(pathname);
+  if (!form) return null;
+  try {
+    return await frameOriginsForSlug(form[1]);
+  } catch {
+    return [];
+  }
+}
+
+export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const framing = await framingFor(request.nextUrl.pathname);
   const csp = contentSecurityPolicy(
     nonce,
-    process.env.NODE_ENV === 'development'
+    process.env.NODE_ENV === 'development',
+    frameAncestors(framing ?? [])
   );
 
   const requestHeaders = new Headers(request.headers);
@@ -65,6 +91,10 @@ export function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
+  // `next.config.ts` sends X-Frame-Options everywhere but the form addresses,
+  // because it cannot list websites. Here it is sent unless some are listed.
+  if (framing !== null && framing.length === 0)
+    response.headers.set('X-Frame-Options', 'DENY');
   return response;
 }
 

@@ -11,6 +11,7 @@ import {
 import { ENVIRONMENTAL_ASKS, FOI_FIELD_LIMITS } from '@/services/foi-intake';
 
 import { FoiRequestForm } from './FoiRequestForm';
+import { FrameResize } from './FrameResize';
 import { RequestForm } from './RequestForm';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ export default async function RequestPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-8 px-6 py-12">
+      <FrameResize slug={slug} />
       {form?.kind === 'foi' && form.foiAct ? (
         <>
           <header className="space-y-3 border-b border-line pb-6">
@@ -79,6 +81,7 @@ export default async function RequestPage({
               {form.otherFormSlug ? (
                 <Link
                   href={`/request/${form.otherFormSlug}`}
+                  target="_top"
                   className="text-brand underline"
                 >
                   Use the personal data request form
@@ -127,6 +130,7 @@ export default async function RequestPage({
                 That is a freedom of information request.{' '}
                 <Link
                   href={`/request/${form.otherFormSlug}`}
+                  target="_top"
                   className="text-brand underline"
                 >
                   Use the freedom of information form

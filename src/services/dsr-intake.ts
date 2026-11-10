@@ -24,6 +24,7 @@ import {
   s164aApplies
 } from '@/lib/complaints/statutory';
 import { requestClock } from '@/lib/dsr/statutory';
+import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
 import { recordRequest, RequestRefused } from './data-subject-requests';
@@ -716,6 +717,76 @@ export async function setIntakeLinkComplaints(input: {
       return row;
     });
   });
+}
+
+/**
+ * The websites that may show a form in a frame. Replaces the list; an empty
+ * list means nowhere. Each register sets its own kind of form only.
+ */
+export async function setIntakeLinkFrameOrigins(input: {
+  linkId: string;
+  organisationId: string;
+  kind: IntakeFormKind;
+  origins: string | readonly string[];
+  actor: Actor;
+}) {
+  let origins: string[];
+  try {
+    origins = normaliseOrigins(input.origins);
+  } catch (error) {
+    if (error instanceof FrameOriginRefused)
+      throw new RequestRefused(error.message);
+    throw error;
+  }
+  return withOrganisation(input.organisationId, async () => {
+    return db.transaction(async (tx) => {
+      const [before] = await tx
+        .select()
+        .from(dsrIntakeLinks)
+        .where(
+          and(
+            eq(dsrIntakeLinks.id, input.linkId),
+            eq(dsrIntakeLinks.organisationId, input.organisationId),
+            eq(dsrIntakeLinks.kind, input.kind),
+            isNull(dsrIntakeLinks.revokedAt)
+          )
+        )
+        .for('update');
+      if (!before)
+        throw new RequestRefused('That form is withdrawn, or is not yours.');
+      const [row] = await tx
+        .update(dsrIntakeLinks)
+        .set({ frameOrigins: origins })
+        .where(eq(dsrIntakeLinks.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: row.entityId,
+        action: 'intake.frame_origins_set',
+        subjectType: 'organisation',
+        subjectId: input.organisationId,
+        before: { link: row.id, frameOrigins: before.frameOrigins },
+        after: { link: row.id, label: row.label, frameOrigins: origins }
+      });
+      return row;
+    });
+  });
+}
+
+/**
+ * The websites that may frame the form at this address, for the proxy's
+ * `frame-ancestors`. None for a withdrawn form or an unknown address. Read
+ * before any organisation is known: the address is the only authority.
+ */
+export async function frameOriginsForSlug(slug: string): Promise<string[]> {
+  const [row] = await db
+    .select({ origins: dsrIntakeLinks.frameOrigins })
+    .from(dsrIntakeLinks)
+    .where(
+      and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
+    );
+  return row?.origins ?? [];
 }
 
 /** Forget attempts older than a day. They exist only to rate-limit. */

@@ -765,6 +765,8 @@ It is one route among many. The form says so, and so must you: a request by emai
 
 Each form also takes complaints about how personal data was handled (DPA 2018 s.164A) unless you switch that off for it. Those go to the complaints register.
 
+To show the form inside a page of your own website, open 'Show it on your website' on the form, list the websites that may show it, and paste the frame it gives you. Only the websites listed can show it; every other site is refused, so nobody can show your form inside a page made to look like yours. Each website must use https and be named in full, with no wildcards, up to ten per form. The optional resize script grows the frame to fit the form. The form sets no cookies, so it works the same in browsers that block third-party cookies.
+
 ### How the month is counted
 
 From the day the clock starts to the same date next month. Where next month has no such date, the last day of the month. Where that falls on a weekend or a bank holiday, the next working day. That is how the ICO counts it, and the deadline shown is worked out that way.
@@ -989,11 +991,13 @@ A request for the requester's own personal data is exempt from freedom of inform
 
 ### A public form, if you want one
 
-On this page, an owner can create a web form for an entity an FOI Act applies to, and publish its address on your freedom of information page. People can then make a request without an account. Each submission is recorded here as arriving by web form, the twenty working days start at once, and a task goes to the team. The requester gets a reference and the date the response is due, and nothing else.
+On this page, an owner or privacy administrator can create a web form for an entity an FOI Act applies to, and publish its address on your freedom of information page. People can then make a request without an account. Each submission is recorded here as arriving by web form, the twenty working days start at once, and a task goes to the team. The requester gets a reference and the date the response is due, and nothing else.
 
 The form asks only what a valid request needs: a real name, an address for the reply, and a description of the information. It never asks why they want it. It asks whether the information is about the environment, so the request is filed under the right rules; check that when you pick it up.
 
 Somebody asking for information about themselves is turned back before anything is recorded, and sent to your data protection request form for the same entity if there is one. That form, in turn, points people to the FOI form when they want other information you hold.
+
+It can be shown inside a page of your own website in the same way as the data protection form: list the websites under 'Show it on your website' and paste the frame. Keep the frame's title, which screen readers announce; public bodies must meet the accessibility regulations on their own pages too.
 
 ### Reviews and the regulator
 
