@@ -298,6 +298,7 @@ describe('ending a request', () => {
     const request = await aRequest(w, { receivedAt: daysAgo(60) });
     await assert.rejects(
       respondToInformationRequest({
+        outcome: 'released_in_full',
         organisationId: w.org.id,
         requestId: request.id,
         respondedAt: daysAgo(0),
@@ -307,6 +308,7 @@ describe('ending a request', () => {
       refusedWith(/after the deadline/)
     );
     const responded = await respondToInformationRequest({
+      outcome: 'released_in_full',
       organisationId: w.org.id,
       requestId: request.id,
       respondedAt: daysAgo(0),
@@ -612,6 +614,7 @@ describe('decisions', () => {
     await decide(w, request.id, { kind: 'exemption', provision: 's.21' });
     const respond = (refusalNoticeChecked?: boolean) =>
       respondToInformationRequest({
+        outcome: 'withheld_in_full',
         organisationId: w.org.id,
         requestId: request.id,
         respondedAt: new Date(),
@@ -665,6 +668,7 @@ describe('what the review found', () => {
       effectiveAt: today()
     });
     const responded = await respondToInformationRequest({
+      outcome: 'released_in_full',
       organisationId: w.org.id,
       requestId: request.id,
       respondedAt: today(),
@@ -732,6 +736,7 @@ describe('what the review found', () => {
     const request = await aRequest(w, { receivedAt: daysAgo(60) });
     assert.equal((await sweepOrganisation(w.org.id)).foiDeadlinesRaised, 1);
     await respondToInformationRequest({
+      outcome: 'released_in_full',
       organisationId: w.org.id,
       requestId: request.id,
       respondedAt: new Date(),
@@ -752,6 +757,7 @@ describe('what the review found', () => {
     const w = await world('answered');
     const request = await aRequest(w);
     await respondToInformationRequest({
+      outcome: 'released_in_full',
       organisationId: w.org.id,
       requestId: request.id,
       respondedAt: new Date(),

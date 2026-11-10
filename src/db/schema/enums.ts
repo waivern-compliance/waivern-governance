@@ -300,6 +300,22 @@ export const informationRequestDecisionKind = pgEnum(
 );
 
 /**
+ * What a response to a freedom of information request came to, for the
+ * figures authorities publish and regulators ask for. Recorded with the
+ * response, because the free-text summary cannot be counted.
+ * `refused_request`: the request as a whole was refused (the cost limit, a
+ * vexatious or repeated request, or a manifestly unreasonable one), without
+ * looking at what is held.
+ */
+export const informationRequestOutcome = pgEnum('information_request_outcome', [
+  'released_in_full',
+  'released_in_part',
+  'withheld_in_full',
+  'refused_request',
+  'not_held'
+]);
+
+/**
  * What a public web form takes: requests and complaints about personal data,
  * or freedom of information requests. Separate forms, each with its own
  * address, because the law, the questions and the clock all differ.

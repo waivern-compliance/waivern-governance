@@ -83,6 +83,17 @@ export default async function InformationRequestsPage() {
           law. A request for environmental information can even be made by phone
           or in person. Record it the day it arrives.
         </p>
+        <p className="text-sm">
+          <Link
+            href="/app/information-requests/report"
+            className="text-brand underline"
+          >
+            Figures by year and quarter
+          </Link>
+          <span className="text-ink-soft">
+            : answered in time, outcomes, exemptions relied on, and reviews.
+          </span>
+        </p>
       </header>
 
       <HelpLink topic="information-requests" />

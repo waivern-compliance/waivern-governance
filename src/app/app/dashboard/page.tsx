@@ -11,7 +11,8 @@ import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { complaintRegister } from '@/services/complaints';
 import { requestRegister } from '@/services/data-subject-requests';
-import { anyEntityUnderUkLaw } from '@/services/entities';
+import { anyEntityUnderFoi, anyEntityUnderUkLaw } from '@/services/entities';
+import { foiAttention } from '@/services/foi-reporting';
 import { dashboardMetrics } from '@/services/metrics';
 import { propertyRegister } from '@/services/storage-inventory';
 
@@ -28,35 +29,29 @@ export default async function Dashboard() {
     );
   }
 
-  const m = await dashboardMetrics(
-    active.membership.organisationId,
-    visibleEntityIds(active)
-  );
-
-  // Requests are the requester's own personal data, so their counts are shown
-  // only to the people who handle them.
-  const requests = can(active.membership.grants, 'dsr.handle')
-    ? await requestRegister(
-        active.membership.organisationId,
-        visibleEntityIds(active, 'dsr.handle')
-      )
-    : null;
-  // Complaints likewise: the complainant's own data, behind the same capability.
-  // The 30 days are the Data Protection Act 2018's (s.164A), so only where some entity is subject to UK law.
-  const complaints =
-    can(active.membership.grants, 'dsr.handle') &&
-    (await anyEntityUnderUkLaw(active.membership.organisationId))
-      ? await complaintRegister(
-          active.membership.organisationId,
-          visibleEntityIds(active, 'dsr.handle')
-        )
-      : null;
-
+  const org = active.membership.organisationId;
+  const grants = active.membership.grants;
+  // None of these depends on another, so they load together. Requests,
+  // complaints and freedom of information requests carry somebody's name, so
+  // their counts are shown only to the people who handle them. Complaints'
+  // 30 days are the Data Protection Act 2018's (s.164A), so only where some
+  // entity is subject to UK law; FOI tiles only where an FOI Act applies.
   // Cookies hold nobody's personal data, so anyone who may read records sees them.
-  const properties = await propertyRegister(
-    active.membership.organisationId,
-    visibleEntityIds(active)
-  );
+  const [m, requests, complaints, foi, properties] = await Promise.all([
+    dashboardMetrics(org, visibleEntityIds(active)),
+    can(grants, 'dsr.handle')
+      ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
+      : null,
+    (async () =>
+      can(grants, 'dsr.handle') && (await anyEntityUnderUkLaw(org))
+        ? complaintRegister(org, visibleEntityIds(active, 'dsr.handle'))
+        : null)(),
+    (async () =>
+      can(grants, 'foi.handle') && (await anyEntityUnderFoi(org))
+        ? foiAttention(org, visibleEntityIds(active, 'foi.handle'))
+        : null)(),
+    propertyRegister(org, visibleEntityIds(active))
+  ]);
   const cookieGaps = mergeGapSummaries(properties.map((p) => p.gapSummary));
   const cookiesWithGaps = properties.reduce((n, p) => n + p.withGaps, 0);
   const scansDue = properties.filter(
@@ -170,6 +165,41 @@ export default async function Dashboard() {
               href="/app/complaints"
               tone={complaints.acknowledgementOverdue > 0 ? 'critical' : 'good'}
               note="the acknowledgement is still owed"
+            />
+          </>
+        ) : null}
+        {foi ? (
+          <>
+            <Tile
+              label="FOI requests due this week"
+              value={foi.dueSoon}
+              href="/app/information-requests"
+              tone={foi.dueSoon > 0 ? 'warning' : 'good'}
+              note="within five working days of the deadline"
+            />
+            <Tile
+              label="FOI requests past deadline"
+              value={foi.overdue}
+              href="/app/information-requests"
+              tone={foi.overdue > 0 ? 'critical' : 'good'}
+              note="the response is still owed"
+            />
+            <Tile
+              label="FOI reviews past deadline"
+              value={foi.reviewsOverdue}
+              href="/app/information-requests"
+              tone={
+                foi.reviewsOverdue > 0
+                  ? 'critical'
+                  : foi.reviewsDueSoon > 0
+                    ? 'warning'
+                    : 'good'
+              }
+              note={
+                foi.reviewsDueSoon > 0
+                  ? `${foi.reviewsDueSoon} more due within five working days`
+                  : 'the review decision is still owed'
+              }
             />
           </>
         ) : null}

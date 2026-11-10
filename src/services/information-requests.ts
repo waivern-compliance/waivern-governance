@@ -528,17 +528,94 @@ const REFUSING: readonly DecisionKind[] = [
   'repeated'
 ];
 
-export function refuses(decisions: readonly InformationRequestDecision[]) {
-  return decisions.some((d) => REFUSING.includes(d.kind));
+/** What a response can come to. See `informationRequestOutcome`. */
+export const RESPONSE_OUTCOMES = [
+  'released_in_full',
+  'released_in_part',
+  'withheld_in_full',
+  'refused_request',
+  'not_held'
+] as const;
+export type ResponseOutcome = (typeof RESPONSE_OUTCOMES)[number];
+
+/** Outcomes that withhold something, and so need a recorded ground. */
+const WITHHOLDING: readonly ResponseOutcome[] = [
+  'released_in_part',
+  'withheld_in_full',
+  'refused_request'
+];
+
+/** A refusing decision that withholds something: not an exemption outweighed by the public interest. */
+export function withholds(d: InformationRequestDecision): boolean {
+  return REFUSING.includes(d.kind) && d.detail.applied !== false;
 }
 
+export function refuses(decisions: readonly InformationRequestDecision[]) {
+  return decisions.some(withholds);
+}
+
+/** Grounds that refuse a request as a whole, without looking at what is held. */
+const WHOLE_REQUEST: readonly string[] = ['reg 12(4)(b)', 'reg 10(4)(b)'];
+
+/**
+ * Refuse an outcome the decisions contradict, so the figures cannot say
+ * something the record does not.
+ */
+export function checkOutcome(
+  outcome: ResponseOutcome,
+  decisions: readonly InformationRequestDecision[]
+) {
+  if (!RESPONSE_OUTCOMES.includes(outcome))
+    throw new InformationRequestRefused(
+      'Say what the response came to: released in full or in part, withheld, the request refused, or not held.'
+    );
+  const refusing = decisions.filter(withholds);
+  const held = [...decisions]
+    .filter((d) => d.kind === 'held')
+    .sort((a, b) => a.effectiveAt.getTime() - b.effectiveAt.getTime())
+    .at(-1)?.detail.held;
+  if (outcome === 'released_in_full' && refusing.length > 0)
+    throw new InformationRequestRefused(
+      'A refusal is recorded on this request, so it was not released in full. Choose in part, withheld, or the request refused.'
+    );
+  if (outcome === 'released_in_full' && held === 'not_held')
+    throw new InformationRequestRefused(
+      'The record says the information is not held, so nothing was released. Choose not held, or record that it is held.'
+    );
+  if (outcome === 'not_held' && held === 'held')
+    throw new InformationRequestRefused(
+      'The record says the information is held. Record that it is not held first, or choose what the response came to.'
+    );
+  if (WITHHOLDING.includes(outcome) && refusing.length === 0)
+    throw new InformationRequestRefused(
+      'Nothing is recorded as refused. Record the exemption, exception or other ground first, so the record says why.'
+    );
+  if (
+    outcome === 'refused_request' &&
+    !refusing.some(
+      (d) =>
+        ['cost_limit', 'vexatious', 'repeated'].includes(d.kind) ||
+        WHOLE_REQUEST.includes(d.provision ?? '')
+    )
+  )
+    throw new InformationRequestRefused(
+      'A request refused as a whole needs the cost limit, a vexatious or repeated request, or manifestly unreasonable recorded. For information withheld under an exemption, choose withheld or in part.'
+    );
+}
+
+/**
+ * The request's clock, or with `regime` one part's own: a request under both
+ * an Act and its environmental regulations owes its response by the earlier
+ * deadline, but each part was answered in time or not by its own.
+ */
 export function clockOf(
   row: InformationRequest,
   decisions: readonly InformationRequestDecision[],
-  now = new Date()
+  now = new Date(),
+  regime?: FoiRegime
 ) {
   return informationRequestClock({
-    regimes: row.regimes,
+    regimes: regime ? [regime] : row.regimes,
     receivedAt: row.receivedAt,
     profile: row.timeProfile,
     clarificationSoughtAt: row.clarificationSoughtAt,
@@ -695,6 +772,14 @@ export async function recordInformationRequestDecision(input: {
             detail.factorsFor = text(detail.factorsFor);
             detail.factorsAgainst = text(detail.factorsAgainst);
           }
+          // Engaged but outweighed: the public interest favours release, so
+          // nothing is withheld under it. Kept, because the weighing is part of
+          // the record; never counted as a refusal.
+          if (detail.applied === false && !needsPublicInterestTest(exemption))
+            throw new InformationRequestRefused(
+              `${exemption.provision} has no public interest test, so it applies whenever it is engaged. If it is not engaged, do not record it.`
+            );
+          detail.applied = detail.applied !== false;
           detail.absolute = exemption.absolute;
           detail.title = exemption.title;
           break;
@@ -922,6 +1007,8 @@ export async function respondToInformationRequest(input: {
   link?: string | null;
   lateReason?: string | null;
   published?: boolean | null;
+  /** What it came to, for the figures. */
+  outcome: ResponseOutcome;
   /** The refusal notice says everything its regime requires. */
   refusalNoticeChecked?: boolean;
   actor: Actor;
@@ -946,6 +1033,7 @@ export async function respondToInformationRequest(input: {
       const decisions =
         (await decisionsOf(input.organisationId, [before.id])).get(before.id) ??
         [];
+      checkOutcome(input.outcome, decisions);
       if (refuses(decisions) && !input.refusalNoticeChecked)
         throw new InformationRequestRefused(
           'Something was refused, so the response is a refusal notice. Confirm it says everything the law requires: the list is beside the form.'
@@ -965,6 +1053,7 @@ export async function respondToInformationRequest(input: {
           status: 'responded',
           respondedAt: input.respondedAt,
           responseSummary: summary,
+          outcome: input.outcome,
           responseLink: clean(input.link),
           lateReason: clock.state === 'late' ? lateReason : null,
           published: input.published ?? null,
@@ -990,8 +1079,52 @@ export async function respondToInformationRequest(input: {
         after: {
           respondedAt: input.respondedAt.toISOString(),
           onTime: clock.state === 'met',
+          outcome: input.outcome,
           published: input.published ?? null
         }
+      });
+      return after;
+    })
+  );
+}
+
+/**
+ * Correct what a response came to, or give one recorded before it was asked
+ * for. Checked against the decisions like a new response, and audited with
+ * what it was.
+ */
+export async function setInformationRequestOutcome(input: {
+  organisationId: string;
+  requestId: string;
+  outcome: ResponseOutcome;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await lockedRequest(input.organisationId, input.requestId);
+      if (before.status !== 'responded')
+        throw new InformationRequestRefused(
+          'Only a request that has been responded to has an outcome.'
+        );
+      const decisions =
+        (await decisionsOf(input.organisationId, [before.id])).get(before.id) ??
+        [];
+      checkOutcome(input.outcome, decisions);
+      if (before.outcome === input.outcome) return before;
+      const [after] = await tx
+        .update(informationRequests)
+        .set({ outcome: input.outcome, updatedAt: new Date() })
+        .where(eq(informationRequests.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: before.entityId,
+        action: 'foi.outcome_set',
+        subjectType: 'information_request',
+        subjectId: before.id,
+        before: { outcome: before.outcome },
+        after: { outcome: input.outcome }
       });
       return after;
     })

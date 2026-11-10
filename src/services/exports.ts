@@ -7,6 +7,8 @@ import {
   assessments,
   auditEvents,
   entities,
+  informationRequestRegulatorEvents,
+  informationRequestReviews,
   mitigations,
   riskAcceptances,
   risks,
@@ -22,6 +24,8 @@ import {
   describeArt10,
   describeSchedule1
 } from '@/lib/dpa2018/schedule-1';
+import { OUTCOME_LABEL } from '@/lib/foi/report';
+import { REGIME } from '@/lib/foi/statutory';
 import { describeBases, RECOGNISED_CONDITIONS } from '@/lib/gdpr/lawful-basis';
 import { legalRefMap } from '@/lib/legal-refs';
 import { PRODUCT_NAME } from '@/lib/product';
@@ -33,6 +37,10 @@ import { aiRiskLog, treatmentWords } from './ai-risk-profile';
 import { breachRegister } from './breaches';
 import { libraryFor } from './countries';
 import { requestMetrics, requestRegister } from './data-subject-requests';
+import {
+  decisionsOf,
+  informationRequestRegister
+} from './information-requests';
 import { GAP_WORDS, listActivities } from './ropa';
 import type { Actor } from './templates';
 import {
@@ -65,6 +73,7 @@ export type Dataset =
   | 'third-parties'
   | 'breaches'
   | 'requests'
+  | 'information-requests'
   | 'trends'
   | 'countries'
   | 'audit';
@@ -78,6 +87,7 @@ export const DATASET_LABEL: Record<Dataset, string> = {
   'third-parties': 'Third parties (Article 28)',
   breaches: 'Breach register (Article 33(5))',
   requests: 'Data subject requests',
+  'information-requests': 'Freedom of information requests',
   trends: 'Trends by month',
   countries: 'Country library',
   audit: 'Audit log'
@@ -965,6 +975,118 @@ export async function exportRequests(
           r.closureRationale
         ]
       )
+    };
+  });
+}
+
+/**
+ * Every freedom of information request, as `exportRequests` exports data
+ * subject requests: the dates, the deadline, each decision with its reasoning,
+ * what the response came to, and its reviews. Who asked, how to reach them,
+ * what they asked for and what was sent stay in Govern, for the same reason.
+ */
+export async function exportInformationRequests(
+  organisationId: string,
+  entityIds: string[] | null
+) {
+  return withOrganisation(organisationId, async () => {
+    const register = await informationRequestRegister(
+      organisationId,
+      entityIds
+    );
+    const ids = register.rows.map((r) => r.id);
+    const [decisions, reviews, events] = await Promise.all([
+      decisionsOf(organisationId, ids),
+      ids.length
+        ? db
+            .select()
+            .from(informationRequestReviews)
+            .where(inArray(informationRequestReviews.requestId, ids))
+            .orderBy(asc(informationRequestReviews.requestedAt))
+        : [],
+      ids.length
+        ? db
+            .select()
+            .from(informationRequestRegulatorEvents)
+            .where(inArray(informationRequestRegulatorEvents.requestId, ids))
+            .orderBy(asc(informationRequestRegulatorEvents.occurredAt))
+        : []
+    ]);
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const byRequest = <T extends { requestId: string }>(rows: T[]) => {
+      const out = new Map<string, T[]>();
+      for (const row of rows)
+        out.set(row.requestId, [...(out.get(row.requestId) ?? []), row]);
+      return out;
+    };
+    const reviewsOf = byRequest(reviews);
+    const eventsOf = byRequest(events);
+    return {
+      columns: [
+        'Reference',
+        'Entity',
+        'Under',
+        'Time allowed',
+        'Arrived by',
+        'Received',
+        'Clarification sought',
+        'Clarification received',
+        'Clock',
+        'Decisions',
+        'Responded',
+        'Outcome',
+        'On time',
+        'Late because',
+        'Published',
+        'Reviews',
+        'Before the regulator',
+        'Status',
+        'Closed',
+        'Closure reasoning'
+      ],
+      rows: register.rows.map((r) => {
+        return [
+          r.reference,
+          r.entityName,
+          r.regimes.map((g) => REGIME[g].short).join('; '),
+          r.timeProfile,
+          r.channel,
+          r.receivedAt,
+          r.clarificationSoughtAt,
+          r.clarificationReceivedAt,
+          r.clock.words,
+          (decisions.get(r.id) ?? [])
+            .map(
+              (d) =>
+                `${d.kind.replace(/_/g, ' ')}${d.regime ? ` (${REGIME[d.regime].short})` : ''}${d.provision ? ` ${d.provision}` : ''} - ${d.rationale}`
+            )
+            .join(' | '),
+          r.respondedAt,
+          r.outcome ? OUTCOME_LABEL[r.outcome] : '',
+          r.clock.state === 'met'
+            ? 'yes'
+            : r.clock.state === 'late'
+              ? 'no'
+              : '',
+          r.lateReason,
+          r.published === null ? '' : r.published ? 'yes' : 'no',
+          (reviewsOf.get(r.id) ?? [])
+            .map(
+              (v) =>
+                `asked ${day(v.requestedAt)}: ${v.outcome ?? v.status}${v.decidedAt ? ` ${day(v.decidedAt)}` : ''}`
+            )
+            .join(' | '),
+          (eventsOf.get(r.id) ?? [])
+            .map(
+              (e) =>
+                `${day(e.occurredAt)}: ${e.kind.replace(/_/g, ' ')}${e.caseReference ? ` (${e.caseReference})` : ''}`
+            )
+            .join(' | '),
+          r.status,
+          r.closedAt,
+          r.closureRationale
+        ];
+      })
     };
   });
 }

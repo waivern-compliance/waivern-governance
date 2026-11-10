@@ -22,6 +22,8 @@ const BLURB: Record<Dataset, string> = {
     'Every breach with both statutory decisions and the reasoning for each, including the ones judged not notifiable.',
   requests:
     'Every request from a data subject: rights, dates, the deadline, each decision with its reasoning, and whether it was answered on time. Who asked and what they wrote stay in Govern.',
+  'information-requests':
+    'Every freedom of information request: the regimes, dates, the deadline, each decision and exemption with its reasoning, what the response came to, whether it was on time, and its reviews and any case before the regulator. Who asked, what they asked for and what was sent stay in Govern.',
   trends:
     'Twelve months of posture: risks raised and closed, assessments decided, how long decisions took, data subject requests answered on time and late.',
   countries:
@@ -45,6 +47,7 @@ export default async function ExportsPage() {
 
   const mayExportAudit = can(active.membership.grants, 'audit.export');
   const mayExportRequests = can(active.membership.grants, 'dsr.handle');
+  const mayExportFoi = can(active.membership.grants, 'foi.handle');
   // A complete chain is what makes an audit export verifiable, and an
   // entity-scoped viewer cannot have one.
   const wholeChain = visibleEntityIds(active, 'audit.export') === null;
@@ -72,7 +75,8 @@ export default async function ExportsPage() {
           .filter(
             (d) =>
               (d !== 'audit' || mayExportAudit) &&
-              (d !== 'requests' || mayExportRequests)
+              (d !== 'requests' || mayExportRequests) &&
+              (d !== 'information-requests' || mayExportFoi)
           )
           .map((d) => (
             <li

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."information_request_outcome" AS ENUM('released_in_full', 'released_in_part', 'withheld_in_full', 'refused_request', 'not_held');--> statement-breakpoint
+ALTER TABLE "information_request" ADD COLUMN "outcome" "information_request_outcome";

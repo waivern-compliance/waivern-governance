@@ -12,6 +12,7 @@ import {
   exportAudit,
   exportBreaches,
   exportCountries,
+  exportInformationRequests,
   exportRequests,
   exportRisks,
   exportRopa,
@@ -48,14 +49,16 @@ export async function GET(
   }
   const key = dataset as Dataset;
 
-  // Requests are the requesters' own personal data, held by the people who
+  // Requests carry the requesters' personal data, held by the people who
   // handle them; everything else follows record access.
   const needed =
     key === 'audit'
       ? 'audit.export'
       : key === 'requests'
         ? 'dsr.handle'
-        : 'record.read';
+        : key === 'information-requests'
+          ? 'foi.handle'
+          : 'record.read';
   if (!can(active.membership.grants, needed)) {
     return NextResponse.json(
       {
@@ -116,7 +119,9 @@ export async function GET(
                       ? await exportBreaches(org, entityIds)
                       : key === 'requests'
                         ? await exportRequests(org, entityIds)
-                        : await exportCountries(org);
+                        : key === 'information-requests'
+                          ? await exportInformationRequests(org, entityIds)
+                          : await exportCountries(org);
     rows = result.rows.length;
     body = toCsv(result.columns, result.rows);
   }

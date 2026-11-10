@@ -24,7 +24,9 @@ import {
   recordInformationRequest,
   recordInformationRequestDecision,
   respondToInformationRequest,
-  updateInformationRequest
+  setInformationRequestOutcome,
+  updateInformationRequest,
+  type ResponseOutcome
 } from '@/services/information-requests';
 
 import { setFormOrigins } from '../intake-form-origins';
@@ -196,6 +198,7 @@ export async function respondAction(
       link: text(formData.get('link')) || null,
       lateReason: text(formData.get('lateReason')) || null,
       published: published === '' ? null : published === 'yes',
+      outcome: text(formData.get('outcome')) as ResponseOutcome,
       refusalNoticeChecked: formData.get('refusalNoticeChecked') === 'on',
       actor: actorOf(active)
     });
@@ -292,6 +295,7 @@ export async function recordDecisionAction(
       provision: text(formData.get('provision')) || null,
       detail: {
         held: text(formData.get('held')) || undefined,
+        applied: text(formData.get('applied')) === 'no' ? false : undefined,
         factorsFor: text(formData.get('factorsFor')) || undefined,
         factorsAgainst: text(formData.get('factorsAgainst')) || undefined,
         emissions:
@@ -307,6 +311,24 @@ export async function recordDecisionAction(
       actor: actorOf(active)
     });
   }, 'Recorded.');
+  revalidate(requestId);
+  return result;
+}
+
+export async function setOutcomeAction(
+  requestId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const result = await refused(async () => {
+    await setInformationRequestOutcome({
+      organisationId: active.membership.organisationId,
+      requestId,
+      outcome: text(formData.get('outcome')) as ResponseOutcome,
+      actor: actorOf(active)
+    });
+  }, 'Saved.');
   revalidate(requestId);
   return result;
 }

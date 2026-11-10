@@ -14,6 +14,7 @@ import type { FoiAct, FoiRegime, TimeProfile } from '@/lib/foi/statutory';
 
 import {
   informationRequestDecisionKind,
+  informationRequestOutcome,
   informationRequestRegulatorEventKind,
   informationRequestReviewOutcome,
   informationRequestReviewStatus,
@@ -97,6 +98,8 @@ export const informationRequests = pgTable(
     }),
     respondedAt: timestamp('responded_at', { withTimezone: true }),
     responseSummary: text('response_summary'),
+    /** What the response came to, for the figures. Null before it was asked. */
+    outcome: informationRequestOutcome('outcome'),
     /**
      * The handler confirmed the refusal notice says everything the regime
      * requires (FOIA s.17, EIR reg 14, FOI(S)A ss.16 and 19, EI(S)R reg 13).

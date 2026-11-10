@@ -228,6 +228,22 @@ export function DecisionForms({
                 </select>
               </label>
             ) : null}
+            <label className="block space-y-1">
+              <Label
+                text="Does it withhold anything?"
+                hint="Where the public interest in disclosure wins, record the weighing anyway: nothing is withheld under it, and it does not count as a refusal."
+              />
+              <select
+                name="applied"
+                className={inputClass}
+                defaultValue="yes"
+              >
+                <option value="yes">Yes: withheld under it</option>
+                <option value="no">
+                  No: engaged, but the public interest favours release
+                </option>
+              </select>
+            </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1">
                 <Label text="Public interest in disclosure" />
@@ -542,6 +558,9 @@ export function DecisionHistory({
                 {KIND_LABEL[d.kind]}
                 {d.provision ? ` · ${d.provision}` : ''}
                 {typeof detail.title === 'string' ? ` ${detail.title}` : ''}
+                {d.kind === 'exemption' && detail.applied === false
+                  ? ': engaged, but the public interest favours release'
+                  : ''}
                 {d.kind === 'held' && typeof detail.held === 'string'
                   ? `: ${HELD_LABEL[detail.held] ?? detail.held}`
                   : ''}

@@ -1025,7 +1025,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Decisions, exemptions and refusals',
         body: [
           'Record each step and judgement on the request page, with the reason: whether the information is held, each exemption or exception applied, a fees notice and its payment, the cost limit, a vexatious or repeated request, a transfer, and advice given. Decisions are kept, never edited: a changed mind is a new decision.',
-          'An absolute exemption needs no public interest test. A qualified one does, and every environmental exception does, with a presumption in favour of disclosure; record the factors on each side. Four environmental exceptions cannot withhold information on emissions, so you are asked whether it is.',
+          'An absolute exemption needs no public interest test. A qualified one does, and every environmental exception does, with a presumption in favour of disclosure; record the factors on each side. Where the public interest in disclosure wins, record the weighing anyway and say it withholds nothing: it stays on the record, and does not count as a refusal. Four environmental exceptions cannot withhold information on emissions, so you are asked whether it is.',
           'Where something is refused, the response is a refusal notice, and you confirm it says what the law requires before recording it as sent.'
         ],
         points: [
@@ -1038,7 +1038,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Responding, and requests for their own data',
         body: [
-          'Record the response when it is sent: what was released, refused or not held, and where the letter is kept. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.',
+          'Record the response when it is sent: what it came to (released in full or in part, withheld in full, the request refused as a whole, or not held), a sentence on what was sent and withheld, and where the letter is kept. What it came to is counted in the figures, so it has to agree with the decisions: a response released in full cannot have an exemption recorded against it, one that withholds anything needs the ground recorded first, a request refused as a whole needs the cost limit, a vexatious or repeated request, or manifestly unreasonable, and released in full or not held has to match what the record says is held. If the outcome was recorded wrongly, or the response came before the outcome was asked for, record it under the response; the change is audited. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.',
           "A request for the requester's own personal data is exempt from freedom of information and is a subject access request instead. Convert it on the request page: a subject access request is recorded with the month running from the day the request arrived, and the two records point at each other."
         ]
       },
@@ -1065,9 +1065,17 @@ export const HELP_TOPICS: HelpTopic[] = [
           'Late requests for review: you need not accept one asked for after the last day. Say whether you do, and why.',
           'Appeals: either side can appeal a decision notice, to the First-tier Tribunal within 28 days, or in Scotland to the Court of Session within 42. Steps an appeal affects need not be taken while it is pending.'
         ]
+      },
+      {
+        heading: 'The figures',
+        body: [
+          "'Figures by year and quarter', on the register, gives the numbers authorities publish and the regulators ask about, for the requests received in a calendar year or quarter, from midnight UK time: how many came in under each regime, how many were answered in time, late or are overdue now, what the responses came to, which exemptions and exceptions were relied on and in how many requests, and how reviews and cases before the regulator went.",
+          'In time means by the deadline the law sets, including any extension it allows. The rate is answered in time out of those whose time has run, so requests still in time, waiting for clarification or closed without a response being owed do not lower it. It is rounded down, so one late response never shows as 100%. A request under both an Act and its environmental regulations is counted under each, judged by the deadline for that part (a FOIA public interest extension moves only the FOIA part), and once in the total. Reviews and cases are counted with the request they are about, so a quarter settles once its requests have run their course.',
+          'Counts only: no requester is named, so the figures can go into a board paper or onto your website. Responses recorded before the outcome was asked for are shown as not recorded until somebody records it on the request.'
+        ]
       }
     ],
-    related: ['data-subject-requests', 'complaints', 'organisation']
+    related: ['data-subject-requests', 'complaints', 'organisation', 'exports']
   },
   {
     id: 'data-subject-requests',
@@ -1777,7 +1785,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Reading it',
         body: [
           'The attention tiles are the actionable part. Risk posture shows inherent against residual, so the gap between them is what treatment has actually achieved rather than what was planned.',
-          'Everything is scoped to what you can see. Two people looking at the same dashboard with different grants will honestly see different totals.'
+          'Everything is scoped to what you can see. Two people looking at the same dashboard with different grants will honestly see different totals.',
+          "Data subject requests, complaints and freedom of information requests appear only for people who handle them, because each carries somebody's name. The freedom of information tiles count requests within five working days of their deadline, those past it, and reviews past theirs."
         ]
       }
     ],
@@ -1867,7 +1876,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'What you get',
         body: [
-          'A flat CSV that opens in whatever the recipient already has. The processing register comes out in Article 30 order so a reader can check it against the Regulation. Completeness columns come from the same code the screens use, so a spreadsheet cannot disagree with the app about which records are deficient.'
+          'A flat CSV that opens in whatever the recipient already has. The processing register comes out in Article 30 order so a reader can check it against the Regulation. Completeness columns come from the same code the screens use, so a spreadsheet cannot disagree with the app about which records are deficient.',
+          "The data subject request and freedom of information exports are for the people who handle those requests. Each keeps the dates, the deadline, every decision with its reasoning and whether it was on time; the freedom of information one adds what each response came to, its reviews and any case before the regulator. Who asked, how to reach them, what they asked for and what was sent stay in Govern, so the spreadsheet does not become a second copy of anybody's personal data."
         ]
       },
       {
