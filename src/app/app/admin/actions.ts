@@ -593,7 +593,7 @@ export async function setFreedomOfInformationAction(
       ? `${updated.name} answers requests under the Freedom of Information Act 2000 and the Environmental Information Regulations 2004, and is a public authority.`
       : updated.foiAct === 'foisa'
         ? `${updated.name} answers requests under the Freedom of Information (Scotland) Act 2002 and the Environmental Information (Scotland) Regulations 2004, and is a public authority.`
-        : `${updated.name} is not recorded as answering freedom of information requests.`;
+        : `${updated.name} is not recorded as answering freedom of information requests. Any freedom of information form it had is withdrawn.`;
   });
 }
 

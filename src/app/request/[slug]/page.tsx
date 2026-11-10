@@ -1,13 +1,41 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
+import {
+  FOI_ACT_REGIMES,
+  REGIME,
+  REGULATOR,
+  timeLimitWords,
+  type FoiAct,
+  type TimeProfile
+} from '@/lib/foi/statutory';
 import {
   COMPLAINT_ASKS,
   FIELD_LIMITS,
-  openIntakeLink,
+  openIntakeLink as lookUpForm,
   startedToken
 } from '@/services/dsr-intake';
+import { ENVIRONMENTAL_ASKS, FOI_FIELD_LIMITS } from '@/services/foi-intake';
 
+import { FoiRequestForm } from './FoiRequestForm';
 import { RequestForm } from './RequestForm';
+
+/** One lookup per request, shared by the title and the page. */
+const openIntakeLink = cache(lookUpForm);
+
+/**
+ * How long the authority has, in words: its own Act's limit, and the
+ * environmental regulations' where they differ (no school or archive rule).
+ */
+function timeLimit(act: FoiAct, profile: TimeProfile): string {
+  const [main, environmental] = FOI_ACT_REGIMES[act];
+  const general = timeLimitWords(main, profile);
+  const env = timeLimitWords(environmental, profile);
+  return general === env
+    ? general
+    : `${general} (${env} for information about the environment)`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +47,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const form = await openIntakeLink((await params).slug);
   return {
-    title: form?.takesComplaints
-      ? 'Make a request or complaint about your personal data'
-      : 'Make a request about your personal data',
+    title:
+      form?.kind === 'foi'
+        ? 'Make a freedom of information request'
+        : form?.takesComplaints
+          ? 'Make a request or complaint about your personal data'
+          : 'Make a request about your personal data',
     robots: { index: false, follow: false }
   };
 }
@@ -42,7 +73,55 @@ export default async function RequestPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-8 px-6 py-12">
-      {form ? (
+      {form?.kind === 'foi' && form.foiAct ? (
+        <>
+          <header className="space-y-3 border-b border-line pb-6">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Make a freedom of information request
+            </h1>
+            <p className="max-w-prose text-sm text-ink-soft">
+              To {form.controllerName}. Under the {REGIME[form.foiAct].label}{' '}
+              anyone can ask for information it holds, for any reason. It must
+              normally respond within{' '}
+              {timeLimit(form.foiAct, form.foiTimeProfile)}: by sending the
+              information, or by explaining why it cannot.
+            </p>
+            <p className="max-w-prose text-xs text-ink-soft">
+              You do not have to use this form. A request by email or by post
+              counts just the same, and one for information about the
+              environment can also be made by phone or in person. If you are
+              unhappy with the response you can ask them to review it, and then
+              go to {REGULATOR[form.foiAct]}.
+            </p>
+          </header>
+          <aside className="rounded border border-line bg-surface px-4 py-3 text-sm">
+            <p className="font-medium">
+              Asking for information about yourself?
+            </p>
+            <p className="mt-1 text-ink-soft">
+              That is a request under data protection law, not freedom of
+              information, and it is handled differently.{' '}
+              {form.otherFormSlug ? (
+                <Link
+                  href={`/request/${form.otherFormSlug}`}
+                  className="text-brand underline"
+                >
+                  Use the personal data request form
+                </Link>
+              ) : (
+                'Ask them for it by email or post.'
+              )}
+            </p>
+          </aside>
+          <FoiRequestForm
+            slug={slug}
+            started={startedToken(slug)}
+            authorityName={form.controllerName}
+            limits={FOI_FIELD_LIMITS}
+            environmentalAsks={ENVIRONMENTAL_ASKS}
+          />
+        </>
+      ) : form && form.kind === 'data_protection' ? (
         <>
           <header className="space-y-3 border-b border-line pb-6">
             <h1 className="text-2xl font-semibold tracking-tight">
@@ -64,6 +143,23 @@ export default async function RequestPage({
               by post or in person counts just the same.
             </p>
           </header>
+          {form.otherFormSlug ? (
+            <aside className="rounded border border-line bg-surface px-4 py-3 text-sm">
+              <p className="font-medium">
+                Asking for other information they hold, not about you?
+              </p>
+              <p className="mt-1 text-ink-soft">
+                That is a freedom of information request.{' '}
+                <Link
+                  href={`/request/${form.otherFormSlug}`}
+                  className="text-brand underline"
+                >
+                  Use the freedom of information form
+                </Link>
+                .
+              </p>
+            </aside>
+          ) : null}
           <RequestForm
             slug={slug}
             started={startedToken(slug)}
@@ -79,8 +175,7 @@ export default async function RequestPage({
           </h1>
           <p className="max-w-prose text-sm text-ink-soft">
             The address may be out of date. You can still make a request to the
-            organisation by email, by post or in person, and it counts just the
-            same.
+            organisation by email or by post, and it counts just the same.
           </p>
         </section>
       )}

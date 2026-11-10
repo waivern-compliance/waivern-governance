@@ -26,7 +26,8 @@ import {
   dsrRecipientNotice,
   dsrScopeKind,
   dsrScopeStatus,
-  dsrStatus
+  dsrStatus,
+  intakeFormKind
 } from './enums';
 import { processingActivities, suppliers } from './integration';
 import { entities, organisations, users } from './tenancy';
@@ -70,6 +71,12 @@ export const dsrIntakeLinks = pgTable(
      * complaining easy, and one published address is simpler than two.
      */
     takesComplaints: boolean('takes_complaints').notNull().default(true),
+    /**
+     * A data protection form, or a freedom of information one. An FOI form
+     * never takes complaints, and is issued only for an entity an FOI Act
+     * applies to.
+     */
+    kind: intakeFormKind('kind').notNull().default('data_protection'),
     submissions: integer('submissions').notNull().default(0),
     lastSubmittedAt: timestamp('last_submitted_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => users.id, {

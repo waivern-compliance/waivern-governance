@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable } from '@/lib/edit-result';
-import { can } from '@/lib/rbac';
+import { can, mayConfigureInformationRequests } from '@/lib/rbac';
 import { NotPermitted, requireCapability } from '@/lib/session';
+import { issueIntakeLink, revokeIntakeLink } from '@/services/dsr-intake';
 import {
   decideInformationRequestReview,
   extendInformationRequestReview,
@@ -465,5 +466,52 @@ export async function recordRegulatorEventAction(
     });
   }, 'Recorded.');
   revalidate(requestId);
+  return result;
+}
+
+export async function issueFoiFormAction(
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const active = await requireCapability('foi.handle');
+  if (!mayConfigureInformationRequests(active.membership.grants))
+    return {
+      ok: false,
+      message:
+        'Only somebody who configures the whole organisation can publish a form.'
+    };
+  const result = await refused(async () => {
+    await issueIntakeLink({
+      organisationId: active.membership.organisationId,
+      entityId: text(formData.get('entityId')),
+      label: text(formData.get('label')),
+      kind: 'foi',
+      actor: actorOf(active)
+    });
+  }, 'Created. Copy the address into your freedom of information page.');
+  revalidatePath('/app/information-requests');
+  return result;
+}
+
+export async function revokeFoiFormAction(
+  linkId: string,
+  _prev: Result
+): Promise<Result> {
+  const active = await requireCapability('foi.handle');
+  if (!mayConfigureInformationRequests(active.membership.grants))
+    return {
+      ok: false,
+      message:
+        'Only somebody who configures the whole organisation can withdraw a form.'
+    };
+  const result = await refused(async () => {
+    await revokeIntakeLink({
+      linkId,
+      organisationId: active.membership.organisationId,
+      kind: 'foi',
+      actor: actorOf(active)
+    });
+  }, 'Withdrawn. The address now says the form is not taking requests.');
+  revalidatePath('/app/information-requests');
   return result;
 }

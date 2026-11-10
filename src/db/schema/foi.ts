@@ -19,7 +19,7 @@ import {
   informationRequestReviewStatus,
   informationRequestStatus
 } from './enums';
-import { dataSubjectRequests } from './requests';
+import { dataSubjectRequests, dsrIntakeLinks } from './requests';
 import { entities, organisations, users } from './tenancy';
 
 /**
@@ -108,6 +108,10 @@ export const informationRequests = pgTable(
     lateReason: text('late_reason'),
     /** Released information was put on the disclosure log. */
     published: boolean('published'),
+    /** The published web form it came through, if it did. */
+    intakeLinkId: uuid('intake_link_id').references(() => dsrIntakeLinks.id, {
+      onDelete: 'set null'
+    }),
     /** Where it was for the requester's own personal data and became a DSR. */
     convertedToRequestId: uuid('converted_to_request_id').references(
       () => dataSubjectRequests.id,

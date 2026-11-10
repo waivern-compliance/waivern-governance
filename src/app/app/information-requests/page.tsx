@@ -5,15 +5,22 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
+import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { REGIME } from '@/lib/foi/statutory';
-import { can } from '@/lib/rbac';
+import { can, mayConfigureInformationRequests } from '@/lib/rbac';
+import { requestOrigin } from '@/lib/request-origin';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { intakeLinksFor } from '@/services/dsr-intake';
 import { informationRequestRegister } from '@/services/information-requests';
 
-import { recordInformationRequestAction } from './actions';
+import {
+  issueFoiFormAction,
+  recordInformationRequestAction,
+  revokeFoiFormAction
+} from './actions';
 import {
   FOI_CHANNEL_LABEL,
   inputClass,
@@ -36,7 +43,7 @@ export default async function InformationRequestsPage() {
   }
 
   const org = active.membership.organisationId;
-  const [register, foiEntities] = await Promise.all([
+  const [register, foiEntities, forms] = await Promise.all([
     informationRequestRegister(org, visibleEntityIds(active, 'foi.handle')),
     scoped(org, () =>
       db
@@ -45,8 +52,13 @@ export default async function InformationRequestsPage() {
         .where(
           and(eq(entities.organisationId, org), isNotNull(entities.foiAct))
         )
-    )
+    ),
+    intakeLinksFor(org, visibleEntityIds(active, 'foi.handle'), 'foi')
   ]);
+  const origin = await requestOrigin();
+  const mayConfigure = mayConfigureInformationRequests(
+    active.membership.grants
+  );
   const mayRecordIn = foiEntities.filter((e) =>
     can(active.membership.grants, 'foi.handle', e.id)
   );
@@ -249,6 +261,64 @@ export default async function InformationRequestsPage() {
             </label>
           </RefusableForm>
         </details>
+      ) : null}
+
+      {/* Shown while any form exists, so one can always be withdrawn. */}
+      {foiEntities.length > 0 || forms.length > 0 ? (
+        <section className="space-y-3 rounded border border-line bg-surface p-5">
+          <h2 className="text-sm font-semibold">Public request form</h2>
+          <p className="max-w-prose text-xs text-ink-soft">
+            A web form anyone can use to make a request without an account, one
+            per entity. Publish its address on your freedom of information page.
+            Each submission lands in this register as received by web form, with
+            the twenty working days running from that day, and raises a task for
+            the team. The form asks only what a valid request needs, never why
+            they want it, and sends anybody asking for their own personal data
+            to your data protection form if you have one. It shows nothing back
+            except a reference and the deadline.
+          </p>
+          <IntakeFormList
+            forms={forms}
+            origin={origin}
+            withdraw={
+              mayConfigure
+                ? (linkId) => revokeFoiFormAction.bind(null, linkId)
+                : null
+            }
+          />
+          {mayConfigure && foiEntities.length > 0 ? (
+            <RefusableForm
+              action={issueFoiFormAction}
+              submit="Create a form"
+              className="flex flex-wrap items-end gap-3"
+            >
+              <label className="block space-y-1">
+                <Label text="Entity" />
+                <select
+                  name="entityId"
+                  className={inputClass}
+                >
+                  {foiEntities.map((e) => (
+                    <option
+                      key={e.id}
+                      value={e.id}
+                    >
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block flex-1 space-y-1">
+                <Label text="Where it will be published" />
+                <input
+                  name="label"
+                  placeholder="Freedom of information page"
+                  className={inputClass}
+                />
+              </label>
+            </RefusableForm>
+          ) : null}
+        </section>
       ) : null}
 
       <ul className="space-y-3">

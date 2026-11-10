@@ -7,6 +7,7 @@ import {
   submitIntake,
   type IntakeResult
 } from '@/services/dsr-intake';
+import { submitInformationRequestIntake } from '@/services/foi-intake';
 
 const text = (v: FormDataEntryValue | null) => String(v ?? '');
 
@@ -15,16 +16,41 @@ const text = (v: FormDataEntryValue | null) => String(v ?? '');
  * is the only authority, and the visitor's own address is used for rate
  * limiting alone, hashed, and forgotten after a day.
  */
+async function visitorAddress() {
+  const h = await headers();
+  return (
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    h.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+/** The freedom of information form's action, on the same terms as the other. */
+export async function submitInformationRequestAction(
+  slug: string,
+  _prev: IntakeResult | null,
+  formData: FormData
+): Promise<IntakeResult> {
+  return submitInformationRequestIntake({
+    slug,
+    started: text(formData.get('started')),
+    trap: text(formData.get('website')),
+    address: await visitorAddress(),
+    requesterName: text(formData.get('requesterName')),
+    correspondenceAddress: text(formData.get('correspondenceAddress')),
+    description: text(formData.get('description')),
+    preferredMeans: text(formData.get('preferredMeans')),
+    environmental: text(formData.get('environmental')),
+    aboutThemselves: formData.get('aboutThemselves') === 'on'
+  });
+}
+
 export async function submitRequestAction(
   slug: string,
   _prev: IntakeResult | null,
   formData: FormData
 ): Promise<IntakeResult> {
-  const h = await headers();
-  const address =
-    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    h.get('x-real-ip') ||
-    'unknown';
+  const address = await visitorAddress();
   if (formData.get('kind') === 'complaint') {
     return submitComplaintIntake({
       slug,

@@ -224,6 +224,22 @@ export function mayChooseAiFramework(grants: readonly Grant[]): boolean {
 }
 
 /**
+ * Whether these grants may publish or withdraw a freedom of information web
+ * form: as for data protection forms, somebody who handles the requests and
+ * configures the whole organisation.
+ */
+export function mayConfigureInformationRequests(
+  grants: readonly Grant[]
+): boolean {
+  return grants.some(
+    (g) =>
+      g.scope === 'organisation' &&
+      ROLE_CAPABILITIES[g.role].includes('foi.handle') &&
+      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+  );
+}
+
+/**
  * May this person change how data subject requests are handled across the
  * organisation: which law new requests follow, and how many objections send
  * an LIA back for review?

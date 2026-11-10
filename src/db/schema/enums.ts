@@ -299,6 +299,16 @@ export const informationRequestDecisionKind = pgEnum(
   ]
 );
 
+/**
+ * What a public web form takes: requests and complaints about personal data,
+ * or freedom of information requests. Separate forms, each with its own
+ * address, because the law, the questions and the clock all differ.
+ */
+export const intakeFormKind = pgEnum('intake_form_kind', [
+  'data_protection',
+  'foi'
+]);
+
 /** Where a review of a freedom of information request is. */
 export const informationRequestReviewStatus = pgEnum(
   'information_request_review_status',
@@ -644,7 +654,9 @@ export const taskType = pgEnum('task_type', [
    * the date given for finishing a public interest test. Set by statute, and
    * computed from the request.
    */
-  'foi_deadline'
+  'foi_deadline',
+  /** A freedom of information request arrived through the public web form and nobody has picked it up yet. */
+  'foi_intake'
 ]);
 
 export const taskStatus = pgEnum('task_status', [
