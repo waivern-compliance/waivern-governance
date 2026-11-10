@@ -301,7 +301,7 @@ Built as:
 Built as:
 
 - `entity.foi_act` (null, `foia` or `foisa`), `foi_time_profile` and `foi_covered_for`
-  (migration 0090), set on the Organisation page by `setFreedomOfInformation` and
+  (migration 0093), set on the Organisation page by `setFreedomOfInformation` and
   audited as `entity.foi_changed`. Setting an Act turns `public_authority` on, and
   `setPublicAuthority` refuses to turn it off while an Act applies. Refused for an
   entity under EU law only.
