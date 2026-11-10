@@ -276,11 +276,7 @@ export async function recordDecisionAction(
       kind: kind as (typeof DECISION_KINDS)[number],
       regime:
         (text(formData.get('regime')) as
-          | 'foia'
-          | 'eir'
-          | 'foisa'
-          | 'eisr'
-          | '') || null,
+          'foia' | 'eir' | 'foisa' | 'eisr' | '') || null,
       provision: text(formData.get('provision')) || null,
       detail: {
         held: text(formData.get('held')) || undefined,
