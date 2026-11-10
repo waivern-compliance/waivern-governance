@@ -212,6 +212,24 @@ export function ordinaryLimit(regime: FoiRegime, profile: TimeProfile): number {
   return 20;
 }
 
+const NUMBER_WORDS: Record<number, string> = { 20: 'twenty', 30: 'thirty' };
+
+/**
+ * The ordinary time limit for a regime, in the words a requester would read:
+ * "twenty working days", "thirty working days" for an archive, or "twenty
+ * school days" for a school under the Acts. The environmental regulations
+ * have no school or archive rule.
+ */
+export function timeLimitWords(
+  regime: FoiRegime,
+  profile: TimeProfile
+): string {
+  if (profile === 'school' && (regime === 'foia' || regime === 'foisa'))
+    return 'twenty school days';
+  const n = ordinaryLimit(regime, profile);
+  return `${NUMBER_WORDS[n] ?? n} working days`;
+}
+
 /**
  * The deadline for responding.
  *
@@ -990,7 +1008,7 @@ export type InformationRequestClock =
 /** Working days left before the deadline at which a request counts as due soon. */
 export const DUE_SOON_WORKING_DAYS = 5;
 
-const longDate = (d: Date) =>
+export const longDate = (d: Date) =>
   d.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',

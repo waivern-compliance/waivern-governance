@@ -242,6 +242,7 @@ export async function openIntakeLink(slug: string) {
       link: dsrIntakeLinks,
       entityName: entities.name,
       foiAct: entities.foiAct,
+      foiTimeProfile: entities.foiTimeProfile,
       organisationName: organisations.name
     })
     .from(dsrIntakeLinks)
@@ -254,23 +255,27 @@ export async function openIntakeLink(slug: string) {
       and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
     );
   if (!row) return null;
+  // An FOI form is open only while an FOI Act applies to its entity. Clearing
+  // the Act withdraws its forms; this covers any made before that rule.
+  if (row.link.kind === 'foi' && !row.foiAct) return null;
   // The other kind of form for the same entity, if one is open, so each form
   // can send people to the other when they have come to the wrong one.
-  const [other] = await db
-    .select({ slug: dsrIntakeLinks.slug })
-    .from(dsrIntakeLinks)
-    .where(
-      and(
-        eq(dsrIntakeLinks.entityId, row.link.entityId),
-        eq(
-          dsrIntakeLinks.kind,
-          row.link.kind === 'foi' ? 'data_protection' : 'foi'
-        ),
-        isNull(dsrIntakeLinks.revokedAt)
-      )
-    )
-    .orderBy(desc(dsrIntakeLinks.createdAt))
-    .limit(1);
+  const otherKind = row.link.kind === 'foi' ? 'data_protection' : 'foi';
+  const [other] =
+    otherKind === 'foi' && !row.foiAct
+      ? []
+      : await db
+          .select({ slug: dsrIntakeLinks.slug })
+          .from(dsrIntakeLinks)
+          .where(
+            and(
+              eq(dsrIntakeLinks.entityId, row.link.entityId),
+              eq(dsrIntakeLinks.kind, otherKind),
+              isNull(dsrIntakeLinks.revokedAt)
+            )
+          )
+          .orderBy(desc(dsrIntakeLinks.createdAt))
+          .limit(1);
   return {
     linkId: row.link.id,
     organisationId: row.link.organisationId,
@@ -280,6 +285,7 @@ export async function openIntakeLink(slug: string) {
     takesComplaints:
       row.link.kind === 'data_protection' && row.link.takesComplaints,
     foiAct: row.foiAct,
+    foiTimeProfile: row.foiTimeProfile,
     otherFormSlug: other?.slug ?? null,
     // Who the person is writing to: the entity, which is the controller.
     controllerName:
@@ -293,7 +299,7 @@ export type IntakeResult =
   | { ok: true; reference: string; receivedAt: Date; dueWords: string }
   | { ok: false; message: string };
 
-const clip = (value: string, max: number) => value.trim().slice(0, max);
+export const clip = (value: string, max: number) => value.trim().slice(0, max);
 
 /**
  * Take a request from the public form.

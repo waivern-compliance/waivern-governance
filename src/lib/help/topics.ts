@@ -1045,7 +1045,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'A public form, if you want one',
         body: [
-          'On this page, an owner can create a web form for an entity an FOI Act applies to, and publish its address on your freedom of information page. People can then make a request without an account. Each submission is recorded here as arriving by web form, the twenty working days start at once, and a task goes to the team. The requester gets a reference and the date the response is due, and nothing else.',
+          'On this page, an owner or privacy administrator can create a web form for an entity an FOI Act applies to, and publish its address on your freedom of information page. People can then make a request without an account. Each submission is recorded here as arriving by web form, the twenty working days start at once, and a task goes to the team. The requester gets a reference and the date the response is due, and nothing else.',
           'The form asks only what a valid request needs: a real name, an address for the reply, and a description of the information. It never asks why they want it. It asks whether the information is about the environment, so the request is filed under the right rules; check that when you pick it up.',
           'Somebody asking for information about themselves is turned back before anything is recorded, and sent to your data protection request form for the same entity if there is one. That form, in turn, points people to the FOI form when they want other information you hold.'
         ]
