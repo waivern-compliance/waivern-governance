@@ -62,6 +62,7 @@ import * as extraction from '@/services/extraction';
 import * as graph from '@/services/graph';
 import * as guidance from '@/services/guidance';
 import * as handover from '@/services/handover';
+import * as foiReviews from '@/services/information-request-reviews';
 import * as foi from '@/services/information-requests';
 import * as ingest from '@/services/ingest';
 import * as marketingSvc from '@/services/marketing';
@@ -302,6 +303,38 @@ async function populated() {
       requestId: foiToConvert.id,
       actor: SYSTEM
     });
+  const foiAnswered = await foi.recordInformationRequest({
+    organisationId: id,
+    entityId: foiEntity.id,
+    channel: 'email',
+    receivedAt: new Date(),
+    description: "B's answered FOI request.",
+    requesterName: "B's reviewing requester",
+    actor: SYSTEM
+  });
+  await foi.respondToInformationRequest({
+    organisationId: id,
+    requestId: foiAnswered.id,
+    respondedAt: new Date(),
+    summary: 'Released.',
+    actor: SYSTEM
+  });
+  const foiReview = await foiReviews.requestInformationRequestReview({
+    organisationId: id,
+    requestId: foiAnswered.id,
+    requestedAt: new Date(),
+    channel: 'email',
+    grounds: "B's requester's secret grounds.",
+    actor: SYSTEM
+  });
+  await foiReviews.recordRegulatorEvent({
+    organisationId: id,
+    requestId: foiAnswered.id,
+    kind: 'application',
+    note: "B's case.",
+    occurredAt: new Date(),
+    actor: SYSTEM
+  });
   const requestScope = await dsr.addScopeEntry({
     requestId: subjectRequest.id,
     organisationId: id,
@@ -594,6 +627,8 @@ async function populated() {
     foiEntity,
     foiRequest,
     foiConvertedDsr,
+    foiAnswered,
+    foiReview,
     requestScope,
     complaint,
     webProperty,
@@ -912,6 +947,28 @@ describe("reading another organisation's records", () => {
     [
       'foi.convertedFrom',
       () => foi.convertedFrom(B.foiConvertedDsr.id, A.org.id)
+    ],
+    [
+      'foi.decisionsOf',
+      () => foi.decisionsOf(A.org.id, [B.foiRequest.id, B.foiAnswered.id])
+    ],
+    ['foi.lockedRequest', () => foi.lockedRequest(A.org.id, B.foiAnswered.id)],
+    [
+      'foiReviews.reviewsAndRegulator',
+      () =>
+        foiReviews
+          .reviewsAndRegulator(A.org.id, {
+            ...B.foiAnswered,
+            clock: { state: 'met', dueAt: new Date() }
+          })
+          .then((r) => [...r.reviews, ...r.events])
+    ],
+    [
+      'foiReviews.reviewsNeedingAttention',
+      () =>
+        foiReviews
+          .reviewsNeedingAttention(A.org.id)
+          .then((r) => [...r.reviews, ...r.steps])
     ],
     [
       'complaintsSvc.loadComplaint',
@@ -2009,6 +2066,67 @@ describe("changing another organisation's records", () => {
           requestId: B.foiRequest.id,
           kind: 'advice',
           rationale: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'foiReviews.requestInformationRequestReview',
+      () =>
+        foiReviews.requestInformationRequestReview({
+          organisationId: A.org.id,
+          requestId: B.foiAnswered.id,
+          requestedAt: new Date(),
+          channel: 'email',
+          grounds: 'planted',
+          actor: as()
+        })
+    ],
+    [
+      'foiReviews.decideInformationRequestReview',
+      () =>
+        foiReviews.decideInformationRequestReview({
+          organisationId: A.org.id,
+          requestId: B.foiAnswered.id,
+          reviewId: B.foiReview.id,
+          outcome: 'reversed',
+          decidedAt: new Date(),
+          summary: 'taken',
+          reviewerName: 'taken',
+          noticeChecked: true,
+          actor: as()
+        })
+    ],
+    [
+      'foiReviews.extendInformationRequestReview',
+      () =>
+        foiReviews.extendInformationRequestReview({
+          organisationId: A.org.id,
+          requestId: B.foiAnswered.id,
+          reviewId: B.foiReview.id,
+          reason: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'foiReviews.withdrawInformationRequestReview',
+      () =>
+        foiReviews.withdrawInformationRequestReview({
+          organisationId: A.org.id,
+          requestId: B.foiAnswered.id,
+          reviewId: B.foiReview.id,
+          note: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'foiReviews.recordRegulatorEvent',
+      () =>
+        foiReviews.recordRegulatorEvent({
+          organisationId: A.org.id,
+          requestId: B.foiAnswered.id,
+          kind: 'closed',
+          note: 'taken',
+          occurredAt: new Date(),
           actor: as()
         })
     ],
@@ -3186,6 +3304,8 @@ describe('lists', () => {
       B.breach.id,
       B.subjectRequest.id,
       B.foiRequest.id,
+      B.foiAnswered.id,
+      B.foiReview.id,
       B.foiEntity.id,
       B.complaint.id,
       B.webProperty.id,

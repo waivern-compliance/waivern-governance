@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -77,9 +77,9 @@ export class InformationRequestRefused extends Error {
   }
 }
 
-const TEXT_LIMIT = 10_000;
+export const TEXT_LIMIT = 10_000;
 
-function clean(value: string | null | undefined): string | null {
+export function clean(value: string | null | undefined): string | null {
   const v = value?.trim();
   return v ? v : null;
 }
@@ -89,7 +89,7 @@ function clean(value: string | null | undefined): string | null {
  * without a time, read as midnight, so a step taken the day a request arrived
  * would otherwise count as coming before it.
  */
-function earlierDay(a: Date, b: Date): boolean {
+export function earlierDay(a: Date, b: Date): boolean {
   return a.toISOString().slice(0, 10) < b.toISOString().slice(0, 10);
 }
 
@@ -118,6 +118,7 @@ async function retireDeadlineTasks(
         eq(tasks.organisationId, input.organisationId),
         eq(tasks.type, 'foi_deadline'),
         eq(tasks.subjectId, input.requestId),
+        like(tasks.idempotencyKey, 'foi-deadline:%'),
         inArray(tasks.status, ['open', 'in_progress']),
         input.exceptKey ? ne(tasks.idempotencyKey, input.exceptKey) : undefined
       )
@@ -273,7 +274,7 @@ export async function recordInformationRequest(input: {
   );
 }
 
-async function lockedRequest(organisationId: string, requestId: string) {
+export async function lockedRequest(organisationId: string, requestId: string) {
   const [row] = await db
     .select()
     .from(informationRequests)
@@ -528,7 +529,7 @@ export function refuses(decisions: readonly InformationRequestDecision[]) {
   return decisions.some((d) => REFUSING.includes(d.kind));
 }
 
-function clockOf(
+export function clockOf(
   row: InformationRequest,
   decisions: readonly InformationRequestDecision[],
   now = new Date()
@@ -576,7 +577,7 @@ function ordinaryDeadline(
     : requestDeadline({ ...common, regimes: row.regimes, feePauses: pauses });
 }
 
-async function decisionsOf(
+export async function decisionsOf(
   organisationId: string,
   requestIds: string[]
 ): Promise<Map<string, InformationRequestDecision[]>> {
