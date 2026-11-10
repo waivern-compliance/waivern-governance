@@ -13,6 +13,7 @@ import {
 } from '@/lib/foi/statutory';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
+import { reviewsAndRegulator } from '@/services/information-request-reviews';
 import {
   feeAwaited,
   loadInformationRequest,
@@ -35,6 +36,7 @@ import {
   STATUS_LABEL
 } from '../fields';
 import { DecisionForms, DecisionHistory } from './Decisions';
+import { RegulatorSection, ReviewsSection } from './Reviews';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
 const longDate = (d: Date) =>
@@ -68,6 +70,10 @@ export default async function InformationRequestPage({
     );
   }
 
+  const after = await reviewsAndRegulator(
+    active.membership.organisationId,
+    request
+  );
   const open = request.status === 'open';
   const refusing = refuses(request.decisions);
   const feesAwaited = request.regimes.filter((r) =>
@@ -201,6 +207,29 @@ export default async function InformationRequestPage({
           />
         ) : null}
       </section>
+
+      {request.status !== 'converted' &&
+      (after.mayAskForReview || after.reviews.length > 0) ? (
+        <ReviewsSection
+          requestId={request.id}
+          regimes={request.regimes}
+          reviews={after.reviews}
+          lastDayToAsk={after.lastDayToAsk}
+          mayAskForReview={after.mayAskForReview}
+          aboutNoResponse={open}
+          school={request.timeProfile === 'school'}
+        />
+      ) : null}
+
+      {request.status !== 'converted' &&
+      (after.reviews.length > 0 || after.events.length > 0) ? (
+        <RegulatorSection
+          requestId={request.id}
+          act={request.act}
+          events={after.events}
+          regulatorCase={after.regulatorCase}
+        />
+      ) : null}
 
       {request.status === 'closed' ? (
         <section className="space-y-2 rounded border border-line bg-surface p-5 text-sm">

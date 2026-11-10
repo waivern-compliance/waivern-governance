@@ -1041,6 +1041,21 @@ export const HELP_TOPICS: HelpTopic[] = [
           'Record the response when it is sent: what was released, refused or not held, and where the letter is kept. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.',
           "A request for the requester's own personal data is exempt from freedom of information and is a subject access request instead. Convert it on the request page: a subject access request is recorded with the month running from the day the request arrived, and the two records point at each other."
         ]
+      },
+      {
+        heading: 'Reviews and the regulator',
+        body: [
+          'A requester who is unhappy with the response, or got none in time, can ask you to look again. Record the request for review on the request page: what they are unhappy with, in their words, and when it arrived, which starts the review clock. Only one review of a request is open at a time.',
+          'Record the outcome when the review notice is sent: whether the decision stands, changed in part or was reversed, who reviewed it, and whether more was released. The notice must tell them they can go to the regulator, and you confirm it does.',
+          'If they apply to the Information Commission, or in Scotland the Scottish Information Commissioner, record each step of the case as it happens: the application, enquiries, notices, any appeal, and the case closing. A decision notice that requires steps gives a date to take them by, and a task reminds you a week before.'
+        ],
+        points: [
+          'FOIA: the code of practice asks for an internal review within 40 working days of the response, decided within 20 working days, or 40 in exceptional cases.',
+          'Environmental information: reconsideration under EIR regulation 11, asked for in writing within 40 working days and decided within 40.',
+          'Scotland: review is a legal right (FOI(S)A sections 20 and 21, EI(S)R regulation 16), asked for in writing within 40 working days and decided within 20. An application to the Commissioner comes only after it.',
+          'Late requests for review: you need not accept one asked for after the last day. Say whether you do, and why.',
+          'Appeals: either side can appeal a decision notice, to the First-tier Tribunal within 28 days, or in Scotland to the Court of Session within 42. Steps an appeal affects need not be taken while it is pending.'
+        ]
       }
     ],
     related: ['data-subject-requests', 'complaints', 'organisation']

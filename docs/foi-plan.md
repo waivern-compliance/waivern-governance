@@ -357,11 +357,39 @@ Built as:
   days or overdue, keyed on the request, state and due date.
 - Request page: decision history, and a form per kind. Help topic extended.
 
-### Phase 3: reviews and the regulator
+### Phase 3: reviews and the regulator (built)
 
 - Internal review, reg 11 reconsideration and FOI(S)A s.20–21, with their clocks.
 - Applications to the Information Commission or the Scottish Information Commissioner,
   and their outcomes.
+
+Built as:
+
+- `information_request_review` and `information_request_regulator_event` (migration
+  0095, row-level security). One open review per request, enforced by a partial unique
+  index.
+- `lib/foi/statutory.ts`: `reviewAskedLate` (each regime's own window), `reviewDueAt`
+  (the earliest part of a mixed review; the code's further twenty days for FOIA
+  alone), `informationRequestReviewClock`, `REGULATOR_APPLICATION`, `APPEAL` and
+  `appealDeadline` (28 calendar days to the First-tier Tribunal; 42 to the Court of
+  Session).
+- `services/information-request-reviews.ts`:
+  - a review only of an answered request, or of one past its deadline (then recorded
+    as about the failure to respond); never of a closed or converted one;
+  - EIR reg 11(2) and FOI(S)A s.20(3) reviews must be asked for in writing;
+  - one asked for after the last day needs a choice, accept or decline, with a reason;
+    a declined one is recorded as decided there and then;
+  - the outcome (upheld, varied, reversed) needs the reviewer and confirmation that the
+    notice gives the right to go to the regulator; a late one needs the reason;
+  - the FOIA exceptional extension only before the time runs out;
+  - regulator events in order: an application opens a case (after a review, for
+    FOI(S)A s.47(1)); a decision notice against the authority needs a date for its
+    steps; an appeal needs a notice and suspends the steps (FOIA s.50(6)); nothing
+    follows a closed case but a new application.
+- The sweep raises `foi_deadline` tasks for reviews due within five working days or
+  overdue, and for the regulator's steps due within a week or past, all on the request.
+- Request page: review cards with their clocks and forms, and the regulator's case
+  with its events. Help topic extended.
 
 ### Phase 4: the public FOI form
 

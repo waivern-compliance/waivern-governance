@@ -413,6 +413,172 @@ export function reviewDeadline(input: {
 }
 
 /**
+ * The regimes of a review whose request came after the last day to ask. Each
+ * part of a mixed request has its own window; a part asked about in time is
+ * reviewed however late the others are.
+ */
+export function reviewAskedLate(input: {
+  regimes: readonly FoiRegime[];
+  requestedAt: Date;
+  respondedAt?: Date | null;
+  deadline: Date;
+}): FoiRegime[] {
+  return input.regimes.filter(
+    (regime) =>
+      startOfDay(input.requestedAt) >
+      startOfDay(reviewRequestDeadline({ ...input, regime }))
+  );
+}
+
+/**
+ * When a review covering several regimes is due: the earliest of its parts,
+ * as with the request. The code's exceptional further twenty working days
+ * (FOIA s.45 code, para 5.5) are FOIA's alone.
+ */
+export function reviewDueAt(input: {
+  regimes: readonly FoiRegime[];
+  requestedAt: Date;
+  exceptional?: boolean;
+  profile?: TimeProfile;
+  schoolDaysDeadline?: Date | null;
+}): Date {
+  return input.regimes
+    .map((regime) =>
+      reviewDeadline({
+        ...input,
+        regime,
+        exceptional: regime === 'foia' && input.exceptional
+      })
+    )
+    .reduce((a, b) => (b < a ? b : a));
+}
+
+/** Whether a regime's review may take the code's exceptional extra time. */
+export function allowsExceptionalReview(regime: FoiRegime): boolean {
+  return REVIEW[regime].decideAtMost > REVIEW[regime].decideWithin;
+}
+
+export type InformationRequestReviewClock =
+  | { state: 'running'; daysRemaining: number; dueAt: Date; words: string }
+  | { state: 'due_soon'; daysRemaining: number; dueAt: Date; words: string }
+  | { state: 'overdue'; daysOver: number; dueAt: Date; words: string }
+  | { state: 'met'; dueAt: Date; decidedAt: Date; words: string }
+  | { state: 'late'; dueAt: Date; decidedAt: Date; words: string }
+  | { state: 'withdrawn'; words: string };
+
+/** How a review stands, said in words a handler can act on. */
+export function informationRequestReviewClock(input: {
+  regimes: readonly FoiRegime[];
+  requestedAt: Date;
+  exceptional?: boolean;
+  profile?: TimeProfile;
+  schoolDaysDeadline?: Date | null;
+  decidedAt?: Date | null;
+  withdrawn?: boolean;
+  now?: Date;
+}): InformationRequestReviewClock {
+  const now = input.now ?? new Date();
+  if (input.withdrawn && !input.decidedAt)
+    return {
+      state: 'withdrawn',
+      words: 'Withdrawn. No decision is owed.'
+    };
+  const dueAt = reviewDueAt(input);
+  if (input.decidedAt)
+    return input.decidedAt <= dueAt
+      ? {
+          state: 'met',
+          dueAt,
+          decidedAt: input.decidedAt,
+          words: `Decided on ${longDate(input.decidedAt)}, within the time allowed.`
+        }
+      : {
+          state: 'late',
+          dueAt,
+          decidedAt: input.decidedAt,
+          words: `Decided on ${longDate(input.decidedAt)}, after ${longDate(dueAt)}.`
+        };
+  const act = actOf(input.regimes[0] ?? 'foia');
+  if (dueAt < now) {
+    const over = Math.max(1, workingDaysBetween(dueAt, now, act));
+    return {
+      state: 'overdue',
+      daysOver: over,
+      dueAt,
+      words: `${workingDays(over)} past ${longDate(dueAt)}. The decision is still owed, and the requester can go to ${REGULATOR[act]}.`
+    };
+  }
+  const remaining = workingDaysBetween(now, dueAt, act);
+  return remaining <= DUE_SOON_WORKING_DAYS
+    ? {
+        state: 'due_soon',
+        daysRemaining: remaining,
+        dueAt,
+        words: `${workingDays(remaining)} left, to ${longDate(dueAt)}. Decide the review, and send the notice, by then.`
+      }
+    : {
+        state: 'running',
+        daysRemaining: remaining,
+        dueAt,
+        words: `Due by ${longDate(dueAt)}.`
+      };
+}
+
+/**
+ * Going to the regulator. FOIA s.50: any complainant may apply to the
+ * Information Commission, which need not decide where the authority's
+ * complaints procedure has not been used, or after undue delay. FOI(S)A
+ * s.47: only after a review, or a failure to give one, and within six months
+ * of the review notice or of the time for it running out.
+ */
+export const REGULATOR_APPLICATION: Record<
+  FoiAct,
+  { provision: string; reviewFirst: 'expected' | 'required'; within: string }
+> = {
+  foia: {
+    provision: 's.50',
+    reviewFirst: 'expected',
+    within: 'without undue delay'
+  },
+  foisa: {
+    provision: 's.47',
+    reviewFirst: 'required',
+    within: 'within six months of the review notice, or of the time for it'
+  }
+};
+
+/**
+ * The appeal from the regulator's decision notice, open to the requester and
+ * the authority. FOIA s.57: to the First-tier Tribunal (General Regulatory
+ * Chamber), within 28 days of the notice being sent (the Chamber's procedure
+ * rules, r.22). FOI(S)A s.56: to the Court of Session on a point of law,
+ * within 42 days. Calendar days, not working days. While an appeal is brought,
+ * a step it affects need not be taken (FOIA s.50(6)).
+ */
+export const APPEAL: Record<
+  FoiAct,
+  { to: string; provision: string; days: number }
+> = {
+  foia: {
+    to: 'the First-tier Tribunal (General Regulatory Chamber)',
+    provision: 's.57',
+    days: 28
+  },
+  foisa: {
+    to: 'the Court of Session, on a point of law',
+    provision: 's.56',
+    days: 42
+  }
+};
+
+/** The last day to appeal a decision notice sent on a given day. */
+export function appealDeadline(act: FoiAct, noticeSentAt: Date): Date {
+  return endOfDay(
+    new Date(startOfDay(noticeSentAt).getTime() + APPEAL[act].days * DAY)
+  );
+}
+
+/**
  * The appropriate limit under FOIA s.12 (S.I. 2004/3244): £600 for the bodies
  * in Schedule 1 Part I, £450 for everyone else, with staff time at £25 an hour
  * spent determining whether the information is held, locating, retrieving and

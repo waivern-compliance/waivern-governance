@@ -299,6 +299,40 @@ export const informationRequestDecisionKind = pgEnum(
   ]
 );
 
+/** Where a review of a freedom of information request is. */
+export const informationRequestReviewStatus = pgEnum(
+  'information_request_review_status',
+  ['open', 'decided', 'withdrawn']
+);
+
+/**
+ * What a review came to. `declined` is for a review asked for after the last
+ * day, which the authority need not accept.
+ */
+export const informationRequestReviewOutcome = pgEnum(
+  'information_request_review_outcome',
+  ['upheld', 'varied', 'reversed', 'declined']
+);
+
+/**
+ * A dated step in a case before the regulator, or an appeal from it, kept
+ * rather than overwritten. FOIA ss.50 to 57; FOI(S)A ss.47 to 56.
+ */
+export const informationRequestRegulatorEventKind = pgEnum(
+  'information_request_regulator_event_kind',
+  [
+    'application',
+    'enquiry',
+    'information_notice',
+    'decision_notice',
+    'complied',
+    'appeal_lodged',
+    'appeal_decided',
+    'enforcement_notice',
+    'closed'
+  ]
+);
+
 /**
  * Where a request from a data subject is in its handling.
  *

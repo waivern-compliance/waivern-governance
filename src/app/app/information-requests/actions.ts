@@ -7,6 +7,15 @@ import { refusable } from '@/lib/edit-result';
 import { can } from '@/lib/rbac';
 import { NotPermitted, requireCapability } from '@/lib/session';
 import {
+  decideInformationRequestReview,
+  extendInformationRequestReview,
+  recordRegulatorEvent,
+  requestInformationRequestReview,
+  withdrawInformationRequestReview,
+  type RegulatorEventKind,
+  type ReviewOutcome
+} from '@/services/information-request-reviews';
+import {
   closeInformationRequest,
   convertToSubjectAccessRequest,
   loadInformationRequest,
@@ -292,6 +301,166 @@ export async function recordDecisionAction(
       },
       rationale: text(formData.get('rationale')),
       effectiveAt: when(formData.get('effectiveAt')) ?? undefined,
+      actor: actorOf(active)
+    });
+  }, 'Recorded.');
+  revalidate(requestId);
+  return result;
+}
+
+const REGIMES = ['foia', 'eir', 'foisa', 'eisr'] as const;
+
+export async function requestReviewAction(
+  requestId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const requestedAt = when(formData.get('requestedAt'));
+  if (!requestedAt)
+    return { ok: false, message: 'Give the date the review was asked for.' };
+  const late = text(formData.get('late'));
+  const result = await refused(async () => {
+    await requestInformationRequestReview({
+      organisationId: active.membership.organisationId,
+      requestId,
+      regimes: formData
+        .getAll('regimes')
+        .map(String)
+        .filter((r) => (REGIMES as readonly string[]).includes(r)),
+      requestedAt,
+      channel: text(formData.get('channel')),
+      grounds: text(formData.get('grounds')),
+      late:
+        late === 'accept' || late === 'decline'
+          ? {
+              accept: late === 'accept',
+              reason: text(formData.get('lateReason'))
+            }
+          : null,
+      reviewerName: text(formData.get('reviewerName')) || null,
+      reviewerNotInvolved: formData.get('reviewerNotInvolved') === 'on',
+      schoolDaysDeadline: when(formData.get('schoolDaysDeadline')),
+      actor: actorOf(active)
+    });
+  }, 'Recorded.');
+  revalidate(requestId);
+  return result;
+}
+
+export async function extendReviewAction(
+  requestId: string,
+  reviewId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const result = await refused(async () => {
+    await extendInformationRequestReview({
+      organisationId: active.membership.organisationId,
+      requestId,
+      reviewId,
+      reason: text(formData.get('reason')),
+      actor: actorOf(active)
+    });
+  }, 'Extended.');
+  revalidate(requestId);
+  return result;
+}
+
+const OUTCOMES: readonly ReviewOutcome[] = ['upheld', 'varied', 'reversed'];
+
+export async function decideReviewAction(
+  requestId: string,
+  reviewId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const outcome = text(formData.get('outcome')) as ReviewOutcome;
+  if (!OUTCOMES.includes(outcome))
+    return { ok: false, message: 'Choose what the review came to.' };
+  const decidedAt = when(formData.get('decidedAt'));
+  if (!decidedAt)
+    return { ok: false, message: 'Give the date the review notice was sent.' };
+  const released = text(formData.get('informationReleased'));
+  const result = await refused(async () => {
+    await decideInformationRequestReview({
+      organisationId: active.membership.organisationId,
+      requestId,
+      reviewId,
+      outcome,
+      decidedAt,
+      summary: text(formData.get('summary')),
+      informationReleased:
+        released === '' ? null : released === 'yes' ? true : false,
+      noticeChecked: formData.get('noticeChecked') === 'on',
+      lateReason: text(formData.get('lateReason')) || null,
+      reviewerName: text(formData.get('reviewerName')) || null,
+      reviewerNotInvolved: formData.get('reviewerNotInvolved') === 'on',
+      actor: actorOf(active)
+    });
+  }, 'Recorded.');
+  revalidate(requestId);
+  return result;
+}
+
+export async function withdrawReviewAction(
+  requestId: string,
+  reviewId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const result = await refused(async () => {
+    await withdrawInformationRequestReview({
+      organisationId: active.membership.organisationId,
+      requestId,
+      reviewId,
+      note: text(formData.get('note')),
+      actor: actorOf(active)
+    });
+  }, 'Recorded.');
+  revalidate(requestId);
+  return result;
+}
+
+const EVENT_KINDS: readonly RegulatorEventKind[] = [
+  'application',
+  'enquiry',
+  'information_notice',
+  'decision_notice',
+  'complied',
+  'appeal_lodged',
+  'appeal_decided',
+  'enforcement_notice',
+  'closed'
+];
+
+export async function recordRegulatorEventAction(
+  requestId: string,
+  _prev: Result,
+  formData: FormData
+): Promise<Result> {
+  const { active } = await forRequest(requestId);
+  const kind = text(formData.get('kind')) as RegulatorEventKind;
+  if (!EVENT_KINDS.includes(kind))
+    return { ok: false, message: 'Choose what happened.' };
+  const occurredAt = when(formData.get('occurredAt'));
+  if (!occurredAt) return { ok: false, message: 'Give the date it happened.' };
+  const result = await refused(async () => {
+    await recordRegulatorEvent({
+      organisationId: active.membership.organisationId,
+      requestId,
+      kind,
+      caseReference: text(formData.get('caseReference')) || null,
+      note: text(formData.get('note')),
+      occurredAt,
+      detail: {
+        finding: text(formData.get('finding')) || undefined,
+        complyBy: text(formData.get('complyBy')) || undefined,
+        appellant: text(formData.get('appellant')) || undefined
+      },
       actor: actorOf(active)
     });
   }, 'Recorded.');
