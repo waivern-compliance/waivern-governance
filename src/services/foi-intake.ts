@@ -2,9 +2,21 @@ import { eq, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import { dsrIntakeLinks } from '@/db/schema';
-import { requestDeadline } from '@/lib/foi/statutory';
+import {
+  longDate,
+  requestDeadline,
+  timeLimitWords,
+  type FoiRegime,
+  type TimeProfile
+} from '@/lib/foi/statutory';
 
-import { admit, TOO_MANY, withinLimits, type IntakeResult } from './dsr-intake';
+import {
+  admit,
+  clip,
+  TOO_MANY,
+  withinLimits,
+  type IntakeResult
+} from './dsr-intake';
 import {
   InformationRequestRefused,
   recordInformationRequest
@@ -39,15 +51,27 @@ export const ENVIRONMENTAL_ASKS: Array<[string, string]> = [
   ['unsure', 'Not sure']
 ];
 
-const clip = (value: string, max: number) => value.trim().slice(0, max);
+const NOT_RECORDED =
+  'This form could not take your request. Send it to the organisation by email or by post instead: a written request counts just the same.';
 
-const longDate = (d: Date) =>
-  d.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC'
-  });
+/**
+ * When the response is due, in words. A school's twenty school days are a
+ * date the school works out, so the latest legal date is given with them. The
+ * environmental regulations have no school rule, so a request that is partly
+ * or wholly environmental is simply due by the date given.
+ */
+export function dueWords(
+  regimes: readonly FoiRegime[],
+  profile: TimeProfile,
+  dueAt: Date
+): string {
+  const schoolDays = regimes.every(
+    (r) => timeLimitWords(r, profile) === 'twenty school days'
+  );
+  return schoolDays
+    ? `They must respond promptly, within twenty school days, and by ${longDate(dueAt)} at the latest.`
+    : `They must respond promptly, and by ${longDate(dueAt)} at the latest.`;
+}
 
 export async function submitInformationRequestIntake(input: {
   slug: string;
@@ -146,8 +170,10 @@ export async function submitInformationRequestIntake(input: {
         }
       });
     } catch (error) {
+      // The register's refusals are worded for staff. The public gets the
+      // way to ask that always works.
       if (error instanceof InformationRequestRefused)
-        return { ok: false as const, message: error.message };
+        return { ok: false as const, message: NOT_RECORDED };
       throw error;
     }
 
@@ -188,10 +214,7 @@ export async function submitInformationRequestIntake(input: {
       ok: true as const,
       reference: request.reference,
       receivedAt: request.receivedAt,
-      dueWords:
-        request.timeProfile === 'school'
-          ? `They must respond promptly, within twenty school days, and by ${longDate(dueAt)} at the latest.`
-          : `They must respond promptly, and by ${longDate(dueAt)} at the latest.`
+      dueWords: dueWords(request.regimes, request.timeProfile, dueAt)
     };
   });
 }

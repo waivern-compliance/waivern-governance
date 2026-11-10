@@ -5,12 +5,14 @@ import { and, eq } from 'drizzle-orm';
 import { db, sql as pg } from '@/db/client';
 import {
   auditEvents,
+  dsrIntakeLinks,
   entities,
   informationRequests,
   organisations,
   tasks
 } from '@/db/schema';
 import { verifyAuditChain } from '@/lib/audit';
+import { timeLimitWords } from '@/lib/foi/statutory';
 import { mayConfigureInformationRequests } from '@/lib/rbac';
 import { RequestRefused } from '@/services/data-subject-requests';
 import {
@@ -24,7 +26,10 @@ import {
   submitIntake
 } from '@/services/dsr-intake';
 import { setFreedomOfInformation } from '@/services/entities';
-import { submitInformationRequestIntake } from '@/services/foi-intake';
+import {
+  dueWords,
+  submitInformationRequestIntake
+} from '@/services/foi-intake';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -288,5 +293,111 @@ describe('a request through the form', () => {
     const over = await send(link.slug);
     assert.equal(over.ok, false);
     assert.match((over as { message: string }).message, /Too many/);
+  });
+});
+
+describe('when the entity stops answering FOI requests', () => {
+  it('withdraws its FOI forms, audits it, and stops the other form pointing there', async () => {
+    const w = await world('cleared');
+    const foi = await foiForm(w);
+    const dp = await issueIntakeLink({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      label: 'Privacy notice',
+      actor: SYSTEM
+    });
+    await setFreedomOfInformation({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      act: null,
+      timeProfile: 'standard',
+      actor: SYSTEM
+    });
+    const [row] = await db
+      .select()
+      .from(dsrIntakeLinks)
+      .where(eq(dsrIntakeLinks.id, foi.id));
+    assert.ok(row.revokedAt, 'withdrawn');
+    assert.equal(await openIntakeLink(foi.slug), null);
+    assert.equal((await openIntakeLink(dp.slug))?.otherFormSlug, null);
+    // Still listed, as withdrawn, so the register can show what happened.
+    assert.equal(
+      (await intakeLinksFor(w.org.id, null, 'foi'))[0]?.link.revokedAt !== null,
+      true
+    );
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, w.org.id),
+          eq(auditEvents.action, 'entity.foi_changed')
+        )
+      )
+      .then((rows) => rows.filter((r) => r.after?.foiAct === null));
+    assert.deepEqual(
+      (event.after as { formsWithdrawn: string[] }).formsWithdrawn,
+      [foi.id]
+    );
+
+    // Setting an Act again does not bring the old address back.
+    await setFreedomOfInformation({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      act: 'foia',
+      timeProfile: 'standard',
+      actor: SYSTEM
+    });
+    assert.equal(await openIntakeLink(foi.slug), null);
+  });
+
+  it('closes a live FOI form whose entity has no Act, and tells a stale tab how else to ask', async () => {
+    const w = await world('legacy');
+    const foi = await foiForm(w);
+    // As if the Act had been cleared before forms were withdrawn with it.
+    await db
+      .update(entities)
+      .set({ foiAct: null })
+      .where(eq(entities.id, w.entity.id));
+    assert.equal(await openIntakeLink(foi.slug), null);
+    const result = await send(foi.slug);
+    assert.equal(result.ok, false);
+    const message = (result as { message: string }).message;
+    assert.match(message, /by email or post/);
+    assert.doesNotMatch(message, /Organisation page/);
+  });
+});
+
+describe('the time limit in words', () => {
+  it('gives schools twenty school days under the Acts only, and archives thirty', () => {
+    assert.equal(timeLimitWords('foia', 'school'), 'twenty school days');
+    assert.equal(timeLimitWords('eir', 'school'), 'twenty working days');
+    assert.equal(timeLimitWords('foisa', 'archive'), 'thirty working days');
+    assert.equal(timeLimitWords('eisr', 'archive'), 'twenty working days');
+    assert.equal(timeLimitWords('foia', 'standard'), 'twenty working days');
+  });
+
+  it('promises school days only where every part of the request has them', () => {
+    const due = new Date('2026-12-09T23:59:59Z');
+    assert.match(dueWords(['foia'], 'school', due), /twenty school days/);
+    assert.doesNotMatch(dueWords(['eir'], 'school', due), /school days/);
+    assert.doesNotMatch(
+      dueWords(['foia', 'eir'], 'school', due),
+      /school days/
+    );
+    assert.match(dueWords(['foia'], 'standard', due), /by 9 December 2026/);
+  });
+
+  it('is what the page shows for the entity', async () => {
+    const w = await world('archive');
+    await setFreedomOfInformation({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      act: 'foia',
+      timeProfile: 'archive',
+      actor: SYSTEM
+    });
+    const opened = await openIntakeLink((await foiForm(w)).slug);
+    assert.equal(opened?.foiTimeProfile, 'archive');
   });
 });

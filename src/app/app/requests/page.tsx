@@ -1,4 +1,3 @@
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
@@ -6,11 +5,13 @@ import { eq } from 'drizzle-orm';
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { HelpLink } from '@/components/help/HelpLink';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
+import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { JURISDICTION_LABEL, RIGHTS, type Right } from '@/lib/dsr/statutory';
 import { can, mayConfigureRequests } from '@/lib/rbac';
+import { requestOrigin } from '@/lib/request-origin';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
   defaultJurisdiction,
@@ -63,8 +64,7 @@ export default async function RequestsPage() {
       requestMetrics(org, visibleEntityIds(active, 'dsr.handle')),
       intakeLinksFor(org, visibleEntityIds(active, 'dsr.handle'))
     ]);
-  const h = await headers();
-  const origin = `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
+  const origin = await requestOrigin();
   const mayConfigure = mayConfigureRequests(active.membership.grants);
   const mayRecordIn = orgEntities.filter((e) =>
     can(active.membership.grants, 'dsr.handle', e.id)
@@ -419,81 +419,56 @@ export default async function RequestsPage() {
           how often one address can submit. It is one route among many: requests
           by email, post or in person still count.
         </p>
-        {intakeLinks.length > 0 ? (
-          <ul className="divide-y divide-line overflow-hidden rounded border border-line">
-            {intakeLinks.map(({ link, entityName }) => (
-              <li
-                key={link.id}
-                className="space-y-1 px-3 py-2.5 text-sm"
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-medium">
-                    {link.label}{' '}
-                    <span className="text-xs font-normal text-ink-soft">
-                      · {entityName}
-                    </span>
-                  </span>
-                  <span className="font-mono text-[11px] text-ink-soft">
-                    {link.revokedAt
-                      ? `withdrawn ${link.revokedAt.toISOString().slice(0, 10)}`
-                      : `${link.submissions} submission${link.submissions === 1 ? '' : 's'}`}
-                  </span>
-                </div>
-                {!link.revokedAt ? (
-                  <>
-                    <p className="break-all font-mono text-xs">{`${origin}/request/${link.slug}`}</p>
-                    <p className="text-xs text-ink-soft">
-                      {link.takesComplaints
-                        ? 'Takes requests and complaints.'
-                        : 'Takes requests only.'}
-                    </p>
-                    <EmbedPanel
-                      appOrigin={origin}
-                      slug={link.slug}
-                      title={
-                        link.takesComplaints
-                          ? `Make a request or complaint about your personal data to ${entityName}`
-                          : `Make a request about your personal data to ${entityName}`
-                      }
-                      frameOrigins={link.frameOrigins}
-                      setOrigins={
-                        mayConfigure
-                          ? setIntakeFrameOriginsAction.bind(null, link.id)
-                          : null
-                      }
-                    />
-                    {mayConfigure ? (
-                      <div className="flex flex-wrap gap-3 pt-1">
-                        <ActionForm
-                          action={setIntakeComplaintsAction.bind(
-                            null,
-                            link.id,
-                            !link.takesComplaints
-                          )}
-                          submit={
-                            link.takesComplaints
-                              ? 'Stop taking complaints'
-                              : 'Take complaints too'
-                          }
-                          className="space-y-2"
-                        >
-                          <span className="sr-only">For {link.label}</span>
-                        </ActionForm>
-                        <ActionForm
-                          action={revokeIntakeLinkAction.bind(null, link.id)}
-                          submit="Withdraw this form"
-                          className="space-y-2"
-                        >
-                          <span className="sr-only">Withdraw {link.label}</span>
-                        </ActionForm>
-                      </div>
-                    ) : null}
-                  </>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <IntakeFormList
+          forms={intakeLinks}
+          origin={origin}
+          withdraw={
+            mayConfigure
+              ? (linkId) => revokeIntakeLinkAction.bind(null, linkId)
+              : null
+          }
+          extra={(link, entityName) => (
+            <>
+              <p className="text-xs text-ink-soft">
+                {link.takesComplaints
+                  ? 'Takes requests and complaints.'
+                  : 'Takes requests only.'}
+              </p>
+              {mayConfigure ? (
+                <ActionForm
+                  action={setIntakeComplaintsAction.bind(
+                    null,
+                    link.id,
+                    !link.takesComplaints
+                  )}
+                  submit={
+                    link.takesComplaints
+                      ? 'Stop taking complaints'
+                      : 'Take complaints too'
+                  }
+                  className="space-y-2 pt-1"
+                >
+                  <span className="sr-only">For {link.label}</span>
+                </ActionForm>
+              ) : null}
+              <EmbedPanel
+                appOrigin={origin}
+                slug={link.slug}
+                title={
+                  link.takesComplaints
+                    ? `Make a request or complaint about your personal data to ${entityName}`
+                    : `Make a request about your personal data to ${entityName}`
+                }
+                frameOrigins={link.frameOrigins}
+                setOrigins={
+                  mayConfigure
+                    ? setIntakeFrameOriginsAction.bind(null, link.id)
+                    : null
+                }
+              />
+            </>
+          )}
+        />
         {mayConfigure && mayRecordIn.length > 0 ? (
           <ActionForm
             action={issueIntakeLinkAction}

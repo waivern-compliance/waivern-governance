@@ -1,4 +1,3 @@
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { and, eq, isNotNull } from 'drizzle-orm';
@@ -7,11 +6,13 @@ import { InformationRequestClock } from '@/components/foi/InformationRequestCloc
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
+import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { REGIME } from '@/lib/foi/statutory';
 import { can, mayConfigureInformationRequests } from '@/lib/rbac';
+import { requestOrigin } from '@/lib/request-origin';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { intakeLinksFor } from '@/services/dsr-intake';
 import { informationRequestRegister } from '@/services/information-requests';
@@ -56,8 +57,7 @@ export default async function InformationRequestsPage() {
     ),
     intakeLinksFor(org, visibleEntityIds(active, 'foi.handle'), 'foi')
   ]);
-  const h = await headers();
-  const origin = `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
+  const origin = await requestOrigin();
   const mayConfigure = mayConfigureInformationRequests(
     active.membership.grants
   );
@@ -265,7 +265,8 @@ export default async function InformationRequestsPage() {
         </details>
       ) : null}
 
-      {foiEntities.length > 0 ? (
+      {/* Shown while any form exists, so one can always be withdrawn. */}
+      {foiEntities.length > 0 || forms.length > 0 ? (
         <section className="space-y-3 rounded border border-line bg-surface p-5">
           <h2 className="text-sm font-semibold">Public request form</h2>
           <p className="max-w-prose text-xs text-ink-soft">
@@ -278,56 +279,29 @@ export default async function InformationRequestsPage() {
             to your data protection form if you have one. It shows nothing back
             except a reference and the deadline.
           </p>
-          {forms.length > 0 ? (
-            <ul className="divide-y divide-line overflow-hidden rounded border border-line">
-              {forms.map(({ link, entityName }) => (
-                <li
-                  key={link.id}
-                  className="space-y-1 px-3 py-2.5 text-sm"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-medium">
-                      {link.label}{' '}
-                      <span className="text-xs font-normal text-ink-soft">
-                        · {entityName}
-                      </span>
-                    </span>
-                    <span className="font-mono text-[11px] text-ink-soft">
-                      {link.revokedAt
-                        ? `withdrawn ${link.revokedAt.toISOString().slice(0, 10)}`
-                        : `${link.submissions} submission${link.submissions === 1 ? '' : 's'}`}
-                    </span>
-                  </div>
-                  {!link.revokedAt ? (
-                    <>
-                      <p className="break-all font-mono text-xs">{`${origin}/request/${link.slug}`}</p>
-                      <EmbedPanel
-                        appOrigin={origin}
-                        slug={link.slug}
-                        title={`Make a freedom of information request to ${entityName}`}
-                        frameOrigins={link.frameOrigins}
-                        setOrigins={
-                          mayConfigure
-                            ? setFoiFormOriginsAction.bind(null, link.id)
-                            : null
-                        }
-                      />
-                      {mayConfigure ? (
-                        <RefusableForm
-                          action={revokeFoiFormAction.bind(null, link.id)}
-                          submit="Withdraw this form"
-                          className="pt-1"
-                        >
-                          <span className="sr-only">Withdraw {link.label}</span>
-                        </RefusableForm>
-                      ) : null}
-                    </>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {mayConfigure ? (
+          <IntakeFormList
+            forms={forms}
+            origin={origin}
+            withdraw={
+              mayConfigure
+                ? (linkId) => revokeFoiFormAction.bind(null, linkId)
+                : null
+            }
+            extra={(link, entityName) => (
+              <EmbedPanel
+                appOrigin={origin}
+                slug={link.slug}
+                title={`Make a freedom of information request to ${entityName}`}
+                frameOrigins={link.frameOrigins}
+                setOrigins={
+                  mayConfigure
+                    ? setFoiFormOriginsAction.bind(null, link.id)
+                    : null
+                }
+              />
+            )}
+          />
+          {mayConfigure && foiEntities.length > 0 ? (
             <RefusableForm
               action={issueFoiFormAction}
               submit="Create a form"

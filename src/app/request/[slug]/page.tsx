@@ -1,11 +1,19 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { REGIME, REGULATOR } from '@/lib/foi/statutory';
+import {
+  FOI_ACT_REGIMES,
+  REGIME,
+  REGULATOR,
+  timeLimitWords,
+  type FoiAct,
+  type TimeProfile
+} from '@/lib/foi/statutory';
 import {
   COMPLAINT_ASKS,
   FIELD_LIMITS,
-  openIntakeLink,
+  openIntakeLink as lookUpForm,
   startedToken
 } from '@/services/dsr-intake';
 import { ENVIRONMENTAL_ASKS, FOI_FIELD_LIMITS } from '@/services/foi-intake';
@@ -13,6 +21,22 @@ import { ENVIRONMENTAL_ASKS, FOI_FIELD_LIMITS } from '@/services/foi-intake';
 import { FoiRequestForm } from './FoiRequestForm';
 import { FrameResize } from './FrameResize';
 import { RequestForm } from './RequestForm';
+
+/** One lookup per request, shared by the title and the page. */
+const openIntakeLink = cache(lookUpForm);
+
+/**
+ * How long the authority has, in words: its own Act's limit, and the
+ * environmental regulations' where they differ (no school or archive rule).
+ */
+function timeLimit(act: FoiAct, profile: TimeProfile): string {
+  const [main, environmental] = FOI_ACT_REGIMES[act];
+  const general = timeLimitWords(main, profile);
+  const env = timeLimitWords(environmental, profile);
+  return general === env
+    ? general
+    : `${general} (${env} for information about the environment)`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +84,8 @@ export default async function RequestPage({
             <p className="max-w-prose text-sm text-ink-soft">
               To {form.controllerName}. Under the {REGIME[form.foiAct].label}{' '}
               anyone can ask for information it holds, for any reason. It must
-              normally respond within twenty working days: by sending the
+              normally respond within{' '}
+              {timeLimit(form.foiAct, form.foiTimeProfile)}: by sending the
               information, or by explaining why it cannot.
             </p>
             <p className="max-w-prose text-xs text-ink-soft">
@@ -154,8 +179,7 @@ export default async function RequestPage({
           </h1>
           <p className="max-w-prose text-sm text-ink-soft">
             The address may be out of date. You can still make a request to the
-            organisation by email, by post or in person, and it counts just the
-            same.
+            organisation by email or by post, and it counts just the same.
           </p>
         </section>
       )}

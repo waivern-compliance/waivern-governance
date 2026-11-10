@@ -1,7 +1,7 @@
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
-import { entities, organisations } from '@/db/schema';
+import { dsrIntakeLinks, entities, organisations } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import {
   isDataProtectionLaw,
@@ -489,6 +489,25 @@ export async function setFreedomOfInformation(input: {
         })
         .where(eq(entities.id, before.id))
         .returning();
+      // Without an Act there is nothing to ask for under it. Withdraw the
+      // entity's freedom of information forms, so their addresses say so and
+      // do not quietly reopen if an Act is set again later.
+      const withdrawn = act
+        ? []
+        : await tx
+            .update(dsrIntakeLinks)
+            .set({
+              revokedAt: new Date(),
+              revokedBy: input.actor.actorUserId ?? null
+            })
+            .where(
+              and(
+                eq(dsrIntakeLinks.entityId, before.id),
+                eq(dsrIntakeLinks.kind, 'foi'),
+                isNull(dsrIntakeLinks.revokedAt)
+              )
+            )
+            .returning({ id: dsrIntakeLinks.id, label: dsrIntakeLinks.label });
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -507,7 +526,10 @@ export async function setFreedomOfInformation(input: {
           foiTimeProfile: timeProfile,
           foiCoveredFor: covered,
           publicAuthority,
-          regulator: act ? REGULATOR[act] : null
+          regulator: act ? REGULATOR[act] : null,
+          ...(withdrawn.length > 0
+            ? { formsWithdrawn: withdrawn.map((f) => f.id) }
+            : {})
         }
       });
       return after;
