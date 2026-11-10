@@ -277,27 +277,7 @@ describe('the clock', () => {
     );
   });
 
-  it('extends only environmental requests, and only FOIA for a Commission date', async () => {
-    const w = await world('extend');
-    const request = await aRequest(w);
-    await assert.rejects(
-      updateInformationRequest({
-        organisationId: w.org.id,
-        requestId: request.id,
-        extendedForComplexity: true,
-        actor: SYSTEM
-      }),
-      refusedWith(/Only environmental information/)
-    );
-    const updated = await updateInformationRequest({
-      organisationId: w.org.id,
-      requestId: request.id,
-      regimes: ['foia', 'eir'],
-      extendedForComplexity: true,
-      actor: SYSTEM
-    });
-    assert.equal(updated.extendedForComplexity, true);
-
+  it('takes a Commission date under FOIA only', async () => {
     const scotland = await world('extend-s', 'foisa');
     const scottish = await aRequest(scotland);
     await assert.rejects(
@@ -578,7 +558,7 @@ describe('decisions', () => {
     const expected = requestDeadline({
       regimes: ['foia'],
       startsAt: request.receivedAt,
-      feePauses: [{ from, to }]
+      feePauses: { foia: [{ from, to }] }
     });
     assert.ok('dueAt' in loaded!.clock);
     assert.equal(
@@ -674,5 +654,152 @@ describe('deadline tasks', () => {
         and(eq(tasks.organisationId, w.org.id), eq(tasks.type, 'foi_deadline'))
       );
     assert.equal(task.subjectId, request.id);
+  });
+});
+
+describe('what the review found', () => {
+  const today = () => new Date(new Date().toISOString().slice(0, 10));
+
+  it('takes a response and a decision dated the day the request arrived', async () => {
+    const w = await world('same-day');
+    const request = await aRequest(w, { receivedAt: new Date() });
+    await decide(w, request.id, {
+      kind: 'held',
+      detail: { held: 'held' },
+      effectiveAt: today()
+    });
+    const responded = await respondToInformationRequest({
+      organisationId: w.org.id,
+      requestId: request.id,
+      respondedAt: today(),
+      summary: 'Released in full.',
+      actor: SYSTEM
+    });
+    assert.equal(responded.status, 'responded');
+  });
+
+  it('keeps an environmental part to its own time when FOIA takes longer for the public interest', async () => {
+    const w = await world('mixed-pit');
+    const request = await aRequest(w, {
+      kind: 'both',
+      receivedAt: daysAgo(10)
+    });
+    const estimated = new Date(Date.now() + 40 * DAY);
+    await decide(w, request.id, {
+      kind: 'public_interest_extension',
+      regime: 'foia',
+      provision: 's.43',
+      detail: { estimatedDate: estimated.toISOString() }
+    });
+    const loaded = await loadInformationRequest(request.id, w.org.id);
+    const eirDue = requestDeadline({
+      regimes: ['eir'],
+      startsAt: request.receivedAt
+    });
+    assert.equal(
+      (loaded!.clock as { dueAt: Date }).dueAt.getTime(),
+      eirDue.getTime()
+    );
+  });
+
+  it('closes a single-regime request whose fee lapsed, and its deadline tasks', async () => {
+    const w = await world('lapse');
+    const request = await aRequest(w, { receivedAt: daysAgo(120) });
+    await sweepOrganisation(w.org.id);
+    await decide(w, request.id, {
+      kind: 'fees_notice',
+      detail: { amount: 25 },
+      effectiveAt: daysAgo(119)
+    });
+    await decide(w, request.id, {
+      kind: 'fee_lapsed',
+      effectiveAt: daysAgo(1)
+    });
+    const loaded = await loadInformationRequest(request.id, w.org.id);
+    assert.equal(loaded?.status, 'closed');
+    assert.equal(loaded?.clock.state, 'closed');
+    const open = await db
+      .select()
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.subjectId, request.id),
+          eq(tasks.type, 'foi_deadline'),
+          eq(tasks.status, 'open')
+        )
+      );
+    assert.equal(open.length, 0);
+  });
+
+  it('retires deadline tasks when the request is answered', async () => {
+    const w = await world('retire');
+    const request = await aRequest(w, { receivedAt: daysAgo(60) });
+    assert.equal((await sweepOrganisation(w.org.id)).foiDeadlinesRaised, 1);
+    await respondToInformationRequest({
+      organisationId: w.org.id,
+      requestId: request.id,
+      respondedAt: new Date(),
+      summary: 'Released.',
+      lateReason: 'Staff absence.',
+      actor: SYSTEM
+    });
+    const [task] = await db
+      .select()
+      .from(tasks)
+      .where(
+        and(eq(tasks.subjectId, request.id), eq(tasks.type, 'foi_deadline'))
+      );
+    assert.equal(task.status, 'done');
+  });
+
+  it('will not correct an answered request', async () => {
+    const w = await world('answered');
+    const request = await aRequest(w);
+    await respondToInformationRequest({
+      organisationId: w.org.id,
+      requestId: request.id,
+      respondedAt: new Date(),
+      summary: 'Released.',
+      actor: SYSTEM
+    });
+    await assert.rejects(
+      updateInformationRequest({
+        organisationId: w.org.id,
+        requestId: request.id,
+        regimes: ['foia', 'eir'],
+        actor: SYSTEM
+      }),
+      refusedWith(/answered or closed/)
+    );
+  });
+
+  it('records environmental information not held without a public interest test', async () => {
+    const w = await world('not-held');
+    const request = await aRequest(w, { kind: 'environmental' });
+    const row = await decide(w, request.id, {
+      kind: 'exemption',
+      regime: 'eir',
+      provision: 'reg 12(4)(a)'
+    });
+    assert.equal(row.provision, 'reg 12(4)(a)');
+  });
+
+  it('runs no deadline while clarification is awaited', async () => {
+    const w = await world('no-deadline');
+    const request = await aRequest(w, { receivedAt: daysAgo(40) });
+    await recordClarification({
+      organisationId: w.org.id,
+      requestId: request.id,
+      step: 'sought',
+      at: daysAgo(39),
+      actor: SYSTEM
+    });
+    const loaded = await loadInformationRequest(request.id, w.org.id);
+    assert.equal(loaded?.ordinaryDeadline, null);
+    // Nothing is late while no time runs.
+    await decide(w, request.id, {
+      kind: 'fees_notice',
+      detail: { amount: 10 }
+    });
   });
 });

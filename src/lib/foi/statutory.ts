@@ -470,7 +470,18 @@ export type Exemption = {
   title: string;
   /** No public interest test: if it applies, it applies. */
   absolute: boolean;
+  /**
+   * False where there is nothing to weigh although the provision is not
+   * absolute: information that is not held (EIR reg 12(4)(a), EI(S)R reg
+   * 10(4)(a)) cannot be balanced for or against disclosure.
+   */
+  weighed?: false;
 };
+
+/** Whether applying it needs the public interest test recorded. */
+export function needsPublicInterestTest(e: Exemption): boolean {
+  return !e.absolute && e.weighed !== false;
+}
 
 /**
  * FOIA Part II. Absolute per s.2(3); the rest are qualified, and withholding
@@ -581,7 +592,12 @@ export const FOIA_EXEMPTIONS: readonly Exemption[] = [
 export const EIR_EXCEPTIONS: readonly (Exemption & {
   notForEmissions?: boolean;
 })[] = [
-  { provision: 'reg 12(4)(a)', title: 'Not held', absolute: false },
+  {
+    provision: 'reg 12(4)(a)',
+    title: 'Not held',
+    absolute: false,
+    weighed: false
+  },
   {
     provision: 'reg 12(4)(b)',
     title: 'Manifestly unreasonable',
@@ -819,10 +835,18 @@ const longDate = (d: Date) =>
 const workingDays = (n: number) =>
   n === 1 ? '1 working day' : `${n} working days`;
 
+/** Fee pauses kept per regime: a fee charged under one regime pauses only that part. */
+export type FeePauses = Partial<Record<FoiRegime, readonly Pause[]>>;
+
 /**
  * The deadline for a request that may fall under more than one regime: the
  * earliest of its parts, because one response answers it and the part with
  * the shortest time sets when that response is due.
+ *
+ * Each part runs on its own rules. A fee pauses only the part it was charged
+ * under, and a FOIA public interest extension (s.10(3)) moves only the FOIA
+ * part: the environmental regulations have no such extension. A part waiting
+ * for its fee is left out while another part is running.
  */
 export function requestDeadline(input: {
   regimes: readonly FoiRegime[];
@@ -831,13 +855,31 @@ export function requestDeadline(input: {
   extendedForComplexity?: boolean;
   schoolDaysDeadline?: Date | null;
   commissionSetDeadline?: Date | null;
-  feePauses?: readonly Pause[];
+  feePauses?: FeePauses;
+  publicInterestDate?: Date | null;
   now?: Date;
 }): Date {
-  const dues = input.regimes.map((regime) =>
-    responseDeadline({ ...input, regime })
-  );
-  return dues.reduce((a, b) => (b < a ? b : a));
+  const pi = input.publicInterestDate
+    ? endOfDay(input.publicInterestDate)
+    : null;
+  const parts = input.regimes.map((regime) => {
+    const pauses = input.feePauses?.[regime] ?? [];
+    let due = responseDeadline({ ...input, regime, feePauses: pauses });
+    if (regime === 'foia' && pi && pi > due) due = pi;
+    return { due, waiting: pauses.some((p) => p.to === null) };
+  });
+  const running = parts.filter((p) => !p.waiting);
+  return (running.length > 0 ? running : parts)
+    .map((p) => p.due)
+    .reduce((a, b) => (b < a ? b : a));
+}
+
+/** Whether every part of the request is waiting for its fee. */
+export function waitingForFee(
+  regimes: readonly FoiRegime[],
+  feePauses: FeePauses = {}
+): boolean {
+  return regimes.every((r) => (feePauses[r] ?? []).some((p) => p.to === null));
 }
 
 /** How the request stands, said in words a handler can act on. */
@@ -850,8 +892,8 @@ export function informationRequestClock(input: {
   extendedForComplexity?: boolean;
   schoolDaysDeadline?: Date | null;
   commissionSetDeadline?: Date | null;
-  /** Fee notice to payment; `to` null while the fee is unpaid. */
-  feePauses?: readonly Pause[];
+  /** Fee notice to payment, per regime; `to` null while the fee is unpaid. */
+  feePauses?: FeePauses;
   /**
    * FOIA s.10(3): the date given in the refusal notice for deciding the public
    * interest. The response is owed by then rather than by the ordinary
@@ -875,11 +917,10 @@ export function informationRequestClock(input: {
         'Waiting for the requester to say more about what they want. The twenty working days start again when they do. Nothing is owed until then.'
     };
 
-  const ordinary = requestDeadline({ ...input, startsAt, now });
+  const dueAt = requestDeadline({ ...input, startsAt, now });
   const piDate = input.publicInterestDate
     ? endOfDay(input.publicInterestDate)
     : null;
-  const dueAt = piDate && piDate > ordinary ? piDate : ordinary;
   if (input.respondedAt)
     return input.respondedAt <= dueAt
       ? {
@@ -895,7 +936,7 @@ export function informationRequestClock(input: {
           words: `Responded on ${longDate(input.respondedAt)}, after the deadline of ${longDate(dueAt)}.`
         };
 
-  if (!input.respondedAt && (input.feePauses ?? []).some((p) => p.to === null))
+  if (waitingForFee(input.regimes, input.feePauses))
     return {
       state: 'waiting',
       words: `Waiting for the fee. Nothing is owed until it is paid, and the days until then do not count. If it were paid today, the deadline would be ${longDate(dueAt)}.`
@@ -924,7 +965,7 @@ export function informationRequestClock(input: {
     daysRemaining: remaining,
     dueAt,
     words:
-      piDate && dueAt === piDate
+      piDate && dueAt.getTime() === piDate.getTime()
         ? `The public interest is being weighed. The refusal notice gave ${longDate(dueAt)} for the decision.`
         : `Due by ${longDate(dueAt)}.`
   };

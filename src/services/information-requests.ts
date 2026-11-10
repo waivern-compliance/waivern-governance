@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -7,20 +7,25 @@ import {
   informationRequestDecisions,
   informationRequests,
   referenceCounters,
+  tasks,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import {
   allowsPublicInterestExtension,
+  clockStartsAt,
   costLimit,
   exceedsCostLimit,
   exemptionsFor,
   feeLapsesAt,
   FOI_ACT_REGIMES,
   informationRequestClock,
+  needsPublicInterestTest,
   OWN_DATA_PROVISIONS,
   REGIME,
   requestDeadline,
+  responseDeadline,
+  type FeePauses,
   type FoiAct,
   type FoiRegime,
   type InformationRequestClock,
@@ -77,6 +82,46 @@ const TEXT_LIMIT = 10_000;
 function clean(value: string | null | undefined): string | null {
   const v = value?.trim();
   return v ? v : null;
+}
+
+/**
+ * Whether one date falls on an earlier day than another. The forms give dates
+ * without a time, read as midnight, so a step taken the day a request arrived
+ * would otherwise count as coming before it.
+ */
+function earlierDay(a: Date, b: Date): boolean {
+  return a.toISOString().slice(0, 10) < b.toISOString().slice(0, 10);
+}
+
+/**
+ * Retire a request's open deadline tasks: once it is answered or closed they
+ * ask for nothing, and an overdue task supersedes the due-soon one.
+ */
+async function retireDeadlineTasks(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  input: {
+    organisationId: string;
+    requestId: string;
+    label: string;
+    exceptKey?: string;
+  }
+) {
+  await tx
+    .update(tasks)
+    .set({
+      status: 'done',
+      completedAt: new Date(),
+      completedByLabel: input.label
+    })
+    .where(
+      and(
+        eq(tasks.organisationId, input.organisationId),
+        eq(tasks.type, 'foi_deadline'),
+        eq(tasks.subjectId, input.requestId),
+        inArray(tasks.status, ['open', 'in_progress']),
+        input.exceptKey ? ne(tasks.idempotencyKey, input.exceptKey) : undefined
+      )
+    );
 }
 
 function checkedRegimes(act: FoiAct, regimes: readonly string[]): FoiRegime[] {
@@ -265,7 +310,6 @@ export async function updateInformationRequest(input: {
   pseudonymous?: boolean;
   preferredMeans?: string | null;
   ownerId?: string | null;
-  extendedForComplexity?: boolean;
   schoolDaysDeadline?: Date | null;
   commissionSetDeadline?: Date | null;
   actor: Actor;
@@ -273,6 +317,9 @@ export async function updateInformationRequest(input: {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const before = await lockedRequest(input.organisationId, input.requestId);
+      // An answered request's record is what it was answered on: changing its
+      // regimes or deadlines now would rewrite whether it was on time.
+      stillOpen(before);
       const regimes =
         input.regimes === undefined
           ? before.regimes
@@ -281,12 +328,6 @@ export async function updateInformationRequest(input: {
       if (input.ownerId)
         await assertMemberOf(input.organisationId, input.ownerId);
 
-      const extended =
-        input.extendedForComplexity ?? before.extendedForComplexity;
-      if (extended && !regimes.some((r) => r === 'eir' || r === 'eisr'))
-        throw new InformationRequestRefused(
-          'Only environmental information can be extended for complexity and volume (reg 7).'
-        );
       const commission =
         input.commissionSetDeadline === undefined
           ? before.commissionSetDeadline
@@ -326,7 +367,6 @@ export async function updateInformationRequest(input: {
             ? before.preferredMeans
             : clean(input.preferredMeans),
         ownerId: input.ownerId === undefined ? before.ownerId : input.ownerId,
-        extendedForComplexity: extended,
         schoolDaysDeadline: school,
         commissionSetDeadline: commission
       };
@@ -344,7 +384,6 @@ export async function updateInformationRequest(input: {
       // requester's address and the description stay out of the chain.
       const clockFields = [
         'regimes',
-        'extendedForComplexity',
         'schoolDaysDeadline',
         'commissionSetDeadline'
       ] as const;
@@ -396,14 +435,14 @@ export async function recordClarification(input: {
         throw new InformationRequestRefused(
           'Record asking for clarification before recording the answer.'
         );
-      if (input.at < before.receivedAt)
+      if (earlierDay(input.at, before.receivedAt))
         throw new InformationRequestRefused(
           'That is before the request arrived.'
         );
       if (
         input.step === 'received' &&
         before.clarificationSoughtAt &&
-        input.at < before.clarificationSoughtAt
+        earlierDay(input.at, before.clarificationSoughtAt)
       )
         throw new InformationRequestRefused(
           'The answer cannot come before the question.'
@@ -434,22 +473,35 @@ export async function recordClarification(input: {
   );
 }
 
-/** Fee notice to payment, read off the decisions. An unpaid notice leaves `to` null. */
+/**
+ * Fee notice to payment, per regime, read off the decisions. An unpaid notice
+ * leaves `to` null; a lapsed one ends the pause, and the request with it.
+ */
 export function feePausesOf(
   decisions: readonly InformationRequestDecision[]
-): Pause[] {
-  const pauses: Pause[] = [];
+): FeePauses {
+  const out: Partial<Record<FoiRegime, Pause[]>> = {};
   for (const d of [...decisions].sort(
     (a, b) => a.effectiveAt.getTime() - b.effectiveAt.getTime()
   )) {
+    if (!d.regime) continue;
+    const pauses = (out[d.regime] ??= []);
     if (d.kind === 'fees_notice')
       pauses.push({ from: d.effectiveAt, to: null });
-    if (d.kind === 'fee_paid') {
+    if (d.kind === 'fee_paid' || d.kind === 'fee_lapsed') {
       const open = pauses.find((p) => p.to === null);
       if (open) open.to = d.effectiveAt;
     }
   }
-  return pauses;
+  return out;
+}
+
+/** Whether a fee is awaited under a regime. */
+export function feeAwaited(
+  decisions: readonly InformationRequestDecision[],
+  regime: FoiRegime
+): boolean {
+  return (feePausesOf(decisions)[regime] ?? []).some((p) => p.to === null);
 }
 
 /** The latest date given for deciding the public interest (FOIA s.10(3)). */
@@ -499,24 +551,29 @@ function clockOf(
   });
 }
 
-/** The ordinary deadline, before any public interest extension. */
+/**
+ * The ordinary deadline, before any public interest extension: for one regime
+ * where given, otherwise for the request. Null while clarification is awaited,
+ * because nothing is owed and no time is running.
+ */
 function ordinaryDeadline(
   row: InformationRequest,
-  decisions: readonly InformationRequestDecision[]
-): Date {
-  const startsAt =
-    row.clarificationSoughtAt && row.clarificationReceivedAt
-      ? row.clarificationReceivedAt
-      : row.receivedAt;
-  return requestDeadline({
-    regimes: row.regimes,
+  decisions: readonly InformationRequestDecision[],
+  regime?: FoiRegime
+): Date | null {
+  const startsAt = clockStartsAt(row);
+  if (!startsAt) return null;
+  const common = {
     startsAt,
     profile: row.timeProfile,
     extendedForComplexity: row.extendedForComplexity,
     schoolDaysDeadline: row.schoolDaysDeadline,
-    commissionSetDeadline: row.commissionSetDeadline,
-    feePauses: feePausesOf(decisions)
-  });
+    commissionSetDeadline: row.commissionSetDeadline
+  };
+  const pauses = feePausesOf(decisions);
+  return regime
+    ? responseDeadline({ ...common, regime, feePauses: pauses[regime] ?? [] })
+    : requestDeadline({ ...common, regimes: row.regimes, feePauses: pauses });
 }
 
 async function decisionsOf(
@@ -573,7 +630,7 @@ export async function recordInformationRequestDecision(input: {
     db.transaction(async (tx) => {
       const before = await lockedRequest(input.organisationId, input.requestId);
       stillOpen(before);
-      if (effectiveAt < before.receivedAt)
+      if (earlierDay(effectiveAt, before.receivedAt))
         throw new InformationRequestRefused(
           'That is before the request arrived.'
         );
@@ -587,7 +644,10 @@ export async function recordInformationRequestDecision(input: {
         [];
       const detail: Record<string, unknown> = { ...(input.detail ?? {}) };
       let provision = clean(input.provision);
-      const ordinary = ordinaryDeadline(before, existing);
+      // The time this regime's part has. While clarification is awaited no time
+      // runs, so nothing done meanwhile can be late.
+      const ordinary = ordinaryDeadline(before, existing, regime);
+      const late = (at: Date) => ordinary !== null && at > ordinary;
       const environmental = regime === 'eir' || regime === 'eisr';
 
       switch (input.kind) {
@@ -621,7 +681,7 @@ export async function recordInformationRequestDecision(input: {
             throw new InformationRequestRefused(
               `${exemption.provision} cannot withhold information on emissions. Confirm the information is not about emissions.`
             );
-          if (!exemption.absolute) {
+          if (needsPublicInterestTest(exemption)) {
             if (!text(detail.factorsFor) || !text(detail.factorsAgainst))
               throw new InformationRequestRefused(
                 environmental
@@ -648,11 +708,14 @@ export async function recordInformationRequestDecision(input: {
               'Name the qualified exemption whose public interest test needs the time.'
             );
           const estimated = new Date(text(detail.estimatedDate));
-          if (Number.isNaN(estimated.getTime()) || estimated <= ordinary)
+          if (
+            Number.isNaN(estimated.getTime()) ||
+            (ordinary !== null && estimated <= ordinary)
+          )
             throw new InformationRequestRefused(
               'Give the date the refusal notice says the decision is expected by, after the ordinary deadline.'
             );
-          if (effectiveAt > ordinary)
+          if (late(effectiveAt))
             throw new InformationRequestRefused(
               'The refusal notice saying the public interest is still being weighed was due by the ordinary deadline (s.17(2)). Record the response as late instead.'
             );
@@ -664,7 +727,7 @@ export async function recordInformationRequestDecision(input: {
             throw new InformationRequestRefused(
               'Only environmental information can be extended for complexity and volume (reg 7).'
             );
-          if (effectiveAt > ordinary)
+          if (late(effectiveAt))
             throw new InformationRequestRefused(
               'The requester had to be told within the first twenty working days (reg 7(2)). It is too late to extend.'
             );
@@ -675,11 +738,11 @@ export async function recordInformationRequestDecision(input: {
           const amount = Number(detail.amount);
           if (!Number.isFinite(amount) || amount <= 0)
             throw new InformationRequestRefused('Give the amount asked for.');
-          if (feePausesOf(existing).some((p) => p.to === null))
+          if (feeAwaited(existing, regime))
             throw new InformationRequestRefused(
               'A fee is already awaited. Record it paid or lapsed first.'
             );
-          if (effectiveAt > ordinary)
+          if (late(effectiveAt))
             throw new InformationRequestRefused(
               'A fees notice has to be given within the time for responding.'
             );
@@ -692,10 +755,12 @@ export async function recordInformationRequestDecision(input: {
         case 'fee_lapsed': {
           const open = [...existing]
             .reverse()
-            .find((d) => d.kind === 'fees_notice');
-          if (!open || !feePausesOf(existing).some((p) => p.to === null))
-            throw new InformationRequestRefused('No fee is awaited.');
-          if (effectiveAt < open.effectiveAt)
+            .find((d) => d.kind === 'fees_notice' && d.regime === regime);
+          if (!open || !feeAwaited(existing, regime))
+            throw new InformationRequestRefused(
+              `No fee is awaited under the ${REGIME[regime].label}.`
+            );
+          if (earlierDay(effectiveAt, open.effectiveAt))
             throw new InformationRequestRefused(
               'That is before the fees notice.'
             );
@@ -766,6 +831,25 @@ export async function recordInformationRequestDecision(input: {
           .update(informationRequests)
           .set({ extendedForComplexity: true, updatedAt: new Date() })
           .where(eq(informationRequests.id, before.id));
+      // An unpaid fee ends the duty to comply (FOIA s.9(2), EIR reg 8(4)), so
+      // nothing more is owed on that part. Where it was the only part, the
+      // request closes.
+      if (input.kind === 'fee_lapsed' && before.regimes.length === 1) {
+        await tx
+          .update(informationRequests)
+          .set({
+            status: 'closed',
+            closedAt: new Date(),
+            closureRationale: `The fee was not paid in time, so no response is owed. ${rationale}`,
+            updatedAt: new Date()
+          })
+          .where(eq(informationRequests.id, before.id));
+        await retireDeadlineTasks(tx, {
+          organisationId: input.organisationId,
+          requestId: before.id,
+          label: input.actor.actorLabel
+        });
+      }
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -851,7 +935,7 @@ export async function respondToInformationRequest(input: {
     db.transaction(async (tx) => {
       const before = await lockedRequest(input.organisationId, input.requestId);
       stillOpen(before);
-      if (input.respondedAt < before.receivedAt)
+      if (earlierDay(input.respondedAt, before.receivedAt))
         throw new InformationRequestRefused(
           'The response cannot come before the request.'
         );
@@ -887,6 +971,11 @@ export async function respondToInformationRequest(input: {
         })
         .where(eq(informationRequests.id, before.id))
         .returning();
+      await retireDeadlineTasks(tx, {
+        organisationId: input.organisationId,
+        requestId: before.id,
+        label: input.actor.actorLabel
+      });
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -931,6 +1020,11 @@ export async function closeInformationRequest(input: {
         })
         .where(eq(informationRequests.id, before.id))
         .returning();
+      await retireDeadlineTasks(tx, {
+        organisationId: input.organisationId,
+        requestId: before.id,
+        label: input.actor.actorLabel
+      });
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -984,6 +1078,11 @@ export async function convertToSubjectAccessRequest(input: {
         })
         .where(eq(informationRequests.id, before.id))
         .returning();
+      await retireDeadlineTasks(tx, {
+        organisationId: input.organisationId,
+        requestId: before.id,
+        label: input.actor.actorLabel
+      });
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -1003,7 +1102,7 @@ export async function convertToSubjectAccessRequest(input: {
 
 export type LoadedInformationRequest = InformationRequest & {
   decisions: InformationRequestDecision[];
-  ordinaryDeadline: Date;
+  ordinaryDeadline: Date | null;
   entityName: string;
   entityCoveredFor: string | null;
   ownerEmail: string | null;

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { RefusableForm } from '@/components/foi/RefusableForm';
 import {
   allowsPublicInterestExtension,
   costLimit,
@@ -10,7 +11,6 @@ import {
 } from '@/lib/foi/statutory';
 import type { InformationRequestDecision } from '@/services/information-requests';
 
-import { ActionForm } from '../../requests/ActionForm';
 import { recordDecisionAction } from '../actions';
 import { inputClass, Label } from '../fields';
 
@@ -131,12 +131,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function DecisionForms({
   requestId,
   regimes,
-  feeAwaited
+  feesAwaited
 }: {
   requestId: string;
   regimes: readonly FoiRegime[];
-  feeAwaited: boolean;
+  /** The regimes under which a fee has been asked for and not yet paid. */
+  feesAwaited: readonly FoiRegime[];
 }) {
+  const chargeable = regimes.filter((r) => !feesAwaited.includes(r));
   const action = recordDecisionAction.bind(null, requestId);
   const environmental = regimes.filter((r) => r === 'eir' || r === 'eisr');
   const written = regimes.filter((r) => r === 'foia' || r === 'foisa');
@@ -147,7 +149,7 @@ export function DecisionForms({
   return (
     <div className="space-y-2">
       <Section title="Whether the information is held">
-        <ActionForm
+        <RefusableForm
           action={action}
           submit="Record it"
           className={formClass}
@@ -166,12 +168,12 @@ export function DecisionForms({
             </select>
           </label>
           <Rationale hint="Where you searched and how, especially if not held." />
-        </ActionForm>
+        </RefusableForm>
       </Section>
 
       <Section title="Apply an exemption or exception">
         {regimes.map((regime) => (
-          <ActionForm
+          <RefusableForm
             key={regime}
             action={action}
             submit={`Apply under ${REGIME[regime].short}`}
@@ -245,13 +247,13 @@ export function DecisionForms({
               </label>
             </div>
             <Rationale hint="Why it applies, and for a qualified exemption why the balance falls where it does." />
-          </ActionForm>
+          </RefusableForm>
         ))}
       </Section>
 
       {piRegimes.length > 0 ? (
         <Section title="Take more time to weigh the public interest (FOIA s.10(3))">
-          <ActionForm
+          <RefusableForm
             action={action}
             submit="Record it"
             className={formClass}
@@ -299,13 +301,13 @@ export function DecisionForms({
               <When text="Notice sent on" />
             </div>
             <Rationale />
-          </ActionForm>
+          </RefusableForm>
         </Section>
       ) : null}
 
       {environmental.length > 0 ? (
         <Section title="Extend to forty working days (reg 7)">
-          <ActionForm
+          <RefusableForm
             action={action}
             submit="Record it"
             className={formClass}
@@ -322,40 +324,43 @@ export function DecisionForms({
             </p>
             <When text="Requester told on" />
             <Rationale hint="What makes it both complex and voluminous." />
-          </ActionForm>
+          </RefusableForm>
         </Section>
       ) : null}
 
-      <Section title={feeAwaited ? 'The fee' : 'Ask for a fee'}>
-        {feeAwaited ? (
+      <Section title="Fees">
+        {feesAwaited.length > 0 ? (
           <div className="grid gap-0 sm:grid-cols-2">
-            <ActionForm
+            <RefusableForm
               action={action}
               submit="Record it paid"
               className={formClass}
             >
               <Kind kind="fee_paid" />
+              <RegimeField regimes={feesAwaited} />
               <When text="Paid on" />
               <Rationale hint="How it was paid." />
-            </ActionForm>
-            <ActionForm
+            </RefusableForm>
+            <RefusableForm
               action={action}
               submit="Record it lapsed"
               className={formClass}
             >
               <Kind kind="fee_lapsed" />
+              <RegimeField regimes={feesAwaited} />
               <When text="Lapsed on" />
-              <Rationale hint="Then close the request: nothing more is owed." />
-            </ActionForm>
+              <Rationale hint="Nothing more is owed on that part. A request with no other part closes." />
+            </RefusableForm>
           </div>
-        ) : (
-          <ActionForm
+        ) : null}
+        {chargeable.length > 0 ? (
+          <RefusableForm
             action={action}
             submit="Record the fees notice"
             className={formClass}
           >
             <Kind kind="fees_notice" />
-            <RegimeField regimes={regimes} />
+            <RegimeField regimes={chargeable} />
             <p className="text-sm text-ink-soft">
               The days from the notice to payment do not count. Under the Acts
               the fee must be paid within three months; under the environmental
@@ -376,13 +381,13 @@ export function DecisionForms({
               <When text="Notice sent on" />
             </div>
             <Rationale hint="How the amount was worked out." />
-          </ActionForm>
-        )}
+          </RefusableForm>
+        ) : null}
       </Section>
 
       {written.length > 0 ? (
         <Section title="Refuse: over the cost limit, vexatious or repeated">
-          <ActionForm
+          <RefusableForm
             action={action}
             submit="Record over the cost limit"
             className={formClass}
@@ -437,9 +442,9 @@ export function DecisionForms({
               </div>
             </div>
             <Rationale hint="How the estimate was reached." />
-          </ActionForm>
+          </RefusableForm>
           <div className="grid gap-0 border-t border-line sm:grid-cols-2">
-            <ActionForm
+            <RefusableForm
               action={action}
               submit="Record as vexatious"
               className={formClass}
@@ -451,8 +456,8 @@ export function DecisionForms({
                 value={written[0]}
               />
               <Rationale hint="The request, not the requester: its burden against its value." />
-            </ActionForm>
-            <ActionForm
+            </RefusableForm>
+            <RefusableForm
               action={action}
               submit="Record as repeated"
               className={formClass}
@@ -464,13 +469,13 @@ export function DecisionForms({
                 value={written[0]}
               />
               <Rationale hint="Which earlier request it repeats, and why no reasonable interval has passed." />
-            </ActionForm>
+            </RefusableForm>
           </div>
         </Section>
       ) : null}
 
       <Section title="Neither confirm nor deny, transfer, or advice given">
-        <ActionForm
+        <RefusableForm
           action={action}
           submit="Record neither confirm nor deny"
           className={formClass}
@@ -489,9 +494,9 @@ export function DecisionForms({
             />
           </label>
           <Rationale />
-        </ActionForm>
+        </RefusableForm>
         <div className="grid gap-0 border-t border-line sm:grid-cols-2">
-          <ActionForm
+          <RefusableForm
             action={action}
             submit="Record a transfer"
             className={formClass}
@@ -499,8 +504,8 @@ export function DecisionForms({
             <Kind kind="transferred" />
             <When text="Transferred on" />
             <Rationale hint="To whom, and that the requester agreed or was told." />
-          </ActionForm>
-          <ActionForm
+          </RefusableForm>
+          <RefusableForm
             action={action}
             submit="Record advice given"
             className={formClass}
@@ -508,7 +513,7 @@ export function DecisionForms({
             <Kind kind="advice" />
             <When text="Given on" />
             <Rationale hint="What advice and assistance was given (s.16)." />
-          </ActionForm>
+          </RefusableForm>
         </div>
       </Section>
     </div>

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { and, eq, isNotNull } from 'drizzle-orm';
 
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
+import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
@@ -12,7 +13,6 @@ import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { informationRequestRegister } from '@/services/information-requests';
 
-import { ActionForm } from '../requests/ActionForm';
 import { recordInformationRequestAction } from './actions';
 import {
   FOI_CHANNEL_LABEL,
@@ -112,7 +112,7 @@ export default async function InformationRequestsPage() {
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
             Record a request
           </summary>
-          <ActionForm
+          <RefusableForm
             action={recordInformationRequestAction}
             submit="Record it"
             pendingLabel="Recording…"
@@ -247,7 +247,7 @@ export default async function InformationRequestsPage() {
               />
               <span>I will handle it</span>
             </label>
-          </ActionForm>
+          </RefusableForm>
         </details>
       ) : null}
 

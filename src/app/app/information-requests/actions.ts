@@ -3,12 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { refusable } from '@/lib/edit-result';
 import { can } from '@/lib/rbac';
 import { NotPermitted, requireCapability } from '@/lib/session';
 import {
   closeInformationRequest,
   convertToSubjectAccessRequest,
-  InformationRequestRefused,
   loadInformationRequest,
   recordClarification,
   recordInformationRequest,
@@ -35,15 +35,14 @@ function actorOf(active: { userId: string; email: string }) {
   };
 }
 
+/**
+ * A refusal from either register, worded for the person, shown beside the
+ * form with what they typed kept. Converting a request records a subject
+ * access request, whose own refusals come through here too.
+ */
 async function refused(work: () => Promise<void>, ok: string): Promise<Result> {
-  try {
-    await work();
-    return { ok: true, message: ok };
-  } catch (error) {
-    if (error instanceof InformationRequestRefused)
-      return { ok: false, message: error.message };
-    throw error;
-  }
+  const result = await refusable(work);
+  return result?.ok ? { ok: true, message: ok } : result;
 }
 
 /**
@@ -127,7 +126,6 @@ export async function updateInformationRequestAction(
         text(formData.get('correspondenceAddress')) || null,
       pseudonymous: formData.get('pseudonymous') === 'on',
       preferredMeans: text(formData.get('preferredMeans')) || null,
-      extendedForComplexity: formData.get('extendedForComplexity') === 'on',
       schoolDaysDeadline:
         request.timeProfile === 'school'
           ? when(formData.get('schoolDaysDeadline'))
