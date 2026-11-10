@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
+import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import {
@@ -12,9 +13,13 @@ import {
 } from '@/lib/foi/statutory';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
-import { loadInformationRequest } from '@/services/information-requests';
+import { reviewsAndRegulator } from '@/services/information-request-reviews';
+import {
+  feeAwaited,
+  loadInformationRequest,
+  refuses
+} from '@/services/information-requests';
 
-import { ActionForm } from '../../requests/ActionForm';
 import {
   closeAction,
   convertAction,
@@ -30,6 +35,8 @@ import {
   RegimesField,
   STATUS_LABEL
 } from '../fields';
+import { DecisionForms, DecisionHistory } from './Decisions';
+import { RegulatorSection, ReviewsSection } from './Reviews';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
 const longDate = (d: Date) =>
@@ -63,12 +70,16 @@ export default async function InformationRequestPage({
     );
   }
 
-  const open = request.status === 'open';
-  const written = request.regimes.filter((r) => REGIME[r].mustBeInWriting);
-  const environmental = request.regimes.some(
-    (r) => r === 'eir' || r === 'eisr'
+  const after = await reviewsAndRegulator(
+    active.membership.organisationId,
+    request
   );
-
+  const open = request.status === 'open';
+  const refusing = refuses(request.decisions);
+  const feesAwaited = request.regimes.filter((r) =>
+    feeAwaited(request.decisions, r)
+  );
+  const written = request.regimes.filter((r) => REGIME[r].mustBeInWriting);
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
       <header className="space-y-2 border-b border-line pb-6">
@@ -178,6 +189,48 @@ export default async function InformationRequestPage({
         </section>
       ) : null}
 
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Decisions</h2>
+        <p className="max-w-prose text-sm text-ink-soft">
+          Each step and judgement, with its reason. Nothing is changed or
+          removed: a changed mind is a new decision.{' '}
+          {request.ordinaryDeadline
+            ? `The ordinary deadline is ${longDate(request.ordinaryDeadline)}.`
+            : 'No time runs until the requester answers the request for clarification.'}
+        </p>
+        <DecisionHistory decisions={request.decisions} />
+        {open ? (
+          <DecisionForms
+            requestId={request.id}
+            regimes={request.regimes}
+            feesAwaited={feesAwaited}
+          />
+        ) : null}
+      </section>
+
+      {request.status !== 'converted' &&
+      (after.mayAskForReview || after.reviews.length > 0) ? (
+        <ReviewsSection
+          requestId={request.id}
+          regimes={request.regimes}
+          reviews={after.reviews}
+          lastDayToAsk={after.lastDayToAsk}
+          mayAskForReview={after.mayAskForReview}
+          aboutNoResponse={open}
+          school={request.timeProfile === 'school'}
+        />
+      ) : null}
+
+      {request.status !== 'converted' &&
+      (after.reviews.length > 0 || after.events.length > 0) ? (
+        <RegulatorSection
+          requestId={request.id}
+          act={request.act}
+          events={after.events}
+          regulatorCase={after.regulatorCase}
+        />
+      ) : null}
+
       {request.status === 'closed' ? (
         <section className="space-y-2 rounded border border-line bg-surface p-5 text-sm">
           <h2 className="font-semibold">Closed</h2>
@@ -201,7 +254,7 @@ export default async function InformationRequestPage({
                 : ''}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <ActionForm
+              <RefusableForm
                 action={recordClarificationAction.bind(
                   null,
                   request.id,
@@ -218,9 +271,9 @@ export default async function InformationRequestPage({
                     className={inputClass}
                   />
                 </label>
-              </ActionForm>
+              </RefusableForm>
               {request.clarificationSoughtAt ? (
-                <ActionForm
+                <RefusableForm
                   action={recordClarificationAction.bind(
                     null,
                     request.id,
@@ -237,7 +290,7 @@ export default async function InformationRequestPage({
                       className={inputClass}
                     />
                   </label>
-                </ActionForm>
+                </RefusableForm>
               ) : null}
             </div>
           </section>
@@ -261,7 +314,7 @@ export default async function InformationRequestPage({
                 </ul>
               </div>
             ))}
-            <ActionForm
+            <RefusableForm
               action={respondAction.bind(null, request.id)}
               submit="Record the response"
             >
@@ -323,7 +376,21 @@ export default async function InformationRequestPage({
                   className={inputClass}
                 />
               </label>
-            </ActionForm>
+              {refusing ? (
+                <label className="flex items-start gap-2.5 rounded border border-amber-700 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <input
+                    type="checkbox"
+                    name="refusalNoticeChecked"
+                    required
+                    className="mt-1 accent-brand"
+                  />
+                  <span>
+                    Something was refused, so this is a refusal notice. I have
+                    checked it says everything listed above.
+                  </span>
+                </label>
+              ) : null}
+            </RefusableForm>
           </section>
 
           <section className="space-y-3">
@@ -335,21 +402,22 @@ export default async function InformationRequestPage({
               access request instead. Converting it records one, with the month
               running from the day this request arrived.
             </p>
-            <ActionForm
+            <RefusableForm
               action={convertAction.bind(null, request.id)}
               submit="Convert to a subject access request"
               pendingLabel="Converting…"
             >
               <span className="sr-only">Convert this request</span>
-            </ActionForm>
+            </RefusableForm>
           </section>
 
           <details className="rounded border border-line bg-surface">
             <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
               Correct the record
             </summary>
-            <ActionForm
+            <RefusableForm
               action={updateInformationRequestAction.bind(null, request.id)}
+              resetOnSuccess={false}
               submit="Save"
               className="space-y-3 border-t border-line p-4"
             >
@@ -421,29 +489,14 @@ export default async function InformationRequestPage({
                 />
                 <span>The name looks like a pseudonym</span>
               </label>
-              {environmental ? (
-                <label className="flex items-start gap-2.5 text-sm">
-                  <input
-                    type="checkbox"
-                    name="extendedForComplexity"
-                    defaultChecked={request.extendedForComplexity}
-                    className="mt-1 accent-brand"
-                  />
-                  <span>
-                    Extended to forty working days because it is both complex
-                    and voluminous, and the requester was told within the first
-                    twenty (reg 7)
-                  </span>
-                </label>
-              ) : null}
-            </ActionForm>
+            </RefusableForm>
           </details>
 
           <details className="rounded border border-line bg-surface">
             <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
               Close without a response
             </summary>
-            <ActionForm
+            <RefusableForm
               action={closeAction.bind(null, request.id)}
               submit="Close it"
               className="space-y-3 border-t border-line p-4"
@@ -460,7 +513,7 @@ export default async function InformationRequestPage({
                   className={inputClass}
                 />
               </label>
-            </ActionForm>
+            </RefusableForm>
           </details>
         </>
       ) : null}

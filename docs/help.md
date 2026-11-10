@@ -968,11 +968,38 @@ Where you need more to identify what is wanted, ask and record it. Nothing is ow
 - Archives have thirty working days for transferred public records not designated open.
 - Under FOIA you may take longer to weigh the public interest, but the refusal notice saying so is still due in the twenty days. The Scottish Act has no such extension.
 
+### Decisions, exemptions and refusals
+
+Record each step and judgement on the request page, with the reason: whether the information is held, each exemption or exception applied, a fees notice and its payment, the cost limit, a vexatious or repeated request, a transfer, and advice given. Decisions are kept, never edited: a changed mind is a new decision.
+
+An absolute exemption needs no public interest test. A qualified one does, and every environmental exception does, with a presumption in favour of disclosure; record the factors on each side. Four environmental exceptions cannot withhold information on emissions, so you are asked whether it is.
+
+Where something is refused, the response is a refusal notice, and you confirm it says what the law requires before recording it as sent.
+
+- Fees: the days from the notice to payment do not count. The fee lapses after three months under the Acts, or sixty working days under the environmental regulations.
+- Cost limit: FOIA only counts determining whether it is held, locating, retrieving and extracting, at £25 an hour, against £600 for central government and £450 for everyone else; the Scottish Act is £600 at £15 an hour. The environmental regulations have no cost limit.
+- Public interest: under FOIA alone you may take longer to weigh it, if the refusal notice saying so, with an estimated date, went out within the twenty days. The clock then runs to that date.
+- Deadlines: a task goes to the handler, or the privacy team, when a response is due within five working days or overdue.
+
 ### Responding, and requests for their own data
 
 Record the response when it is sent: what was released, refused or not held, and where the letter is kept. A refusal must say which exemption applies and why, how to complain to you, and how to go to the regulator - the Information Commission, or in Scotland the Scottish Information Commissioner. The request page lists what each regime requires.
 
 A request for the requester's own personal data is exempt from freedom of information and is a subject access request instead. Convert it on the request page: a subject access request is recorded with the month running from the day the request arrived, and the two records point at each other.
+
+### Reviews and the regulator
+
+A requester who is unhappy with the response, or got none in time, can ask you to look again. Record the request for review on the request page: what they are unhappy with, in their words, and when it arrived, which starts the review clock. Only one review of a request is open at a time.
+
+Record the outcome when the review notice is sent: whether the decision stands, changed in part or was reversed, who reviewed it, and whether more was released. The notice must tell them they can go to the regulator, and you confirm it does.
+
+If they apply to the Information Commission, or in Scotland the Scottish Information Commissioner, record each step of the case as it happens: the application, enquiries, notices, any appeal, and the case closing. A decision notice that requires steps gives a date to take them by, and a task reminds you a week before.
+
+- FOIA: the code of practice asks for an internal review within 40 working days of the response, decided within 20 working days, or 40 in exceptional cases.
+- Environmental information: reconsideration under EIR regulation 11, asked for in writing within 40 working days and decided within 40.
+- Scotland: review is a legal right (FOI(S)A sections 20 and 21, EI(S)R regulation 16), asked for in writing within 40 working days and decided within 20. An application to the Commissioner comes only after it.
+- Late requests for review: you need not accept one asked for after the last day. Say whether you do, and why.
+- Appeals: either side can appeal a decision notice, to the First-tier Tribunal within 28 days, or in Scotland to the Court of Session within 42. Steps an appeal affects need not be taken while it is pending.
 
 **See also:** Data subject requests · Data protection complaints · The organisation and its legal entities
 
