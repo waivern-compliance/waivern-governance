@@ -14,6 +14,11 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # The commitlint tool and its rules are released together, majors
+      # included; bumped apart, the two disagree.
+      commitlint:
+        patterns:
+          - "@commitlint/*"
       # Minor and patch updates only. Each major update gets a PR of its own,
       # so one that needs work doesn't hold back the rest.
       routine-updates:
