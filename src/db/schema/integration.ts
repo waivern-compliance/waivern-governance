@@ -41,6 +41,7 @@ import type {
   ResearchSafeguard
 } from '@/lib/gdpr/further-processing';
 import type { LawfulBasis, RecognisedCondition } from '@/lib/gdpr/lawful-basis';
+import type { RecordedMechanism } from '@/lib/gdpr/transfers';
 
 import {
   deliveryStatus,
@@ -461,7 +462,17 @@ export const dpas = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
+    /** As the producing system or a person wrote it; kept as the note. */
     transferMechanism: text('transfer_mechanism'),
+    /**
+     * The mechanisms chosen from the list (`lib/gdpr/transfers.ts`), each
+     * the UK's or the EU's. Empty: read from the text where it names them
+     * plainly (`effectiveMechanisms`).
+     */
+    transferMechanisms: jsonb('transfer_mechanisms')
+      .$type<RecordedMechanism[]>()
+      .notNull()
+      .default([]),
     subProcessors: jsonb('sub_processors')
       .$type<string[]>()
       .notNull()

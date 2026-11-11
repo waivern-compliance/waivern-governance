@@ -80,6 +80,12 @@ import {
   withinEntity,
   type Law
 } from '@/lib/gdpr/regimes';
+import {
+  assessmentsRequired,
+  mechanismsFromText,
+  TRANSFER_ASSESSMENT_GAP_WORDS,
+  type TransferAssessmentGap
+} from '@/lib/gdpr/transfers';
 
 import { needingSafeguards } from './countries';
 import { policyCoverage } from './policy-documents';
@@ -122,6 +128,7 @@ export type Article30Gap =
   | 'f_by_eu_public_body'
   | AdmGap
   | FurtherProcessingGap
+  | TransferAssessmentGap
   | 'children_no_dpia'
   | 'children_dpia_unanswered'
   | ChildrenGap
@@ -152,6 +159,7 @@ export const GAP_WORDS: Record<Article30Gap, string> = {
     'Public body under member State law relying on legitimate interests for its tasks (EU GDPR Article 6(1))',
   ...ADM_GAP_WORDS,
   ...FURTHER_PROCESSING_GAP_WORDS,
+  ...TRANSFER_ASSESSMENT_GAP_WORDS,
   children_no_dpia: 'Likely accessed by children, with no DPIA',
   children_dpia_unanswered:
     "Likely accessed by children; the DPIA does not say how the children's higher protection matters were taken into account",
@@ -226,6 +234,10 @@ export const GAP_LAW: Partial<Record<Article30Gap, Law>> = {
   eu_further_no_route: 'eu',
   eu_further_route_incomplete: 'eu',
   eu_research_safeguards: 'eu',
+  uk_transfer_no_tra: 'uk',
+  uk_transfer_mechanism_not_uk: 'uk',
+  eu_transfer_no_tia: 'eu',
+  eu_transfer_mechanism_not_eu: 'eu',
   children_age_unknown: 'eu',
   children_parental_consent: 'eu',
   art13_no_public_information: 'uk',
@@ -291,6 +303,17 @@ export function article30Gaps(
     publicAuthority?: boolean;
     /** Whether it is a public authority or body under a member State's law. */
     euPublicBody?: boolean;
+    /**
+     * Destinations that need a safeguard under EU law (no EU adequacy). Not
+     * supplied, the UK list given is used for both, as before.
+     */
+    euNeedsSafeguards?: ReadonlySet<string>;
+    /**
+     * Whether a UK transfer risk assessment and an EU transfer impact
+     * assessment of this activity are held. Not supplied, the transfer
+     * assessment gaps are not reported.
+     */
+    transferAssessments?: { tra: boolean; tia: boolean };
     /** Whether the activity's entity is a competent authority (s.30), for a Part 3 record. */
     competentAuthority?: boolean;
     /**
@@ -326,13 +349,40 @@ export function article30Gaps(
 
   // Article 30(1)(e): identify the country and document the safeguard. An
   // unanswerable question escalates, as it does in routing — an empty library
-  // must not quietly clear every transfer.
+  // must not quietly clear every transfer. Each law has its own list of
+  // destinations that need one: UK approval, EU adequacy.
+  const ukSet = needsSafeguards;
+  const euSet = context.euNeedsSafeguards ?? needsSafeguards;
+  const restricted = (set: ReadonlySet<string>, country: string) =>
+    set.size === 0 || set.has(country.toUpperCase());
   const unsafeguarded = (activity.transfers ?? []).some((t) => {
     if (!t.country) return true;
-    if (needsSafeguards.size === 0) return true;
-    return needsSafeguards.has(t.country.toUpperCase()) && !t.mechanism;
+    // An empty library answers nothing, so it never clears a transfer.
+    if ((ukLaw && ukSet.size === 0) || (euLaw && euSet.size === 0)) return true;
+    if (t.mechanism) return false;
+    return (
+      (ukLaw && restricted(ukSet, t.country)) ||
+      (euLaw && restricted(euSet, t.country))
+    );
   });
   if (unsafeguarded) gaps.push('transfer_safeguards');
+  // Which assessment each transfer's safeguard needs, under each law, and
+  // whether it is on file; and a mechanism that is not a tool of that law.
+  if (context.transferAssessments) {
+    for (const t of activity.transfers ?? []) {
+      if (!t.country || !t.mechanism) continue;
+      for (const gap of assessmentsRequired({
+        laws,
+        restricted: {
+          uk: restricted(ukSet, t.country),
+          eu: restricted(euSet, t.country)
+        },
+        mechanisms: mechanismsFromText(t.mechanism),
+        onFile: context.transferAssessments
+      }))
+        if (!gaps.includes(gap)) gaps.push(gap);
+    }
+  }
 
   // Article 30(2)(a): each controller on whose behalf the processing is done.
   if (
@@ -487,6 +537,41 @@ export type ChildrenDpiaState = 'none' | 'unanswered' | 'answered';
 export const CHILDREN_DPIA_QUESTION = 'children_protection';
 
 /**
+ * Which transfer assessments each activity has: a UK transfer risk assessment
+ * (`tra`) and an EU transfer impact assessment (`tia`), not superseded or
+ * rejected.
+ */
+async function transferAssessmentsHeld(
+  organisationId: string
+): Promise<Map<string, { tra: boolean; tia: boolean }>> {
+  const rows = await db
+    .select({ activityId: assessments.subjectId, kind: templates.kind })
+    .from(assessments)
+    .innerJoin(
+      templateVersions,
+      eq(templateVersions.id, assessments.templateVersionId)
+    )
+    .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+    .where(
+      and(
+        eq(assessments.organisationId, organisationId),
+        eq(assessments.subjectType, 'processing_activity'),
+        inArray(templates.kind, ['tra', 'tia']),
+        notInArray(assessments.status, ['superseded', 'rejected'])
+      )
+    );
+  const held = new Map<string, { tra: boolean; tia: boolean }>();
+  for (const r of rows) {
+    if (!r.activityId) continue;
+    const h = held.get(r.activityId) ?? { tra: false, tia: false };
+    if (r.kind === 'tra') h.tra = true;
+    if (r.kind === 'tia') h.tia = true;
+    held.set(r.activityId, h);
+  }
+  return held;
+}
+
+/**
  * For every activity with a current DPIA (not superseded or rejected), whether
  * any of them answers the children's question. Live answers, not only
  * submitted ones: a DPIA in progress that has answered it has answered it.
@@ -618,26 +703,29 @@ export async function listActivities(
   entityIds: string[] | null
 ): Promise<RegisterRow[]> {
   return withOrganisation(organisationId, async () => {
-    const [rows, needsSafeguards, bases, children] = await Promise.all([
-      db
-        .select({
-          activity: processingActivities,
-          entityName: entities.name,
-          publicAuthority: entities.publicAuthority,
-          euPublicBody: entities.euPublicBody,
-          competentAuthority: entities.competentAuthority,
-          dataProtectionLaw: entities.dataProtectionLaw,
-          ownerEmail: users.email
-        })
-        .from(processingActivities)
-        .innerJoin(entities, eq(entities.id, processingActivities.entityId))
-        .leftJoin(users, eq(users.id, processingActivities.ownerId))
-        .where(await scopeOf(organisationId, entityIds))
-        .orderBy(asc(processingActivities.reference)),
-      needingSafeguards(organisationId, 'uk'),
-      basesByActivity(organisationId),
-      childrenDpiaStates(organisationId)
-    ]);
+    const [rows, needsSafeguards, euNeedsSafeguards, bases, children, held] =
+      await Promise.all([
+        db
+          .select({
+            activity: processingActivities,
+            entityName: entities.name,
+            publicAuthority: entities.publicAuthority,
+            euPublicBody: entities.euPublicBody,
+            competentAuthority: entities.competentAuthority,
+            dataProtectionLaw: entities.dataProtectionLaw,
+            ownerEmail: users.email
+          })
+          .from(processingActivities)
+          .innerJoin(entities, eq(entities.id, processingActivities.entityId))
+          .leftJoin(users, eq(users.id, processingActivities.ownerId))
+          .where(await scopeOf(organisationId, entityIds))
+          .orderBy(asc(processingActivities.reference)),
+        needingSafeguards(organisationId, 'uk'),
+        needingSafeguards(organisationId, 'eu'),
+        basesByActivity(organisationId),
+        childrenDpiaStates(organisationId),
+        transferAssessmentsHeld(organisationId)
+      ]);
     const [coverage, sharing] = await Promise.all([
       policyCoverage(organisationId),
       sharingCoverage(organisationId)
@@ -655,6 +743,11 @@ export async function listActivities(
       }) => {
         const gaps = article30Gaps(activity, needsSafeguards, {
           entityLaw: dataProtectionLaw,
+          euNeedsSafeguards,
+          transferAssessments: held.get(activity.id) ?? {
+            tra: false,
+            tia: false
+          },
           originalConsent: originalConsentOf(activity, bases),
           originalPart3: activity.originalActivityId
             ? bases.part3.has(activity.originalActivityId)
@@ -702,29 +795,37 @@ export async function loadActivity(activityId: string, organisationId: string) {
       );
     if (!row) return null;
 
-    const [needsSafeguards, related, bases, children, coverage, sharing] =
-      await Promise.all([
-        needingSafeguards(organisationId, 'uk'),
-        db
-          .select({ assessment: assessments, kind: templates.kind })
-          .from(assessments)
-          .innerJoin(
-            templateVersions,
-            eq(templateVersions.id, assessments.templateVersionId)
+    const [
+      needsSafeguards,
+      euNeedsSafeguards,
+      related,
+      bases,
+      children,
+      coverage,
+      sharing
+    ] = await Promise.all([
+      needingSafeguards(organisationId, 'uk'),
+      needingSafeguards(organisationId, 'eu'),
+      db
+        .select({ assessment: assessments, kind: templates.kind })
+        .from(assessments)
+        .innerJoin(
+          templateVersions,
+          eq(templateVersions.id, assessments.templateVersionId)
+        )
+        .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+        .where(
+          and(
+            eq(assessments.subjectType, 'processing_activity'),
+            eq(assessments.subjectId, activityId)
           )
-          .innerJoin(templates, eq(templates.id, templateVersions.templateId))
-          .where(
-            and(
-              eq(assessments.subjectType, 'processing_activity'),
-              eq(assessments.subjectId, activityId)
-            )
-          )
-          .orderBy(desc(assessments.createdAt)),
-        basesByActivity(organisationId),
-        childrenDpiaStates(organisationId),
-        policyCoverage(organisationId),
-        sharingCoverage(organisationId)
-      ]);
+        )
+        .orderBy(desc(assessments.createdAt)),
+      basesByActivity(organisationId),
+      childrenDpiaStates(organisationId),
+      policyCoverage(organisationId),
+      sharingCoverage(organisationId)
+    ]);
 
     const original = row.activity.originalActivityId
       ? await db
@@ -743,8 +844,16 @@ export async function loadActivity(activityId: string, organisationId: string) {
       sharing
     );
     const laws = effectiveLaws(row.dataProtectionLaw, row.activity.laws);
+    const live = related.filter(
+      (r) => !['superseded', 'rejected'].includes(r.assessment.status)
+    );
     const gaps = article30Gaps(row.activity, needsSafeguards, {
       entityLaw: row.dataProtectionLaw,
+      euNeedsSafeguards,
+      transferAssessments: {
+        tra: live.some((r) => r.kind === 'tra'),
+        tia: live.some((r) => r.kind === 'tia')
+      },
       originalConsent,
       originalPart3: row.activity.originalActivityId
         ? bases.part3.has(row.activity.originalActivityId)

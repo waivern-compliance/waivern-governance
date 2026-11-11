@@ -9,6 +9,8 @@ import {
   type ArchiveResult
 } from '@/app/app/third-parties/actions';
 import { EditForm } from '@/components/EditForm';
+import { MechanismFields } from '@/components/thirdparty/MechanismFields';
+import type { RecordedMechanism } from '@/lib/gdpr/transfers';
 import { savedKey } from '@/lib/saved-key';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
@@ -33,6 +35,7 @@ export function AgreementAdmin({
     signedAt: Date | null;
     expiresAt: Date | null;
     transferMechanism: string | null;
+    transferMechanisms: RecordedMechanism[];
     subProcessors: string[];
     archivedAt: Date | null;
     archivedReason: string | null;
@@ -107,8 +110,9 @@ export function AgreementAdmin({
             label="Transfer mechanism"
             name="transferMechanism"
             defaultValue={dpa.transferMechanism ?? ''}
-            hint="IDTA, UK Addendum, approved destination - if data leaves the UK"
+            hint="A note on the transfers, if any - the mechanisms are ticked below"
           />
+          <MechanismFields recorded={dpa.transferMechanisms} />
           <label className="block space-y-1">
             <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
               Sub-processors

@@ -504,6 +504,11 @@ export const TIA_EU: TemplateDefinition = {
                 label: 'An EU adequacy decision covers the destination'
               },
               {
+                value: 'dpf',
+                label:
+                  'The EU-US Data Privacy Framework, for a certified US recipient (Implementing Decision (EU) 2023/1795)'
+              },
+              {
                 value: 'sccs',
                 label: 'Standard contractual clauses (2021/914)'
               },
@@ -517,6 +522,7 @@ export const TIA_EU: TemplateDefinition = {
             label: 'Which SCC module applies?',
             type: 'single_select',
             required: false,
+            help: 'The 2021/914 clauses are the current set, unamended. The Commission is drafting further clauses for importers already subject to the GDPR under Article 3(2); until they are adopted, the 2021 clauses are the ones to use.',
             showWhen: { op: 'equals', question: 'mechanism', value: 'sccs' },
             requireWhen: { op: 'equals', question: 'mechanism', value: 'sccs' },
             legalRefs: ['eugdpr.art46'],
@@ -527,6 +533,29 @@ export const TIA_EU: TemplateDefinition = {
               { value: 'm3', label: 'Module 3 - processor to processor' },
               { value: 'm4', label: 'Module 4 - processor to controller' }
             ]
+          },
+          {
+            key: 'dpf_certification',
+            label:
+              "Is the recipient's Data Privacy Framework certification active, and does it cover this data (HR data is certified separately)?",
+            type: 'boolean',
+            required: false,
+            help: 'Check the Data Privacy Framework list for the recipient, and record when. Certifications lapse, and the adequacy decision covers only certified recipients.',
+            showWhen: { op: 'equals', question: 'mechanism', value: 'dpf' },
+            requireWhen: { op: 'equals', question: 'mechanism', value: 'dpf' },
+            legalRefs: ['eugdpr.art45'],
+            evidence: 'required'
+          },
+          {
+            key: 'dpf_fallback',
+            label:
+              'Does the contract keep an Article 46 fallback (such as the standard contractual clauses) if the Framework falls?',
+            type: 'boolean',
+            required: false,
+            help: 'The General Court upheld the Framework in Latombe (T-553/23, September 2025), but the appeal (C-703/25 P) is pending, and after Trump v. Slaughter (June 2026) the EDPB asked the Commission to assess its effect on the decision. A fallback means the transfer does not stop on the day a judgment lands.',
+            showWhen: { op: 'equals', question: 'mechanism', value: 'dpf' },
+            legalRefs: ['eugdpr.art45', 'eugdpr.art46'],
+            evidence: 'none'
           }
         ]
       },
@@ -534,8 +563,14 @@ export const TIA_EU: TemplateDefinition = {
         key: 'destination_law',
         title: "Assessment of the destination's law and practice",
         description:
-          'Step 3 of the EDPB method. Not required where an adequacy decision applies.',
-        showWhen: { op: 'notEquals', question: 'mechanism', value: 'adequacy' },
+          'Step 3 of the EDPB method (Recommendations 01/2020, version 2.0, still current). Not required where an adequacy decision, including the Data Privacy Framework for a certified recipient, applies.',
+        showWhen: {
+          op: 'and',
+          all: [
+            { op: 'notEquals', question: 'mechanism', value: 'adequacy' },
+            { op: 'notEquals', question: 'mechanism', value: 'dpf' }
+          ]
+        },
         questions: [
           {
             key: 'legislation_review',

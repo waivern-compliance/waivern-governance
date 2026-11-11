@@ -10,6 +10,7 @@ import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { StartAssessment } from '@/components/StartAssessment';
 import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
+import { MechanismFields } from '@/components/thirdparty/MechanismFields';
 import { ReadAgreement } from '@/components/thirdparty/ReadAgreement';
 import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
 import { db, scoped } from '@/db/client';
@@ -19,6 +20,7 @@ import {
   SUPPLIER_ROLE_KEYS,
   SUPPLIER_ROLES
 } from '@/lib/dpa2018/sharing';
+import { TRANSFER_MECHANISMS } from '@/lib/gdpr/transfers';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
@@ -461,9 +463,18 @@ export default async function SupplierPage({
                 className={`text-xs text-ink-soft${d.archivedAt ? ' line-through' : ''}`}
               >
                 {d.documentRef ? `${d.documentRef} · ` : ''}
-                {d.transferMechanism
-                  ? `transfers: ${d.transferMechanism}`
-                  : 'no transfer mechanism recorded'}
+                {d.transferMechanisms.length > 0
+                  ? `transfers: ${d.transferMechanisms
+                      .map(
+                        (m) =>
+                          `${TRANSFER_MECHANISMS[m.mechanism].label}${m.module ? ` (module ${m.module})` : ''}`
+                      )
+                      .join(
+                        '; '
+                      )}${d.transferMechanism ? ` - ${d.transferMechanism}` : ''}`
+                  : d.transferMechanism
+                    ? `transfers: ${d.transferMechanism}`
+                    : 'no transfer mechanism recorded'}
                 {' · '}
                 {(d.subProcessors ?? []).length > 0
                   ? `sub-processors: ${(d.subProcessors ?? []).join(', ')}`
@@ -563,8 +574,9 @@ export default async function SupplierPage({
               <Field
                 label="Transfer mechanism"
                 name="transferMechanism"
-                hint="IDTA, UK Addendum, approved destination - if data leaves the UK"
+                hint="A note on the transfers, if any - the mechanisms are ticked below"
               />
+              <MechanismFields />
               <Area
                 label="Sub-processors"
                 name="subProcessors"

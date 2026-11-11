@@ -14,6 +14,19 @@
  * though it were already current would defeat the point.
  */
 
+/**
+ * The EU notes for the UK, the US and Brazil, checked on 12 November 2026
+ * against the decisions on EUR-Lex and the Commission's adequacy page. The
+ * shared library's rows are updated to these by migration as well, since the
+ * seed adds only rows that do not exist.
+ */
+export const GB_EU_NOTE =
+  'EU adequacy decision for the UK, renewed by Implementing Decision (EU) 2025/2574 of 19 December 2025, in force until 27 December 2031. Checked 12 November 2026.';
+export const US_EU_NOTE =
+  'Only for recipients certified under the EU-US Data Privacy Framework (Implementing Decision (EU) 2023/1795, in force). The General Court upheld it in Latombe (T-553/23, 3 September 2025); the appeal, C-703/25 P, is pending. After Trump v. Slaughter (US Supreme Court, 29 June 2026) the EDPB asked the Commission to assess its effect on the decision. Check certification per recipient, and keep an Article 46 fallback in the contract. Checked 12 November 2026.';
+export const BR_EU_NOTE =
+  'EU adequacy decision for Brazil, Implementing Decision (EU) 2026/179 of 26 January 2026. No UK approval regulations for Brazil. Checked 12 November 2026.';
+
 export type SeedEntry = {
   code: string;
   name: string;
@@ -162,9 +175,17 @@ const decided: SeedEntry[] = [
     ukAdequacy: 'adequate',
     ukAdequacyNote: 'Domestic. No transfer.',
     euAdequacy: 'adequate',
-    euAdequacyNote: 'EU adequacy decision for the UK.',
+    euAdequacyNote: GB_EU_NOTE,
     governmentAccess: 'moderate',
-    redress: 'high'
+    redress: 'high',
+    sources: [
+      {
+        title:
+          'Commission Implementing Decision (EU) 2025/2574 (UK adequacy, renewed)',
+        url: 'https://eur-lex.europa.eu/eli/dec_impl/2025/2574/oj',
+        published: '2025-12-19'
+      }
+    ]
   },
   {
     code: 'US',
@@ -173,8 +194,7 @@ const decided: SeedEntry[] = [
     ukAdequacyNote:
       'Only for recipients certified under the UK Extension to the EU-US Data Privacy Framework. Everyone else needs an Article 46 route and a transfer risk assessment.',
     euAdequacy: 'partial',
-    euAdequacyNote:
-      'Only for recipients certified under the EU-US Data Privacy Framework.',
+    euAdequacyNote: US_EU_NOTE,
     governmentAccess: 'high',
     redress: 'moderate',
     summary:
@@ -184,7 +204,33 @@ const decided: SeedEntry[] = [
         title: 'CJEU C-311/18 (Schrems II) on s.702 FISA and EO 12333',
         published: '2020-07-16'
       },
-      { title: 'UK Extension to the EU-US Data Privacy Framework' }
+      { title: 'UK Extension to the EU-US Data Privacy Framework' },
+      {
+        title:
+          'Commission Implementing Decision (EU) 2023/1795 (EU-US Data Privacy Framework)',
+        url: 'https://eur-lex.europa.eu/eli/dec_impl/2023/1795/oj',
+        published: '2023-07-10'
+      },
+      {
+        title:
+          'General Court, T-553/23 Latombe v Commission (appeal C-703/25 P pending)',
+        published: '2025-09-03'
+      }
+    ]
+  },
+  {
+    code: 'BR',
+    name: 'Brazil',
+    ukAdequacy: 'not_adequate',
+    euAdequacy: 'adequate',
+    euAdequacyNote: BR_EU_NOTE,
+    sources: [
+      {
+        title:
+          'Commission Implementing Decision (EU) 2026/179 (Brazil adequacy)',
+        url: 'https://eur-lex.europa.eu/eli/dec_impl/2026/179/oj',
+        published: '2026-01-26'
+      }
     ]
   }
 ];
@@ -192,7 +238,6 @@ const decided: SeedEntry[] = [
 /** Common destinations with no adequacy decision under either regime. */
 const notAdequate: Array<[string, string, Partial<SeedEntry>?]> = [
   ['AU', 'Australia'],
-  ['BR', 'Brazil'],
   [
     'CN',
     'China',

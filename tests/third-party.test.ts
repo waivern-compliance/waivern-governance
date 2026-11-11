@@ -50,6 +50,7 @@ function dpa(over: Partial<Dpa> = {}): Dpa {
     expiresAt: days(400),
     terms: {},
     transferMechanism: 'UK Addendum to SCCs',
+    transferMechanisms: [],
     subProcessors: ['AWS'],
     sourceConnectionId: null,
     externalRef: null,

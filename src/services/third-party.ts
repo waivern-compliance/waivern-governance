@@ -7,6 +7,7 @@ import {
   isNull,
   lte,
   ne,
+  notInArray,
   or,
   sql
 } from 'drizzle-orm';
@@ -24,6 +25,11 @@ import {
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { isSupplierRole, type SupplierRole } from '@/lib/dpa2018/sharing';
+import {
+  cleanMechanisms,
+  effectiveMechanisms,
+  TRANSFER_MECHANISMS
+} from '@/lib/gdpr/transfers';
 import {
   aiStanding,
   aiSupplierGaps,
@@ -56,6 +62,8 @@ export type Article28Gap =
   | 'dpa_expired'
   | 'dpa_expiring'
   | 'no_transfer_mechanism'
+  | 'uk_transfer_no_tra'
+  | 'eu_transfer_no_tia'
   | 'subprocessors_undisclosed'
   | 'never_reviewed'
   | 'no_owner';
@@ -66,6 +74,10 @@ export const GAP_WORDS: Record<Article28Gap, string> = {
   dpa_expired: 'Agreement expired',
   dpa_expiring: 'Agreement expiring soon',
   no_transfer_mechanism: 'No transfer mechanism recorded',
+  uk_transfer_no_tra:
+    'Transfers on a UK Article 46 safeguard with no transfer risk assessment',
+  eu_transfer_no_tia:
+    'Transfers on an EU Article 46 safeguard with no transfer impact assessment',
   subprocessors_undisclosed: 'Sub-processors not recorded',
   never_reviewed: 'Nobody has confirmed what this third party is to us',
   no_owner: 'No named owner'
@@ -105,6 +117,55 @@ export const EXPIRING_WITHIN_LABEL =
     : `${EXPIRING_WITHIN_DAYS} days`;
 
 /**
+ * The transfer assessments held for each supplier: a UK transfer risk
+ * assessment (`tra`) or an EU transfer impact assessment (`tia`) of the
+ * supplier or of one of its agreements, not superseded, rejected or
+ * withdrawn.
+ */
+async function transferAssessmentsBySupplier(
+  organisationId: string
+): Promise<Map<string, { tra: boolean; tia: boolean }>> {
+  const rows = await db
+    .select({
+      subjectType: assessments.subjectType,
+      subjectId: assessments.subjectId,
+      supplierOfDpa: dpas.supplierId,
+      kind: templates.kind
+    })
+    .from(assessments)
+    .innerJoin(
+      templateVersions,
+      eq(templateVersions.id, assessments.templateVersionId)
+    )
+    .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+    .leftJoin(
+      dpas,
+      and(
+        eq(assessments.subjectType, 'dpa'),
+        eq(dpas.id, assessments.subjectId)
+      )
+    )
+    .where(
+      and(
+        eq(assessments.organisationId, organisationId),
+        inArray(assessments.subjectType, ['supplier', 'dpa']),
+        inArray(templates.kind, ['tra', 'tia']),
+        notInArray(assessments.status, ['superseded', 'rejected', 'withdrawn'])
+      )
+    );
+  const held = new Map<string, { tra: boolean; tia: boolean }>();
+  for (const r of rows) {
+    const supplierId = r.subjectType === 'dpa' ? r.supplierOfDpa : r.subjectId;
+    if (!supplierId) continue;
+    const h = held.get(supplierId) ?? { tra: false, tia: false };
+    if (r.kind === 'tra') h.tra = true;
+    if (r.kind === 'tia') h.tia = true;
+    held.set(supplierId, h);
+  }
+  return held;
+}
+
+/**
  * The agreement in force, or null.
  *
  * A supplier accumulates agreements over time. The one that matters is the
@@ -132,7 +193,13 @@ export function currentDpa(
 export function article28Gaps(
   supplier: Supplier,
   supplierDpas: readonly Dpa[],
-  now = new Date()
+  now = new Date(),
+  /**
+   * Whether a UK transfer risk assessment and an EU transfer impact
+   * assessment of the supplier or its agreements are held. Not supplied, the
+   * transfer assessment gaps are not reported.
+   */
+  transferAssessments?: { tra: boolean; tia: boolean }
 ): Article28Gap[] {
   const gaps: Article28Gap[] = [];
   const dpa = currentDpa(supplierDpas, now);
@@ -150,7 +217,26 @@ export function article28Gaps(
         const days = (dpa.expiresAt.getTime() - now.getTime()) / 86_400_000;
         if (days <= EXPIRING_WITHIN_DAYS) gaps.push('dpa_expiring');
       }
-      if (!dpa.transferMechanism?.trim()) gaps.push('no_transfer_mechanism');
+      const mechanisms = effectiveMechanisms(
+        dpa.transferMechanisms,
+        dpa.transferMechanism
+      );
+      if (!dpa.transferMechanism?.trim() && !mechanisms?.length)
+        gaps.push('no_transfer_mechanism');
+      // A safeguard under a law means transfers under it, wherever to: its
+      // assessment of the destination is owed (Schrems II; the UK TRA).
+      if (mechanisms && transferAssessments) {
+        const assessed = (law: 'uk' | 'eu') =>
+          mechanisms.some(
+            (m) =>
+              TRANSFER_MECHANISMS[m].assessed &&
+              TRANSFER_MECHANISMS[m].laws.includes(law)
+          );
+        if (assessed('uk') && !transferAssessments.tra)
+          gaps.push('uk_transfer_no_tra');
+        if (assessed('eu') && !transferAssessments.tia)
+          gaps.push('eu_transfer_no_tia');
+      }
       // Article 28(2): a processor engages no sub-processor without
       // authorisation. An empty list is genuinely ambiguous — it may mean none —
       // so this is reported as unrecorded rather than as a breach.
@@ -358,15 +444,21 @@ async function rowsFor(organisationId: string): Promise<SupplierRow[]> {
     bySupplier.set(d.supplierId, list);
   }
 
-  const [aiAssessed, aiSystems] = await Promise.all([
+  const [aiAssessed, aiSystems, transfersHeld] = await Promise.all([
     aiSupplierAssessments(organisationId),
-    aiSystemsBySupplier(organisationId)
+    aiSystemsBySupplier(organisationId),
+    transferAssessmentsBySupplier(organisationId)
   ]);
 
   const now = new Date();
   return supplierRows.map(({ supplier, ownerEmail }) => {
     const own = bySupplier.get(supplier.id) ?? [];
-    const gaps = article28Gaps(supplier, own, now);
+    const gaps = article28Gaps(
+      supplier,
+      own,
+      now,
+      transfersHeld.get(supplier.id) ?? { tra: false, tia: false }
+    );
     const assessed = aiAssessed.get(supplier.id) ?? null;
     const systems = aiSystems.get(supplier.id) ?? 0;
     return {
@@ -562,6 +654,8 @@ export async function recordDpa(input: {
   signedAt?: Date | null;
   expiresAt?: Date | null;
   transferMechanism?: string;
+  /** Chosen from the list; see `lib/gdpr/transfers.ts`. */
+  transferMechanisms?: ReadonlyArray<{ mechanism: string; module?: unknown }>;
   subProcessors?: string[];
   actor: Actor;
 }) {
@@ -588,6 +682,7 @@ export async function recordDpa(input: {
           signedAt: input.signedAt ?? null,
           expiresAt: input.expiresAt ?? null,
           transferMechanism: input.transferMechanism,
+          transferMechanisms: cleanMechanisms(input.transferMechanisms ?? []),
           subProcessors: input.subProcessors ?? []
         })
         .returning();
@@ -654,6 +749,8 @@ export async function updateDpa(input: {
   signedAt?: Date | null;
   expiresAt?: Date | null;
   transferMechanism?: string | null;
+  /** Absent: left as recorded. */
+  transferMechanisms?: ReadonlyArray<{ mechanism: string; module?: unknown }>;
   subProcessors?: string[];
   actor: Actor;
 }) {
@@ -676,6 +773,9 @@ export async function updateDpa(input: {
         signedAt: input.signedAt ?? null,
         expiresAt: input.expiresAt ?? null,
         transferMechanism: input.transferMechanism?.trim() || null,
+        transferMechanisms: input.transferMechanisms
+          ? cleanMechanisms(input.transferMechanisms)
+          : existing.transferMechanisms,
         subProcessors: input.subProcessors ?? existing.subProcessors ?? []
       };
 
@@ -697,6 +797,7 @@ export async function updateDpa(input: {
           signedAt: existing.signedAt,
           expiresAt: existing.expiresAt,
           transferMechanism: existing.transferMechanism,
+          transferMechanisms: existing.transferMechanisms,
           subProcessors: existing.subProcessors
         },
         after: next
