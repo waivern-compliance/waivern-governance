@@ -24,6 +24,7 @@ import {
   describeArt10,
   describeSchedule1
 } from '@/lib/dpa2018/schedule-1';
+import { JURISDICTION_SHORT } from '@/lib/dsr/statutory';
 import { OUTCOME_LABEL } from '@/lib/foi/report';
 import { REGIME } from '@/lib/foi/statutory';
 import { describeBases, RECOGNISED_CONDITIONS } from '@/lib/gdpr/lawful-basis';
@@ -1000,7 +1001,7 @@ export async function exportRequests(
         ({ request: r, entityName, clock, extended, decisions }) => [
           r.reference,
           entityName,
-          r.jurisdiction.toUpperCase(),
+          JURISDICTION_SHORT[r.jurisdiction],
           r.controllerRole,
           r.rights.join('; '),
           r.channel,

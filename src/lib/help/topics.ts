@@ -962,6 +962,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Which authority to tell',
+        body: [
+          "A breach takes its entity's law: UK, EU, or both, and an entity under both can narrow it. Each law brings its own authority, each with its own seventy-two hours from awareness, listed on the breach under 'Notifications to supervisory authorities'. Under UK law that is the Information Commission. Under EU law it is the lead supervisory authority where the entity is established in the EU, as recorded on the Organisation page.",
+          "Where EU law applies and the entity has no EU establishment, there is no one-stop shop: the EDPB's breach guidelines (9/2022) expect the authority of each member State where affected people live to be told. Tick those States on the breach. Germany has an authority per Land, so choose which when you record the notification.",
+          'Record each notification as its own decision and say which authority it went to; the platform will not take one without that where more than one is owed. The risk assessment, a decision that notification is not required, and the decision about telling the people affected are shared, because Articles 33 and 34 read the same in both laws.'
+        ]
+      },
+      {
         heading: 'Breaches of law enforcement processing (Part 3)',
         body: [
           "Where the entity is a competent authority, a breach of its law enforcement processing is notified under ss.67–68 of the Data Protection Act 2018 rather than Articles 33–34. Choose the regime on the breach; it starts as the entity's new records do. The thresholds and the seventy-two hours are the same, and the decisions cite the sections.",
@@ -1170,7 +1178,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'How the month is counted',
         body: [
           'From the day the clock starts to the same date next month. Where next month has no such date, the last day of the month. Where that falls on a weekend or a bank holiday, the next working day. That is how the ICO counts it, and the deadline shown is worked out that way.',
-          'The clock starts on receipt, unless you had reasonable doubt about who was asking and asked for proof. Then it starts when the proof arrives. Record how identity was checked, never a copy of the document.'
+          'The clock starts on receipt, unless you had reasonable doubt about who was asking and asked for proof. Then it starts when the proof arrives. Record how identity was checked, never a copy of the document.',
+          "A request takes its entity's law: UK, EU, or both. Under EU law, deadlines move off weekends only, because public holidays differ between member States. Under both, the EU deadline is the one shown: the month is the same in each, and UK law only ever adds time (the clarification pause and bank holidays), so the EU deadline is never later. The UK reliefs can still be recorded, but they answer the UK obligation only and do not move the deadline. A request keeps the law it was recorded under, so changing the entity's law later never moves a deadline already running."
         ],
         points: [
           'Extension: up to two more months, for complexity or number of requests, decided and explained to the person within the first month. Only once.',
@@ -1223,7 +1232,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Exemptions',
         body: [
-          "On a request under UK law, record each exemption as its own decision and choose the paragraph of the Data Protection Act 2018 relied on, from Schedule 2 (crime and tax, immigration, regulatory functions, other people's information, legal privilege, references, exams, journalism, research and archiving) or Schedule 3 (health, social work and education data, and child abuse data). The form shows the test the paragraph sets, and refuses a paragraph that does not reach the right decided: most of Schedule 2 Part 4 and the serious harm exemptions restrict only the right of access. An exemption applies only as far as its test is met, to the specific information, never to a whole request because part of it is caught.",
+          "On a request under UK law, or under both (where the exemption answers the UK obligation only, and the form says so: under the EU GDPR the same information is owed unless Member State law restricts it under Article 23), record each exemption as its own decision and choose the paragraph of the Data Protection Act 2018 relied on, from Schedule 2 (crime and tax, immigration, regulatory functions, other people's information, legal privilege, references, exams, journalism, research and archiving) or Schedule 3 (health, social work and education data, and child abuse data). The form shows the test the paragraph sets, and refuses a paragraph that does not reach the right decided: most of Schedule 2 Part 4 and the serious harm exemptions restrict only the right of access. An exemption applies only as far as its test is met, to the specific information, never to a whole request because part of it is caught.",
           "The immigration exemption (Schedule 2 paragraphs 4 to 4B) is for the Secretary of State only, and is decided for each right separately and afresh each time. The decision records how the person's vulnerability and rights were weighed, confirms a substantial risk of prejudice that outweighs the risk to them and is necessary and proportionate, and says whether the person was told - and if not, why telling them would prejudice immigration control.",
           "Withholding health data because access would be likely to cause serious harm (Schedule 3 paragraph 5) needs, unless you are a health professional yourself, the opinion of the appropriate health professional: the one responsible for the person's care, or the best placed of several, or a qualified one where none is available. Record the opinion on the request first. It counts only if given in the six months ending on the day you rely on it, and only if it would not be reasonable to consult them again; the decision asks why not.",
           'The same opinion, that the serious harm test is not met, is needed before a controller that is not a health professional discloses health data the person has not already seen (paragraph 6). Access requests remind you of it.',
@@ -1335,7 +1344,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'How the 30 days are counted',
         body: [
           'The Act says the period begins when the complaint is received, so the day it arrives is the first day. A complaint received on 1 July must be acknowledged by the end of 30 July. These are calendar days: unlike the month for a request, nothing moves off a weekend or a bank holiday.',
-          'An acknowledgement after the 30 days is still recorded, with the reason it was late. Sending the outcome within the 30 days counts as the acknowledgement if nothing else did.'
+          'An acknowledgement after the 30 days is still recorded, with the reason it was late. Sending the outcome within the 30 days counts as the acknowledgement if nothing else did.',
+          "A complaint takes its entity's law. Under both UK and EU law it has the 30 days, because the duty applies wherever UK law does; the EU GDPR sets no period of its own."
         ]
       },
       {
@@ -2197,7 +2207,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Which data protection law each entity is subject to',
         body: [
           'Say for each entity whether it is subject to UK law, EU law, or both. An entity starts as subject to UK law. Part 2 of the Data Protection Act 2018 supplements the UK GDPR, so any entity subject to the UK GDPR is subject to the Act too, along with PECR; one subject to EU law only - a company in an EU member State with no UK establishment and no UK-targeted processing - is subject to none of them.',
-          "For an entity subject to EU law only, the Act's own questions and flags are not shown: the Schedule 1 conditions and appropriate policy document on its processing records (Article 10 offers Union or Member State law instead), the data sharing code, the Schedule 2 and 3 exemptions and health opinion on its requests, and the public authority, competent authority and PECR settings. Requests to it are handled under EU law. Where no entity is subject to UK law, the policy document and sharing agreement registers, the UK data protection templates and the s.164A complaints step are not offered either.",
+          "For an entity subject to EU law only, the Act's own questions and flags are not shown: the Schedule 1 conditions and appropriate policy document on its processing records (Article 10 offers Union or Member State law instead), the data sharing code, the Schedule 2 and 3 exemptions and health opinion on its requests, and the public authority, competent authority and PECR settings. Requests and complaints to it are handled under EU law, and to an entity under both laws under both. Where no entity is subject to UK law, the policy document and sharing agreement registers, the UK data protection templates and the s.164A complaints step are not offered either.",
           'Narrowing an entity to EU law only is refused while it is marked as a public authority, competent authority or public communications provider, since those are UK law. Answers already recorded under UK law are kept, not cleared, so widening it again finds them.'
         ]
       },

@@ -13,6 +13,7 @@ import { appendAuditEvent } from '@/lib/audit';
 import {
   clockFor,
   missingContent,
+  mostUrgent,
   obligationsFor,
   pecrClockFor,
   pecrObligationsFor,
@@ -20,8 +21,16 @@ import {
   type ControllerRole,
   type RiskLevel
 } from '@/lib/breach/statutory';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import { isRegime, type Regime } from '@/lib/dpa2018/part3';
+import { authorityByCode, isEeaState } from '@/lib/gdpr/authorities';
+import {
+  authoritiesToNotify,
+  type NotifyTarget
+} from '@/lib/gdpr/establishment';
+import { effectiveLaws } from '@/lib/gdpr/regimes';
 
+import { cleanRecordLaws } from './ropa';
 import type { Actor } from './templates';
 import {
   assertEntityIn,
@@ -63,7 +72,16 @@ export type LoadedBreach = {
   decisions: Array<BreachDecision & { decidedByEmail: string | null }>;
   risk: RiskLevel | null;
   obligations: ReturnType<typeof obligationsFor>;
+  /** The most urgent of the authorities' clocks. */
   clock: ReturnType<typeof clockFor>;
+  /** The laws the breach falls under: its own, within its entity's. */
+  laws: DataProtectionLaw;
+  /** Each authority to notify, with its own seventy-two hours. */
+  authorityClocks: Array<{
+    target: NotifyTarget;
+    notified: BreachDecision | null;
+    clock: ReturnType<typeof clockFor>;
+  }>;
   outstandingContent: ReturnType<typeof missingContent>;
   /** Whether the entity is a public communications provider at all. */
   publicCommsProvider: boolean;
@@ -93,23 +111,87 @@ function pecrClockOf(
   });
 }
 
+/** What `assemble` needs of the entity, selected alongside each breach. */
+const ENTITY_LAW = {
+  entityLaw: entities.dataProtectionLaw,
+  euEstablishments: entities.euEstablishments,
+  euMainEstablishment: entities.euMainEstablishment,
+  euLeadAuthority: entities.euLeadAuthority
+};
+
+type EntityLaw = {
+  entityLaw: DataProtectionLaw;
+  euEstablishments: string[];
+  euMainEstablishment: string | null;
+  euLeadAuthority: string | null;
+};
+
+/**
+ * Whether a notification decision concerns this authority. A decision names
+ * its authority; one recorded before that was asked counts where there is only
+ * one authority to tell. A placeholder (a German Land not yet chosen) is met
+ * by a notification to any authority of its State.
+ */
+function concerns(
+  d: Pick<BreachDecision, 'authorityCode'>,
+  t: NotifyTarget,
+  only: boolean
+): boolean {
+  if (!d.authorityCode) return only;
+  if (t.code) return d.authorityCode === t.code;
+  const a = authorityByCode(d.authorityCode);
+  return Boolean(a && a.law === 'eu' && t.country && a.country === t.country);
+}
+
+/** The authorities a breach must be notified to, under its laws. */
+export function targetsOf(breach: Breach, entity: EntityLaw): NotifyTarget[] {
+  return authoritiesToNotify({
+    laws: effectiveLaws(entity.entityLaw, breach.laws),
+    establishment: entity,
+    affectedStates: breach.affectedStates,
+    part3: breach.regime === 'dpa_part3'
+  });
+}
+
 function assemble(
   breach: Breach,
   entityName: string,
   ownerEmail: string | null,
   decisions: Array<BreachDecision & { decidedByEmail: string | null }>,
   provider: boolean,
+  entity: EntityLaw,
   now = new Date()
 ): LoadedBreach {
   const pecrClock = pecrClockOf(breach, provider, decisions, now);
   const risk = riskFrom(decisions);
   const role = breach.controllerRole as ControllerRole;
-  const notified = decisions.find(
-    (d) => d.kind === 'supervisory_authority' && d.outcome === 'done'
-  );
+  // Articles 33 and 34 read the same in both laws, so the risk judgement, and
+  // a judgement that notification is not required, is shared by every authority.
   const notRequired = decisions.some(
     (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
   );
+  const targets = targetsOf(breach, entity);
+  const authorityClocks = targets.map((target) => {
+    const notified =
+      decisions.find(
+        (d) =>
+          d.kind === 'supervisory_authority' &&
+          d.outcome === 'done' &&
+          concerns(d, target, targets.length === 1)
+      ) ?? null;
+    return {
+      target,
+      notified,
+      clock: clockFor({
+        role,
+        discoveredAt: breach.discoveredAt,
+        notifiedAt: notified?.completedAt ?? null,
+        notRequired,
+        now,
+        regime: breach.regime
+      })
+    };
+  });
 
   return {
     breach,
@@ -122,16 +204,20 @@ function assemble(
       risk,
       discoveredAt: breach.discoveredAt,
       dataUnintelligible: breach.dataUnintelligible,
-      regime: breach.regime
+      regime: breach.regime,
+      authorities: targets
     }),
-    clock: clockFor({
-      role,
-      discoveredAt: breach.discoveredAt,
-      notifiedAt: notified?.completedAt ?? null,
-      notRequired,
-      now,
-      regime: breach.regime
-    }),
+    clock:
+      mostUrgent(authorityClocks.map((c) => c.clock)) ??
+      clockFor({
+        role,
+        discoveredAt: breach.discoveredAt,
+        notRequired,
+        now,
+        regime: breach.regime
+      }),
+    laws: effectiveLaws(entity.entityLaw, breach.laws),
+    authorityClocks,
     outstandingContent: missingContent(breach),
     publicCommsProvider: provider,
     pecr: pecrClock
@@ -180,6 +266,31 @@ async function checkedRegime(
   return chosen;
 }
 
+/** The breach's laws, within its entity's; Part 3 only under UK law. */
+async function checkedLaws(
+  executor: Pick<typeof db, 'select'>,
+  entityId: string,
+  laws: string | undefined,
+  regime: Regime
+): Promise<DataProtectionLaw> {
+  const [entity] = await executor
+    .select({ name: entities.name, law: entities.dataProtectionLaw })
+    .from(entities)
+    .where(eq(entities.id, entityId));
+  return cleanRecordLaws(entity, laws, regime);
+}
+
+/** EEA member State codes, upper case, once each; anything else is refused. */
+function cleanStates(states: readonly string[]): string[] {
+  const codes = [...new Set(states.map((s) => s.trim().toUpperCase()))].filter(
+    Boolean
+  );
+  const unknown = codes.filter((c) => !isEeaState(c));
+  if (unknown.length > 0)
+    throw new Error(`Not an EEA member State: ${unknown.join(', ')}.`);
+  return codes.sort();
+}
+
 export async function recordBreach(input: {
   organisationId: string;
   entityId: string;
@@ -193,6 +304,10 @@ export async function recordBreach(input: {
   ownerId?: string | null;
   /** UK GDPR or Part 3; defaults from the entity. */
   regime?: Regime;
+  /** Defaults to the entity's law; must be within it. */
+  laws?: string;
+  /** EEA member States where affected people live. */
+  affectedStates?: string[];
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
@@ -200,6 +315,8 @@ export async function recordBreach(input: {
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     const regime = await checkedRegime(db, input.entityId, input.regime);
+    const laws = await checkedLaws(db, input.entityId, input.laws, regime);
+    const affectedStates = cleanStates(input.affectedStates ?? []);
     const reference = await nextReference(
       input.organisationId,
       new Date().getUTCFullYear()
@@ -216,6 +333,8 @@ export async function recordBreach(input: {
           description: input.description,
           controllerRole: input.controllerRole ?? 'controller',
           regime,
+          laws,
+          affectedStates,
           discoveredAt: input.discoveredAt,
           occurredAt: input.occurredAt ?? null,
           categories: input.categories ?? [],
@@ -233,7 +352,8 @@ export async function recordBreach(input: {
         after: {
           reference,
           discoveredAt: input.discoveredAt.toISOString(),
-          role: row.controllerRole
+          role: row.controllerRole,
+          laws
         }
       });
       return row;
@@ -263,6 +383,8 @@ export async function updateBreach(input: {
     status: Breach['status'];
     ownerId: string | null;
     regime: string;
+    laws: string;
+    affectedStates: string[];
   }>;
   actor: Actor;
 }) {
@@ -283,15 +405,39 @@ export async function updateBreach(input: {
           )
         );
       if (!before) throw new Error('No such breach');
-      const { regime: regimeChange, ...rest } = input.changes;
+      const {
+        regime: regimeChange,
+        laws: lawsChange,
+        affectedStates: statesChange,
+        ...rest
+      } = input.changes;
       const regime =
         regimeChange !== undefined
           ? await checkedRegime(tx, before.entityId, regimeChange)
           : undefined;
+      const laws =
+        lawsChange !== undefined || regime !== undefined
+          ? await checkedLaws(
+              tx,
+              before.entityId,
+              lawsChange ?? before.laws,
+              regime ?? before.regime
+            )
+          : before.laws;
+      const affectedStates =
+        statesChange !== undefined
+          ? cleanStates(statesChange)
+          : before.affectedStates;
 
       const [after] = await tx
         .update(breaches)
-        .set({ ...rest, ...(regime ? { regime } : {}), updatedAt: new Date() })
+        .set({
+          ...rest,
+          ...(regime ? { regime } : {}),
+          laws,
+          affectedStates,
+          updatedAt: new Date()
+        })
         .where(eq(breaches.id, input.breachId))
         .returning();
 
@@ -306,11 +452,13 @@ export async function updateBreach(input: {
           changed: Object.keys(input.changes),
           ...(regime && regime !== before.regime
             ? { regime: before.regime }
-            : {})
+            : {}),
+          ...(laws !== before.laws ? { laws: before.laws } : {})
         },
         after: {
           reference: after.reference,
-          ...(regime && regime !== before.regime ? { regime } : {})
+          ...(regime && regime !== before.regime ? { regime } : {}),
+          ...(laws !== before.laws ? { laws } : {})
         }
       });
       return after;
@@ -341,6 +489,8 @@ export async function recordDecision(input: {
   statutoryBasis?: string | null;
   rationale: string;
   recipient?: string | null;
+  /** For a supervisory authority decision: which authority. */
+  authorityCode?: string | null;
   externalRef?: string | null;
   dueAt?: Date | null;
   completedAt?: Date | null;
@@ -363,6 +513,30 @@ export async function recordDecision(input: {
         );
       if (!breach) throw new Error('No such breach');
 
+      // Each authority is its own notification. Where there is more than one
+      // to tell, a notification says which; "not required" is a judgement
+      // about the risk, so it covers them all.
+      const authorityCode =
+        input.kind === 'supervisory_authority'
+          ? input.authorityCode || null
+          : null;
+      if (authorityCode && !authorityByCode(authorityCode))
+        throw new Error('Choose a supervisory authority from the list.');
+      if (
+        input.kind === 'supervisory_authority' &&
+        input.outcome !== 'not_required' &&
+        !authorityCode
+      ) {
+        const [entity] = await tx
+          .select(ENTITY_LAW)
+          .from(entities)
+          .where(eq(entities.id, breach.entityId));
+        if (targetsOf(breach, entity).length > 1)
+          throw new Error(
+            'This breach is owed to more than one authority. Say which one this decision concerns.'
+          );
+      }
+
       const [row] = await tx
         .insert(breachDecisions)
         .values({
@@ -373,6 +547,7 @@ export async function recordDecision(input: {
           statutoryBasis: input.statutoryBasis ?? null,
           rationale,
           recipient: input.recipient ?? null,
+          authorityCode,
           externalRef: input.externalRef ?? null,
           dueAt: input.dueAt ?? null,
           completedAt: input.completedAt ?? null,
@@ -407,6 +582,7 @@ export async function recordDecision(input: {
           kind: input.kind,
           outcome: input.outcome,
           basis: input.statutoryBasis ?? null,
+          ...(authorityCode ? { authority: authorityCode } : {}),
           // The reasoning goes in the chain, not only the outcome: a regulator
           // asking why will be asking about this sentence.
           rationale
@@ -476,7 +652,13 @@ async function decisionsFor(breachIds: string[]) {
 export async function loadBreach(
   breachId: string,
   organisationId: string
-): Promise<(LoadedBreach & { competentAuthority: boolean }) | null> {
+): Promise<
+  | (LoadedBreach & {
+      competentAuthority: boolean;
+      entityLaw: DataProtectionLaw;
+    })
+  | null
+> {
   return withOrganisation(organisationId, async () => {
     const [row] = await db
       .select({
@@ -484,7 +666,8 @@ export async function loadBreach(
         entityName: entities.name,
         provider: entities.publicCommsProvider,
         competentAuthority: entities.competentAuthority,
-        ownerEmail: users.email
+        ownerEmail: users.email,
+        ...ENTITY_LAW
       })
       .from(breaches)
       .innerJoin(entities, eq(entities.id, breaches.entityId))
@@ -507,10 +690,12 @@ export async function loadBreach(
         row.entityName,
         row.ownerEmail,
         decisions,
-        row.provider
+        row.provider,
+        row
       ),
       // Whether Part 3 can be chosen for this breach.
-      competentAuthority: row.competentAuthority
+      competentAuthority: row.competentAuthority,
+      entityLaw: row.entityLaw
     };
   });
 }
@@ -525,7 +710,8 @@ export async function breachRegister(
         breach: breaches,
         entityName: entities.name,
         provider: entities.publicCommsProvider,
-        ownerEmail: users.email
+        ownerEmail: users.email,
+        ...ENTITY_LAW
       })
       .from(breaches)
       .innerJoin(entities, eq(entities.id, breaches.entityId))
@@ -559,6 +745,7 @@ export async function breachRegister(
         r.ownerEmail,
         byBreach.get(r.breach.id) ?? [],
         r.provider,
+        r,
         now
       )
     );
@@ -600,7 +787,8 @@ export async function breachesNeedingAttention(organisationId: string) {
       .select({
         breach: breaches,
         entityName: entities.name,
-        provider: entities.publicCommsProvider
+        provider: entities.publicCommsProvider,
+        ...ENTITY_LAW
       })
       .from(breaches)
       .innerJoin(entities, eq(entities.id, breaches.entityId))
@@ -613,41 +801,46 @@ export async function breachesNeedingAttention(organisationId: string) {
     if (open.length === 0) return [];
 
     const all = await decisionsFor(open.map((o) => o.breach.id));
-    const byBreach = new Map<string, BreachDecision[]>();
-    for (const { decision } of all) {
+    const byBreach = new Map<
+      string,
+      Array<BreachDecision & { decidedByEmail: string | null }>
+    >();
+    for (const { decision, decidedByEmail } of all) {
       const list = byBreach.get(decision.breachId) ?? [];
-      list.push(decision);
+      list.push({ ...decision, decidedByEmail });
       byBreach.set(decision.breachId, list);
     }
 
     const now = new Date();
     return open
-      .flatMap(({ breach, entityName, provider }) => {
-        const decisions = byBreach.get(breach.id) ?? [];
-        const notified = decisions.find(
-          (d) => d.kind === 'supervisory_authority' && d.outcome === 'done'
+      .flatMap((row) => {
+        const { breach, entityName, provider } = row;
+        const loaded = assemble(
+          breach,
+          entityName,
+          null,
+          byBreach.get(breach.id) ?? [],
+          provider,
+          row,
+          now
         );
-        const notRequired = decisions.some(
-          (d) =>
-            d.kind === 'supervisory_authority' && d.outcome === 'not_required'
-        );
+        // The most urgent authority's clock: one breach owed to two
+        // authorities is one item to act on, not two.
         const article33 = {
           breach,
           entityName,
           regime: 'article_33' as const,
-          clock: clockFor({
-            role: breach.controllerRole as ControllerRole,
-            discoveredAt: breach.discoveredAt,
-            notifiedAt: notified?.completedAt ?? null,
-            notRequired,
-            now
-          })
+          clock: loaded.clock
         };
-        const pecr = pecrClockOf(breach, provider, decisions, now);
-        return pecr
+        return loaded.pecr
           ? [
               article33,
-              { breach, entityName, regime: 'pecr_5a' as const, clock: pecr }
+              {
+                breach,
+                entityName,
+                regime: 'pecr_5a' as const,
+                clock: loaded.pecr.clock
+              }
             ]
           : [article33];
       })

@@ -274,7 +274,7 @@ export function establishmentGaps(
  * establishment's State) is named alongside it and in `short`.
  */
 export function regulatorFor(
-  jurisdiction: 'uk' | 'eu',
+  jurisdiction: 'uk' | 'eu' | 'uk_eu',
   e: Pick<
     Establishment,
     'euLeadAuthority' | 'euEstablishments' | 'euMainEstablishment'
@@ -284,6 +284,16 @@ export function regulatorFor(
   short: string;
   authority: SupervisoryAuthority | null;
 } {
+  // Under both laws the person may go to either: the Information Commission,
+  // or an EU authority on the Article 77(1) terms.
+  if (jurisdiction === 'uk_eu') {
+    const eu = regulatorFor('eu', e);
+    return {
+      complainTo: `the Information Commission, or ${eu.complainTo}`,
+      short: `the Information Commission or ${eu.short}`,
+      authority: eu.authority
+    };
+  }
   if (jurisdiction === 'uk')
     return {
       complainTo: 'the Information Commission',
@@ -310,4 +320,120 @@ export function regulatorFor(
         short: 'a supervisory authority',
         authority: null
       };
+}
+
+/** One authority a breach must be notified to, or a placeholder for one not yet identified. */
+export type NotifyTarget = {
+  /** The authority's code, or null where a person still has to choose it. */
+  code: string | null;
+  name: string;
+  law: 'uk' | 'eu';
+  /** The member State, where the target is an EU authority. */
+  country: string | null;
+  /** Why this one: the provision and the route to it. */
+  why: string;
+};
+
+/**
+ * Which supervisory authorities a breach must be notified to (Article 33(1)),
+ * one per authority, each with its own seventy-two hours.
+ *
+ * - UK law, or Part 3: the Information Commission.
+ * - EU law, established in the EU: the lead supervisory authority (Articles
+ *   56(1) and 33(1); EDPB Guidelines 9/2022), as recorded, or the one authority
+ *   of the home State where none is.
+ * - EU law, not established in the EU: the authority of each member State
+ *   where affected people live (EDPB Guidelines 9/2022, para 73), since there
+ *   is no one-stop shop. A State with more than one authority (Germany) needs a
+ *   person to choose, so it is a placeholder until they do.
+ */
+export function authoritiesToNotify(input: {
+  laws: DataProtectionLaw;
+  establishment: Pick<
+    Establishment,
+    'euEstablishments' | 'euMainEstablishment' | 'euLeadAuthority'
+  >;
+  affectedStates: readonly string[];
+  part3?: boolean;
+}): NotifyTarget[] {
+  const targets: NotifyTarget[] = [];
+  const ico = authorityByCode('gb-ico')!;
+  if (input.part3 || input.laws !== 'eu') {
+    targets.push({
+      code: ico.code,
+      name: 'the Information Commission',
+      law: 'uk',
+      country: null,
+      // Named by law only where both apply.
+      why: input.part3
+        ? 'DPA 2018 s.67(1)'
+        : input.laws === 'uk'
+          ? 'Article 33(1)'
+          : 'UK GDPR Article 33(1)'
+    });
+  }
+  if (input.part3 || input.laws === 'uk') return targets;
+
+  const e = input.establishment;
+  if (e.euEstablishments.length > 0) {
+    const lead = authorityByCode(e.euLeadAuthority);
+    const home =
+      e.euMainEstablishment ??
+      (e.euEstablishments.length === 1 ? e.euEstablishments[0] : null);
+    const there = home ? authoritiesIn(home) : [];
+    const authority = lead ?? (there.length === 1 ? there[0] : null);
+    targets.push(
+      authority
+        ? {
+            code: authority.code,
+            name: authority.name,
+            law: 'eu',
+            country: authority.country,
+            why: 'EU GDPR Articles 33(1) and 56(1): the lead supervisory authority'
+          }
+        : {
+            code: null,
+            name: 'the lead supervisory authority, not yet recorded on the Organisation page',
+            law: 'eu',
+            country: home,
+            why: 'EU GDPR Articles 33(1) and 56(1)'
+          }
+    );
+    return targets;
+  }
+
+  const states = [...new Set(input.affectedStates.map((s) => s.toUpperCase()))]
+    .filter(isEeaState)
+    .sort();
+  if (states.length === 0) {
+    targets.push({
+      code: null,
+      name: 'the authority of each member State where affected people live: record which States',
+      law: 'eu',
+      country: null,
+      why: 'EU GDPR Article 33(1), with no EU establishment (EDPB Guidelines 9/2022)'
+    });
+    return targets;
+  }
+  for (const state of states) {
+    const there = authoritiesIn(state);
+    targets.push(
+      there.length === 1
+        ? {
+            code: there[0].code,
+            name: there[0].name,
+            law: 'eu',
+            country: state,
+            why: `EU GDPR Article 33(1): affected people in ${EEA_STATES[state]}, with no EU establishment`
+          }
+        : {
+            code: null,
+            name: `the competent authority in ${EEA_STATES[state]}: choose which when recording the notification`,
+            law: 'eu',
+            country: state,
+            why: `EU GDPR Article 33(1): affected people in ${EEA_STATES[state]}, with no EU establishment`
+          }
+    );
+  }
+  return targets;
 }

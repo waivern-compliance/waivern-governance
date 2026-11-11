@@ -15,7 +15,7 @@ export async function regulatorOfEntity(
   tx: Tx,
   organisationId: string,
   entityId: string,
-  jurisdiction: 'uk' | 'eu'
+  jurisdiction: 'uk' | 'eu' | 'uk_eu'
 ) {
   const [row] = await tx
     .select({
@@ -41,7 +41,9 @@ export async function regulatorOfEntity(
 }
 
 /** What a record made before the words were stored would have said. */
-export function regulatorWithoutEstablishment(jurisdiction: 'uk' | 'eu') {
+export function regulatorWithoutEstablishment(
+  jurisdiction: 'uk' | 'eu' | 'uk_eu'
+) {
   return regulatorFor(jurisdiction, {
     euLeadAuthority: null,
     euEstablishments: [],

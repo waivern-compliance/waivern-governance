@@ -23,7 +23,6 @@ import type {
 import {
   aiFramework,
   appRole,
-  dataProtectionJurisdiction,
   guidanceMode,
   organisationRequestStatus,
   persona,
@@ -53,17 +52,6 @@ export const organisations = pgTable('organisation', {
    * across the whole register. See `lib/ai-frameworks`.
    */
   aiFramework: aiFramework('ai_framework').notNull().default('uk_dsit'),
-  /**
-   * The law requests from data subjects are handled under by default. A column,
-   * like the risk scale, because it sets how every deadline is counted; each
-   * request carries its own copy so changing this never moves one already
-   * received.
-   */
-  dataProtectionJurisdiction: dataProtectionJurisdiction(
-    'data_protection_jurisdiction'
-  )
-    .notNull()
-    .default('uk'),
   /**
    * How many objections to one processing activity in twelve months — upheld
    * or overridden — before its legitimate interests assessment is put back in

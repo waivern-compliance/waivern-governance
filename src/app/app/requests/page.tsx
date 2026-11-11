@@ -10,12 +10,11 @@ import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
-import { JURISDICTION_LABEL, RIGHTS, type Right } from '@/lib/dsr/statutory';
+import { JURISDICTION_SHORT, RIGHTS, type Right } from '@/lib/dsr/statutory';
 import { can, mayConfigureRequests } from '@/lib/rbac';
 import { requestOrigin } from '@/lib/request-origin';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
-  defaultJurisdiction,
   objectionReviewThreshold,
   requestMetrics,
   requestRegister
@@ -31,7 +30,6 @@ import {
   setIntakeAppearanceAction,
   setIntakeComplaintsAction,
   setIntakeFrameOriginsAction,
-  setJurisdictionAction,
   setObjectionThresholdAction,
   setOrganisationFormAppearanceAction
 } from './actions';
@@ -57,25 +55,17 @@ export default async function RequestsPage() {
   }
 
   const org = active.membership.organisationId;
-  const [
-    register,
-    orgEntities,
-    jurisdiction,
-    threshold,
-    metrics,
-    intakeLinks,
-    appearances
-  ] = await Promise.all([
-    requestRegister(org, visibleEntityIds(active, 'dsr.handle')),
-    scoped(org, () =>
-      db.select().from(entities).where(eq(entities.organisationId, org))
-    ),
-    defaultJurisdiction(org),
-    objectionReviewThreshold(org),
-    requestMetrics(org, visibleEntityIds(active, 'dsr.handle')),
-    intakeLinksFor(org, visibleEntityIds(active, 'dsr.handle')),
-    formAppearancesFor(org)
-  ]);
+  const [register, orgEntities, threshold, metrics, intakeLinks, appearances] =
+    await Promise.all([
+      requestRegister(org, visibleEntityIds(active, 'dsr.handle')),
+      scoped(org, () =>
+        db.select().from(entities).where(eq(entities.organisationId, org))
+      ),
+      objectionReviewThreshold(org),
+      requestMetrics(org, visibleEntityIds(active, 'dsr.handle')),
+      intakeLinksFor(org, visibleEntityIds(active, 'dsr.handle')),
+      formAppearancesFor(org)
+    ]);
   const origin = await requestOrigin();
   const mayConfigure = mayConfigureRequests(active.membership.grants);
   const mayRecordIn = orgEntities.filter((e) =>
@@ -251,19 +241,17 @@ export default async function RequestsPage() {
               <label className="block space-y-1">
                 <Label
                   text="Law"
-                  hint="Sets how the month is counted."
+                  hint="Sets how the month is counted. Under both, the stricter EU clock runs."
                 />
                 <select
                   name="jurisdiction"
                   defaultValue=""
                   className={inputClass}
                 >
-                  <option value="">
-                    The entity&apos;s law ({jurisdiction.toUpperCase()} where it
-                    is subject to both)
-                  </option>
+                  <option value="">The entity&apos;s law</option>
                   <option value="uk">UK GDPR</option>
                   <option value="eu">EU GDPR</option>
+                  <option value="uk_eu">Both</option>
                 </select>
               </label>
             </div>
@@ -369,7 +357,7 @@ export default async function RequestsPage() {
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {entityName} · {request.status.replace(/_/g, ' ')} ·{' '}
-                  {request.jurisdiction.toUpperCase()}
+                  {JURISDICTION_SHORT[request.jurisdiction]}
                 </span>
               </div>
               <p className="text-xs text-ink-soft">
@@ -392,36 +380,6 @@ export default async function RequestsPage() {
           </li>
         ) : null}
       </ul>
-
-      <section className="space-y-2 rounded border border-line bg-surface p-5">
-        <h2 className="text-sm font-semibold">
-          Which law new requests are handled under
-        </h2>
-        <p className="max-w-prose text-xs text-ink-soft">
-          Currently {JURISDICTION_LABEL[jurisdiction]}, for an entity subject to
-          both UK and EU law. An entity subject to only one has its requests
-          handled under that one; say which on the Organisation page. The UK
-          lets the month stop while you wait for clarification you reasonably
-          need; the EU GDPR does not. Each request keeps the law it was recorded
-          under, so changing this never moves a deadline already running.
-        </p>
-        {mayConfigureRequests(active.membership.grants) ? (
-          <ActionForm
-            action={setJurisdictionAction}
-            submit="Save"
-            className="flex flex-wrap items-end gap-3"
-          >
-            <select
-              name="jurisdiction"
-              defaultValue={jurisdiction}
-              className="rounded border border-line bg-ground px-3 py-2 text-sm"
-            >
-              <option value="uk">{JURISDICTION_LABEL.uk}</option>
-              <option value="eu">{JURISDICTION_LABEL.eu}</option>
-            </select>
-          </ActionForm>
-        ) : null}
-      </section>
 
       <section className="space-y-3 rounded border border-line bg-surface p-5">
         <h2 className="text-sm font-semibold">Public request form</h2>

@@ -141,6 +141,12 @@ export async function updateBreachAction(
         // Offered only where the entity is a competent authority, or the breach is already under Part 3.
         ...(formData.has('regime')
           ? { regime: text(formData.get('regime')) }
+          : {}),
+        // Asked only where the entity is under both laws.
+        ...(formData.has('laws') ? { laws: text(formData.get('laws')) } : {}),
+        // Asked only where EU law applies.
+        ...(formData.has('affectedStatesAsked')
+          ? { affectedStates: formData.getAll('affectedStates').map(String) }
           : {})
       },
       actor: {
@@ -179,6 +185,7 @@ export async function recordDecisionAction(
       statutoryBasis: text(formData.get('statutoryBasis')) || null,
       rationale,
       recipient: text(formData.get('recipient')) || null,
+      authorityCode: text(formData.get('authorityCode')) || null,
       externalRef: text(formData.get('externalRef')) || null,
       completedAt: when(formData.get('completedAt')),
       lateReason: text(formData.get('lateReason')) || null,
@@ -189,7 +196,11 @@ export async function recordDecisionAction(
       }
     });
   } catch (error) {
-    if (error instanceof RationaleRequired) {
+    // A refusal (the rationale, or which authority) is said back, not thrown.
+    if (
+      error instanceof RationaleRequired ||
+      (error instanceof Error && !('code' in error))
+    ) {
       return { ok: false, message: error.message };
     }
     throw error;

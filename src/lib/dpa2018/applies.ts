@@ -29,26 +29,19 @@ export function isDataProtectionLaw(v: unknown): v is DataProtectionLaw {
 /** Whether the UK GDPR, the DPA 2018 and PECR apply to the entity or record. */
 export const ukLawApplies = appliesUk;
 
-/** The jurisdiction a request to the entity is handled under, where it is not stated. */
+/**
+ * The jurisdiction a request or complaint to the entity is handled under,
+ * where it is not stated: the entity's law. For an entity under both that is
+ * both, which runs the stricter clock (`lib/dsr/statutory.ts`) and, for a
+ * complaint, the DPA 2018 s.164A thirty days, since UK law applies.
+ */
 export function defaultRequestJurisdiction(
-  law: DataProtectionLaw,
-  organisationDefault: 'uk' | 'eu'
-): 'uk' | 'eu' {
-  return law === 'uk' ? 'uk' : law === 'eu' ? 'eu' : organisationDefault;
+  law: DataProtectionLaw
+): DataProtectionLaw {
+  return law;
 }
 
-/**
- * The jurisdiction a complaint to the entity is handled under, where it is not
- * stated. Unlike a request, the organisation's default does not decide for an
- * entity under both laws: the duty to acknowledge within 30 days (DPA 2018
- * s.164A) applies wherever UK law does, and the EU GDPR sets no period, so the
- * UK clock is the one that can be missed.
- */
-export function defaultComplaintJurisdiction(
-  law: DataProtectionLaw
-): 'uk' | 'eu' {
-  return law === 'eu' ? 'eu' : 'uk';
-}
+export const defaultComplaintJurisdiction = defaultRequestJurisdiction;
 
 /**
  * Why a request or complaint cannot be handled under this jurisdiction, or
@@ -57,10 +50,11 @@ export function defaultComplaintJurisdiction(
  */
 export function jurisdictionRefusal(
   entity: { name: string; law: DataProtectionLaw },
-  jurisdiction: 'uk' | 'eu',
+  jurisdiction: DataProtectionLaw,
   what: 'request' | 'complaint'
 ): string | null {
   if (entity.law === 'uk_eu' || entity.law === jurisdiction) return null;
-  const law = (j: 'uk' | 'eu') => (j === 'uk' ? 'UK' : 'EU');
-  return `${entity.name} is recorded as subject to ${law(entity.law)} law only, so a ${what} to it cannot be handled under ${law(jurisdiction)} law. Change the entity's law on the Organisation page if it is wrong.`;
+  const law = (j: DataProtectionLaw) =>
+    j === 'uk' ? 'UK law' : j === 'eu' ? 'EU law' : 'both UK and EU law';
+  return `${entity.name} is recorded as subject to ${law(entity.law)} only, so a ${what} to it cannot be handled under ${law(jurisdiction)}. Change the entity's law on the Organisation page if it is wrong.`;
 }

@@ -9,6 +9,8 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
 import { NOTIFICATION_CONTENT } from '@/lib/breach/statutory';
+import { EEA_STATES, SUPERVISORY_AUTHORITIES } from '@/lib/gdpr/authorities';
+import { appliesEu, lawsLabel, RECORD_LAWS } from '@/lib/gdpr/regimes';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
@@ -46,8 +48,29 @@ export default async function BreachPage({
     outstandingContent,
     publicCommsProvider,
     pecr,
-    competentAuthority
+    competentAuthority,
+    entityLaw,
+    laws,
+    authorityClocks
   } = loaded;
+  // What a notification decision can concern: the authorities owed one, and,
+  // where one is still to be identified, every EU authority to choose from.
+  const owed = authorityClocks
+    .map((c) => c.target)
+    .filter((t): t is typeof t & { code: string } => t.code !== null);
+  const choosing = authorityClocks.some((c) => c.target.code === null);
+  const authorityOptions = [
+    ...owed.map((t) => ({ code: t.code, label: t.name })),
+    ...(choosing
+      ? SUPERVISORY_AUTHORITIES.filter(
+          (a) => a.law === 'eu' && !owed.some((t) => t.code === a.code)
+        ).map((a) => ({
+          code: a.code,
+          label: `${EEA_STATES[a.country]}: ${a.name}${a.scope ? ` (${a.scope})` : ''}`
+        }))
+      : [])
+  ];
+  const euLaw = appliesEu(laws) && breach.regime !== 'dpa_part3';
   if (!can(active.membership.grants, 'record.read', breach.entityId)) {
     return (
       <NotPermitted
@@ -99,7 +122,7 @@ export default async function BreachPage({
           {breach.status}
           {breach.regime === 'dpa_part3'
             ? ' · law enforcement (Part 3, ss.67–68)'
-            : ''}
+            : ` · ${lawsLabel(laws)}`}
           {breach.categories.length > 0
             ? ` · ${breach.categories.join(', ')}`
             : ''}
@@ -219,6 +242,53 @@ export default async function BreachPage({
         </p>
       </section>
 
+      {authorityClocks.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold">
+            Notifications to supervisory authorities ({authorityClocks.length})
+          </h2>
+          <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
+            {authorityClocks.map(({ target, notified, clock: c }) => (
+              <li
+                key={target.code ?? `${target.country}-${target.name}`}
+                className="space-y-1 px-4 py-3"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+                  <span className="text-sm font-medium">
+                    {target.name.charAt(0).toUpperCase() + target.name.slice(1)}
+                  </span>
+                  <span className="font-mono text-[11px] text-ink-soft">
+                    {target.why}
+                  </span>
+                </div>
+                <p
+                  className={`text-xs ${
+                    c.state === 'overdue'
+                      ? 'text-red-900'
+                      : c.state === 'due_soon'
+                        ? 'text-amber-900'
+                        : 'text-ink-soft'
+                  }`}
+                >
+                  {c.words}
+                  {notified
+                    ? ` · notified ${stamp(notified.completedAt) ?? ''}${notified.externalRef ? ` · their reference ${notified.externalRef}` : ''}`
+                    : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {authorityClocks.length > 1 ? (
+            <p className="max-w-prose text-xs text-ink-soft">
+              Each authority is told separately and tracked to its own
+              acknowledgement. The risk assessment and the decision about
+              telling the people affected are shared: Articles 33 and 34 read
+              the same in both laws.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       {publicCommsProvider ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">
@@ -336,6 +406,7 @@ export default async function BreachPage({
           breachId={breach.id}
           pecr={publicCommsProvider}
           part3={breach.regime === 'dpa_part3'}
+          authorities={authorityOptions}
         />
       ) : null}
 
@@ -456,12 +527,70 @@ export default async function BreachPage({
                 defaultValue={breach.regime}
                 className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
               >
-                <option value="gdpr">UK GDPR (Articles 33–34)</option>
+                <option value="gdpr">GDPR (Articles 33–34)</option>
                 <option value="dpa_part3">
                   Law enforcement processing (Part 3, ss.67–68)
                 </option>
               </select>
             </label>
+          ) : null}
+
+          {entityLaw === 'uk_eu' && breach.regime !== 'dpa_part3' ? (
+            <label className="block space-y-1">
+              <Label
+                text="Under which law"
+                hint={`${entityName} is subject to both. Each law brings its own authority to notify.`}
+              />
+              <select
+                name="laws"
+                defaultValue={breach.laws}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                {(Object.keys(RECORD_LAWS) as (keyof typeof RECORD_LAWS)[]).map(
+                  (l) => (
+                    <option
+                      key={l}
+                      value={l}
+                    >
+                      {RECORD_LAWS[l]}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+          ) : null}
+
+          {euLaw ? (
+            <fieldset className="space-y-1">
+              <input
+                type="hidden"
+                name="affectedStatesAsked"
+                value="yes"
+              />
+              <Label
+                text="Member States where affected people live"
+                hint="With no EU establishment, each of their authorities is notified (EDPB Guidelines 9/2022). With one, the lead authority is, and this is for the record."
+              />
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-sm sm:grid-cols-4">
+                {Object.entries(EEA_STATES)
+                  .sort((a, b) => a[1].localeCompare(b[1]))
+                  .map(([code, name]) => (
+                    <label
+                      key={code}
+                      className="flex items-center gap-1.5"
+                    >
+                      <input
+                        type="checkbox"
+                        name="affectedStates"
+                        value={code}
+                        defaultChecked={breach.affectedStates.includes(code)}
+                        className="accent-brand"
+                      />
+                      {name}
+                    </label>
+                  ))}
+              </div>
+            </fieldset>
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">

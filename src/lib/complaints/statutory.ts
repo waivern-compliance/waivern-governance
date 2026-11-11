@@ -29,7 +29,8 @@ export const S164A_SUMMARY =
 /**
  * Does s.164A apply to this complaint?
  *
- * UK law only — the EU GDPR places no such duty on controllers — and only to a
+ * Wherever UK law applies, including a complaint under both laws — the EU GDPR
+ * places no such duty on controllers, so it adds nothing — and only to a
  * complaint received once it was in force. And it is the controller's duty:
  * a processor passes the complaint to the controller rather than answering it.
  */
@@ -39,7 +40,7 @@ export function s164aApplies(input: {
   controllerRole: string;
 }): boolean {
   return (
-    input.jurisdiction === 'uk' &&
+    input.jurisdiction !== 'eu' &&
     input.receivedAt >= COMPLAINTS_DUTY_IN_FORCE &&
     input.controllerRole !== 'processor'
   );
@@ -216,7 +217,7 @@ export function complaintClock(input: {
     ? off(
         input.controllerRole === 'processor'
           ? "As the processor, pass the complaint to the controller; s.164A is the controller's duty."
-          : input.jurisdiction !== 'uk'
+          : input.jurisdiction === 'eu'
             ? 'The EU GDPR sets no period for acknowledging a complaint to the controller. Acknowledging promptly is still good practice.'
             : `Received before s.164A came into force on ${longDate(COMPLAINTS_DUTY_IN_FORCE)}, so no statutory period applies.`
       )

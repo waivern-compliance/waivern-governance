@@ -20,7 +20,6 @@ import {
   RequestRefused,
   respondToRequest,
   seedRequestScope,
-  setDefaultJurisdiction,
   setObjectionReviewThreshold,
   updateRequest,
   type ControllerRole,
@@ -120,35 +119,6 @@ export async function recordRequestAction(
 
   revalidatePath('/app/requests');
   redirect(`/app/requests/${id}`);
-}
-
-export async function setJurisdictionAction(
-  _prev: RequestResult,
-  formData: FormData
-): Promise<RequestResult> {
-  const active = await requireCapability('dsr.handle');
-  // Organisation-wide, so a grant confined to one entity is not enough.
-  if (!mayConfigureRequests(active.membership.grants)) {
-    return {
-      ok: false,
-      message:
-        'Only somebody who configures the whole organisation can change this.'
-    };
-  }
-  const jurisdiction = text(formData.get('jurisdiction')) as Jurisdiction;
-  if (jurisdiction !== 'uk' && jurisdiction !== 'eu')
-    return { ok: false, message: 'Choose UK or EU.' };
-  await setDefaultJurisdiction({
-    organisationId: active.membership.organisationId,
-    jurisdiction,
-    actor: actorOf(active)
-  });
-  revalidatePath('/app/requests');
-  return {
-    ok: true,
-    message:
-      'Saved. Requests already received keep the law they were recorded under.'
-  };
 }
 
 export async function updateRequestAction(

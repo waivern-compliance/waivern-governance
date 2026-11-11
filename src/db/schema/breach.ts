@@ -11,6 +11,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 
 import {
@@ -63,6 +64,21 @@ export const breaches = pgTable(
      * authority's entity.
      */
     regime: text('regime').$type<Regime>().notNull().default('gdpr'),
+    /**
+     * Which of the entity's laws the breach falls under: UK, EU or both. Set
+     * from the entity and narrowed by a person. Each law brings its own
+     * authority to notify (`authoritiesToNotify`).
+     */
+    laws: text('laws').$type<DataProtectionLaw>().notNull().default('uk'),
+    /**
+     * EEA member States where affected people live. Asked where EU law applies
+     * and the entity has no EU establishment: then each of their authorities
+     * is notified (EDPB Guidelines 9/2022).
+     */
+    affectedStates: jsonb('affected_states')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
 
     /**
      * When the organisation became aware. This starts the seventy-two hours,
@@ -174,6 +190,12 @@ export const breachDecisions = pgTable(
 
     /** Who was told, or would have been. */
     recipient: text('recipient'),
+    /**
+     * For a supervisory authority decision: which authority it concerns. A
+     * breach under both laws, or with people affected in several member
+     * States, has one such decision per authority.
+     */
+    authorityCode: text('authority_code'),
     /** A case number, ticket or acknowledgement from the recipient. */
     externalRef: text('external_ref'),
 

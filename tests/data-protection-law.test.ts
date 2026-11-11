@@ -96,9 +96,9 @@ describe('the rules', () => {
     assert.equal(ukLawApplies('uk'), true);
     assert.equal(ukLawApplies('uk_eu'), true);
     assert.equal(ukLawApplies('eu'), false);
-    assert.equal(defaultRequestJurisdiction('eu', 'uk'), 'eu');
-    assert.equal(defaultRequestJurisdiction('uk', 'eu'), 'uk');
-    assert.equal(defaultRequestJurisdiction('uk_eu', 'eu'), 'eu');
+    assert.equal(defaultRequestJurisdiction('eu'), 'eu');
+    assert.equal(defaultRequestJurisdiction('uk'), 'uk');
+    assert.equal(defaultRequestJurisdiction('uk_eu'), 'uk_eu');
     assert.match(
       jurisdictionRefusal({ name: 'E', law: 'eu' }, 'uk', 'request') ?? '',
       /EU law only, so a request/
@@ -107,8 +107,8 @@ describe('the rules', () => {
       jurisdictionRefusal({ name: 'E', law: 'uk_eu' }, 'uk', 'complaint'),
       null
     );
-    // s.164A applies wherever UK law does, whatever the organisation's default.
-    assert.equal(defaultComplaintJurisdiction('uk_eu'), 'uk');
+    // Under both laws, both: s.164A applies wherever UK law does.
+    assert.equal(defaultComplaintJurisdiction('uk_eu'), 'uk_eu');
     assert.equal(defaultComplaintJurisdiction('eu'), 'eu');
   });
 
@@ -483,13 +483,9 @@ describe('complaints', () => {
         dataProtectionLaw: 'uk_eu'
       })
       .returning();
-    await db
-      .update(organisations)
-      .set({ dataProtectionJurisdiction: 'eu' })
-      .where(eq(organisations.id, w.org.id));
     assert.equal(
       (await recordComplaint({ ...base, entityId: dual.id })).jurisdiction,
-      'uk'
+      'uk_eu'
     );
     await assert.rejects(
       recordComplaint({ ...base, jurisdiction: 'uk' }),

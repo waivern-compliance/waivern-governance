@@ -423,54 +423,25 @@ function validRights(rights: readonly string[]): Right[] {
   return [...new Set(known)];
 }
 
-/** The law new requests are handled under, unless a request says otherwise. */
-export async function defaultJurisdiction(
-  organisationId: string
-): Promise<Jurisdiction> {
-  return withOrganisation(organisationId, async () => {
-    const [org] = await db
-      .select({ jurisdiction: organisations.dataProtectionJurisdiction })
-      .from(organisations)
-      .where(eq(organisations.id, organisationId));
-    return org?.jurisdiction ?? 'uk';
-  });
-}
-
 /**
- * Change the law new requests are handled under.
- *
- * Requests already received keep their own: each copies the jurisdiction when
- * it is recorded, so this can never move a deadline somebody is working to.
+ * The organisation's `defaultJurisdiction` in the Integration API's summaries,
+ * kept so a 1.0 reader still finds it: `uk` where UK law applies to the
+ * default entity, `eu` where only EU law does. Requests and complaints take
+ * their law from their own entity; there is no organisation-wide setting.
  */
-export async function setDefaultJurisdiction(input: {
-  organisationId: string;
-  jurisdiction: Jurisdiction;
-  actor: Actor;
-}) {
-  return withOrganisation(input.organisationId, async () => {
-    return db.transaction(async (tx) => {
-      const [before] = await tx
-        .select({ jurisdiction: organisations.dataProtectionJurisdiction })
-        .from(organisations)
-        .where(eq(organisations.id, input.organisationId));
-      if (!before) throw new Error('No such organisation');
-      if (before.jurisdiction === input.jurisdiction) return;
-
-      await tx
-        .update(organisations)
-        .set({ dataProtectionJurisdiction: input.jurisdiction })
-        .where(eq(organisations.id, input.organisationId));
-      await appendAuditEvent(tx, {
-        ...input.actor,
-        organisationId: input.organisationId,
-        action: 'organisation.dsr_jurisdiction_set',
-        subjectType: 'organisation',
-        subjectId: input.organisationId,
-        before: { jurisdiction: before.jurisdiction },
-        after: { jurisdiction: input.jurisdiction }
-      });
-    });
-  });
+export async function summaryDefaultJurisdiction(
+  organisationId: string
+): Promise<'uk' | 'eu'> {
+  const [entity] = await db
+    .select({ law: entities.dataProtectionLaw })
+    .from(entities)
+    .where(
+      and(
+        eq(entities.organisationId, organisationId),
+        eq(entities.isDefault, true)
+      )
+    );
+  return entity?.law === 'eu' ? 'eu' : 'uk';
 }
 
 export async function recordRequest(input: {
@@ -517,11 +488,7 @@ export async function recordRequest(input: {
       .from(entities)
       .where(eq(entities.id, input.entityId));
     const jurisdiction =
-      input.jurisdiction ??
-      defaultRequestJurisdiction(
-        entity.law,
-        await defaultJurisdiction(input.organisationId)
-      );
+      input.jurisdiction ?? defaultRequestJurisdiction(entity.law);
     const refusal = jurisdictionRefusal(entity, jurisdiction, 'request');
     if (refusal) throw new RequestRefused(refusal);
     const regime = await checkedRegime(db, {
@@ -939,8 +906,10 @@ export async function recordRequestDecision(input: {
         );
       }
       // Schedules 2 and 3 are the Data Protection Act 2018's, so UK law only.
+      // Under both laws they answer the UK obligation only, and the decision
+      // says so; the EU side needs Member State law under Article 23.
       if (
-        request.jurisdiction !== 'uk' &&
+        request.jurisdiction === 'eu' &&
         (input.kind === 'exemption' || input.kind === 'health_opinion')
       ) {
         throw new RequestRefused(
@@ -1947,11 +1916,7 @@ export async function requestsSummary(input: {
   const months = input.months ?? 12;
   return withOrganisation(input.organisationId, async () => {
     const [org] = await db
-      .select({
-        name: organisations.name,
-        slug: organisations.slug,
-        jurisdiction: organisations.dataProtectionJurisdiction
-      })
+      .select({ name: organisations.name, slug: organisations.slug })
       .from(organisations)
       .where(eq(organisations.id, input.organisationId));
     if (!org) throw new Error('No such organisation');
@@ -1986,7 +1951,9 @@ export async function requestsSummary(input: {
       organisation: {
         name: org.name,
         slug: org.slug,
-        defaultJurisdiction: org.jurisdiction
+        defaultJurisdiction: await summaryDefaultJurisdiction(
+          input.organisationId
+        )
       },
       scope: {
         entities: input.entities?.length ? input.entities : null,

@@ -434,11 +434,17 @@ first N requests, would read as a summary of everything.
 }
 ```
 
+- `organisation.defaultJurisdiction` is `uk` where UK law applies to the
+  organisation's default entity and `eu` where only EU law does. There is no
+  organisation-wide setting any more: each request and complaint takes its own
+  entity's law (`uk`, `eu`, or both). The key keeps its two values so a 1.0
+  reader is unaffected; the breakdown by law is a later, additive change.
 - `onTime` and `late` count answered requests against the statutory deadline
   as Govern worked it out: one month (three if extended), moved off weekends
   and, for UK requests, bank holidays, waiting for identity where it was asked
   for, and pausing for clarification under UK law for requests received from
-  5 February 2026.
+  5 February 2026. A request under both laws runs the EU deadline, which is
+  never later.
 - A request invoking several rights counts once under each in `byRight`, so
   those rows can add up to more than `totals.received`. Rights nobody invoked
   are left out.

@@ -48,6 +48,15 @@ export type Obligation = {
   dueAt: Date | null;
   /** Said plainly, because somebody has to act on it under time pressure. */
   deadlineWords: string;
+  /** For an authority obligation: which authority, where it is known. */
+  authorityCode?: string | null;
+};
+
+/** An authority a breach must be notified to (`authoritiesToNotify`). */
+export type AuthorityTarget = {
+  code: string | null;
+  name: string;
+  why: string;
 };
 
 /**
@@ -89,6 +98,11 @@ export function obligationsFor(input: {
    * and s.68(7) letting telling the people affected be restricted.
    */
   regime?: 'gdpr' | 'dpa_part3';
+  /**
+   * The authorities to notify, one obligation each, under each law that
+   * applies. Not supplied, a single obligation to "the supervisory authority".
+   */
+  authorities?: readonly AuthorityTarget[];
 }): Obligation[] {
   const { role, risk, discoveredAt } = input;
   const deadline = notificationDeadline(discoveredAt);
@@ -113,17 +127,33 @@ export function obligationsFor(input: {
 
   // Unassessed counts as engaged. The seventy-two hours does not pause while
   // somebody decides whether it applies.
+  // One per authority: a breach owed to the Information Commission and to an
+  // EU authority is two notifications, each on its own seventy-two hours.
   if (risk === null || risk === 'risk' || risk === 'high_risk') {
-    obligations.push({
-      kind: 'supervisory_authority',
-      basis: part3 ? 'DPA 2018 s.67(1)' : 'Article 33(1)',
-      what:
-        risk === null
-          ? `Assess the risk, and notify the ${part3 ? 'Information Commission' : 'supervisory authority'} unless it is unlikely to result in a risk to rights and freedoms`
-          : `Notify the ${part3 ? 'Information Commission' : 'supervisory authority'}`,
-      dueAt: deadline,
-      deadlineWords: 'within seventy-two hours of becoming aware'
-    });
+    const targets: readonly AuthorityTarget[] = input.authorities?.length
+      ? input.authorities
+      : [
+          {
+            code: part3 ? 'gb-ico' : null,
+            name: part3
+              ? 'the Information Commission'
+              : 'the supervisory authority',
+            why: part3 ? 'DPA 2018 s.67(1)' : 'Article 33(1)'
+          }
+        ];
+    for (const t of targets) {
+      obligations.push({
+        kind: 'supervisory_authority',
+        basis: t.why,
+        what:
+          risk === null
+            ? `Assess the risk, and notify ${t.name} unless it is unlikely to result in a risk to rights and freedoms`
+            : `Notify ${t.name}`,
+        dueAt: deadline,
+        deadlineWords: 'within seventy-two hours of becoming aware',
+        authorityCode: t.code
+      });
+    }
   }
 
   if (risk === 'high_risk') {
@@ -344,5 +374,20 @@ export function pecrClockFor(input: {
     dueAt,
     input.now ?? new Date(),
     'Past seventy-two hours - reg 5A still requires notification, with reasons for the delay'
+  );
+}
+
+const URGENCY: Record<ClockState['state'], number> = {
+  overdue: 0,
+  due_soon: 1,
+  running: 2,
+  met: 3,
+  not_applicable: 4
+};
+
+/** Of several authorities' clocks, the one that needs acting on first. */
+export function mostUrgent(clocks: readonly ClockState[]): ClockState | null {
+  return (
+    [...clocks].sort((a, b) => URGENCY[a.state] - URGENCY[b.state])[0] ?? null
   );
 }

@@ -253,13 +253,14 @@ export const riskScale = pgEnum('risk_scale', ['4x4', '5x5']);
 export const aiFramework = pgEnum('ai_framework', ['uk_dsit', 'nist_ai_rmf']);
 
 /**
- * Which data protection law sets the clock for a request from a data subject.
- * The UK and EU texts have drifted apart on exactly this: only the UK lets the
- * month stop while clarification is awaited. See `lib/dsr/statutory.ts`.
+ * Which data protection law a request or complaint is handled under: UK, EU,
+ * or both. The UK and EU texts have drifted apart on the clock: only the UK
+ * lets the month stop while clarification is awaited. Under both, the stricter
+ * clock runs. See `lib/dsr/statutory.ts`.
  */
 export const dataProtectionJurisdiction = pgEnum(
   'data_protection_jurisdiction',
-  ['uk', 'eu']
+  ['uk', 'eu', 'uk_eu']
 );
 
 /**
