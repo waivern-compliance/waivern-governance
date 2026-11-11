@@ -391,3 +391,17 @@ export function scopedEntityIds(
 export function capabilitiesFor(role: AppRole): readonly Capability[] {
   return ROLE_CAPABILITIES[role];
 }
+
+/**
+ * Whether this person may import records from another platform: an owner or
+ * privacy administrator, who configures the whole organisation. An import
+ * reaches every register it writes to, so a grant for one entity is not
+ * enough.
+ */
+export function mayImport(grants: readonly Grant[]): boolean {
+  return grants.some(
+    (g) =>
+      g.scope === 'organisation' &&
+      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+  );
+}

@@ -5,7 +5,9 @@ import { asc, eq } from 'drizzle-orm';
 import { AutomatedDecisions } from '@/components/AutomatedDecisions';
 import { Discussion } from '@/components/Discussion';
 import { EditForm } from '@/components/EditForm';
+import { RefusableForm } from '@/components/foi/RefusableForm';
 import { GapChips } from '@/components/GapChips';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, processingActivities, users } from '@/db/schema';
@@ -48,9 +50,11 @@ import {
   objectionCounts,
   objectionReviewThreshold
 } from '@/services/data-subject-requests';
+import { importSourceName } from '@/services/imports';
 import { GAP_WORDS, HARD_GAPS, loadActivity } from '@/services/ropa';
 import { agreementsFor } from '@/services/sharing-agreements';
 
+import { confirmImportedActivityAction } from '../../admin/imports/actions';
 import { saveFurtherProcessingAction, updateActivityAction } from '../actions';
 import { CategoryPicker } from '../CategoryPicker';
 import { FurtherProcessingFields } from '../FurtherProcessingFields';
@@ -215,6 +219,32 @@ export default async function ActivityPage({
           </p>
         ) : null}
       </header>
+
+      {activity.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(
+              active.membership.organisationId,
+              activity.importSourceId
+            )) ?? 'another platform'
+          }
+          batchId={activity.importBatchId}
+          confirmed={activity.importConfirmedAt !== null}
+          legacy={activity.legacy}
+          confirm={
+            mayEdit ? (
+              <RefusableForm
+                action={confirmImportedActivityAction.bind(null, activity.id)}
+                submit="I have checked it: confirm it"
+                pendingLabel="Confirming…"
+                className="space-y-2"
+              >
+                <span className="sr-only">Confirm this activity</span>
+              </RefusableForm>
+            ) : null
+          }
+        />
+      ) : null}
 
       {assessments.length > 0 ? (
         <section className="space-y-2">

@@ -33,6 +33,13 @@ const SETTINGS: Array<{
     capability: 'workflow.configure'
   },
   {
+    href: '/app/admin/imports',
+    title: 'Import records',
+    detail:
+      'Bring records in from another platform, such as OneTrust or Vanta, or from a spreadsheet: match the columns, preview every row, then import. An import can be undone until its records are worked on.',
+    capability: 'workflow.configure'
+  },
+  {
     href: '/app/admin/assistant',
     title: 'Assistant',
     detail:

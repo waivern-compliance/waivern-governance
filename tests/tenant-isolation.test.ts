@@ -66,6 +66,7 @@ import * as formAppearance from '@/services/form-appearance';
 import * as graph from '@/services/graph';
 import * as guidance from '@/services/guidance';
 import * as handover from '@/services/handover';
+import * as importsSvc from '@/services/imports';
 import * as foiReviews from '@/services/information-request-reviews';
 import * as foi from '@/services/information-requests';
 import * as ingest from '@/services/ingest';
@@ -267,6 +268,15 @@ async function populated() {
     organisationId: id,
     entityId: o.entity.id,
     label: "B's form",
+    actor: SYSTEM
+  });
+  const importBatch = await importsSvc.uploadImport({
+    organisationId: id,
+    recordType: 'supplier',
+    sourceName: "B's old platform",
+    filename: 'vendors.csv',
+    contentType: 'text/csv',
+    bytes: new TextEncoder().encode('Name\nB vendor\n'),
     actor: SYSTEM
   });
   // A council of B's that answers freedom of information requests, kept
@@ -646,6 +656,7 @@ async function populated() {
     sharing,
     sharingParty,
     intakeLink,
+    importBatch,
     useCase,
     change,
     assurance,
@@ -1011,6 +1022,7 @@ describe("reading another organisation's records", () => {
     ['latestExtraction', () => extraction.latestExtraction(A.org.id, B.dpa.id)],
     ['loadRisk', () => risksSvc.loadRisk(B.risk.id, A.org.id)],
     ['loadActivity', () => ropa.loadActivity(B.activity.id, A.org.id)],
+    ['loadImport', () => importsSvc.loadImport(B.importBatch.id, A.org.id)],
     ['loadTemplate', () => templatesSvc.loadTemplate(B.template, A.org.id)],
     ['loadSupplier', () => thirdParty.loadSupplier(B.supplier.id, A.org.id)],
     [
@@ -1393,6 +1405,57 @@ describe("changing another organisation's records", () => {
           organisationId: A.org.id,
           kind: 'other',
           label: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'previewImport',
+      () =>
+        importsSvc.previewImport({
+          organisationId: A.org.id,
+          batchId: B.importBatch.id,
+          mapping: { fields: { name: 'Name' }, keepUnmapped: true },
+          actor: as()
+        })
+    ],
+    [
+      'commitImport',
+      () =>
+        importsSvc.commitImport({
+          organisationId: A.org.id,
+          batchId: B.importBatch.id,
+          actor: as()
+        })
+    ],
+    [
+      'undoImport',
+      () =>
+        importsSvc.undoImport({
+          organisationId: A.org.id,
+          batchId: B.importBatch.id,
+          actor: as()
+        })
+    ],
+    [
+      'confirmImportedActivity',
+      () =>
+        importsSvc.confirmImportedActivity({
+          organisationId: A.org.id,
+          activityId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      'uploadImport into B entity',
+      () =>
+        importsSvc.uploadImport({
+          organisationId: A.org.id,
+          recordType: 'processing_activity',
+          sourceName: 'Planted',
+          entityId: B.entity.id,
+          filename: 'x.csv',
+          contentType: 'text/csv',
+          bytes: new TextEncoder().encode('Name\nX\n'),
           actor: as()
         })
     ],
@@ -3275,6 +3338,10 @@ describe('lists', () => {
           exportsSvc.exportBreaches(o, null)
         ] as const,
         [
+          'importsSvc.importBatchesFor',
+          importsSvc.importBatchesFor(o)
+        ] as const,
+        [
           'exportsSvc.exportRequests',
           exportsSvc.exportRequests(o, null)
         ] as const,
@@ -3544,6 +3611,10 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'the published address is the authority, and carries its organisation',
   'dsr-intake.submitComplaintIntake':
     'the published address is the authority, and carries its organisation',
+  'ingest.nextReference':
+    "a reference number, taken inside the caller's transaction for the organisation it names; reads no records",
+  'imports.importSourceName':
+    'scoped by the organisation given and its row-level security; returns only a platform name',
   'form-appearance.formLogo':
     'the published address is the authority; returns only the logo the form shows publicly',
   'form-appearance.appearanceForLink':

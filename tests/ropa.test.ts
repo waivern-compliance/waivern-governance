@@ -70,6 +70,10 @@ function complete(over: Partial<Activity> = {}): Activity {
     reviewDueAt: null,
     sourceConnectionId: null,
     externalRef: null,
+    importSourceId: null,
+    importBatchId: null,
+    legacy: null,
+    importConfirmedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...over
