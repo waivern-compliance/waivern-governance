@@ -166,6 +166,22 @@ const PATTERNS: Array<[TransferMechanism, RegExp]> = [
   ['derogation', /\bderogation\b|\barticle 49\b/i]
 ];
 
+/**
+ * Where one part names two mechanisms that mean one thing: "UK Addendum to
+ * the SCCs" is the addendum, and "DPF certification" is the Framework, not a
+ * certification mechanism.
+ */
+const OVERLAPS: Array<[TransferMechanism, TransferMechanism]> = [
+  ['uk_addendum', 'eu_scc'],
+  ['eu_adequacy', 'eu_code_or_certification']
+];
+
+function resolveOverlap(hits: TransferMechanism[]): TransferMechanism[] {
+  if (hits.length !== 2) return hits;
+  const pair = OVERLAPS.find(([a, b]) => hits.includes(a) && hits.includes(b));
+  return pair ? [pair[0]] : hits;
+}
+
 export function mechanismsFromText(
   text: string | null | undefined
 ): TransferMechanism[] | null {
@@ -179,12 +195,7 @@ export function mechanismsFromText(
     const hits = PATTERNS.filter(([, re]) => re.test(part)).map(([m]) => m);
     // "SCCs with the UK Addendum" splits into two parts; a part matching
     // both the clauses and the addendum is the addendum.
-    const one =
-      hits.length === 2 &&
-      hits.includes('uk_addendum') &&
-      hits.includes('eu_scc')
-        ? ['uk_addendum' as const]
-        : hits;
+    const one = resolveOverlap(hits);
     if (one.length !== 1) return null;
     if (!found.includes(one[0])) found.push(one[0]);
   }

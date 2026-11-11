@@ -7,7 +7,6 @@ import {
   isNull,
   lte,
   ne,
-  notInArray,
   or,
   sql
 } from 'drizzle-orm';
@@ -43,6 +42,7 @@ import {
 
 import type { Actor } from './templates';
 import { assertMemberOf } from './tenancy-guards';
+import { heldTransferAssessment } from './transfer-assessments';
 
 /**
  * Third parties, and whether Article 28 is actually satisfied for each.
@@ -149,8 +149,7 @@ async function transferAssessmentsBySupplier(
       and(
         eq(assessments.organisationId, organisationId),
         inArray(assessments.subjectType, ['supplier', 'dpa']),
-        inArray(templates.kind, ['tra', 'tia']),
-        notInArray(assessments.status, ['superseded', 'rejected', 'withdrawn'])
+        heldTransferAssessment()
       )
     );
   const held = new Map<string, { tra: boolean; tia: boolean }>();
@@ -217,32 +216,37 @@ export function article28Gaps(
         const days = (dpa.expiresAt.getTime() - now.getTime()) / 86_400_000;
         if (days <= EXPIRING_WITHIN_DAYS) gaps.push('dpa_expiring');
       }
-      const mechanisms = effectiveMechanisms(
-        dpa.transferMechanisms,
-        dpa.transferMechanism
-      );
-      if (!dpa.transferMechanism?.trim() && !mechanisms?.length)
+      if (
+        !dpa.transferMechanism?.trim() &&
+        !effectiveMechanisms(dpa.transferMechanisms, dpa.transferMechanism)
+          ?.length
+      )
         gaps.push('no_transfer_mechanism');
-      // A safeguard under a law means transfers under it, wherever to: its
-      // assessment of the destination is owed (Schrems II; the UK TRA).
-      if (mechanisms && transferAssessments) {
-        const assessed = (law: 'uk' | 'eu') =>
-          mechanisms.some(
-            (m) =>
-              TRANSFER_MECHANISMS[m].assessed &&
-              TRANSFER_MECHANISMS[m].laws.includes(law)
-          );
-        if (assessed('uk') && !transferAssessments.tra)
-          gaps.push('uk_transfer_no_tra');
-        if (assessed('eu') && !transferAssessments.tia)
-          gaps.push('eu_transfer_no_tia');
-      }
       // Article 28(2): a processor engages no sub-processor without
       // authorisation. An empty list is genuinely ambiguous — it may mean none —
       // so this is reported as unrecorded rather than as a breach.
       if ((dpa.subProcessors ?? []).length === 0)
         gaps.push('subprocessors_undisclosed');
     }
+  }
+
+  // A safeguard under a law means transfers under it, wherever to, and to a
+  // processor or another controller alike (Article 46): its assessment of
+  // the destination is owed (Schrems II; the UK TRA).
+  const mechanisms = dpa
+    ? effectiveMechanisms(dpa.transferMechanisms, dpa.transferMechanism)
+    : null;
+  if (mechanisms && transferAssessments) {
+    const assessed = (law: 'uk' | 'eu') =>
+      mechanisms.some(
+        (m) =>
+          TRANSFER_MECHANISMS[m].assessed &&
+          TRANSFER_MECHANISMS[m].laws.includes(law)
+      );
+    if (assessed('uk') && !transferAssessments.tra)
+      gaps.push('uk_transfer_no_tra');
+    if (assessed('eu') && !transferAssessments.tia)
+      gaps.push('eu_transfer_no_tia');
   }
 
   // Only meaningful for a supplier a tool reported or another platform's list

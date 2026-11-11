@@ -99,6 +99,7 @@ import {
   assertMemberOf,
   assertRecordIn
 } from './tenancy-guards';
+import { heldTransferAssessment } from './transfer-assessments';
 
 /**
  * Records of processing activities — the Article 30 register.
@@ -209,7 +210,10 @@ export const HARD_GAPS: Article30Gap[] = [
   'public_authority_legitimate_interests',
   ...HARD_CONDITION_GAPS,
   ...HARD_PART3_GAPS,
-  ...HARD_PART3_FURTHER_GAPS
+  ...HARD_PART3_FURTHER_GAPS,
+  // A transfer on a tool of the other law has no valid safeguard under this one.
+  'uk_transfer_mechanism_not_uk',
+  'eu_transfer_mechanism_not_eu'
 ];
 
 /**
@@ -542,7 +546,9 @@ export const CHILDREN_DPIA_QUESTION = 'children_protection';
  * rejected.
  */
 async function transferAssessmentsHeld(
-  organisationId: string
+  organisationId: string,
+  /** One activity only, where given. */
+  activityId?: string
 ): Promise<Map<string, { tra: boolean; tia: boolean }>> {
   const rows = await db
     .select({ activityId: assessments.subjectId, kind: templates.kind })
@@ -556,8 +562,8 @@ async function transferAssessmentsHeld(
       and(
         eq(assessments.organisationId, organisationId),
         eq(assessments.subjectType, 'processing_activity'),
-        inArray(templates.kind, ['tra', 'tia']),
-        notInArray(assessments.status, ['superseded', 'rejected'])
+        ...(activityId ? [eq(assessments.subjectId, activityId)] : []),
+        heldTransferAssessment()
       )
     );
   const held = new Map<string, { tra: boolean; tia: boolean }>();
@@ -844,16 +850,13 @@ export async function loadActivity(activityId: string, organisationId: string) {
       sharing
     );
     const laws = effectiveLaws(row.dataProtectionLaw, row.activity.laws);
-    const live = related.filter(
-      (r) => !['superseded', 'rejected'].includes(r.assessment.status)
-    );
+    const held = (
+      await transferAssessmentsHeld(organisationId, activityId)
+    ).get(activityId) ?? { tra: false, tia: false };
     const gaps = article30Gaps(row.activity, needsSafeguards, {
       entityLaw: row.dataProtectionLaw,
       euNeedsSafeguards,
-      transferAssessments: {
-        tra: live.some((r) => r.kind === 'tra'),
-        tia: live.some((r) => r.kind === 'tia')
-      },
+      transferAssessments: held,
       originalConsent,
       originalPart3: row.activity.originalActivityId
         ? bases.part3.has(row.activity.originalActivityId)
