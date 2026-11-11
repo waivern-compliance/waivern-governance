@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import type {
+  AdmEuException,
   AdmSafeguards,
   AdmSetAside,
   AdmSpecialCondition
@@ -151,6 +152,13 @@ export const aiUseCases = pgTable(
       .default({}),
     /** Part 3 only (s.50C(3)): the reasons the safeguards may be set aside, and how decisions are then reconsidered. */
     admSetAside: jsonb('adm_set_aside').$type<AdmSetAside>(),
+    /**
+     * EU GDPR Article 22(2): the exception that lets these decisions be taken
+     * at all under EU law (contract, Union or member State law, or explicit
+     * consent), and the law relied on for `law`. Asked where EU law applies.
+     */
+    admEuException: text('adm_eu_exception').$type<AdmEuException>(),
+    admEuLawNote: text('adm_eu_law_note'),
 
     nextReviewAt: timestamp('next_review_at', { withTimezone: true }),
     /**

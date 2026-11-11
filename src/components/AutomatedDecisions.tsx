@@ -8,6 +8,7 @@ import {
 } from '@/app/app/automated-decisions-actions';
 import { AutomatedDecisionFields } from '@/components/AutomatedDecisionFields';
 import { EditForm } from '@/components/EditForm';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import {
   ADM_SAFEGUARD_KEYS,
@@ -48,7 +49,8 @@ export function AutomatedDecisions({
   linked,
   mayEdit,
   linkCandidates,
-  regime = 'gdpr'
+  regime = 'gdpr',
+  laws = 'uk'
 }: {
   side: AdmSide;
   recordId: string;
@@ -61,10 +63,17 @@ export function AutomatedDecisions({
   linkCandidates?: Array<{ id: string; label: string }>;
   /** The regime the processing is under; for an AI use case, from its linked activities. */
   regime?: Regime;
+  /** The laws the record is under (`lib/gdpr/regimes.ts`). */
+  laws?: DataProtectionLaw;
 }) {
   const other = OTHER[side];
   const part3 = regime === 'dpa_part3';
-  const restriction = admRestriction(record, part3 ? undefined : bases, regime);
+  const restriction = admRestriction(
+    record,
+    part3 ? undefined : bases,
+    regime,
+    part3 ? 'uk' : laws
+  );
   const pair = (l: LinkedRecord) =>
     side === 'ai_use_case'
       ? { useCaseId: recordId, activityId: l.id }
@@ -80,7 +89,11 @@ export function AutomatedDecisions({
           ·{' '}
           {part3
             ? 'Data Protection Act 2018 ss.50A–50D (Part 3)'
-            : 'UK GDPR Articles 22A–22C'}
+            : laws === 'eu'
+              ? 'EU GDPR Article 22'
+              : laws === 'uk_eu'
+                ? 'UK GDPR Articles 22A–22C and EU GDPR Article 22'
+                : 'UK GDPR Articles 22A–22C'}
         </span>
       </h2>
 
@@ -93,8 +106,9 @@ export function AutomatedDecisions({
         </p>
       ) : restriction.allowed === null ? (
         <p className="max-w-prose rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Whether {part3 ? 'section 50B' : 'Article 22B'} allows this cannot be
-          told yet. {restriction.why}
+          Whether{' '}
+          {part3 ? 'section 50B' : laws === 'eu' ? 'Article 22' : 'Article 22B'}{' '}
+          allows this cannot be told yet. {restriction.why}
         </p>
       ) : null}
 
@@ -247,6 +261,7 @@ export function AutomatedDecisions({
           <AutomatedDecisionFields
             record={record}
             regime={regime}
+            laws={laws}
           />
           <button
             type="submit"

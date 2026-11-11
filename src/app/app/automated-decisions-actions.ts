@@ -59,7 +59,10 @@ export async function saveAutomatedDecisionsAction(
         admSetAside: {
           reasons: formData.getAll('setAsideReasons').map(String),
           reconsideration: String(formData.get('setAsideReconsideration') ?? '')
-        }
+        },
+        // Asked only where EU law applies; absent, nothing is recorded.
+        admEuException: String(formData.get('admEuException') ?? '') || null,
+        admEuLawNote: String(formData.get('admEuLawNote') ?? '') || null
       },
       actor: {
         actorKind: 'user',

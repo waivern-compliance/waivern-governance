@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import {
+  ADM_EU_EXCEPTION_KEYS,
+  ADM_EU_EXCEPTIONS,
   ADM_SAFEGUARD_KEYS,
   ADM_SAFEGUARDS,
   ADM_SET_ASIDE_REASON_KEYS,
@@ -36,12 +39,17 @@ const yesNo = (v: boolean | null) => (v === null ? '' : v ? 'yes' : 'no');
  */
 export function AutomatedDecisionFields({
   record,
-  regime = 'gdpr'
+  regime = 'gdpr',
+  laws = 'uk'
 }: {
   record: AdmRecord;
   regime?: Regime;
+  /** The laws the record is under: the EU question is asked where EU law applies. */
+  laws?: DataProtectionLaw;
 }) {
   const [solely, setSolely] = useState(yesNo(record.automatedDecisions));
+  const [euException, setEuException] = useState(record.admEuException ?? '');
+  const euLaw = laws !== 'uk' && regime !== 'dpa_part3';
   const [special, setSpecial] = useState(yesNo(record.admSpecialCategory));
   const [setAside, setSetAside] = useState(Boolean(record.admSetAside));
   const part3 = regime === 'dpa_part3';
@@ -72,6 +80,54 @@ export function AutomatedDecisionFields({
           </option>
         </select>
       </label>
+
+      {solely === 'yes' && euLaw ? (
+        <div className="space-y-2">
+          <label className="block space-y-1">
+            <span className={label}>
+              Which Article 22(2) exception applies?
+              <span className={hint}>
+                EU GDPR Article 22(1) gives people a right not to be subject to
+                such a decision. It may be taken only where one of these
+                applies; for a contract or explicit consent, people must also be
+                able to obtain human intervention, express their view and
+                contest it (22(3)).
+              </span>
+            </span>
+            <select
+              name="admEuException"
+              value={euException}
+              onChange={(e) => setEuException(e.target.value)}
+              className={select}
+            >
+              <option value="">None recorded</option>
+              {ADM_EU_EXCEPTION_KEYS.map((k) => (
+                <option
+                  key={k}
+                  value={k}
+                >
+                  {ADM_EU_EXCEPTIONS[k].label} ({ADM_EU_EXCEPTIONS[k].point})
+                </option>
+              ))}
+            </select>
+          </label>
+          {euException === 'law' ? (
+            <label className="block space-y-1">
+              <span className={label}>
+                The Union or member State law
+                <span className={hint}>
+                  Name it, and where it lays down the safeguards.
+                </span>
+              </span>
+              <input
+                name="admEuLawNote"
+                defaultValue={record.admEuLawNote ?? ''}
+                className={select}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
 
       {solely === 'yes' ? (
         <>

@@ -14,6 +14,8 @@ import type { TemplateDefinition } from '../schema';
  * international AI frameworks. It does not apply the EU AI Act, which reaches
  * a UK organisation only where it places a system on the EU market or its
  * output is used in the EU; that is to be added as its own option later.
+ * A system that decides with no meaningful human review is asked whether the
+ * EU GDPR applies and, if so, which Article 22(2) exception it relies on.
  *
  * Scored as a weighted sum rather than likelihood x impact. AI risk does not
  * reduce cleanly to two axes — autonomy, contestability and data provenance
@@ -155,6 +157,90 @@ export const AI_RISK: TemplateDefinition = {
                 weight: 7
               }
             ]
+          },
+          {
+            key: 'adm_eu_law',
+            label: 'Is this processing subject to the EU GDPR?',
+            type: 'boolean',
+            required: false,
+            help: 'It is where the entity is established in the EU, or offers goods or services to people in the EU or monitors their behaviour there. EU law does not permit decisions with no meaningful human review by default: Article 22 gives people the right not to be subject to them unless an exception applies.',
+            showWhen: {
+              op: 'equals',
+              question: 'consequence',
+              value: 'decides'
+            },
+            requireWhen: {
+              op: 'equals',
+              question: 'consequence',
+              value: 'decides'
+            },
+            legalRefs: ['eugdpr.art3', 'eugdpr.art22'],
+            evidence: 'none'
+          },
+          {
+            key: 'adm_eu_exception',
+            label: 'Which Article 22(2) exception applies under the EU GDPR?',
+            type: 'single_select',
+            required: false,
+            help: 'Without one of these, the decision may not be taken solely by automated means under EU law: a person must be meaningfully involved. For a contract or explicit consent, Article 22(3) requires at least the right to obtain human intervention, to express a point of view and to contest the decision.',
+            showWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'consequence', value: 'decides' },
+                { op: 'equals', question: 'adm_eu_law', value: true }
+              ]
+            },
+            requireWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'consequence', value: 'decides' },
+                { op: 'equals', question: 'adm_eu_law', value: true }
+              ]
+            },
+            legalRefs: ['eugdpr.art22', 'eugdpr.art22.2'],
+            evidence: 'none',
+            options: [
+              {
+                value: 'contract',
+                label:
+                  'Necessary for entering into or performing a contract with them (22(2)(a))'
+              },
+              {
+                value: 'law',
+                label:
+                  'Authorised by Union or Member State law that lays down suitable safeguards (22(2)(b))'
+              },
+              {
+                value: 'explicit_consent',
+                label: 'Based on their explicit consent (22(2)(c))'
+              },
+              { value: 'none', label: 'None of these' }
+            ]
+          },
+          {
+            key: 'adm_eu_law_basis',
+            label:
+              'Which Union or Member State law authorises these decisions, and what safeguards does it lay down?',
+            type: 'long_text',
+            required: false,
+            showWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'consequence', value: 'decides' },
+                { op: 'equals', question: 'adm_eu_law', value: true },
+                { op: 'equals', question: 'adm_eu_exception', value: 'law' }
+              ]
+            },
+            requireWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'consequence', value: 'decides' },
+                { op: 'equals', question: 'adm_eu_law', value: true },
+                { op: 'equals', question: 'adm_eu_exception', value: 'law' }
+              ]
+            },
+            legalRefs: ['eugdpr.art22.2'],
+            evidence: 'optional'
           },
           {
             key: 'audience',

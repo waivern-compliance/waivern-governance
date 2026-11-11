@@ -58,6 +58,42 @@ export const COMPATIBILITY_ROUTE_KEYS = Object.keys(
   COMPATIBILITY_ROUTES
 ) as CompatibilityRoute[];
 
+/**
+ * EU GDPR: how a new purpose is compatible. Article 6(4): the person's
+ * consent, a Union or member State law that is a necessary and proportionate
+ * measure to safeguard an Article 23(1) objective, or an assessment of the
+ * five factors (the same as UK Article 8A(2)). And Article 5(1)(b): research,
+ * archiving in the public interest or statistics, under Article 89(1), is not
+ * incompatible. The EU has no Annex 2 and no Article 8A(4).
+ */
+export type EuCompatibilityRoute = 'consent' | 'law' | 'research' | 'assessed';
+
+export const EU_COMPATIBILITY_ROUTES: Record<
+  EuCompatibilityRoute,
+  { label: string; point: string }
+> = {
+  consent: {
+    label: 'They consented to the new purpose',
+    point: 'EU GDPR Article 6(4)'
+  },
+  law: {
+    label: 'Union or member State law safeguarding an Article 23(1) objective',
+    point: 'EU GDPR Article 6(4)'
+  },
+  research: {
+    label: 'Research, archiving or statistics under Article 89(1)',
+    point: 'EU GDPR Article 5(1)(b)'
+  },
+  assessed: {
+    label: 'Assessed as compatible against the Article 6(4) factors',
+    point: 'EU GDPR Article 6(4)(a)-(e)'
+  }
+};
+
+export const EU_COMPATIBILITY_ROUTE_KEYS = Object.keys(
+  EU_COMPATIBILITY_ROUTES
+) as EuCompatibilityRoute[];
+
 /** Annex 2: the conditions under which further processing is treated as compatible. */
 export type Annex2Condition =
   | 'public_task_disclosure'
@@ -201,6 +237,9 @@ export type FurtherProcessingRecord = {
   approvedMedicalResearch: boolean | null;
   art13Exemption: boolean | null;
   publicInformationUrl: string | null;
+  /** EU GDPR: the route under Article 6(4) or 5(1)(b), and the law for `law`. */
+  euCompatibilityRoute?: EuCompatibilityRoute | null;
+  euCompatibilityNote?: string | null;
 };
 
 export class FurtherProcessingRefused extends Error {}
@@ -276,12 +315,14 @@ export function cleanFurtherProcessing(
     Omit<
       FurtherProcessingRecord,
       | 'compatibilityRoute'
+      | 'euCompatibilityRoute'
       | 'annex2Condition'
       | 'compatibilityFactors'
       | 'researchSafeguards'
     >
   > & {
     compatibilityRoute?: string | null;
+    euCompatibilityRoute?: string | null;
     annex2Condition?: string | null;
     compatibilityFactors?: Record<string, string>;
     researchSafeguards?: Record<string, { confirmed: boolean; note?: string }>;
@@ -290,6 +331,11 @@ export function cleanFurtherProcessing(
   const route = input.compatibilityRoute || null;
   if (route && !(route in COMPATIBILITY_ROUTES))
     throw new FurtherProcessingRefused(`Not an Article 8A route: ${route}.`);
+  const euRoute = input.euCompatibilityRoute || null;
+  if (euRoute && !(euRoute in EU_COMPATIBILITY_ROUTES))
+    throw new FurtherProcessingRefused(
+      `Not an EU GDPR Article 6(4) route: ${euRoute}.`
+    );
   const condition = input.annex2Condition || null;
   if (condition && !(condition in ANNEX2_CONDITIONS))
     throw new FurtherProcessingRefused(
@@ -334,8 +380,11 @@ export function cleanFurtherProcessing(
           route === 'annex2' || route === 'article23'
             ? (input.consentUnobtainable ?? null)
             : null,
-        compatibilityFactors: route === 'assessed' ? factors : {},
-        compatibilityNote: route ? text(input.compatibilityNote) : null
+        compatibilityFactors:
+          route === 'assessed' || euRoute === 'assessed' ? factors : {},
+        compatibilityNote: route ? text(input.compatibilityNote) : null,
+        euCompatibilityRoute: euRoute as EuCompatibilityRoute | null,
+        euCompatibilityNote: euRoute ? text(input.euCompatibilityNote) : null
       }
     : {
         originalActivityId: null,
@@ -344,7 +393,9 @@ export function cleanFurtherProcessing(
         annex2Condition: null,
         consentUnobtainable: null,
         compatibilityFactors: {},
-        compatibilityNote: null
+        compatibilityNote: null,
+        euCompatibilityRoute: null,
+        euCompatibilityNote: null
       };
   const art13 = further && research ? (input.art13Exemption ?? null) : null;
 
@@ -366,7 +417,10 @@ export type FurtherProcessingGap =
   | 'further_route_closed'
   | 'further_route_incomplete'
   | 'research_safeguards'
-  | 'art13_no_public_information';
+  | 'art13_no_public_information'
+  | 'eu_further_no_route'
+  | 'eu_further_route_incomplete'
+  | 'eu_research_safeguards';
 
 export const FURTHER_PROCESSING_GAP_WORDS: Record<
   FurtherProcessingGap,
@@ -379,7 +433,13 @@ export const FURTHER_PROCESSING_GAP_WORDS: Record<
   research_safeguards:
     'Research, archiving or statistics with Article 84C safeguards unconfirmed',
   art13_no_public_information:
-    'Article 13(5) relied on with no public information link'
+    'Article 13(5) (UK), or 14(5)(b) (EU), relied on with no public information link',
+  eu_further_no_route:
+    'Further processing with no compatibility route under EU law (Article 6(4))',
+  eu_further_route_incomplete:
+    'Further processing route under EU law not fully recorded (Article 6(4))',
+  eu_research_safeguards:
+    'Research, archiving or statistics with no data minimisation measures confirmed (Article 89(1))'
 };
 
 /**
@@ -389,9 +449,41 @@ export const FURTHER_PROCESSING_GAP_WORDS: Record<
  */
 export function furtherProcessingGaps(
   record: FurtherProcessingRecord,
-  originalConsent: boolean | null
+  originalConsent: boolean | null,
+  /**
+   * The laws the record is under: UK Article 8A, 84B-84C and 13(5); EU
+   * Articles 6(4), 5(1)(b), 89(1) and 14(5)(b); under both, each.
+   */
+  laws: 'uk' | 'eu' | 'uk_eu' = 'uk'
 ): FurtherProcessingGap[] {
   const gaps: FurtherProcessingGap[] = [];
+  const uk = laws !== 'eu';
+  const eu = laws !== 'uk';
+  if (eu && record.furtherProcessing) {
+    const r = record.euCompatibilityRoute;
+    if (!r) gaps.push('eu_further_no_route');
+    else if (
+      (r === 'law' && !record.euCompatibilityNote) ||
+      (r === 'assessed' &&
+        COMPATIBILITY_FACTOR_KEYS.some(
+          (k) => !record.compatibilityFactors?.[k]
+        ))
+    )
+      gaps.push('eu_further_route_incomplete');
+  }
+  // Article 89(1) asks for safeguards ensuring data minimisation; it has no
+  // equivalent of the UK's Article 84C tests.
+  if (
+    eu &&
+    record.research &&
+    !record.researchSafeguards?.data_minimisation?.confirmed
+  )
+    gaps.push('eu_research_safeguards');
+  if (!uk) {
+    if (record.art13Exemption && !record.publicInformationUrl)
+      gaps.push('art13_no_public_information');
+    return gaps;
+  }
   if (record.furtherProcessing) {
     const route = record.compatibilityRoute;
     if (!route) gaps.push('further_no_route');

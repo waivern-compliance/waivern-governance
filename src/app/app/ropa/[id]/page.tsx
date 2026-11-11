@@ -28,6 +28,8 @@ import {
   describeSchedule1
 } from '@/lib/dpa2018/schedule-1';
 import { objectionReviewDue } from '@/lib/dsr/statutory';
+import { EEA_STATES } from '@/lib/gdpr/authorities';
+import { childrenAges } from '@/lib/gdpr/children';
 import {
   ANNEX2_CONDITIONS,
   COMPATIBILITY_FACTOR_KEYS,
@@ -434,6 +436,41 @@ export default async function ActivityPage({
                     <option value="no">No</option>
                   </select>
                 </label>
+                {euLaw ? (
+                  <fieldset className="space-y-1">
+                    <input
+                      type="hidden"
+                      name="childrenStatesAsked"
+                      value="yes"
+                    />
+                    <Label
+                      text="Offered directly to children on consent, in which member States?"
+                      hint="EU GDPR Article 8(1) - an information society service relying on consent. Below each State's age of digital consent, a parent must give or authorise it. Leave all unticked where none applies."
+                    />
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-sm sm:grid-cols-3">
+                      {childrenAges(Object.keys(EEA_STATES)).map((c) => (
+                        <label
+                          key={c.code}
+                          className="flex items-center gap-1.5"
+                        >
+                          <input
+                            type="checkbox"
+                            name="childrenMemberStates"
+                            value={c.code}
+                            defaultChecked={(
+                              activity.childrenMemberStates ?? []
+                            ).includes(c.code)}
+                            className="accent-brand"
+                          />
+                          {c.name}
+                          <span className="text-xs text-ink-soft">
+                            {c.age ? `(${c.age.age})` : '(age not established)'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
               </div>
             }
           />
@@ -767,6 +804,7 @@ export default async function ActivityPage({
             >
               <FurtherProcessingFields
                 record={activity}
+                laws={laws}
                 activities={otherActivities
                   .filter(
                     (a) =>
@@ -858,6 +896,7 @@ export default async function ActivityPage({
         linked={linkedUseCases}
         mayEdit={mayEdit}
         regime={activity.regime}
+        laws={laws}
       />
 
       <Discussion

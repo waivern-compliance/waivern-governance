@@ -142,6 +142,14 @@ export async function updateActivityAction(
       lawfulBases: formData.getAll('lawfulBases').map(String),
       recognisedCondition: text(formData.get('recognisedCondition')) || null,
       childrenLikely: yesNo(formData.get('childrenLikely')),
+      // Asked only where EU law applies.
+      ...(formData.has('childrenStatesAsked')
+        ? {
+            childrenMemberStates: formData
+              .getAll('childrenMemberStates')
+              .map(String)
+          }
+        : {}),
       outsidePublicTasks: formData.get('outsidePublicTasks') === 'on',
       specialCategory: yesNo(formData.get('specialCategory')),
       art9Condition: text(formData.get('art9Condition')) || null,
@@ -229,6 +237,9 @@ export async function saveFurtherProcessingAction(
           ])
         ),
         compatibilityNote: text(formData.get('compatibilityNote')) || null,
+        euCompatibilityRoute:
+          text(formData.get('euCompatibilityRoute')) || null,
+        euCompatibilityNote: text(formData.get('euCompatibilityNote')) || null,
         furtherAuthorisedBy: text(formData.get('furtherAuthorisedBy')) || null,
         furtherNecessaryProportionate: yesNo(
           formData.get('furtherNecessaryProportionate')

@@ -27,6 +27,7 @@ import type {
 } from '@/lib/dpa2018/schedule-1';
 import type { SupplierRole } from '@/lib/dpa2018/sharing';
 import type {
+  AdmEuException,
   AdmSafeguards,
   AdmSetAside,
   AdmSpecialCondition
@@ -36,6 +37,7 @@ import type {
   CompatibilityFactor,
   CompatibilityRoute,
   Confirmations,
+  EuCompatibilityRoute,
   ResearchSafeguard
 } from '@/lib/gdpr/further-processing';
 import type { LawfulBasis, RecognisedCondition } from '@/lib/gdpr/lawful-basis';
@@ -149,6 +151,13 @@ export const processingActivities = pgTable(
     /** Part 3 only (s.50C(3)): the reasons the safeguards may be set aside, and how decisions are then reconsidered. */
     admSetAside: jsonb('adm_set_aside').$type<AdmSetAside>(),
     /**
+     * EU GDPR Article 22(2): the exception that lets these decisions be taken
+     * at all under EU law (contract, Union or member State law, or explicit
+     * consent), and the law relied on for `law`. Asked where EU law applies.
+     */
+    admEuException: text('adm_eu_exception').$type<AdmEuException>(),
+    admEuLawNote: text('adm_eu_law_note'),
+    /**
      * Further processing (Article 8A): whether this purpose reuses data first
      * collected for another, and on what ground the new purpose is compatible.
      * The original activity is optional; where it is not linked, whether the
@@ -171,6 +180,16 @@ export const processingActivities = pgTable(
       .notNull()
       .default({}),
     compatibilityNote: text('compatibility_note'),
+    /**
+     * EU GDPR: how the new purpose is compatible under Article 6(4) (consent,
+     * Union or member State law, or an assessment of the same five factors),
+     * or Article 5(1)(b) for research, archiving and statistics. The UK route
+     * above answers UK law only.
+     */
+    euCompatibilityRoute: text(
+      'eu_compatibility_route'
+    ).$type<EuCompatibilityRoute>(),
+    euCompatibilityNote: text('eu_compatibility_note'),
     /**
      * Part 3 (DPA 2018 s.36): the law authorising this controller to process
      * the data for this purpose — s.36(3)(a) on a Part 3 record, s.36(4) on a
@@ -200,6 +219,15 @@ export const processingActivities = pgTable(
      * looks for a DPIA that says how. Null: not yet known.
      */
     childrenLikely: boolean('children_likely'),
+    /**
+     * EU GDPR Article 8(1): the member States where this offers an information
+     * society service directly to children on the basis of consent. Each sets
+     * its own age, from 13 to 16 (`lib/gdpr/children.ts`).
+     */
+    childrenMemberStates: jsonb('children_member_states')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     /**
      * For a public authority: this processing is not in the performance of its
      * tasks, so the Article 6(1) bar on legitimate interests does not reach it.

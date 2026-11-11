@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db, withOrganisation } from '@/db/client';
 import { aiUseCases, processingActivities, recordLinks } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import {
   admMismatch,
@@ -336,6 +337,8 @@ export type LinkedRecord = {
   lawfulBases?: LawfulBasis[];
   /** A processing activity's regime. */
   regime?: Regime;
+  /** A processing activity's laws. */
+  laws?: DataProtectionLaw;
   /** Seen from the page being viewed: "missing_here" means this page lacks it. */
   mismatch: AdmMismatch | null;
 };
@@ -379,6 +382,7 @@ export async function linkedActivitiesOf(
       record: admOf(a),
       lawfulBases: a.lawfulBases,
       regime: a.regime,
+      laws: a.laws,
       mismatch: admMismatch(useCase, a)
     }));
   });
