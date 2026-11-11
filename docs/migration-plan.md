@@ -1,6 +1,6 @@
 # Plan: moving a team's records in from another governance platform
 
-Status: proposed 11 November 2026. Decisions below are recommendations, not yet settled.
+Status: all decisions settled 11 November 2026, as recommended. Nothing built yet.
 
 ## What is asked for
 
@@ -10,7 +10,7 @@ evidence. They need to bring those in smoothly, without retyping, and without th
 move quietly changing what the records say.
 
 The question asked was whether an MCP connection is the best way to do it. This plan
-recommends against MCP as the main route and for an import pipeline Govern owns, with
+settles against MCP as the main route and for an import pipeline Govern owns, with
 MCP as an optional client of that pipeline later (decision 1).
 
 ## What a migration has to get right
@@ -86,29 +86,29 @@ a guide to scope, not a specification.
 
 ## Decisions
 
-1. **The route.** Recommended: an import pipeline in Govern (upload, map, dry run,
-   commit), with MCP as an optional client of it later. Alternative: MCP first.
-2. **Where imported decisions stand.** Recommended: imported records arrive marked
+Settled with Vincent on 11 November 2026, each as recommended.
+
+1. **The route.** An import pipeline in Govern (upload, map, dry run, commit), with MCP
+   as an optional client of it later.
+2. **Where imported decisions stand.** Imported records arrive marked
    _imported, not yet confirmed in Govern_. Their past decisions (a risk acceptance, an
    assessment outcome) are kept as dated history with who made them in the old
    platform, and a person confirms each record in Govern before it counts as current
-   (for example, before an imported risk acceptance counts as in force). Alternative:
-   treat them as current from the moment of import.
-3. **Assessments.** Recommended: bring assessments in as read-only records with their
+   (for example, before an imported risk acceptance counts as in force).
+3. **Assessments.** Bring assessments in as read-only records with their
    questions and answers attached and their outcome as history, linked to the activity,
    vendor or system they were about. Do not force them into Govern's templates, whose
    questions will not match. A new assessment in Govern starts fresh when one is next
-   due. Alternative: map answers into templates where questions match.
-4. **Who may import.** Recommended: owners and privacy administrators
+   due.
+4. **Who may import.** Owners and privacy administrators
    (`workflow.configure` at organisation scope), the same people who configure the
    organisation. Every batch is audited with who ran it.
-5. **Undo.** Recommended: a batch can be undone while none of its records has been
+5. **Undo.** A batch can be undone while none of its records has been
    changed in Govern since; after that, records are changed one by one like any other.
-   Alternative: no undo, only correction.
-6. **Sample files.** Recommended: no source profile is built until two or more real,
+6. **Sample files.** No source profile is built until two or more real,
    anonymised exports of that source have been seen. Until then, the generic CSV import
    with saved column mappings serves every source.
-7. **AI in the mapping.** Recommended: Claude suggests a column mapping for an
+7. **AI in the mapping.** Claude suggests a column mapping for an
    unfamiliar file, using the organisation's own model as `extraction.ts` does, and a
    person confirms it before the dry run. The model never sees more than the header row
    and a few sample rows, and never writes.
