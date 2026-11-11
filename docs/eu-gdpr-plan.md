@@ -1,6 +1,6 @@
 # Plan: the EU GDPR, alongside the UK GDPR
 
-Status: proposed, for decision. Written 11 November 2026. Nothing built.
+Status: decisions settled as recommended (11 November 2026). Written 11 November 2026.
 
 ## What is asked for
 
@@ -482,7 +482,7 @@ own. Phases 1-3 make a dual entity workable for the registers people use most.
   (breach notification, Art 22, Art 30(5)); the pure modules keep each rule in one place
   so a change is one edit with its tests.
 
-## Decisions for the user
+## Decisions (settled 11 November 2026, all as recommended)
 
 1. **One record with an answer per law, or separate records per law.** _Recommendation:_
    one record. A dual entity's CRM is one processing activity, one breach is one
