@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import {
+  basesFor,
   LAWFUL_BASES,
   LAWFUL_BASIS_KEYS,
   RECOGNISED_CONDITION_KEYS,
@@ -21,13 +22,18 @@ const label =
  * ticked, because that basis means nothing without one. The free text stays,
  * as a note: it is where the basis used to be written, and where the Portal
  * still sends it.
+ *
+ * Under EU law only, recognised legitimate interests is not offered: it is the
+ * UK's own basis. A record that already relies on it keeps the box, ticked,
+ * with a notice, so the person sees it and chooses what replaces it.
  */
 export function LawfulBasisFields({
   bases,
   condition,
   note,
   publicAuthority = false,
-  outsidePublicTasks = false
+  outsidePublicTasks = false,
+  ukLaw = true
 }: {
   bases: readonly LawfulBasis[];
   condition: RecognisedCondition | null;
@@ -35,6 +41,8 @@ export function LawfulBasisFields({
   /** The entity is a public authority: legitimate interests is not for its tasks. */
   publicAuthority?: boolean;
   outsidePublicTasks?: boolean;
+  /** The entity is subject to UK law, where recognised legitimate interests exists. */
+  ukLaw?: boolean;
 }) {
   const [recognised, setRecognised] = useState(
     bases.includes('recognised_legitimate_interests')
@@ -52,7 +60,9 @@ export function LawfulBasisFields({
         </span>
       </legend>
       <div className="grid gap-1.5 sm:grid-cols-2">
-        {LAWFUL_BASIS_KEYS.map((b) => (
+        {LAWFUL_BASIS_KEYS.filter(
+          (b) => basesFor(ukLaw).includes(b) || bases.includes(b)
+        ).map((b) => (
           <label
             key={b}
             className="flex items-start gap-2.5 text-sm"
@@ -102,7 +112,15 @@ export function LawfulBasisFields({
           </label>
         </div>
       ) : null}
-      {recognised ? (
+      {!ukLaw && recognised ? (
+        <p className="rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900">
+          This entity is subject to EU law only. Recognised legitimate interests
+          is a basis in UK law only (UK GDPR Article 6(1)(ea)); the EU GDPR has
+          no equivalent. Untick it and choose the basis this processing rests on
+          under EU law, such as legitimate interests with an assessment.
+        </p>
+      ) : null}
+      {recognised && ukLaw ? (
         <label className="block space-y-1">
           <span className={label}>
             Annex 1 condition

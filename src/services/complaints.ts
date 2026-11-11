@@ -22,6 +22,10 @@ import {
   type ComplaintClock,
   type ComplaintOutcome
 } from '@/lib/complaints/statutory';
+import {
+  defaultRequestJurisdiction,
+  jurisdictionAllowed
+} from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
 import { BadQuery } from '@/lib/integration/query';
 
@@ -252,7 +256,7 @@ export async function recordComplaint(input: {
   complainantContact?: string | null;
   representative?: string | null;
   controllerRole?: ControllerRole;
-  /** Defaults to the organisation's. */
+  /** Defaults to the entity's law, or the organisation's default where it is subject to both. */
   jurisdiction?: Jurisdiction;
   /** The request it is about, if it is about one. */
   requestId?: string | null;
@@ -279,8 +283,23 @@ export async function recordComplaint(input: {
     await assertEntityIn(input.organisationId, input.entityId);
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
+    // As for requests: the entity's law decides, and the organisation's
+    // default only where the entity is subject to both.
+    const [entity] = await db
+      .select({ name: entities.name, law: entities.dataProtectionLaw })
+      .from(entities)
+      .where(eq(entities.id, input.entityId));
     const jurisdiction =
-      input.jurisdiction ?? (await defaultJurisdiction(input.organisationId));
+      input.jurisdiction ??
+      defaultRequestJurisdiction(
+        entity.law,
+        await defaultJurisdiction(input.organisationId)
+      );
+    if (!jurisdictionAllowed(entity.law, jurisdiction)) {
+      throw new ComplaintRefused(
+        `${entity.name} is recorded as subject to ${entity.law === 'eu' ? 'EU' : 'UK'} law only, so a complaint to it cannot be handled under ${jurisdiction === 'uk' ? 'UK' : 'EU'} law. Change the entity's law on the Organisation page if it is wrong.`
+      );
+    }
     const reference = await nextReference(
       input.organisationId,
       new Date().getUTCFullYear()

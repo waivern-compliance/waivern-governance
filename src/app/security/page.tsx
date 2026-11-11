@@ -82,7 +82,7 @@ function builtIn(scanning: boolean): Section[] {
       points: [
         'The trail is append-only. The database refuses any attempt to edit or delete an entry; a mistake is put right by recording a correction, not by rewriting history. Assessment revisions, risk acceptances, incidents and training records are protected the same way.',
         'Entries are chained: each carries a SHA-256 hash of its contents and of the entry before it, so altering one entry breaks every entry after it.',
-        'The exported trail carries instructions a recipient, such as an auditor or the ICO, can follow to check the chain for themselves.',
+        'The exported trail carries instructions a recipient, such as an auditor or the Information Commission, can follow to check the chain for themselves.',
         'Exports and file downloads are themselves recorded.'
       ]
     },

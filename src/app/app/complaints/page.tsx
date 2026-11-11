@@ -282,11 +282,13 @@ export default async function ComplaintsPage({
                 />
                 <select
                   name="jurisdiction"
-                  defaultValue={
-                    aboutRequest?.request.jurisdiction ?? jurisdiction
-                  }
+                  defaultValue={aboutRequest?.request.jurisdiction ?? ''}
                   className={inputClass}
                 >
+                  <option value="">
+                    The entity&apos;s law ({jurisdiction.toUpperCase()} where it
+                    is subject to both)
+                  </option>
                   <option value="uk">UK GDPR and DPA 2018</option>
                   <option value="eu">EU GDPR</option>
                 </select>

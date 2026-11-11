@@ -15,6 +15,7 @@ import {
   suppliers
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { ukLawApplies, type DataProtectionLaw } from '@/lib/dpa2018/applies';
 import {
   AutomatedDecisionRefused,
   cleanAdm
@@ -41,7 +42,7 @@ import {
 } from '@/lib/integration/duaa';
 
 import { createUseCase } from './ai-register';
-import { cleanLawfulBases } from './ropa';
+import { cleanLawfulBases, LawfulBasisRefused } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise as canonicaliseByHand } from './third-party';
 
@@ -52,6 +53,7 @@ function refusedBy(error: unknown): string | null {
   if (
     error instanceof AutomatedDecisionRefused ||
     error instanceof FurtherProcessingRefused ||
+    error instanceof LawfulBasisRefused ||
     error instanceof RecordRefused
   ) {
     return error.message;
@@ -91,21 +93,24 @@ async function resolveEntity(
   organisationId: string,
   connection: AuthedConnection,
   named: string | undefined
-): Promise<{ ok: true; entityId: string } | { ok: false; reason: string }> {
+): Promise<
+  | { ok: true; entityId: string; law: DataProtectionLaw }
+  | { ok: false; reason: string }
+> {
   if (!named) {
-    if (connection.defaultEntityId)
-      return { ok: true, entityId: connection.defaultEntityId };
     const [fallback] = await db
       .select()
       .from(entities)
       .where(
         and(
           eq(entities.organisationId, organisationId),
-          eq(entities.isDefault, true)
+          connection.defaultEntityId
+            ? eq(entities.id, connection.defaultEntityId)
+            : eq(entities.isDefault, true)
         )
       );
     return fallback
-      ? { ok: true, entityId: fallback.id }
+      ? { ok: true, entityId: fallback.id, law: fallback.dataProtectionLaw }
       : { ok: false, reason: 'No entity named and no default configured' };
   }
 
@@ -119,7 +124,7 @@ async function resolveEntity(
       )
     );
   return match
-    ? { ok: true, entityId: match.id }
+    ? { ok: true, entityId: match.id, law: match.dataProtectionLaw }
     : { ok: false, reason: `Unknown entity "${named}"` };
 }
 
@@ -267,7 +272,13 @@ export async function ingestProcessingActivities(
             description: r.description,
             purposes: r.purposes,
             lawfulBasis: r.lawfulBasis,
-            ...(bases ? cleanLawfulBases(bases, condition ?? null) : {}),
+            ...(bases
+              ? cleanLawfulBases(
+                  bases,
+                  condition ?? null,
+                  ukLawApplies(entity.law)
+                )
+              : {}),
             dataCategories: r.dataCategories,
             subjectCategories: r.subjectCategories,
             recipients: r.recipients,

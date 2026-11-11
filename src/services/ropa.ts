@@ -56,6 +56,7 @@ import {
 import {
   isLawfulBasis,
   isRecognisedCondition,
+  LAWFUL_BASIS_GAP_WORDS,
   lawfulBasisGaps,
   type LawfulBasis,
   type RecognisedCondition
@@ -97,6 +98,7 @@ export type Article30Gap =
   | 'security_measures'
   | 'lawful_basis'
   | 'recognised_condition'
+  | 'recognised_not_uk_law'
   | AdmGap
   | FurtherProcessingGap
   | 'children_no_dpia'
@@ -122,6 +124,7 @@ export const GAP_WORDS: Record<Article30Gap, string> = {
   lawful_basis: 'No lawful basis chosen',
   recognised_condition:
     'Recognised legitimate interests with no Annex 1 condition',
+  recognised_not_uk_law: LAWFUL_BASIS_GAP_WORDS.recognised_not_uk_law,
   ...ADM_GAP_WORDS,
   ...FURTHER_PROCESSING_GAP_WORDS,
   children_no_dpia: 'Likely accessed by children, with no DPIA',
@@ -162,6 +165,7 @@ export const HARD_GAPS: Article30Gap[] = [
   'recipients',
   'transfer_safeguards',
   'controller_named',
+  'recognised_not_uk_law',
   'adm_relies_on_ea',
   'adm_special_no_condition',
   'further_route_closed',
@@ -272,9 +276,16 @@ export function article30Gaps(
     // one unambiguously was turned into a choice; anything else waits for one.
     for (const gap of lawfulBasisGaps({
       bases: activity.lawfulBases ?? [],
-      recognisedCondition: activity.recognisedCondition
+      recognisedCondition: activity.recognisedCondition,
+      ukLaw: context.ukLaw ?? true
     })) {
-      gaps.push(gap === 'no_basis' ? 'lawful_basis' : 'recognised_condition');
+      gaps.push(
+        gap === 'no_basis'
+          ? 'lawful_basis'
+          : gap === 'no_recognised_condition'
+            ? 'recognised_condition'
+            : gap
+      );
     }
     // Articles 22A–22C, only where significant decisions are solely automated.
     gaps.push(...admGaps(activity, activity.lawfulBases ?? [], 'uk_gdpr'));
@@ -419,7 +430,9 @@ export class LawfulBasisRefused extends Error {}
  */
 export function cleanLawfulBases(
   bases: readonly string[],
-  condition: string | null | undefined
+  condition: string | null | undefined,
+  /** False where the entity is subject to EU law only: (ea) does not exist there. */
+  ukLaw = true
 ): {
   lawfulBases: LawfulBasis[];
   recognisedCondition: RecognisedCondition | null;
@@ -428,6 +441,11 @@ export function cleanLawfulBases(
   if (unknown.length > 0)
     throw new LawfulBasisRefused(`Not a lawful basis: ${unknown.join(', ')}.`);
   const lawfulBases = [...new Set(bases)] as LawfulBasis[];
+  if (!ukLaw && lawfulBases.includes('recognised_legitimate_interests')) {
+    throw new LawfulBasisRefused(
+      'Recognised legitimate interests is a basis in UK law only (UK GDPR Article 6(1)(ea)), and this entity is subject to EU law only. Choose another basis, such as legitimate interests with an assessment.'
+    );
+  }
   if (condition && !isRecognisedCondition(condition)) {
     throw new LawfulBasisRefused(`Not an Annex 1 condition: ${condition}.`);
   }
@@ -647,7 +665,8 @@ export async function createActivity(input: {
     const [entity] = await db
       .select({
         competentAuthority: entities.competentAuthority,
-        defaultRegime: entities.defaultRegime
+        defaultRegime: entities.defaultRegime,
+        dataProtectionLaw: entities.dataProtectionLaw
       })
       .from(entities)
       .where(eq(entities.id, input.entityId));
@@ -660,7 +679,8 @@ export async function createActivity(input: {
     }
     const bases = cleanLawfulBases(
       input.lawfulBases ?? [],
-      input.recognisedCondition
+      input.recognisedCondition,
+      ukLawApplies(entity.dataProtectionLaw)
     );
     const reference = await nextReference(
       input.organisationId,
@@ -892,15 +912,23 @@ export async function updateActivity(input: {
               )
             })
           : null;
-      const bases =
-        lawfulBases !== undefined || recognisedCondition !== undefined
-          ? cleanLawfulBases(
-              lawfulBases ?? before.lawfulBases,
-              recognisedCondition !== undefined
-                ? recognisedCondition
-                : before.recognisedCondition
-            )
-          : {};
+      const basesChanged =
+        lawfulBases !== undefined || recognisedCondition !== undefined;
+      const [entity] = basesChanged
+        ? await tx
+            .select({ dataProtectionLaw: entities.dataProtectionLaw })
+            .from(entities)
+            .where(eq(entities.id, before.entityId))
+        : [];
+      const bases = basesChanged
+        ? cleanLawfulBases(
+            lawfulBases ?? before.lawfulBases,
+            recognisedCondition !== undefined
+              ? recognisedCondition
+              : before.recognisedCondition,
+            ukLawApplies(entity.dataProtectionLaw)
+          )
+        : {};
 
       const [after] = await tx
         .update(processingActivities)

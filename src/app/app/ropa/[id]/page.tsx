@@ -370,6 +370,7 @@ export default async function ActivityPage({
                   note={activity.lawfulBasis ?? ''}
                   publicAuthority={loaded.publicAuthority}
                   outsidePublicTasks={activity.outsidePublicTasks}
+                  ukLaw={ukLaw}
                 />
                 <SpecialCategoryFields
                   record={activity}

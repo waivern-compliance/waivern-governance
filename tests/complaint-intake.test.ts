@@ -31,19 +31,23 @@ after(() => pg.end());
 
 async function form(
   label: string,
-  organisationOver: Partial<typeof organisations.$inferInsert> = {}
+  entityOver: Partial<typeof entities.$inferInsert> = {}
 ) {
   const [org] = await db
     .insert(organisations)
     .values({
       name: `Complaint intake ${label}`,
-      slug: `cintake-${label}-${crypto.randomUUID().slice(0, 8)}`,
-      ...organisationOver
+      slug: `cintake-${label}-${crypto.randomUUID().slice(0, 8)}`
     })
     .returning();
   const [entity] = await db
     .insert(entities)
-    .values({ organisationId: org.id, name: 'Studios', isDefault: true })
+    .values({
+      organisationId: org.id,
+      name: 'Studios',
+      isDefault: true,
+      ...entityOver
+    })
     .returning();
   const link = await issueIntakeLink({
     organisationId: org.id,
@@ -130,10 +134,15 @@ describe('complaints through the public form', () => {
   });
 
   it('promises no date where s.164A does not apply', async () => {
-    const w = await form('eu', { dataProtectionJurisdiction: 'eu' });
+    const w = await form('eu', { dataProtectionLaw: 'eu' });
+    assert.equal((await openIntakeLink(w.link.slug))?.ukLaw, false);
     const result = await complaint(w.link.slug);
     assert.ok(result.ok);
     assert.doesNotMatch(result.dueWords, /by \d/);
+    assert.equal(
+      (await openIntakeLink((await form('uk')).link.slug))?.ukLaw,
+      true
+    );
   });
 
   it('files an unknown subject as something else, and asks for what is missing', async () => {

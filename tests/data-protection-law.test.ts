@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import { eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
-import { entities, organisations } from '@/db/schema';
+import { entities, organisations, processingActivities } from '@/db/schema';
 import {
   defaultRequestJurisdiction,
   jurisdictionAllowed,
@@ -13,8 +14,12 @@ import {
   conditionGaps,
   type SpecialCategoryRecord
 } from '@/lib/dpa2018/schedule-1';
+import { basesFor, lawfulBasisGaps } from '@/lib/gdpr/lawful-basis';
+import type { AuthedConnection } from '@/lib/integration/auth';
 import { navFor } from '@/lib/nav';
 import type { Grant } from '@/lib/rbac';
+import { recordComplaint } from '@/services/complaints';
+import { createConnection } from '@/services/connections';
 import {
   recordRequest,
   recordRequestDecision,
@@ -26,7 +31,13 @@ import {
   setPublicAuthority
 } from '@/services/entities';
 import { guidanceFor } from '@/services/guidance';
-import { createActivity, loadActivity, updateActivity } from '@/services/ropa';
+import { ingestProcessingActivities } from '@/services/ingest';
+import {
+  createActivity,
+  HARD_GAPS,
+  loadActivity,
+  updateActivity
+} from '@/services/ropa';
 import { shippedTemplatesMissing } from '@/services/templates';
 
 const SYSTEM = {
@@ -265,6 +276,158 @@ describe('the entity setting', () => {
       !(
         await guidanceFor({ organisationId: org.id, chosen: 'maintain' })
       ).steps.some((s) => s.id === 'complaints')
+    );
+  });
+});
+
+describe('recognised legitimate interests', () => {
+  it('is offered only where UK law applies, and reported on an EU-only record that relies on it', () => {
+    assert.ok(basesFor(true).includes('recognised_legitimate_interests'));
+    assert.ok(!basesFor(false).includes('recognised_legitimate_interests'));
+    assert.ok(basesFor(false).includes('legitimate_interests'));
+    const bases = ['recognised_legitimate_interests'] as const;
+    assert.deepEqual(
+      lawfulBasisGaps({ bases, recognisedCondition: 'crime', ukLaw: false }),
+      ['recognised_not_uk_law']
+    );
+    assert.deepEqual(
+      lawfulBasisGaps({ bases, recognisedCondition: null, ukLaw: true }),
+      ['no_recognised_condition']
+    );
+    assert.deepEqual(
+      lawfulBasisGaps({ bases, recognisedCondition: 'crime' }),
+      []
+    );
+  });
+
+  it('is refused on an EU-only entity, and an existing reliance shows as a serious gap', async () => {
+    const w = await world('ea');
+    await assert.rejects(
+      createActivity({
+        organisationId: w.org.id,
+        entityId: w.eu.id,
+        name: 'Fraud screening',
+        lawfulBases: ['recognised_legitimate_interests'],
+        recognisedCondition: 'crime',
+        actor: SYSTEM
+      }),
+      /UK law only/
+    );
+    const uk = await createActivity({
+      organisationId: w.org.id,
+      entityId: w.uk.id,
+      name: 'Fraud screening',
+      lawfulBases: ['recognised_legitimate_interests'],
+      recognisedCondition: 'crime',
+      actor: SYSTEM
+    });
+    assert.ok(
+      !(await loadActivity(uk.id, w.org.id))!.gaps.includes(
+        'recognised_not_uk_law'
+      )
+    );
+
+    // A record made before the entity was narrowed to EU law only.
+    const eu = await createActivity({
+      organisationId: w.org.id,
+      entityId: w.eu.id,
+      name: 'Fraud screening',
+      actor: SYSTEM
+    });
+    await db
+      .update(processingActivities)
+      .set({
+        lawfulBases: ['recognised_legitimate_interests'],
+        recognisedCondition: 'crime'
+      })
+      .where(eq(processingActivities.id, eu.id));
+    const loaded = (await loadActivity(eu.id, w.org.id))!;
+    assert.ok(loaded.gaps.includes('recognised_not_uk_law'));
+    assert.ok(!loaded.gaps.includes('recognised_condition'));
+    assert.ok(HARD_GAPS.includes('recognised_not_uk_law'));
+    await assert.rejects(
+      updateActivity({
+        activityId: eu.id,
+        organisationId: w.org.id,
+        changes: {
+          lawfulBases: ['recognised_legitimate_interests', 'contract']
+        },
+        actor: SYSTEM
+      }),
+      /UK law only/
+    );
+    await updateActivity({
+      activityId: eu.id,
+      organisationId: w.org.id,
+      changes: { lawfulBases: ['legitimate_interests'] },
+      actor: SYSTEM
+    });
+    assert.ok(
+      !(await loadActivity(eu.id, w.org.id))!.gaps.includes(
+        'recognised_not_uk_law'
+      )
+    );
+  });
+
+  it('is skipped with the reason when the Portal sends it for an EU-only entity', async () => {
+    const w = await world('ea-ingest');
+    const created = await createConnection({
+      organisationId: w.org.id,
+      kind: 'waivern_portal',
+      name: 'Portal',
+      defaultEntityId: w.uk.id,
+      actor: SYSTEM
+    });
+    const portal: AuthedConnection = {
+      id: created.id,
+      organisationId: w.org.id,
+      kind: 'waivern_portal',
+      name: 'Portal',
+      defaultEntityId: w.uk.id
+    };
+    const record = {
+      name: 'Fraud screening',
+      purposes: ['Detect fraud'],
+      dataCategories: [],
+      subjectCategories: [],
+      recipients: [],
+      systems: [],
+      transfers: [],
+      lawfulBases: ['recognised_legitimate_interests' as const],
+      recognisedCondition: 'crime' as const
+    };
+    const out = await ingestProcessingActivities(portal, [
+      { ...record, externalRef: 'eu-1', entity: 'Europe GmbH' },
+      { ...record, externalRef: 'uk-1' }
+    ]);
+    assert.equal(out.created, 1);
+    assert.equal(out.skipped.length, 1);
+    assert.equal(out.skipped[0].externalRef, 'eu-1');
+    assert.match(out.skipped[0].reason, /UK law only/);
+  });
+});
+
+describe('complaints', () => {
+  it('take their law from the entity, and are refused under a law it is not subject to', async () => {
+    const w = await world('complaints');
+    const base = {
+      organisationId: w.org.id,
+      entityId: w.eu.id,
+      channel: 'email',
+      receivedAt: new Date(Date.now() - DAY),
+      subject: 'request_handling',
+      description: 'My access request was answered late.',
+      complainantName: 'A person',
+      actor: SYSTEM
+    };
+    assert.equal((await recordComplaint(base)).jurisdiction, 'eu');
+    await assert.rejects(
+      recordComplaint({ ...base, jurisdiction: 'uk' }),
+      /EU law only/
+    );
+    assert.equal(
+      (await recordComplaint({ ...base, entityId: w.uk.id })).jurisdiction,
+      'uk'
     );
   });
 });

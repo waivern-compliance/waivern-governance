@@ -162,26 +162,42 @@ export function basesFromText(
   return bases;
 }
 
-export type LawfulBasisGap = 'no_basis' | 'no_recognised_condition';
+/**
+ * The bases open to a record. Recognised legitimate interests is the UK's own
+ * (point (ea), inserted by the DUAA): the EU GDPR's Article 6(1) has the six
+ * original bases only, so where UK law does not apply it is not offered.
+ */
+export function basesFor(ukLaw: boolean): LawfulBasis[] {
+  return ukLaw
+    ? LAWFUL_BASIS_KEYS
+    : LAWFUL_BASIS_KEYS.filter((b) => b !== 'recognised_legitimate_interests');
+}
+
+export type LawfulBasisGap =
+  'no_basis' | 'no_recognised_condition' | 'recognised_not_uk_law';
 
 export const LAWFUL_BASIS_GAP_WORDS: Record<LawfulBasisGap, string> = {
   no_basis: 'No lawful basis chosen',
   no_recognised_condition:
-    'Recognised legitimate interests with no Annex 1 condition'
+    'Recognised legitimate interests with no Annex 1 condition',
+  recognised_not_uk_law:
+    'Relies on recognised legitimate interests, which is UK law only, under EU law only (EU GDPR Article 6(1))'
 };
 
+/**
+ * What the chosen bases still lack. `ukLaw` false: the entity is subject to EU
+ * law only, where recognised legitimate interests does not exist, so relying
+ * on it is reported rather than its Annex 1 condition asked for.
+ */
 export function lawfulBasisGaps(input: {
   bases: readonly LawfulBasis[];
   recognisedCondition: string | null;
+  ukLaw?: boolean;
 }): LawfulBasisGap[] {
   if (input.bases.length === 0) return ['no_basis'];
-  if (
-    input.bases.includes('recognised_legitimate_interests') &&
-    !input.recognisedCondition
-  ) {
-    return ['no_recognised_condition'];
-  }
-  return [];
+  if (!input.bases.includes('recognised_legitimate_interests')) return [];
+  if (input.ukLaw === false) return ['recognised_not_uk_law'];
+  return input.recognisedCondition ? [] : ['no_recognised_condition'];
 }
 
 /** Bases in the order Article 6(1) lists them, for display. */
