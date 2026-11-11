@@ -6,7 +6,7 @@ import { HomeLink } from '@/components/HomeLink';
 import { Wordmark } from '@/components/Wordmark';
 import { missingEmailSettings } from '@/lib/email/resend';
 import { isPlatformAdmin, platformAdmins } from '@/lib/platform';
-import { requestQueue } from '@/services/organisation-requests';
+import { DIRECT, requestQueue } from '@/services/organisation-requests';
 
 import { CreateOrganisation } from './CreateOrganisation';
 import { Decision } from './Decision';
@@ -124,7 +124,7 @@ export default async function Platform() {
         {decided.length > 0 ? (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
-              Decided lately
+              Set up or decided lately
             </h2>
             <ul className="divide-y divide-line rounded border border-line bg-surface">
               {decided.map((r) => (
@@ -139,7 +139,8 @@ export default async function Platform() {
                     </span>
                   </span>
                   <span className="font-mono text-[11px] text-ink-soft">
-                    {r.status} by {r.decidedByEmail} {day(r.decidedAt)}
+                    {r.decisionNote === DIRECT ? 'created' : r.status} by{' '}
+                    {r.decidedByEmail} {day(r.decidedAt)}
                   </span>
                 </li>
               ))}

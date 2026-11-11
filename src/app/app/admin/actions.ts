@@ -10,6 +10,7 @@ import {
 } from '@/lib/dpa2018/applies';
 import { DpoRefused } from '@/lib/dpa2018/public-authority';
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { isEmailAddress } from '@/lib/email-address';
 import { waivernHosted } from '@/lib/hosting';
 import { entityAgreementFrom } from '@/lib/legal/acceptance';
 import { PERSONAS, type Persona } from '@/lib/persona';
@@ -72,7 +73,7 @@ export async function inviteAction(
 ): Promise<AdminResult> {
   const email = text(formData.get('email')).toLowerCase();
   const role = text(formData.get('role')) as AppRole;
-  if (!email.includes('@'))
+  if (!isEmailAddress(email))
     return { ok: false, message: 'That is not an email address.' };
   if (!ROLES.includes(role)) return { ok: false, message: 'Choose a role.' };
 
