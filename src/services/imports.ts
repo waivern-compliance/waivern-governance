@@ -42,8 +42,8 @@ import { canonicalise } from './third-party';
  *
  * An import writes as one step: every row of the preview, or nothing. Each
  * record keeps the platform and batch it came from, its identifier there, and
- * the source's fields with no home here; an imported activity counts as
- * history until a person confirms it, as an imported supplier does.
+ * the source's fields with no home here; an imported activity waits for a
+ * person to confirm it, as an imported supplier does.
  */
 
 export class ImportRefused extends Error {}
@@ -128,7 +128,13 @@ export async function uploadImport(input: {
           throw new ImportRefused('Choose the legal entity they belong to.');
         entityId = entity.id;
       }
-      const [found] = await tx
+      // Insert-or-read, so two first uploads naming the same platform at once
+      // both land on the one source rather than one failing.
+      await tx
+        .insert(importSources)
+        .values({ organisationId: input.organisationId, name: sourceName })
+        .onConflictDoNothing();
+      const [source] = await tx
         .select()
         .from(importSources)
         .where(
@@ -137,14 +143,6 @@ export async function uploadImport(input: {
             sql`lower(${importSources.name}) = lower(${sourceName})`
           )
         );
-      const source =
-        found ??
-        (
-          await tx
-            .insert(importSources)
-            .values({ organisationId: input.organisationId, name: sourceName })
-            .returning()
-        )[0];
       const [batch] = await tx
         .insert(importBatches)
         .values({
@@ -289,51 +287,78 @@ async function lockedBatch(tx: Tx, organisationId: string, batchId: string) {
   return batch;
 }
 
-/** What one checked row would do now: create, update, or add to a supplier. */
-async function decide(
+type Decision =
+  | { action: 'create'; recordId: null }
+  | { action: 'update' | 'merge'; recordId: string }
+  | { action: 'refuse'; reason: string };
+
+/**
+ * What each checked row would do now: create, update, add to a supplier, or
+ * (an activity imported before into another legal entity) nothing. The
+ * records it could match are read once for the whole file, not row by row.
+ */
+async function matcher(
   tx: Tx,
-  batch: { organisationId: string; sourceId: string; recordType: RecordType },
-  record: ImportRecord,
-  sourceRef: string
-): Promise<{ action: 'create' | 'update' | 'merge'; recordId: string | null }> {
+  batch: {
+    organisationId: string;
+    sourceId: string;
+    recordType: RecordType;
+    entityId: string | null;
+  }
+) {
   if (batch.recordType === 'processing_activity') {
-    const [existing] = await tx
-      .select({ id: processingActivities.id })
+    const existing = await tx
+      .select({
+        id: processingActivities.id,
+        ref: processingActivities.externalRef,
+        entityId: processingActivities.entityId,
+        entityName: entities.name
+      })
       .from(processingActivities)
+      .innerJoin(entities, eq(entities.id, processingActivities.entityId))
       .where(
         and(
           eq(processingActivities.organisationId, batch.organisationId),
-          eq(processingActivities.importSourceId, batch.sourceId),
-          eq(processingActivities.externalRef, sourceRef)
+          eq(processingActivities.importSourceId, batch.sourceId)
         )
       );
-    return existing
-      ? { action: 'update', recordId: existing.id }
-      : { action: 'create', recordId: null };
+    const byRef = new Map(existing.map((r) => [r.ref, r]));
+    return (_record: ImportRecord, sourceRef: string): Decision => {
+      const found = byRef.get(sourceRef);
+      if (!found) return { action: 'create', recordId: null };
+      // Moving it between entities changes who is answerable for it; that is
+      // a decision for its page, not a side effect of an import.
+      if (batch.entityId && found.entityId !== batch.entityId)
+        return {
+          action: 'refuse',
+          reason: `Imported before into ${found.entityName}. Import it into that entity, or move it there first.`
+        };
+      return { action: 'update', recordId: found.id };
+    };
   }
-  const [own] = await tx
-    .select({ id: suppliers.id })
+  const existing = await tx
+    .select({
+      id: suppliers.id,
+      ref: suppliers.externalRef,
+      sourceId: suppliers.importSourceId,
+      key: suppliers.canonicalKey
+    })
     .from(suppliers)
-    .where(
-      and(
-        eq(suppliers.organisationId, batch.organisationId),
-        eq(suppliers.importSourceId, batch.sourceId),
-        eq(suppliers.externalRef, sourceRef)
-      )
-    );
-  if (own) return { action: 'update', recordId: own.id };
-  const [same] = await tx
-    .select({ id: suppliers.id })
-    .from(suppliers)
-    .where(
-      and(
-        eq(suppliers.organisationId, batch.organisationId),
-        eq(suppliers.canonicalKey, canonicalise(record.data.name))
-      )
-    );
-  return same
-    ? { action: 'merge', recordId: same.id }
-    : { action: 'create', recordId: null };
+    .where(eq(suppliers.organisationId, batch.organisationId));
+  const byRef = new Map(
+    existing
+      .filter((r) => r.sourceId === batch.sourceId && r.ref)
+      .map((r) => [r.ref!, r.id])
+  );
+  const byKey = new Map(existing.map((r) => [r.key, r.id]));
+  return (record: ImportRecord, sourceRef: string): Decision => {
+    const own = byRef.get(sourceRef);
+    if (own) return { action: 'update', recordId: own };
+    const same = byKey.get(canonicalise(record.data.name));
+    return same
+      ? { action: 'merge', recordId: same }
+      : { action: 'create', recordId: null };
+  };
 }
 
 /**
@@ -378,6 +403,7 @@ export async function previewImport(input: {
       };
 
       const table = await readFile(batch.file);
+      const decide = await matcher(tx, batch);
       const seen = new Map<string, number>();
       const rows: Array<typeof importRows.$inferInsert> = [];
       for (const [i, cells] of table.rows.entries()) {
@@ -400,11 +426,11 @@ export async function previewImport(input: {
           continue;
         }
         // Within one file, one row per record: a second would silently win.
-        const key =
-          batch.recordType === 'supplier'
-            ? canonicalise(converted.record.data.name)
-            : converted.sourceRef.toLowerCase();
-        const first = seen.get(key);
+        // A supplier is one record by its identifier there or by its name.
+        const keys = [`ref:${converted.sourceRef.toLowerCase()}`];
+        if (batch.recordType === 'supplier')
+          keys.push(`name:${canonicalise(converted.record.data.name)}`);
+        const first = keys.map((k) => seen.get(k)).find((n) => n !== undefined);
         if (first !== undefined) {
           rows.push({
             organisationId: input.organisationId,
@@ -418,21 +444,20 @@ export async function previewImport(input: {
           });
           continue;
         }
-        seen.set(key, rowNumber);
-        const { action, recordId } = await decide(
-          tx,
-          batch,
-          converted.record,
-          converted.sourceRef
-        );
+        for (const k of keys) seen.set(k, rowNumber);
+        const decision = decide(converted.record, converted.sourceRef);
         rows.push({
           organisationId: input.organisationId,
           batchId: batch.id,
           rowNumber,
           sourceRef: converted.sourceRef,
-          action,
-          record: converted.record,
-          recordId
+          ...(decision.action === 'refuse'
+            ? { action: 'refuse', reason: decision.reason }
+            : {
+                action: decision.action,
+                record: converted.record,
+                recordId: decision.recordId
+              })
         });
       }
 
@@ -475,7 +500,11 @@ function activityValues(
     description: data.description ?? null,
     purposes: data.purposes,
     lawfulBasis: data.lawfulBasis ?? null,
-    ...(bases ? cleanLawfulBases(bases, null) : {}),
+    // Always written, so a re-import never leaves the old bases behind text
+    // that no longer says them.
+    ...(bases
+      ? cleanLawfulBases(bases, null)
+      : { lawfulBases: [], recognisedCondition: null }),
     dataCategories: data.dataCategories,
     subjectCategories: data.subjectCategories,
     recipients: data.recipients,
@@ -579,6 +608,7 @@ export async function commitImport(input: {
       const at = new Date();
       const year = at.getUTCFullYear();
       const actions: Action[] = [];
+      const decide = await matcher(tx, batch);
 
       for (const row of rows) {
         if (!row.record || !row.sourceRef) {
@@ -586,12 +616,17 @@ export async function commitImport(input: {
           continue;
         }
         const record = row.record;
-        const { action, recordId } = await decide(
-          tx,
-          batch,
-          record,
-          row.sourceRef
-        );
+        const decision = decide(record, row.sourceRef);
+        if (decision.action === 'refuse') {
+          // Changed since the preview: say so on the row, write nothing.
+          actions.push('refuse');
+          await tx
+            .update(importRows)
+            .set({ action: 'refuse', reason: decision.reason, recordId: null })
+            .where(eq(importRows.id, row.id));
+          continue;
+        }
+        const { action, recordId } = decision;
         let id: string;
         let before: Record<string, unknown> | null = null;
 
@@ -668,9 +703,9 @@ export async function commitImport(input: {
                   ...new Set([...was.categories, ...record.data.categories])
                 ],
                 legacy: { ...(was.legacy ?? {}), ...record.legacy },
+                // Where it came from stays as it was: added to by an import,
+                // a supplier a person typed in is not thereby imported.
                 importBatchId: batch.id,
-                importSourceId: was.importSourceId ?? batch.sourceId,
-                externalRef: was.externalRef ?? row.sourceRef,
                 updatedAt: at
               })
               .where(eq(suppliers.id, recordId));
@@ -807,6 +842,8 @@ export async function undoImport(input: {
           .select()
           .from(importRows)
           .where(eq(importRows.batchId, batch.id))
+          // Last first, so each record ends as it was before its first row.
+          .orderBy(desc(importRows.rowNumber))
       ).filter((r) => r.recordId);
       const table =
         batch.recordType === 'processing_activity'
@@ -835,14 +872,45 @@ export async function undoImport(input: {
           'Some of the records it created are now linked to other records, such as an assessment or an agreement, so it can no longer be undone as a whole.'
         );
 
+      const kind =
+        batch.recordType === 'processing_activity'
+          ? 'processing_activity'
+          : 'supplier';
       for (const row of rows) {
-        if (row.action === 'create')
-          await tx.delete(table).where(eq(table.id, row.recordId!));
-        else if (row.before)
-          await tx
+        const id = row.recordId!;
+        if (row.action === 'create') {
+          const [gone] = await tx
+            .delete(table)
+            .where(eq(table.id, id))
+            .returning({ name: table.name });
+          if (!gone) continue;
+          await appendAuditEvent(tx, {
+            ...input.actor,
+            organisationId: input.organisationId,
+            entityId: batch.entityId ?? undefined,
+            action: `${kind}.deleted`,
+            subjectType: kind,
+            subjectId: id,
+            before: { name: gone.name },
+            after: { undoneImport: batch.id }
+          });
+        } else if (row.before) {
+          const [back] = await tx
             .update(table)
             .set(restore(row.before))
-            .where(eq(table.id, row.recordId!));
+            .where(eq(table.id, id))
+            .returning({ name: table.name });
+          if (!back) continue;
+          await appendAuditEvent(tx, {
+            ...input.actor,
+            organisationId: input.organisationId,
+            entityId: batch.entityId ?? undefined,
+            action: `${kind}.updated`,
+            subjectType: kind,
+            subjectId: id,
+            after: { name: back.name, undoneImport: batch.id }
+          });
+        }
       }
       await tx
         .update(importBatches)

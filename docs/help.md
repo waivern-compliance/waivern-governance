@@ -1667,7 +1667,7 @@ The matching of columns is remembered for each platform and kind of record, and 
 
 Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.
 
-An imported processing activity is history until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
+An imported processing activity shows the gap "not yet confirmed" on the register until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
 
 ### Undoing an import
 

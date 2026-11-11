@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
-import { FIELDS, type RecordType } from '@/lib/import/fields';
+import type { RecordType } from '@/lib/import/fields';
 import { can, mayImport } from '@/lib/rbac';
 import { NotPermitted, requireCapability } from '@/lib/session';
 import {
@@ -66,16 +66,15 @@ export async function uploadImportAction(
 
 export async function previewImportAction(
   batchId: string,
-  recordType: RecordType,
   _prev: EditResult,
   formData: FormData
 ): Promise<EditResult> {
   const { organisationId, actor } = await importer();
-  const fields = Object.fromEntries(
-    FIELDS[recordType]
-      .map((f) => [f.key, text(formData.get(`field:${f.key}`))])
-      .filter(([, column]) => column)
-  );
+  // Every "field:" choice; the service keeps those its batch's type has.
+  const fields: Record<string, string> = {};
+  for (const [name, value] of formData.entries())
+    if (name.startsWith('field:') && text(value))
+      fields[name.slice('field:'.length)] = text(value);
   const result = await refusable(() =>
     previewImport({
       organisationId,

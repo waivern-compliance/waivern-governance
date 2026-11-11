@@ -159,9 +159,12 @@ export function article28Gaps(
     }
   }
 
-  // Only meaningful for a supplier a tool invented. One a person typed in is
-  // reviewed by the act of typing it.
-  if (supplier.sourceConnectionId && !supplier.reviewedAt)
+  // Only meaningful for a supplier a tool reported or another platform's list
+  // named. One a person typed in is reviewed by the act of typing it.
+  if (
+    (supplier.sourceConnectionId || supplier.importSourceId) &&
+    !supplier.reviewedAt
+  )
     gaps.push('never_reviewed');
   if (!supplier.ownerId) gaps.push('no_owner');
 

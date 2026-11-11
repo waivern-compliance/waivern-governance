@@ -93,7 +93,7 @@ export default async function ImportBatchPage({
             than being guessed.
           </p>
           <RefusableForm
-            action={previewImportAction.bind(null, batch.id, batch.recordType)}
+            action={previewImportAction.bind(null, batch.id)}
             submit={
               batch.status === 'previewed'
                 ? 'Preview again'
@@ -176,8 +176,8 @@ export default async function ImportBatchPage({
                 {written === 1 ? '' : 's'} below as one step: all of them, or
                 none. Rows marked not imported are left out; fix them in the
                 file and import it again later. Imported records show where they
-                came from, and processing activities count as history until a
-                person confirms each one.
+                came from, and each processing activity shows as not yet
+                confirmed until a person checks it.
               </p>
               <RefusableForm
                 action={commitImportAction.bind(null, batch.id)}

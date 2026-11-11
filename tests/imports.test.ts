@@ -29,7 +29,8 @@ import {
   undoImport,
   uploadImport
 } from '@/services/imports';
-import { createSupplier } from '@/services/third-party';
+import { article30Gaps } from '@/services/ropa';
+import { article28Gaps, createSupplier } from '@/services/third-party';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -493,5 +494,171 @@ describe('importing suppliers', () => {
       mayImport([{ scope: 'entity', role: 'owner', entityId: 'x' } as never]),
       false
     );
+  });
+});
+
+/** Upload, preview with the offered matching, and import. */
+async function importFile(
+  organisationId: string,
+  recordType: 'processing_activity' | 'supplier',
+  text: string,
+  entityId?: string
+) {
+  const batch = await uploadImport({
+    organisationId,
+    recordType,
+    sourceName: 'OneTrust',
+    entityId,
+    filename: 'file.csv',
+    contentType: 'text/csv',
+    bytes: csv(text),
+    actor: SYSTEM
+  });
+  const preview = await previewImport({
+    organisationId,
+    batchId: batch.id,
+    mapping: (await loadImport(batch.id, organisationId))!.mapping,
+    actor: SYSTEM
+  });
+  const committed = await commitImport({
+    organisationId,
+    batchId: batch.id,
+    actor: SYSTEM
+  });
+  return { batch, preview, committed };
+}
+
+describe('what an import leaves behind', () => {
+  it('shows imported records as unconfirmed until a person confirms them', async () => {
+    const { org } = await anOrg('import-gaps');
+    await importFile(org.id, 'processing_activity', 'ID,Name\nG-1,Payroll\n');
+    const [activity] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.organisationId, org.id));
+    assert.ok(
+      article30Gaps(activity, new Set()).includes('import_unconfirmed')
+    );
+    const confirmed = await confirmImportedActivity({
+      organisationId: org.id,
+      activityId: activity.id,
+      actor: SYSTEM
+    });
+    assert.ok(
+      !article30Gaps(confirmed, new Set()).includes('import_unconfirmed')
+    );
+
+    await importFile(org.id, 'supplier', 'Vendor Name\nMailer Co\n');
+    const [supplier] = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.organisationId, org.id));
+    assert.ok(article28Gaps(supplier, []).includes('never_reviewed'));
+  });
+
+  it('clears lawful bases a re-import no longer states', async () => {
+    const { org } = await anOrg('import-bases');
+    await importFile(
+      org.id,
+      'processing_activity',
+      'ID,Name,Legal Basis\nB-1,Payroll,Contract\n'
+    );
+    await importFile(
+      org.id,
+      'processing_activity',
+      'ID,Name,Legal Basis\nB-1,Payroll,See the LIA\n'
+    );
+    const [activity] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.organisationId, org.id));
+    assert.equal(activity.lawfulBasis, 'See the LIA');
+    assert.deepEqual(activity.lawfulBases, []);
+  });
+
+  it('refuses two supplier rows with one identifier, and leaves a supplier typed in as it was', async () => {
+    const { org } = await anOrg('import-vendor-ref');
+    const known = await createSupplier({
+      organisationId: org.id,
+      name: 'Acme',
+      categories: [],
+      actor: SYSTEM
+    });
+    const { preview } = await importFile(
+      org.id,
+      'supplier',
+      'ID,Vendor Name\nV-1,Acme\nV-2,Mailer Co\nV-2,Mailer Cloud\n'
+    );
+    assert.deepEqual(preview, { merge: 1, create: 1, refuse: 1 });
+    const [merged] = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.id, known.id));
+    assert.equal(merged.importSourceId, null);
+    assert.equal(merged.externalRef, null);
+  });
+
+  it('refuses to move an activity into another legal entity', async () => {
+    const { org } = await anOrg('import-entity');
+    const [other] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Other' })
+      .returning();
+    await importFile(org.id, 'processing_activity', 'ID,Name\nE-1,Payroll\n');
+    const { preview } = await importFile(
+      org.id,
+      'processing_activity',
+      'ID,Name\nE-1,Payroll\n',
+      other.id
+    );
+    assert.deepEqual(preview, { refuse: 1 });
+  });
+
+  it('records each record undo removes', async () => {
+    const { org } = await anOrg('import-undo-audit');
+    const { batch } = await importFile(
+      org.id,
+      'processing_activity',
+      'ID,Name\nU-1,Payroll\n'
+    );
+    const [activity] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.organisationId, org.id));
+    await undoImport({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: SYSTEM
+    });
+    const events = await db
+      .select({ action: auditEvents.action })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, org.id),
+          eq(auditEvents.subjectId, activity.id)
+        )
+      );
+    assert.ok(events.some((e) => e.action === 'processing_activity.deleted'));
+  });
+
+  it('lets two first uploads from one platform land on the same source', async () => {
+    const { org } = await anOrg('import-race');
+    const upload = () =>
+      uploadImport({
+        organisationId: org.id,
+        recordType: 'supplier',
+        sourceName: 'Brand New Platform',
+        filename: 'v.csv',
+        contentType: 'text/csv',
+        bytes: csv('Vendor Name\nAcme\n'),
+        actor: SYSTEM
+      });
+    const [a, b] = await Promise.all([upload(), upload()]);
+    const [la, lb] = await Promise.all([
+      loadImport(a.id, org.id),
+      loadImport(b.id, org.id)
+    ]);
+    assert.equal(la!.batch.sourceId, lb!.batch.sourceId);
   });
 });
