@@ -145,12 +145,8 @@ describe('complaints through the public form', () => {
     );
   });
 
-  it('runs the s.164A clock for an entity under both laws, whatever the organisation default', async () => {
+  it('runs the s.164A clock for an entity under both laws', async () => {
     const w = await form('dual', { dataProtectionLaw: 'uk_eu' });
-    await db
-      .update(organisations)
-      .set({ dataProtectionJurisdiction: 'eu' })
-      .where(eq(organisations.id, w.org.id));
     assert.equal((await openIntakeLink(w.link.slug))?.ukLaw, true);
     const result = await complaint(w.link.slug);
     assert.ok(result.ok);

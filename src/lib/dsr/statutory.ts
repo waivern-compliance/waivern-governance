@@ -13,18 +13,27 @@
  * falls on a weekend or a bank holiday.
  */
 import { addMonths } from '@/lib/dates';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import { basesFromText, type LawfulBasis } from '@/lib/gdpr/lawful-basis';
 
 import { BANK_HOLIDAYS_ENGLAND_AND_WALES } from './bank-holidays';
 
 /**
- * Which law sets the clock.
+ * Which law the request or complaint is handled under: UK, EU, or both.
  *
  * The UK GDPR, as amended by the Data (Use and Access) Act 2025, lets the clock
- * stop while the controller waits for clarification it reasonably needs. The
- * EU GDPR has no such pause, and the two must not be run on the same rules.
+ * stop while the controller waits for clarification it reasonably needs, and
+ * moves a deadline off bank holidays. The EU GDPR does neither. Under both, the
+ * stricter clock runs: the month is the same in each and UK law only ever adds
+ * time, so the EU deadline is never later, and running it is always safe. The
+ * UK reliefs then answer the UK obligation only and do not extend anything.
  */
-export type Jurisdiction = 'uk' | 'eu';
+export type Jurisdiction = DataProtectionLaw;
+
+/** The law whose rules set the clock: the EU's wherever EU law applies. */
+export function clockLaw(jurisdiction: Jurisdiction): 'uk' | 'eu' {
+  return jurisdiction === 'uk' ? 'uk' : 'eu';
+}
 
 /**
  * When the DUAA 2025's changes to the time limits came into force: UK GDPR
@@ -65,8 +74,21 @@ export function proportionateSearchApplies(
 
 export const JURISDICTION_LABEL: Record<Jurisdiction, string> = {
   uk: 'UK GDPR and the Data Protection Act 2018, as amended by the Data (Use and Access) Act 2025',
-  eu: 'EU GDPR'
+  eu: 'EU GDPR',
+  uk_eu:
+    'Both the UK GDPR (with the Data Protection Act 2018) and the EU GDPR, on the stricter clock'
 };
+
+/** Short names for a register column. */
+export const JURISDICTION_SHORT: Record<Jurisdiction, string> = {
+  uk: 'UK',
+  eu: 'EU',
+  uk_eu: 'UK and EU'
+};
+
+/** What a request under both laws has to say about the UK reliefs. */
+export const DUAL_CLOCK_NOTE =
+  'Under both laws the EU GDPR deadline is shown: it is never later than the UK one. Pausing for clarification and bank holidays are UK reliefs only and do not extend it.';
 
 export type Right =
   | 'access'
@@ -285,7 +307,8 @@ export function isWorkingDay(d: Date, jurisdiction: Jurisdiction): boolean {
   const weekday = d.getUTCDay();
   if (weekday === 0 || weekday === 6) return false;
   return (
-    jurisdiction === 'eu' || !BANK_HOLIDAYS_ENGLAND_AND_WALES.has(dayOf(d))
+    clockLaw(jurisdiction) === 'eu' ||
+    !BANK_HOLIDAYS_ENGLAND_AND_WALES.has(dayOf(d))
   );
 }
 

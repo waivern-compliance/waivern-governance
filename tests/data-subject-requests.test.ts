@@ -20,7 +20,6 @@ import { createAssessment } from '@/services/assessments';
 import {
   addScopeEntry,
   closeRequest,
-  defaultJurisdiction,
   loadRequest,
   objectionCounts,
   passToController,
@@ -34,7 +33,6 @@ import {
   requestsNeedingAttention,
   respondToRequest,
   seedRequestScope,
-  setDefaultJurisdiction,
   setObjectionReviewThreshold,
   updateRequest
 } from '@/services/data-subject-requests';
@@ -129,24 +127,18 @@ describe('recording a request', () => {
     );
   });
 
-  it('copies the jurisdiction, so changing the default never moves a deadline already running', async () => {
+  it("takes the entity's law, and keeps it when the entity's law changes later", async () => {
     const w = await world('jurisdiction');
-    // The organisation's default decides only for an entity subject to both laws.
+    const before = await aRequest(w);
+    assert.equal(before.jurisdiction, 'uk');
     await setDataProtectionLaw({
       organisationId: w.org.id,
       entityId: w.entity.id,
       law: 'uk_eu',
       actor: SYSTEM
     });
-    const before = await aRequest(w);
-    await setDefaultJurisdiction({
-      organisationId: w.org.id,
-      jurisdiction: 'eu',
-      actor: SYSTEM
-    });
-    assert.equal(await defaultJurisdiction(w.org.id), 'eu');
     const later = await aRequest(w);
-    assert.equal(later.jurisdiction, 'eu');
+    assert.equal(later.jurisdiction, 'uk_eu');
     assert.equal(
       (await loadRequest(before.id, w.org.id))!.request.jurisdiction,
       'uk'

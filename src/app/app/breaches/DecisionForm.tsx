@@ -97,11 +97,17 @@ const PART3_BASIS: Record<string, { basis: string; note: string }> = {
 export function DecisionForm({
   breachId,
   pecr = false,
-  part3 = false
+  part3 = false,
+  authorities = []
 }: {
   breachId: string;
   pecr?: boolean;
   part3?: boolean;
+  /**
+   * The authorities a notification can concern, those owed one first. Asked
+   * where there is more than one, so each notification says which.
+   */
+  authorities?: Array<{ code: string; label: string }>;
 }) {
   const [result, action, pending] = useActionState<BreachResult, FormData>(
     recordDecisionAction.bind(null, breachId),
@@ -156,6 +162,41 @@ export function DecisionForm({
         </select>
         <span className="block text-xs text-ink-soft">{chosen.note}</span>
       </label>
+
+      {kind === 'supervisory_authority' && authorities.length === 1 ? (
+        <input
+          type="hidden"
+          name="authorityCode"
+          value={authorities[0].code}
+        />
+      ) : null}
+      {kind === 'supervisory_authority' && authorities.length > 1 ? (
+        <label className="block space-y-1">
+          <Label text="Which authority" />
+          <select
+            name="authorityCode"
+            defaultValue={authorities[0].code}
+            className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+          >
+            <option value="">
+              All of them - a judgement, not a notification
+            </option>
+            {authorities.map((a) => (
+              <option
+                key={a.code}
+                value={a.code}
+              >
+                {a.label}
+              </option>
+            ))}
+          </select>
+          <span className="block text-xs text-ink-soft">
+            Each authority is its own notification, with its own seventy-two
+            hours, so a notification names one. A judgement such as not required
+            covers them all: Articles 33 and 34 read the same in both laws.
+          </span>
+        </label>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1">

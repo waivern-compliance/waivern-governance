@@ -230,7 +230,8 @@ export function RequestDecisionForm({
   activities = [],
   opinions = [],
   part3 = false,
-  ukLaw = true
+  ukLaw = true,
+  bothLaws = false
 }: {
   requestId: string;
   rights: string[];
@@ -242,6 +243,8 @@ export function RequestDecisionForm({
   part3?: boolean;
   /** A request under UK law. Under EU law, the Data Protection Act 2018's exemptions and health opinion are not offered. */
   ukLaw?: boolean;
+  /** A request under both laws: the UK exemptions answer the UK obligation only. */
+  bothLaws?: boolean;
 }) {
   // A refusal keeps what was typed: an exemption can be refused for one
   // missing answer among several.
@@ -312,6 +315,14 @@ export function RequestDecisionForm({
           ))}
         </select>
       </label>
+      {bothLaws && (kind === 'exemption' || kind === 'health_opinion') ? (
+        <p className="rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          UK only. This request is under both laws, and Schedules 2 and 3 of the
+          Data Protection Act 2018 answer the UK obligation alone. Under the EU
+          GDPR the same information is owed unless Member State law restricts it
+          (Article 23): record that as a separate decision.
+        </p>
+      ) : null}
       <p className="max-w-prose text-xs text-ink-soft">{chosen.note}</p>
 
       {kind === 'objection' ? (

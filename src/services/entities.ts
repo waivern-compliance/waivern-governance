@@ -3,6 +3,7 @@ import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
+  breaches,
   dsrIntakeLinks,
   entities,
   organisations,
@@ -374,14 +375,19 @@ export async function setDataProtectionLaw(input: {
       // Records follow the entity's law down: one under both laws keeps the law
       // that remains. One under the dropped law alone is for a person to
       // decide (move it, or close it), so the change is refused naming it.
-      const records = await tx
-        .select({
-          id: processingActivities.id,
-          reference: processingActivities.reference,
-          laws: processingActivities.laws
-        })
-        .from(processingActivities)
-        .where(eq(processingActivities.entityId, before.id));
+      const records = [
+        ...(await tx
+          .select({
+            reference: processingActivities.reference,
+            laws: processingActivities.laws
+          })
+          .from(processingActivities)
+          .where(eq(processingActivities.entityId, before.id))),
+        ...(await tx
+          .select({ reference: breaches.reference, laws: breaches.laws })
+          .from(breaches)
+          .where(eq(breaches.entityId, before.id)))
+      ];
       const stranded = records.filter(
         (r) => narrowedTo(r.laws, input.law) === null
       );
@@ -393,7 +399,7 @@ export async function setDataProtectionLaw(input: {
       const narrowed = records.filter(
         (r) => narrowedTo(r.laws, input.law) !== r.laws
       );
-      if (narrowed.length > 0) {
+      if (narrowed.length > 0 && input.law !== 'uk_eu') {
         await tx
           .update(processingActivities)
           .set({ laws: input.law, updatedAt: new Date() })
@@ -402,6 +408,12 @@ export async function setDataProtectionLaw(input: {
               eq(processingActivities.entityId, before.id),
               eq(processingActivities.laws, 'uk_eu')
             )
+          );
+        await tx
+          .update(breaches)
+          .set({ laws: input.law, updatedAt: new Date() })
+          .where(
+            and(eq(breaches.entityId, before.id), eq(breaches.laws, 'uk_eu'))
           );
       }
       const [after] = await tx

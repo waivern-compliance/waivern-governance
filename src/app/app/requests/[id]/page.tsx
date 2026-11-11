@@ -25,6 +25,7 @@ import {
 } from '@/lib/dpa2018/part3-rights';
 import {
   basisSuggestedBy,
+  DUAL_CLOCK_NOTE,
   JURISDICTION_LABEL,
   PROCESSING_BASIS_LABEL,
   REFUSAL_MUST_SAY,
@@ -205,6 +206,9 @@ export default async function RequestPage({
           {CHANNEL_LABEL[request.channel]?.toLowerCase() ?? request.channel}
         </p>
         <RequestClock clock={clock} />
+        {request.jurisdiction === 'uk_eu' && !part3 ? (
+          <p className="max-w-prose text-xs text-ink-soft">{DUAL_CLOCK_NOTE}</p>
+        ) : null}
         {fromFoi ? (
           <p className="rounded border border-line bg-surface px-4 py-3 text-sm">
             Made as freedom of information request{' '}
@@ -503,7 +507,7 @@ export default async function RequestPage({
 
       {!request.closedAt &&
       !part3 &&
-      request.jurisdiction === 'uk' &&
+      request.jurisdiction !== 'eu' &&
       request.rights.includes('access') ? (
         <p className="max-w-prose rounded border border-line bg-ground px-3 py-2 text-xs text-ink-soft">
           Health data: a controller that is not a health professional may
@@ -522,7 +526,8 @@ export default async function RequestPage({
           requestId={request.id}
           rights={request.rights}
           part3={part3}
-          ukLaw={request.jurisdiction === 'uk'}
+          ukLaw={request.jurisdiction !== 'eu'}
+          bothLaws={request.jurisdiction === 'uk_eu'}
           opinions={opinions}
           activities={scopedActivities.map((a) => ({
             id: a.id,

@@ -13,6 +13,7 @@ import {
   S164A_SUMMARY,
   type ComplaintSubject
 } from '@/lib/complaints/statutory';
+import { JURISDICTION_SHORT } from '@/lib/dsr/statutory';
 import { can, mayConfigureRequests } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
@@ -274,18 +275,17 @@ export default async function ComplaintsPage({
               <label className="block space-y-1">
                 <Label
                   text="Law"
-                  hint="Only UK law sets a period."
+                  hint="Only UK law sets a period, so a complaint under both has the s.164A thirty days."
                 />
                 <select
                   name="jurisdiction"
                   defaultValue={aboutRequest?.request.jurisdiction ?? ''}
                   className={inputClass}
                 >
-                  <option value="">
-                    The entity&apos;s law (UK where it is subject to both)
-                  </option>
+                  <option value="">The entity&apos;s law</option>
                   <option value="uk">UK GDPR and DPA 2018</option>
                   <option value="eu">EU GDPR</option>
+                  <option value="uk_eu">Both</option>
                 </select>
               </label>
             </div>
@@ -366,7 +366,7 @@ export default async function ComplaintsPage({
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {entityName} · {complaint.status.replace(/_/g, ' ')} ·{' '}
-                  {complaint.jurisdiction.toUpperCase()}
+                  {JURISDICTION_SHORT[complaint.jurisdiction]}
                 </span>
               </div>
               <p className="text-xs text-ink-soft">
