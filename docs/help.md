@@ -79,6 +79,8 @@ Every help topic the application carries, in the order it presents them.
 
 Somebody who signs in and belongs to no organisation here can ask Waivern for one: its name, its legal entity, and anything Waivern should know. Waivern sets each one up by hand. Once it is approved, the person who asked is its owner and signing in takes them straight to it, with the shipped templates and approval workflows already in place.
 
+Waivern can also set an organisation up directly, without a request, and name its owner by email address. Somebody named who has not signed in before becomes its owner when they first do, and accepts the terms then. Nothing is emailed to them, as with an invitation, so Waivern tells them to sign in. That is also how somebody who already belongs to an organisation gets another one of their own: ask Waivern.
+
 Joining an organisation that already exists is different: ask its administrator for an invitation, or sign in with an address at a domain it has verified.
 
 ### What it does

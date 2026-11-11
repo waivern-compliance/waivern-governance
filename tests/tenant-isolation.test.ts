@@ -3589,6 +3589,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'platform operators only; requests belong to no organisation',
   'organisation-requests.approveRequest':
     'platform operators only; creates the organisation, then sets it up inside its own scope',
+  'organisation-requests.createOrganisation':
+    'platform operators only; creates the organisation, then sets it up inside its own scope',
   'organisation-requests.declineRequest':
     'platform operators only; requests belong to no organisation',
   'domains.joinByVerifiedDomain':

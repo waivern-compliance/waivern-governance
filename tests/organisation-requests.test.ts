@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import { and, asc, eq } from 'drizzle-orm';
 
@@ -16,14 +17,18 @@ import {
   workflowDefinitions
 } from '@/db/schema';
 import { verifyAuditChain } from '@/lib/audit';
+import { isEmailAddress } from '@/lib/email-address';
 import { RETENTION_DEFAULTS, slugFor } from '@/lib/organisation/defaults';
 import { isPlatformAdmin, requestsOpen } from '@/lib/platform';
 import { SYSTEM_TEMPLATES } from '@/lib/templates/library';
 import { DEFAULT_SLA, DEFAULT_WORKFLOWS } from '@/lib/workflow/defaults';
 import {
   approveRequest,
+  createOrganisation,
   declineRequest,
+  DIRECT,
   requestOrganisation,
+  requestQueue,
   RequestRefused,
   requestsBy
 } from '@/services/organisation-requests';
@@ -220,5 +225,246 @@ describe('approving', () => {
       .from(organisations)
       .where(eq(organisations.name, 'Same Name Council'));
     assert.ok(both.length >= 2);
+  });
+});
+
+describe('creating one directly', () => {
+  const membersOf = (organisationId: string) =>
+    db
+      .select({
+        email: users.email,
+        role: roleAssignments.role,
+        scope: roleAssignments.scope
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.membershipId, memberships.id)
+      )
+      .where(eq(memberships.organisationId, organisationId));
+
+  it('makes the operator its owner, with everything an organisation starts with', async () => {
+    const operator = await person('operator');
+    const org = await createOrganisation({
+      organisationName: `Waivern Test Client ${crypto.randomUUID().slice(0, 8)}`,
+      entityName: '',
+      ownerEmail: operator.email.toUpperCase(),
+      createdByEmail: operator.email
+    });
+    assert.deepEqual(await membersOf(org.id), [
+      { email: operator.email, role: 'owner', scope: 'organisation' }
+    ]);
+    const [entity] = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.organisationId, org.id));
+    assert.equal(entity.name, org.name);
+    assert.equal(entity.isDefault, true);
+    const shipped = await db
+      .select()
+      .from(templates)
+      .where(eq(templates.organisationId, org.id));
+    assert.ok(shipped.length > 0);
+    const [created] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, org.id),
+          eq(auditEvents.action, 'organisation.created')
+        )
+      );
+    assert.equal(created.actorLabel, `Waivern: ${operator.email}`);
+    assert.deepEqual(
+      (created.after as { createdDirectly: boolean }).createdDirectly,
+      true
+    );
+    assert.equal((await verifyAuditChain(org.id)).ok, true);
+  });
+
+  it('can name somebody with no account yet, who becomes owner on signing in', async () => {
+    const operator = await person('operator');
+    const contact = `contact-${crypto.randomUUID().slice(0, 8)}@client.example`;
+    const org = await createOrganisation({
+      organisationName: `New Client ${crypto.randomUUID().slice(0, 8)}`,
+      entityName: 'New Client Ltd',
+      ownerEmail: contact,
+      createdByEmail: operator.email
+    });
+    assert.deepEqual(await membersOf(org.id), [
+      { email: contact, role: 'owner', scope: 'organisation' }
+    ]);
+    const [entity] = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.organisationId, org.id));
+    assert.equal(entity.name, 'New Client Ltd');
+  });
+
+  it('refuses a missing name or owner, and leaves nothing behind', async () => {
+    const operator = await person('operator');
+    await assert.rejects(
+      createOrganisation({
+        organisationName: ' ',
+        entityName: '',
+        ownerEmail: operator.email,
+        createdByEmail: operator.email
+      }),
+      RequestRefused
+    );
+    const name = `Nobody ${crypto.randomUUID().slice(0, 8)}`;
+    await assert.rejects(
+      createOrganisation({
+        organisationName: name,
+        entityName: '',
+        ownerEmail: 'not an address',
+        createdByEmail: operator.email
+      }),
+      RequestRefused
+    );
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(organisations)
+          .where(eq(organisations.name, name))
+      ).length,
+      0
+    );
+  });
+});
+
+describe('creating one directly, kept honest', () => {
+  it('is listed on the platform page, by whom and for whom', async () => {
+    const operator = await person('operator');
+    const name = `Listed ${crypto.randomUUID().slice(0, 8)}`;
+    const org = await createOrganisation({
+      organisationName: name,
+      entityName: '',
+      ownerEmail:
+        'Owner-' + crypto.randomUUID().slice(0, 8) + '@client.example',
+      createdByEmail: operator.email.toUpperCase()
+    });
+    const { decided } = await requestQueue();
+    const row = decided.find((r) => r.createdOrganisationId === org.id);
+    assert.equal(row?.decisionNote, DIRECT);
+    assert.equal(row?.status, 'approved');
+    assert.equal(row?.decidedByEmail, operator.email);
+    assert.match(row?.requestedByEmail ?? '', /^owner-.*@client\.example$/);
+    const [created] = await db
+      .select({ label: auditEvents.actorLabel })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, org.id),
+          eq(auditEvents.action, 'organisation.created')
+        )
+      );
+    // Lowercased, so one operator is one actor in every audit filter.
+    assert.equal(created.label, `Waivern: ${operator.email}`);
+  });
+
+  it('will not make a second organisation of the same name unless told to', async () => {
+    const operator = await person('operator');
+    const name = `Twice ${crypto.randomUUID().slice(0, 8)}`;
+    const make = (sameNameConfirmed = false) =>
+      createOrganisation({
+        organisationName: name,
+        entityName: '',
+        ownerEmail: operator.email,
+        createdByEmail: operator.email,
+        sameNameConfirmed
+      });
+    await make();
+    await assert.rejects(
+      createOrganisation({
+        organisationName: name.toUpperCase(),
+        entityName: '',
+        ownerEmail: operator.email,
+        createdByEmail: operator.email
+      }),
+      (e: unknown) =>
+        e instanceof RequestRefused && /already exists/.test(e.message)
+    );
+    await make(true);
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(organisations)
+          .where(eq(organisations.name, name))
+      ).length,
+      2
+    );
+  });
+
+  it('removes an account it made when setting up fails', async () => {
+    const operator = await person('operator');
+    const contact = `orphan-${crypto.randomUUID().slice(0, 8)}@client.example`;
+    // Fail the setup after the owner's account is made, as a failing
+    // installer would.
+    await pg.unsafe(`
+      create or replace function test_fail_owner_grant() returns trigger
+      language plpgsql security definer as $$
+      begin
+        if exists (
+          select 1 from membership m join organisation o on o.id = m.organisation_id
+          where m.id = new.membership_id and o.name like 'Fails setup%'
+        ) then raise exception 'setup failed on purpose'; end if;
+        return new;
+      end $$;
+      create trigger test_fail_owner_grant before insert on role_assignment
+        for each row execute function test_fail_owner_grant();
+    `);
+    try {
+      await assert.rejects(
+        createOrganisation({
+          organisationName: `Fails setup ${crypto.randomUUID().slice(0, 8)}`,
+          entityName: '',
+          ownerEmail: contact,
+          createdByEmail: operator.email
+        }),
+        (e: unknown) =>
+          /setup failed on purpose/.test(
+            String((e as { cause?: Error }).cause?.message ?? e)
+          )
+      );
+    } finally {
+      await pg.unsafe(`
+        drop trigger if exists test_fail_owner_grant on role_assignment;
+        drop function if exists test_fail_owner_grant();
+      `);
+    }
+    assert.equal(
+      (await db.select().from(users).where(eq(users.email, contact))).length,
+      0
+    );
+  });
+
+  it('checks addresses one way everywhere', () => {
+    assert.equal(isEmailAddress('jo@client.example'), true);
+    assert.equal(isEmailAddress(' jo@client.example '), true);
+    for (const bad of ['jo', 'jo@intranet', '@client.example', 'jo @x.org'])
+      assert.equal(isEmailAddress(bad), false, bad);
+  });
+
+  it('lets only a platform operator use any platform action', () => {
+    const source = readFileSync(
+      new URL('../src/app/platform/actions.ts', import.meta.url),
+      'utf8'
+    );
+    const actions = [
+      ...source.matchAll(
+        /export async function (\w+)\([^)]*\)[^{]*\{([^]*?)\n\}/g
+      )
+    ];
+    assert.ok(actions.length >= 4);
+    for (const [, name, body] of actions)
+      assert.match(
+        body.trimStart(),
+        /^const email = await operator\(\);/,
+        `${name} must check the operator first`
+      );
   });
 });

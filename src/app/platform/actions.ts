@@ -11,8 +11,10 @@ import {
 } from '@/lib/email/platform-alerts';
 import { log } from '@/lib/log';
 import { isPlatformAdmin, platformAdmins } from '@/lib/platform';
+import { requestOrigin } from '@/lib/request-origin';
 import {
   approveRequest,
+  createOrganisation,
   declineRequest,
   RequestRefused
 } from '@/services/organisation-requests';
@@ -50,6 +52,29 @@ export async function approveAction(
       decidedByEmail: email
     });
     return `${organisation.name} is set up. Its owner can sign in now.`;
+  });
+}
+
+export async function createOrganisationAction(
+  _prev: DecisionResult,
+  formData: FormData
+): Promise<DecisionResult> {
+  const email = await operator();
+  return decide(async () => {
+    const owner = String(formData.get('ownerEmail') ?? '');
+    const organisation = await createOrganisation({
+      organisationName: String(formData.get('organisationName') ?? ''),
+      entityName: String(formData.get('entityName') ?? ''),
+      ownerEmail: owner,
+      createdByEmail: email,
+      sameNameConfirmed: formData.get('sameNameConfirmed') === 'on'
+    });
+    const ownerEmail = owner.trim().toLowerCase();
+    // Nothing is sent to the owner, as an invitation sends nothing: whoever
+    // set it up tells them.
+    return ownerEmail === email.toLowerCase()
+      ? `${organisation.name} is set up, with you as its owner. Switch to it from the organisation menu.`
+      : `${organisation.name} is set up. Nothing has been sent to ${ownerEmail}: let them know to sign in at ${await requestOrigin()}/sign-in with that address, and they will find it there as its owner.`;
   });
 }
 

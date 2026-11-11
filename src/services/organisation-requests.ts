@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, like } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -8,9 +8,11 @@ import {
   organisations,
   retentionProfiles,
   roleAssignments,
-  slaPolicies
+  slaPolicies,
+  users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { isEmailAddress } from '@/lib/email-address';
 import { RETENTION_DEFAULTS, slugFor } from '@/lib/organisation/defaults';
 import { DEFAULT_SLA } from '@/lib/workflow/defaults';
 
@@ -137,32 +139,36 @@ async function freeSlug(name: string): Promise<string> {
 }
 
 /**
- * Approve a request: create the organisation, its first legal entity, the
- * requester as its owner, and everything an organisation starts with — the
- * shipped templates and workflows, service levels and retention defaults.
+ * Create an organisation, its first legal entity, its owner, and everything an
+ * organisation starts with: the shipped templates and workflows, service
+ * levels and retention defaults. The owner is a person by id, or by email for
+ * somebody who may not have signed in yet; an account is made for them, as an
+ * invitation makes one.
  *
- * If any of that fails the organisation is removed again, so a half-built one
- * never appears in anybody's switcher, and the request stays pending.
+ * If any of it fails the organisation is removed again, so a half-built one
+ * never appears in anybody's switcher.
  */
-export async function approveRequest(input: {
-  requestId: string;
-  decidedByEmail: string;
+async function setUpOrganisation(input: {
+  organisationName: string;
+  entityName: string;
+  owner: { id: string; email: string } | { email: string };
+  actor: { actorKind: 'user'; actorUserId: null; actorLabel: string };
+  /** What the audit records about how it came about. */
+  origin: Record<string, unknown>;
 }) {
-  const request = await pendingRequest(input.requestId);
-  const actor = {
-    actorKind: 'user' as const,
-    actorUserId: null,
-    actorLabel: `Waivern: ${input.decidedByEmail}`
-  };
-
+  const { actor } = input;
   const [org] = await db
     .insert(organisations)
     .values({
-      name: request.organisationName,
-      slug: await freeSlug(request.organisationName)
+      name: input.organisationName,
+      slug: await freeSlug(input.organisationName)
     })
     .returning();
 
+  let ownerId = 'id' in input.owner ? input.owner.id : '';
+  // An account made here for an owner who had none, removed again with the
+  // organisation if setting it up fails.
+  let madeAccount = false;
   try {
     await withOrganisation(org.id, async () => {
       await db.transaction(async (tx) => {
@@ -172,17 +178,13 @@ export async function approveRequest(input: {
           action: 'organisation.created',
           subjectType: 'organisation',
           subjectId: org.id,
-          after: {
-            name: org.name,
-            slug: org.slug,
-            requestedBy: request.requestedByEmail
-          }
+          after: { name: org.name, slug: org.slug, ...input.origin }
         });
         const [entity] = await tx
           .insert(entities)
           .values({
             organisationId: org.id,
-            name: request.entityName,
+            name: input.entityName,
             isDefault: true
           })
           .returning();
@@ -211,9 +213,25 @@ export async function approveRequest(input: {
             escalateToRole: s.escalateToRole
           });
         }
+        if (!('id' in input.owner)) {
+          // People are shared across organisations; whether this one has an
+          // account is answered by id alone, as an invitation asks it.
+          const [found] = (await tx.execute(
+            sql`select app_user_id_for_email(${input.owner.email}) as id`
+          )) as unknown as Array<{ id: string | null }>;
+          ownerId = found?.id ?? crypto.randomUUID();
+          // No `returning`: until the membership below exists, this
+          // organisation cannot see the person it has just created.
+          if (!found?.id) {
+            await tx
+              .insert(users)
+              .values({ id: ownerId, email: input.owner.email });
+            madeAccount = true;
+          }
+        }
         const [membership] = await tx
           .insert(memberships)
-          .values({ organisationId: org.id, userId: request.requestedBy })
+          .values({ organisationId: org.id, userId: ownerId })
           .returning();
         const [grant] = await tx
           .insert(roleAssignments)
@@ -230,7 +248,7 @@ export async function approveRequest(input: {
           subjectType: 'role_assignment',
           subjectId: grant.id,
           after: {
-            email: request.requestedByEmail,
+            email: input.owner.email,
             role: 'owner',
             scope: 'organisation'
           }
@@ -240,10 +258,37 @@ export async function approveRequest(input: {
       await installShippedWorkflows({ organisationId: org.id, actor });
     });
   } catch (error) {
-    // Nothing of it may survive: no organisation, entity or membership.
+    // Nothing of it may survive: no organisation, entity or membership, and
+    // no account made for its owner, who would otherwise sign in to nothing.
     await db.delete(organisations).where(eq(organisations.id, org.id));
+    if (madeAccount) await db.delete(users).where(eq(users.id, ownerId));
     throw error;
   }
+  return { org, ownerId };
+}
+
+const operatorActor = (email: string) => ({
+  actorKind: 'user' as const,
+  actorUserId: null,
+  actorLabel: `Waivern: ${email.trim().toLowerCase()}`
+});
+
+/**
+ * Approve a request: set the organisation up with the requester as its owner.
+ * If that fails, the request stays pending.
+ */
+export async function approveRequest(input: {
+  requestId: string;
+  decidedByEmail: string;
+}) {
+  const request = await pendingRequest(input.requestId);
+  const { org } = await setUpOrganisation({
+    organisationName: request.organisationName,
+    entityName: request.entityName,
+    owner: { id: request.requestedBy, email: request.requestedByEmail },
+    actor: operatorActor(input.decidedByEmail),
+    origin: { requestedBy: request.requestedByEmail }
+  });
 
   const [decided] = await db
     .update(organisationRequests)
@@ -257,6 +302,71 @@ export async function approveRequest(input: {
     .returning();
   return { request: decided, organisation: org };
 }
+
+/**
+ * Create an organisation directly, for a Waivern operator setting up a client
+ * or one of their own, with no request first. The owner is whoever is named:
+ * the operator, or the client's contact, who becomes owner on first sign-in
+ * and accepts the terms then, as any owner does.
+ */
+export async function createOrganisation(input: {
+  organisationName: string;
+  entityName: string;
+  ownerEmail: string;
+  createdByEmail: string;
+  /** Create it even though an organisation of that name exists. */
+  sameNameConfirmed?: boolean;
+}) {
+  const organisationName = cleanName(
+    input.organisationName,
+    "organisation's name"
+  );
+  const entityName = cleanName(
+    input.entityName || organisationName,
+    "legal entity's name"
+  );
+  const ownerEmail = input.ownerEmail.trim().toLowerCase();
+  if (!isEmailAddress(ownerEmail))
+    throw new RequestRefused("Give the owner's email address.");
+  // A second submission, after a reload or a slow response, would otherwise
+  // make a second organisation of the same name.
+  if (!input.sameNameConfirmed) {
+    const [same] = await db
+      .select({ id: organisations.id })
+      .from(organisations)
+      .where(sql`lower(${organisations.name}) = lower(${organisationName})`)
+      .limit(1);
+    if (same)
+      throw new RequestRefused(
+        `An organisation called ${organisationName} already exists. If this is another one, tick "Create it even so" and create it again.`
+      );
+  }
+  const createdBy = input.createdByEmail.trim().toLowerCase();
+  const { org, ownerId } = await setUpOrganisation({
+    organisationName,
+    entityName,
+    owner: { email: ownerEmail },
+    actor: operatorActor(createdBy),
+    origin: { createdDirectly: true, owner: ownerEmail }
+  });
+  // Kept with the requests, so the platform page lists it with the rest:
+  // who set up which organisation, when, and for whom.
+  await db.insert(organisationRequests).values({
+    requestedBy: ownerId,
+    requestedByEmail: ownerEmail,
+    organisationName,
+    entityName,
+    status: 'approved',
+    decidedByEmail: createdBy,
+    decidedAt: new Date(),
+    decisionNote: DIRECT,
+    createdOrganisationId: org.id
+  });
+  return org;
+}
+
+/** How a directly created organisation is marked among the requests. */
+export const DIRECT = 'Created directly on the platform page.';
 
 export async function declineRequest(input: {
   requestId: string;
