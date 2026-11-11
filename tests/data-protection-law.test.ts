@@ -4,12 +4,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import { entities, organisations, processingActivities } from '@/db/schema';
-import {
-  defaultComplaintJurisdiction,
-  defaultRequestJurisdiction,
-  jurisdictionRefusal,
-  ukLawApplies
-} from '@/lib/dpa2018/applies';
+import { jurisdictionRefusal, ukLawApplies } from '@/lib/dpa2018/applies';
 import {
   ART10_MEMBER_STATE_LAW,
   conditionGaps,
@@ -92,13 +87,10 @@ const BLANK: SpecialCategoryRecord & { entityId: string } = {
 };
 
 describe('the rules', () => {
-  it("read UK law as applying unless the entity is EU only, and default a request's jurisdiction from it", () => {
+  it('read UK law as applying unless the entity is EU only, and refuse a jurisdiction the entity is not under', () => {
     assert.equal(ukLawApplies('uk'), true);
     assert.equal(ukLawApplies('uk_eu'), true);
     assert.equal(ukLawApplies('eu'), false);
-    assert.equal(defaultRequestJurisdiction('eu'), 'eu');
-    assert.equal(defaultRequestJurisdiction('uk'), 'uk');
-    assert.equal(defaultRequestJurisdiction('uk_eu'), 'uk_eu');
     assert.match(
       jurisdictionRefusal({ name: 'E', law: 'eu' }, 'uk', 'request') ?? '',
       /EU law only, so a request/
@@ -107,9 +99,6 @@ describe('the rules', () => {
       jurisdictionRefusal({ name: 'E', law: 'uk_eu' }, 'uk', 'complaint'),
       null
     );
-    // Under both laws, both: s.164A applies wherever UK law does.
-    assert.equal(defaultComplaintJurisdiction('uk_eu'), 'uk_eu');
-    assert.equal(defaultComplaintJurisdiction('eu'), 'eu');
   });
 
   it('ask Schedule 1 and the policy document only under UK law, and take Member State law for Article 10 only under EU law', () => {

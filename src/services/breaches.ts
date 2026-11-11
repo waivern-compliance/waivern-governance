@@ -139,8 +139,29 @@ function concerns(
 ): boolean {
   if (!d.authorityCode) return only;
   if (t.code) return d.authorityCode === t.code;
+  // A placeholder: met by an EU authority of its State, or, where the State
+  // is not known either (a lead authority not yet recorded, no affected
+  // States ticked), by the EU authority the person chose.
   const a = authorityByCode(d.authorityCode);
-  return Boolean(a && a.law === 'eu' && t.country && a.country === t.country);
+  if (!a || a.law !== 'eu' || t.law !== 'eu') return false;
+  return t.country ? a.country === t.country : true;
+}
+
+/** Whether every authority owed a notification has had one. */
+function everyAuthorityTold(
+  targets: readonly NotifyTarget[],
+  decisions: ReadonlyArray<
+    Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode'>
+  >
+): boolean {
+  return targets.every((t) =>
+    decisions.some(
+      (d) =>
+        d.kind === 'supervisory_authority' &&
+        d.outcome === 'done' &&
+        concerns(d, t, targets.length === 1)
+    )
+  );
 }
 
 /** The authorities a breach must be notified to, under its laws. */
@@ -514,26 +535,31 @@ export async function recordDecision(input: {
       if (!breach) throw new Error('No such breach');
 
       // Each authority is its own notification. Where there is more than one
-      // to tell, a notification says which; "not required" is a judgement
-      // about the risk, so it covers them all.
+      // to tell, a notification says which, and it must be one the breach's
+      // laws owe. Anything short of a notification ("not required", "still
+      // deciding") is a judgement about the breach, so it may cover them all.
       const authorityCode =
         input.kind === 'supervisory_authority'
           ? input.authorityCode || null
           : null;
       if (authorityCode && !authorityByCode(authorityCode))
         throw new Error('Choose a supervisory authority from the list.');
-      if (
-        input.kind === 'supervisory_authority' &&
-        input.outcome !== 'not_required' &&
-        !authorityCode
-      ) {
-        const [entity] = await tx
-          .select(ENTITY_LAW)
-          .from(entities)
-          .where(eq(entities.id, breach.entityId));
-        if (targetsOf(breach, entity).length > 1)
+      const [entity] = await tx
+        .select(ENTITY_LAW)
+        .from(entities)
+        .where(eq(entities.id, breach.entityId));
+      const targets = targetsOf(breach, entity);
+      if (input.kind === 'supervisory_authority') {
+        if (input.outcome === 'done' && !authorityCode && targets.length > 1)
           throw new Error(
-            'This breach is owed to more than one authority. Say which one this decision concerns.'
+            'This breach is owed to more than one authority. Say which one it was notified to.'
+          );
+        if (
+          authorityCode &&
+          !targets.some((t) => concerns({ authorityCode }, t, false))
+        )
+          throw new Error(
+            "That authority is not one this breach is owed to under its laws. Check the breach's laws and affected States."
           );
       }
 
@@ -557,13 +583,26 @@ export async function recordDecision(input: {
         })
         .returning();
 
-      // Once the authority has been told, under either regime, the breach is
-      // past assessment.
-      if (
-        (input.kind === 'supervisory_authority' ||
-          input.kind === 'pecr_commissioner') &&
-        input.outcome === 'done'
-      ) {
+      // Once the authorities have been told, under either regime, the breach
+      // is past assessment: every one owed, under each of its laws, or the
+      // Commissioner under PECR.
+      const told =
+        input.outcome === 'done' &&
+        (input.kind === 'pecr_commissioner' ||
+          (input.kind === 'supervisory_authority' &&
+            // Read after the insert, so this decision is among them.
+            everyAuthorityTold(
+              targets,
+              await tx
+                .select({
+                  kind: breachDecisions.kind,
+                  outcome: breachDecisions.outcome,
+                  authorityCode: breachDecisions.authorityCode
+                })
+                .from(breachDecisions)
+                .where(eq(breachDecisions.breachId, input.breachId))
+            )));
+      if (told) {
         await tx
           .update(breaches)
           .set({ status: 'notified', updatedAt: new Date() })

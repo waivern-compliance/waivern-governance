@@ -178,6 +178,9 @@ export function DecisionForm({
             defaultValue={authorities[0].code}
             className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
           >
+            <option value="">
+              All of them - a judgement, not a notification
+            </option>
             {authorities.map((a) => (
               <option
                 key={a.code}
@@ -189,8 +192,8 @@ export function DecisionForm({
           </select>
           <span className="block text-xs text-ink-soft">
             Each authority is its own notification, with its own seventy-two
-            hours. Not required covers them all: Articles 33 and 34 read the
-            same in both laws.
+            hours, so a notification names one. A judgement such as not required
+            covers them all: Articles 33 and 34 read the same in both laws.
           </span>
         </label>
       ) : null}

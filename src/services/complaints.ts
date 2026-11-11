@@ -22,10 +22,7 @@ import {
   type ComplaintClock,
   type ComplaintOutcome
 } from '@/lib/complaints/statutory';
-import {
-  defaultComplaintJurisdiction,
-  jurisdictionRefusal
-} from '@/lib/dpa2018/applies';
+import { jurisdictionRefusal } from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
 import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
@@ -258,7 +255,10 @@ export async function recordComplaint(input: {
   complainantContact?: string | null;
   representative?: string | null;
   controllerRole?: ControllerRole;
-  /** Defaults to the entity's law, UK where it is subject to both (`defaultComplaintJurisdiction`). */
+  /**
+   * Defaults to the entity's law. Under both, s.164A's thirty days apply,
+   * since UK law does (`s164aApplies`).
+   */
   jurisdiction?: Jurisdiction;
   /** The request it is about, if it is about one. */
   requestId?: string | null;
@@ -289,8 +289,7 @@ export async function recordComplaint(input: {
       .select({ name: entities.name, law: entities.dataProtectionLaw })
       .from(entities)
       .where(eq(entities.id, input.entityId));
-    const jurisdiction =
-      input.jurisdiction ?? defaultComplaintJurisdiction(entity.law);
+    const jurisdiction = input.jurisdiction ?? entity.law;
     const refusal = jurisdictionRefusal(entity, jurisdiction, 'complaint');
     if (refusal) throw new ComplaintRefused(refusal);
     const reference = await nextReference(

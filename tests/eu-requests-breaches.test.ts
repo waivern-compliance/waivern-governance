@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
-import { entities, organisations } from '@/db/schema';
+import { breachDecisions, entities, organisations } from '@/db/schema';
 import { obligationsFor } from '@/lib/breach/statutory';
 import { s164aApplies } from '@/lib/complaints/statutory';
 import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
@@ -311,5 +313,120 @@ describe('a breach under both laws', () => {
       .from(entities)
       .where(eq(entities.id, w.entity.id));
     assert.equal(entity.dataProtectionLaw, 'uk_eu');
+  });
+});
+
+describe('the review fixes', () => {
+  const decide = (
+    w: { org: { id: string } },
+    breachId: string,
+    outcome: 'done' | 'pending',
+    authorityCode?: string
+  ) =>
+    recordDecision({
+      organisationId: w.org.id,
+      breachId,
+      kind: 'supervisory_authority',
+      outcome,
+      statutoryBasis: 'Article 33(1)',
+      rationale: 'Risk to customers.',
+      authorityCode,
+      completedAt: outcome === 'done' ? new Date() : null,
+      actor: SYSTEM
+    });
+
+  it('meets a placeholder with no State by the authority chosen, and refuses one the laws do not owe', async () => {
+    const w = await world('placeholder', 'eu');
+    const breach = await recordBreach({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      title: 'Exposed bucket',
+      description: 'Customer files public for a day.',
+      discoveredAt: new Date(Date.now() - HOUR),
+      actor: SYSTEM
+    });
+    await assert.rejects(
+      decide(w, breach.id, 'done', 'gb-ico'),
+      /not one this breach is owed/
+    );
+    await decide(w, breach.id, 'done', 'ie-dpc');
+    const loaded = (await loadBreach(breach.id, w.org.id))!;
+    assert.equal(loaded.authorityClocks[0].clock.state, 'met');
+    assert.equal(loaded.breach.status, 'notified');
+  });
+
+  it('takes a judgement without an authority, and is notified only once every authority is told', async () => {
+    const w = await world('status', 'uk_eu', {
+      euEstablishments: ['FR'],
+      euLeadAuthority: 'fr-cnil'
+    });
+    const breach = await recordBreach({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      title: 'Lost phone',
+      description: 'Work phone with email.',
+      discoveredAt: new Date(Date.now() - HOUR),
+      actor: SYSTEM
+    });
+    await decide(w, breach.id, 'pending');
+    await decide(w, breach.id, 'done', 'gb-ico');
+    let loaded = (await loadBreach(breach.id, w.org.id))!;
+    assert.notEqual(loaded.breach.status, 'notified');
+    await decide(w, breach.id, 'done', 'fr-cnil');
+    loaded = (await loadBreach(breach.id, w.org.id))!;
+    assert.equal(loaded.breach.status, 'notified');
+  });
+
+  it('counts a notification made before this release on a breach now under both laws', async () => {
+    const w = await world('legacy', 'uk_eu', {
+      euEstablishments: ['FR'],
+      euLeadAuthority: 'fr-cnil'
+    });
+    const breach = await recordBreach({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      title: 'Old breach',
+      description: 'Reported last month.',
+      discoveredAt: new Date(Date.now() - 2 * HOUR),
+      actor: SYSTEM
+    });
+    await db.insert(breachDecisions).values({
+      organisationId: w.org.id,
+      breachId: breach.id,
+      kind: 'supervisory_authority',
+      outcome: 'done',
+      rationale: 'Told the regulator.',
+      completedAt: new Date(Date.now() - HOUR),
+      decidedByLabel: 'before'
+    });
+    // The migration's last statement, run as written.
+    const migration = readFileSync(
+      join(process.cwd(), 'drizzle/0104_eu_requests_complaints_breaches.sql'),
+      'utf8'
+    ).split('--> statement-breakpoint');
+    await db.execute(sql.raw(migration[migration.length - 1]));
+    const loaded = (await loadBreach(breach.id, w.org.id))!;
+    const [ico, cnil] = loaded.authorityClocks;
+    assert.equal(ico.clock.state, 'met');
+    assert.equal(cnil.clock.state, 'running');
+  });
+
+  it('starts a law enforcement request to a competent authority under both laws under Part 3, as a UK request', async () => {
+    const w = await world('part3', 'uk_eu', {
+      competentAuthority: true,
+      defaultRegime: 'dpa_part3'
+    });
+    const request = await recordRequest({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      rights: ['access'],
+      channel: 'email',
+      receivedAt: new Date(Date.now() - HOUR),
+      description: 'What is held about me',
+      requesterName: 'A person',
+      actor: SYSTEM
+    });
+    assert.equal(request.regime, 'dpa_part3');
+    assert.equal(request.jurisdiction, 'uk');
   });
 });

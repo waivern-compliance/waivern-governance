@@ -30,20 +30,6 @@ export function isDataProtectionLaw(v: unknown): v is DataProtectionLaw {
 export const ukLawApplies = appliesUk;
 
 /**
- * The jurisdiction a request or complaint to the entity is handled under,
- * where it is not stated: the entity's law. For an entity under both that is
- * both, which runs the stricter clock (`lib/dsr/statutory.ts`) and, for a
- * complaint, the DPA 2018 s.164A thirty days, since UK law applies.
- */
-export function defaultRequestJurisdiction(
-  law: DataProtectionLaw
-): DataProtectionLaw {
-  return law;
-}
-
-export const defaultComplaintJurisdiction = defaultRequestJurisdiction;
-
-/**
  * Why a request or complaint cannot be handled under this jurisdiction, or
  * null where it can: an entity under one law only cannot be asked to answer
  * under the other.

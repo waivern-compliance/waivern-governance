@@ -219,9 +219,9 @@ export default async function BreachPage({
           </p>
         ) : (
           <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
-            {obligations.map((o) => (
+            {obligations.map((o, i) => (
               <li
-                key={o.kind}
+                key={`${o.kind}-${o.authorityCode ?? i}`}
                 className="space-y-1 px-4 py-3"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4">

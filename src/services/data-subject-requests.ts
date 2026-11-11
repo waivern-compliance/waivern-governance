@@ -13,10 +13,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import {
-  defaultRequestJurisdiction,
-  jurisdictionRefusal
-} from '@/lib/dpa2018/applies';
+import { jurisdictionRefusal } from '@/lib/dpa2018/applies';
 import {
   cleanExemption,
   cleanHealthOpinion,
@@ -386,7 +383,7 @@ async function checkedRegime(
   const regime =
     input.regime ??
     (entity?.competentAuthority &&
-    input.jurisdiction === 'uk' &&
+    input.jurisdiction !== 'eu' &&
     input.rights.every((r) => PART3_RIGHTS.includes(r))
       ? entity.defaultRegime
       : 'gdpr');
@@ -397,7 +394,7 @@ async function checkedRegime(
         'Part 3 is for a competent authority. Mark the entity as one on the Organisation page first.'
       );
     }
-    if (input.jurisdiction !== 'uk')
+    if (input.jurisdiction === 'eu')
       throw new RequestRefused(
         'Part 3 of the Data Protection Act 2018 is UK law. Record the request under UK law.'
       );
@@ -487,8 +484,7 @@ export async function recordRequest(input: {
       .select({ name: entities.name, law: entities.dataProtectionLaw })
       .from(entities)
       .where(eq(entities.id, input.entityId));
-    const jurisdiction =
-      input.jurisdiction ?? defaultRequestJurisdiction(entity.law);
+    let jurisdiction = input.jurisdiction ?? entity.law;
     const refusal = jurisdictionRefusal(entity, jurisdiction, 'request');
     if (refusal) throw new RequestRefused(refusal);
     const regime = await checkedRegime(db, {
@@ -497,6 +493,9 @@ export async function recordRequest(input: {
       jurisdiction,
       rights
     });
+    // Part 3 is UK law alone: a law enforcement request to an entity under
+    // both laws is a UK request.
+    if (regime === 'dpa_part3') jurisdiction = 'uk';
     const reference = await nextReference(
       input.organisationId,
       new Date().getUTCFullYear()
@@ -634,9 +633,17 @@ export async function updateRequest(input: {
           rights: (changes.rights ?? before.rights) as Right[]
         });
       }
+      // Moving a request under both laws to Part 3 makes it a UK request, as
+      // recording it under Part 3 would have. The audit records the change.
+      const toUk =
+        changes.regime === 'dpa_part3' && before.jurisdiction === 'uk_eu';
       const [after] = await tx
         .update(dataSubjectRequests)
-        .set({ ...changes, updatedAt: new Date() })
+        .set({
+          ...changes,
+          ...(toUk ? { jurisdiction: 'uk' as const } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(dataSubjectRequests.id, input.requestId))
         .returning();
 
@@ -653,7 +660,8 @@ export async function updateRequest(input: {
           ...(changes.rights ? { rights: changes.rights } : {}),
           ...(changes.regime && changes.regime !== before.regime
             ? { regime: changes.regime }
-            : {})
+            : {}),
+          ...(toUk ? { jurisdiction: 'uk', jurisdictionWas: 'uk_eu' } : {})
         }
       });
 
