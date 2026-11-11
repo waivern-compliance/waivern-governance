@@ -12,7 +12,10 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { ukLawApplies } from '@/lib/dpa2018/applies';
+import {
+  isDataProtectionLaw,
+  type DataProtectionLaw
+} from '@/lib/dpa2018/applies';
 import {
   cleanPart3,
   HARD_PART3_GAPS,
@@ -62,6 +65,15 @@ import {
   type LawfulBasis,
   type RecognisedCondition
 } from '@/lib/gdpr/lawful-basis';
+import {
+  appliesEu,
+  appliesUk,
+  effectiveLaws,
+  LAW_NAMES,
+  lawsLabel,
+  withinEntity,
+  type Law
+} from '@/lib/gdpr/regimes';
 
 import { needingSafeguards } from './countries';
 import { policyCoverage } from './policy-documents';
@@ -100,6 +112,8 @@ export type Article30Gap =
   | 'lawful_basis'
   | 'recognised_condition'
   | 'recognised_not_uk_law'
+  | 'ea_without_eu_basis'
+  | 'f_by_eu_public_body'
   | AdmGap
   | FurtherProcessingGap
   | 'children_no_dpia'
@@ -126,6 +140,9 @@ export const GAP_WORDS: Record<Article30Gap, string> = {
   recognised_condition:
     'Recognised legitimate interests with no Annex 1 condition',
   recognised_not_uk_law: LAWFUL_BASIS_GAP_WORDS.recognised_not_uk_law,
+  ea_without_eu_basis: LAWFUL_BASIS_GAP_WORDS.ea_without_eu_basis,
+  f_by_eu_public_body:
+    'Public body under member State law relying on legitimate interests for its tasks (EU GDPR Article 6(1))',
   ...ADM_GAP_WORDS,
   ...FURTHER_PROCESSING_GAP_WORDS,
   children_no_dpia: 'Likely accessed by children, with no DPIA',
@@ -167,6 +184,8 @@ export const HARD_GAPS: Article30Gap[] = [
   'transfer_safeguards',
   'controller_named',
   'recognised_not_uk_law',
+  'ea_without_eu_basis',
+  'f_by_eu_public_body',
   'adm_relies_on_ea',
   'adm_special_no_condition',
   'further_route_closed',
@@ -175,6 +194,43 @@ export const HARD_GAPS: Article30Gap[] = [
   ...HARD_PART3_GAPS,
   ...HARD_PART3_FURTHER_GAPS
 ];
+
+/**
+ * The law each gap comes from, where only one law asks for it. On a record
+ * under both laws its words say which, so a reader can tell which regime is
+ * complaining; gaps both laws share stay unlabelled.
+ */
+export const GAP_LAW: Partial<Record<Article30Gap, Law>> = {
+  recognised_condition: 'uk',
+  recognised_not_uk_law: 'eu',
+  ea_without_eu_basis: 'eu',
+  f_by_eu_public_body: 'eu',
+  adm_relies_on_ea: 'uk',
+  further_route_closed: 'uk',
+  research_safeguards: 'uk',
+  art13_no_public_information: 'uk',
+  children_no_dpia: 'uk',
+  children_dpia_unanswered: 'uk',
+  public_authority_legitimate_interests: 'uk',
+  special_no_schedule1: 'uk',
+  no_policy_document: 'uk',
+  no_policy_document_exception: 'uk',
+  retention_policy_unanswered: 'uk',
+  controller_recipient_no_agreement: 'uk'
+};
+
+/** The gap words for a record under `laws`, naming the law where both apply. */
+export function gapWordsFor(
+  laws: DataProtectionLaw
+): Record<Article30Gap, string> {
+  if (laws !== 'uk_eu') return GAP_WORDS;
+  return Object.fromEntries(
+    Object.entries(GAP_WORDS).map(([gap, words]) => {
+      const law = GAP_LAW[gap as Article30Gap];
+      return [gap, law ? `${LAW_NAMES[law]}: ${words}` : words];
+    })
+  ) as Record<Article30Gap, string>;
+}
 
 const EMPTY = (a: unknown[] | null | undefined) => !a || a.length === 0;
 
@@ -205,12 +261,16 @@ export function article30Gaps(
      */
     childrenDpia?: ChildrenDpiaState;
     /**
-     * Whether the activity's entity is subject to UK law (`lib/dpa2018/applies.ts`).
-     * False: the Data Protection Act 2018's own gaps are not reported.
+     * The law the activity's entity is subject to. The record is judged under
+     * its own laws within the entity's (`effectiveLaws`); not supplied, under
+     * its own laws alone. Where UK law does not apply, the Data Protection Act
+     * 2018's own gaps are not reported.
      */
-    ukLaw?: boolean;
+    entityLaw?: DataProtectionLaw;
     /** Whether the activity's entity is a public authority (DPA 2018 s.7). */
     publicAuthority?: boolean;
+    /** Whether it is a public authority or body under a member State's law. */
+    euPublicBody?: boolean;
     /** Whether the activity's entity is a competent authority (s.30), for a Part 3 record. */
     competentAuthority?: boolean;
     /**
@@ -227,6 +287,12 @@ export function article30Gaps(
   } = {}
 ): Article30Gap[] {
   const { childrenDpia } = context;
+  const laws = effectiveLaws(
+    context.entityLaw ?? 'uk_eu',
+    activity.laws ?? 'uk'
+  );
+  const ukLaw = appliesUk(laws);
+  const euLaw = appliesEu(laws);
   const originalConsent =
     context.originalConsent !== undefined
       ? context.originalConsent
@@ -278,7 +344,8 @@ export function article30Gaps(
     for (const gap of lawfulBasisGaps({
       bases: activity.lawfulBases ?? [],
       recognisedCondition: activity.recognisedCondition,
-      ukLaw: context.ukLaw ?? true
+      ukLaw,
+      euLaw
     })) {
       gaps.push(
         gap === 'no_basis'
@@ -292,8 +359,8 @@ export function article30Gaps(
     gaps.push(
       ...admGaps(
         activity,
-        basesUnder(activity.lawfulBases ?? [], context.ukLaw ?? true),
-        'uk_gdpr'
+        basesUnder(activity.lawfulBases ?? [], ukLaw),
+        'gdpr'
       )
     );
     // Articles 8A, 13(5) and 84C, only where further processing or research is recorded.
@@ -301,7 +368,11 @@ export function article30Gaps(
     // Section 36(4): data first collected for law enforcement, reused here.
     gaps.push(...part3ReuseGaps(activity, context.originalPart3 ?? false));
     // Article 6(1), final subparagraph: not for a public authority's tasks.
+    // Under UK law that is a DPA 2018 s.7 authority, barred from (f) and (ea);
+    // under EU law a public authority or body under member State law, barred
+    // from (f), the only legitimate interests basis the EU text has.
     if (
+      ukLaw &&
       barredBasesFor({
         publicAuthority: context.publicAuthority ?? false,
         bases: activity.lawfulBases ?? [],
@@ -310,11 +381,17 @@ export function article30Gaps(
     ) {
       gaps.push('public_authority_legitimate_interests');
     }
+    if (
+      euLaw &&
+      context.euPublicBody &&
+      !activity.outsidePublicTasks &&
+      (activity.lawfulBases ?? []).includes('legitimate_interests')
+    ) {
+      gaps.push('f_by_eu_public_body');
+    }
     // Articles 9 and 10 with Schedule 1: the conditions, the appropriate policy
     // document most of them need, and what paragraph 41 adds to the record.
-    gaps.push(
-      ...conditionGaps(activity, context.policyCoverage, context.ukLaw ?? true)
-    );
+    gaps.push(...conditionGaps(activity, context.policyCoverage, ukLaw));
     // Article 25(1A): an online service likely to be accessed by children must
     // weigh the children's higher protection matters, and a DPIA is where that
     // is shown.
@@ -327,10 +404,7 @@ export function article30Gaps(
   // Not a legal requirement, as Article 28 is for processors: the data
   // sharing code expects an agreement for routine sharing between controllers.
   // The data sharing code is the Data Protection Act 2018's (s.121).
-  if (
-    (context.ukLaw ?? true) &&
-    (context.uncoveredControllers ?? []).length > 0
-  )
+  if (ukLaw && (context.uncoveredControllers ?? []).length > 0)
     gaps.push('controller_recipient_no_agreement');
   if (!activity.ownerId) gaps.push('no_owner');
   // Brought in from another platform: nobody here has checked it yet.
@@ -429,12 +503,31 @@ export async function childrenDpiaStates(
 
 export class LawfulBasisRefused extends Error {}
 
+export class RecordLawsRefused extends Error {}
+
 /**
- * A public body under either law: DPA 2018 s.7 for the UK GDPR, or a public
- * authority or body under a member State's law for the EU GDPR. Either way
- * Article 6(1)'s final subparagraph bars legitimate interests for its tasks.
+ * The laws a record will be under: those given, else its entity's. Refused
+ * outside the entity's laws, and Part 3 refused where UK law does not apply,
+ * because Part 3 is the Data Protection Act 2018's.
  */
-const publicBody = sql<boolean>`(${entities.publicAuthority} or ${entities.euPublicBody})`;
+export function cleanRecordLaws(
+  entity: { name: string; law: DataProtectionLaw },
+  laws: string | null | undefined,
+  regime: Regime
+): DataProtectionLaw {
+  const chosen = laws || entity.law;
+  if (!isDataProtectionLaw(chosen))
+    throw new RecordLawsRefused('Choose UK law, EU law, or both.');
+  if (!withinEntity(entity.law, chosen))
+    throw new RecordLawsRefused(
+      `${entity.name} is subject to the ${lawsLabel(entity.law)} only, so its records cannot be under the ${lawsLabel(chosen)}.`
+    );
+  if (regime === 'dpa_part3' && !appliesUk(chosen))
+    throw new RecordLawsRefused(
+      'Part 3 of the Data Protection Act 2018 is UK law, so a Part 3 record must be under UK law.'
+    );
+  return chosen;
+}
 
 /**
  * The bases and Annex 1 condition as they will be stored. Unknown values are
@@ -476,6 +569,8 @@ export type RegisterRow = {
   activity: Activity;
   entityName: string;
   ownerEmail: string | null;
+  /** The laws the record is judged under: its own, within its entity's. */
+  laws: DataProtectionLaw;
   gaps: Article30Gap[];
   hardGaps: Article30Gap[];
 };
@@ -499,7 +594,8 @@ export async function listActivities(
         .select({
           activity: processingActivities,
           entityName: entities.name,
-          publicAuthority: publicBody,
+          publicAuthority: entities.publicAuthority,
+          euPublicBody: entities.euPublicBody,
           competentAuthority: entities.competentAuthority,
           dataProtectionLaw: entities.dataProtectionLaw,
           ownerEmail: users.email
@@ -524,17 +620,19 @@ export async function listActivities(
         entityName,
         ownerEmail,
         publicAuthority,
+        euPublicBody,
         competentAuthority,
         dataProtectionLaw
       }) => {
         const gaps = article30Gaps(activity, needsSafeguards, {
-          ukLaw: ukLawApplies(dataProtectionLaw),
+          entityLaw: dataProtectionLaw,
           originalConsent: originalConsentOf(activity, bases),
           originalPart3: activity.originalActivityId
             ? bases.part3.has(activity.originalActivityId)
             : false,
           childrenDpia: children.get(activity.id) ?? 'none',
           publicAuthority,
+          euPublicBody,
           competentAuthority,
           policyCoverage: coverage,
           uncoveredControllers: controllersWithoutAgreement(activity, sharing)
@@ -543,6 +641,7 @@ export async function listActivities(
           activity,
           entityName,
           ownerEmail,
+          laws: effectiveLaws(dataProtectionLaw, activity.laws),
           gaps,
           hardGaps: gaps.filter((g) => HARD_GAPS.includes(g))
         };
@@ -557,7 +656,8 @@ export async function loadActivity(activityId: string, organisationId: string) {
       .select({
         activity: processingActivities,
         entityName: entities.name,
-        publicAuthority: publicBody,
+        publicAuthority: entities.publicAuthority,
+        euPublicBody: entities.euPublicBody,
         competentAuthority: entities.competentAuthority,
         dataProtectionLaw: entities.dataProtectionLaw,
         ownerEmail: users.email
@@ -613,20 +713,23 @@ export async function loadActivity(activityId: string, organisationId: string) {
       row.activity,
       sharing
     );
+    const laws = effectiveLaws(row.dataProtectionLaw, row.activity.laws);
     const gaps = article30Gaps(row.activity, needsSafeguards, {
-      ukLaw: ukLawApplies(row.dataProtectionLaw),
+      entityLaw: row.dataProtectionLaw,
       originalConsent,
       originalPart3: row.activity.originalActivityId
         ? bases.part3.has(row.activity.originalActivityId)
         : false,
       childrenDpia: children.get(activityId) ?? 'none',
       publicAuthority: row.publicAuthority,
+      euPublicBody: row.euPublicBody,
       competentAuthority: row.competentAuthority,
       policyCoverage: coverage,
       uncoveredControllers
     });
     return {
       ...row,
+      laws,
       assessments: related,
       original,
       originalConsent,
@@ -670,6 +773,8 @@ export async function createActivity(input: {
   reviewDueAt?: Date;
   /** Defaults to the entity's: Part 3 only where it is a competent authority. */
   regime?: Regime;
+  /** Defaults to the entity's law; must be within it. */
+  laws?: string;
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
@@ -678,6 +783,7 @@ export async function createActivity(input: {
       await assertMemberOf(input.organisationId, input.ownerId);
     const [entity] = await db
       .select({
+        name: entities.name,
         competentAuthority: entities.competentAuthority,
         defaultRegime: entities.defaultRegime,
         dataProtectionLaw: entities.dataProtectionLaw
@@ -691,10 +797,15 @@ export async function createActivity(input: {
         'Part 3 is for a competent authority. Mark the entity as one on the Organisation page first.'
       );
     }
+    const laws = cleanRecordLaws(
+      { name: entity.name, law: entity.dataProtectionLaw },
+      input.laws,
+      regime
+    );
     const bases = cleanLawfulBases(
       input.lawfulBases ?? [],
       input.recognisedCondition,
-      ukLawApplies(entity.dataProtectionLaw)
+      appliesUk(laws)
     );
     const reference = await nextReference(
       input.organisationId,
@@ -724,7 +835,8 @@ export async function createActivity(input: {
           controllerName: input.controllerName,
           ownerId: input.ownerId ?? null,
           reviewDueAt: input.reviewDueAt,
-          regime
+          regime,
+          laws
         })
         .returning();
 
@@ -735,7 +847,7 @@ export async function createActivity(input: {
         subjectType: 'processing_activity',
         subjectId: row.id,
         entityId: input.entityId,
-        after: { reference, name: row.name }
+        after: { reference, name: row.name, laws }
       });
 
       return row;
@@ -795,6 +907,8 @@ export async function updateActivity(input: {
     retentionFollowsPolicy: boolean | null;
     retentionPolicyNote: string | null;
     regime: string;
+    /** Which of the entity's laws govern the record. */
+    laws: string;
     part3Basis: string | null;
     sensitiveProcessing: boolean | null;
     sensitiveRoute: string | null;
@@ -833,6 +947,7 @@ export async function updateActivity(input: {
         retentionFollowsPolicy,
         retentionPolicyNote,
         regime: regimeChange,
+        laws: lawsChange,
         part3Basis,
         sensitiveProcessing,
         sensitiveRoute,
@@ -906,7 +1021,7 @@ export async function updateActivity(input: {
         retentionPolicyNote
       ].some((v) => v !== undefined);
       const conditions =
-        regime === 'uk_gdpr' && (conditionsGiven || regimeChange !== undefined)
+        regime === 'gdpr' && (conditionsGiven || regimeChange !== undefined)
           ? cleanSpecialCategory({
               specialCategory: pick(specialCategory, before.specialCategory),
               art9Condition: pick(art9Condition, before.art9Condition),
@@ -926,21 +1041,34 @@ export async function updateActivity(input: {
               )
             })
           : null;
+      const [entity] = await tx
+        .select({
+          name: entities.name,
+          dataProtectionLaw: entities.dataProtectionLaw
+        })
+        .from(entities)
+        .where(eq(entities.id, before.entityId));
+      const laws =
+        lawsChange !== undefined || regime !== before.regime
+          ? cleanRecordLaws(
+              { name: entity.name, law: entity.dataProtectionLaw },
+              lawsChange ?? before.laws,
+              regime
+            )
+          : before.laws;
+      // Narrowing to EU law only re-checks the bases already recorded, so
+      // recognised legitimate interests cannot outlive the law that has it.
       const basesChanged =
-        lawfulBases !== undefined || recognisedCondition !== undefined;
-      const [entity] = basesChanged
-        ? await tx
-            .select({ dataProtectionLaw: entities.dataProtectionLaw })
-            .from(entities)
-            .where(eq(entities.id, before.entityId))
-        : [];
+        lawfulBases !== undefined ||
+        recognisedCondition !== undefined ||
+        laws !== before.laws;
       const bases = basesChanged
         ? cleanLawfulBases(
             lawfulBases ?? before.lawfulBases,
             recognisedCondition !== undefined
               ? recognisedCondition
               : before.recognisedCondition,
-            ukLawApplies(entity.dataProtectionLaw)
+            appliesUk(laws)
           )
         : {};
 
@@ -952,6 +1080,7 @@ export async function updateActivity(input: {
           ...conditions,
           ...part3,
           regime,
+          laws,
           updatedAt: new Date()
         })
         .where(eq(processingActivities.id, input.activityId))
@@ -967,6 +1096,7 @@ export async function updateActivity(input: {
         before: {
           name: before.name,
           changed: Object.keys(input.changes),
+          ...(laws !== before.laws ? { laws: before.laws } : {}),
           // The basis is the field a regulator asks about, so its change is
           // kept in the chain, not only the fact that something changed.
           ...('lawfulBases' in bases
@@ -980,6 +1110,7 @@ export async function updateActivity(input: {
         },
         after: {
           name: after.name,
+          ...(laws !== before.laws ? { laws: after.laws } : {}),
           ...('lawfulBases' in bases
             ? {
                 lawfulBases: after.lawfulBases,
@@ -1088,10 +1219,17 @@ export async function setFurtherProcessing(input: {
 /** The headline: how much of the register would survive an inspection. */
 export async function registerHealth(
   organisationId: string,
-  entityIds: string[] | null
+  entityIds: string[] | null,
+  /** Only the records under this law, where given. */
+  law?: Law
 ) {
   return withOrganisation(organisationId, async () => {
-    const rows = await listActivities(organisationId, entityIds);
+    const all = await listActivities(organisationId, entityIds);
+    const rows = law
+      ? all.filter((r) =>
+          law === 'uk' ? appliesUk(r.laws) : appliesEu(r.laws)
+        )
+      : all;
     return {
       total: rows.length,
       complete: rows.filter((r) => r.gaps.length === 0).length,

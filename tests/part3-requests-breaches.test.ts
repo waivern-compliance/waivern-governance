@@ -30,7 +30,7 @@ after(() => pg.end());
 
 async function world(
   label: string,
-  defaultRegime: 'uk_gdpr' | 'dpa_part3' = 'dpa_part3'
+  defaultRegime: 'gdpr' | 'dpa_part3' = 'dpa_part3'
 ) {
   const [org] = await db
     .insert(organisations)
@@ -184,13 +184,10 @@ describe('requests', () => {
     assert.equal((await request(w)).regime, 'dpa_part3');
     assert.equal(
       (await request(w, { rights: ['access', 'objection'] })).regime,
-      'uk_gdpr',
+      'gdpr',
       'an objection: UK GDPR, not refused'
     );
-    assert.equal(
-      (await request(w, { entityId: w.charity.id })).regime,
-      'uk_gdpr'
-    );
+    assert.equal((await request(w, { entityId: w.charity.id })).regime, 'gdpr');
     await assert.rejects(
       request(w, { rights: ['objection'], regime: 'dpa_part3' }),
       /no right of objection/
@@ -206,9 +203,9 @@ describe('requests', () => {
   });
 
   it('checks the rights against the regime when either changes', async () => {
-    const w = await world('update', 'uk_gdpr');
+    const w = await world('update', 'gdpr');
     const r = await request(w, { rights: ['access', 'portability'] });
-    assert.equal(r.regime, 'uk_gdpr');
+    assert.equal(r.regime, 'gdpr');
     await assert.rejects(
       updateRequest({
         requestId: r.id,
@@ -330,7 +327,7 @@ describe('breaches', () => {
       discoveredAt: new Date(),
       actor: SYSTEM
     });
-    assert.equal(charity.regime, 'uk_gdpr');
+    assert.equal(charity.regime, 'gdpr');
     await assert.rejects(
       updateBreach({
         breachId: charity.id,
@@ -343,7 +340,7 @@ describe('breaches', () => {
     await updateBreach({
       breachId: breach.id,
       organisationId: w.org.id,
-      changes: { regime: 'uk_gdpr' },
+      changes: { regime: 'gdpr' },
       actor: SYSTEM
     });
     assert.equal(

@@ -96,7 +96,7 @@ export function regimeOfUseCase(
   return activities.length > 0 &&
     activities.every((a) => a.regime === 'dpa_part3')
     ? 'dpa_part3'
-    : 'uk_gdpr';
+    : 'gdpr';
 }
 
 async function regimeOf(
@@ -105,7 +105,7 @@ async function regimeOf(
   side: AdmSide,
   row: { id: string; regime?: Regime }
 ): Promise<Regime> {
-  if (side === 'processing_activity') return row.regime ?? 'uk_gdpr';
+  if (side === 'processing_activity') return row.regime ?? 'gdpr';
   const activities = await tx
     .select({ regime: processingActivities.regime })
     .from(recordLinks)

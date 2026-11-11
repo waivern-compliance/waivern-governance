@@ -581,7 +581,7 @@ export async function setCompetentAuthorityAction(
       organisationId: active.membership.organisationId,
       entityId,
       competentAuthority: choice !== 'no',
-      defaultRegime: choice === 'part3' ? 'dpa_part3' : 'uk_gdpr',
+      defaultRegime: choice === 'part3' ? 'dpa_part3' : 'gdpr',
       actor: actorOf(active)
     });
     return updated.competentAuthority

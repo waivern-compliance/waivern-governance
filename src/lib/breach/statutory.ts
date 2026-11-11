@@ -88,7 +88,7 @@ export function obligationsFor(input: {
    * ss.67–68 in place of Articles 33–34, with the same thresholds and clock,
    * and s.68(7) letting telling the people affected be restricted.
    */
-  regime?: 'uk_gdpr' | 'dpa_part3';
+  regime?: 'gdpr' | 'dpa_part3';
 }): Obligation[] {
   const { role, risk, discoveredAt } = input;
   const deadline = notificationDeadline(discoveredAt);
@@ -216,7 +216,7 @@ export function clockFor(input: {
   notRequired?: boolean;
   now?: Date;
   /** Part 3 cites s.67 where the UK GDPR cites Article 33. */
-  regime?: 'uk_gdpr' | 'dpa_part3';
+  regime?: 'gdpr' | 'dpa_part3';
 }): ClockState {
   const now = input.now ?? new Date();
   const dueAt = notificationDeadline(input.discoveredAt);

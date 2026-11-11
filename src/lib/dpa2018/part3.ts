@@ -24,16 +24,32 @@
 
 import { SUBJECT_CATEGORIES } from '@/lib/templates/catalogues';
 
-export type Regime = 'uk_gdpr' | 'dpa_part3';
+/**
+ * `gdpr` is general processing under the GDPR: the UK GDPR, the EU GDPR or
+ * both, as the record's laws say (`lib/gdpr/regimes.ts`). Part 3 exists only
+ * in UK law.
+ */
+export type Regime = 'gdpr' | 'dpa_part3';
 
 export const REGIMES: Record<Regime, string> = {
-  uk_gdpr: 'UK GDPR (with Part 2 of the Data Protection Act 2018)',
+  gdpr: 'General processing under the GDPR',
   dpa_part3:
     'Law enforcement processing (Part 3 of the Data Protection Act 2018)'
 };
 
 export function isRegime(v: unknown): v is Regime {
-  return v === 'uk_gdpr' || v === 'dpa_part3';
+  return v === 'gdpr' || v === 'dpa_part3';
+}
+
+/** The regime as a record names it, with the laws it is under. */
+export function regimeLabel(
+  regime: Regime,
+  laws: 'uk' | 'eu' | 'uk_eu'
+): string {
+  if (regime === 'dpa_part3') return REGIMES.dpa_part3;
+  if (laws === 'eu') return 'EU GDPR';
+  const uk = 'UK GDPR (with Part 2 of the Data Protection Act 2018)';
+  return laws === 'uk' ? uk : `${uk} and EU GDPR`;
 }
 
 /** Section 35(2): the two ways Part 3 processing is lawful. */

@@ -48,7 +48,7 @@ export function AutomatedDecisions({
   linked,
   mayEdit,
   linkCandidates,
-  regime = 'uk_gdpr'
+  regime = 'gdpr'
 }: {
   side: AdmSide;
   recordId: string;

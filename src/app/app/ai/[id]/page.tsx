@@ -642,7 +642,7 @@ export default async function UseCasePage({
         linked={linkedActivities}
         mayEdit={mayEdit}
         regime={regimeOfUseCase(
-          linkedActivities.map((a) => ({ regime: a.regime ?? 'uk_gdpr' }))
+          linkedActivities.map((a) => ({ regime: a.regime ?? 'gdpr' }))
         )}
         linkCandidates={activityOptions
           .filter((a) =>

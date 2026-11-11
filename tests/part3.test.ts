@@ -300,7 +300,7 @@ describe('the register', () => {
       name: 'Staff records',
       actor: SYSTEM
     });
-    assert.equal(staff.regime, 'uk_gdpr');
+    assert.equal(staff.regime, 'gdpr');
     await assert.rejects(
       updateActivity({
         activityId: staff.id,
@@ -357,7 +357,7 @@ describe('the register', () => {
     assert.equal(
       (await db.select().from(entities).where(eq(entities.id, w.force.id)))[0]
         .defaultRegime,
-      'uk_gdpr'
+      'gdpr'
     );
     assert.ok(
       (await loadActivity(custody.id, w.org.id))!.gaps.includes(
@@ -448,11 +448,11 @@ describe('the register', () => {
     await updateActivity({
       activityId: activity.id,
       organisationId: w.org.id,
-      changes: { regime: 'uk_gdpr' },
+      changes: { regime: 'gdpr' },
       actor: SYSTEM
     });
     loaded = (await loadActivity(activity.id, w.org.id))!.activity;
     assert.equal(loaded.part3Basis, 'task', 'and so is the Part 3 one');
-    assert.equal(loaded.regime, 'uk_gdpr');
+    assert.equal(loaded.regime, 'gdpr');
   });
 });

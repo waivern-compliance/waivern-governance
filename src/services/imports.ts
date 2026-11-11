@@ -672,6 +672,7 @@ export async function commitImport(input: {
                 entityId: batch.entityId!,
                 reference,
                 regime: entity?.defaultRegime,
+                laws: entity?.dataProtectionLaw,
                 importSourceId: batch.sourceId,
                 externalRef: row.sourceRef,
                 createdAt: at,

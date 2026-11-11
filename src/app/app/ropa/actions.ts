@@ -169,7 +169,9 @@ export async function updateActivityAction(
         name: text(formData.get('name')),
         description: text(formData.get('description')),
         purposes: lines(formData.get('purposes')),
-        regime: text(formData.get('regime')) || 'uk_gdpr',
+        regime: text(formData.get('regime')) || 'gdpr',
+        // Asked only where the entity is under both laws; absent, unchanged.
+        ...(formData.has('laws') ? { laws: text(formData.get('laws')) } : {}),
         ...(part3 ? lawEnforcement : ukGdpr),
         dataCategories: categories(formData, 'dataCategories'),
         subjectCategories: categories(formData, 'subjectCategories'),

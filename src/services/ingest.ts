@@ -15,7 +15,7 @@ import {
   suppliers
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { ukLawApplies, type DataProtectionLaw } from '@/lib/dpa2018/applies';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import {
   AutomatedDecisionRefused,
   cleanAdm
@@ -25,6 +25,7 @@ import {
   FurtherProcessingRefused
 } from '@/lib/gdpr/further-processing';
 import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
+import { appliesUk, effectiveLaws } from '@/lib/gdpr/regimes';
 import { connectionActor, type AuthedConnection } from '@/lib/integration/auth';
 import type {
   AiUseCaseIn,
@@ -278,9 +279,14 @@ export async function ingestProcessingActivities(
           // Structured bases win; otherwise read them from the text where it is
           // unambiguous. Where neither says anything, a basis somebody chose in
           // Govern is left alone rather than wiped by a push that had no view.
+          // Judged under the record's own laws where it exists; a new record
+          // takes its entity's.
+          const ukLaw = appliesUk(
+            effectiveLaws(entity.law, existing?.laws ?? entity.law)
+          );
           const bases =
             r.lawfulBases ??
-            basesFromTextFor(r.lawfulBasis, ukLawApplies(entity.law)) ??
+            basesFromTextFor(r.lawfulBasis, ukLaw) ??
             undefined;
           const condition =
             r.recognisedCondition ??
@@ -292,13 +298,7 @@ export async function ingestProcessingActivities(
             description: r.description,
             purposes: r.purposes,
             lawfulBasis: r.lawfulBasis,
-            ...(bases
-              ? cleanLawfulBases(
-                  bases,
-                  condition ?? null,
-                  ukLawApplies(entity.law)
-                )
-              : {}),
+            ...(bases ? cleanLawfulBases(bases, condition ?? null, ukLaw) : {}),
             dataCategories: r.dataCategories,
             subjectCategories: r.subjectCategories,
             recipients: r.recipients,
@@ -350,6 +350,7 @@ export async function ingestProcessingActivities(
               reference,
               sourceConnectionId: connection.id,
               externalRef: r.externalRef,
+              laws: entity.law,
               ...values
             })
             .returning();
