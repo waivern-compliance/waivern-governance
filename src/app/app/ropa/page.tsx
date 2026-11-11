@@ -7,9 +7,10 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
+import { establishmentGaps } from '@/lib/gdpr/establishment';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
-import { dpoPosition } from '@/services/entities';
+import { dpoPosition, establishmentOf } from '@/services/entities';
 import { GAP_WORDS, HARD_GAPS, registerHealth } from '@/services/ropa';
 
 import { recordActivity } from './actions';
@@ -36,6 +37,12 @@ export default async function RopaPage() {
     dpoPosition(org)
   ]);
   const withoutDpo = dpo.entities.filter((e) => e.missing);
+  // Article 30(1)(a) asks for the representative, and the rest says who the
+  // record answers to, so what is missing is shown where the record is kept.
+  const establishmentMissing = orgEntities.filter(
+    (e) => establishmentGaps(e.dataProtectionLaw, establishmentOf(e)).length > 0
+  );
+  const mayManageOrg = can(active.membership.grants, 'org.manage');
   const mayAdd = can(active.membership.grants, 'record.write');
 
   return (
@@ -68,10 +75,9 @@ export default async function RopaPage() {
           {withoutDpo.length === 1
             ? 'is a public or competent authority'
             : 'are public or competent authorities'}{' '}
-          with no data protection officer recorded. UK GDPR Article 37(1)(a)
-          and, for law enforcement processing, Data Protection Act 2018 s.69
-          require one.{' '}
-          {can(active.membership.grants, 'org.manage') ? (
+          with no data protection officer recorded. Article 37(1)(a) and, for
+          law enforcement processing, Data Protection Act 2018 s.69 require one.{' '}
+          {mayManageOrg ? (
             <Link
               href="/app/admin/organisation"
               className="underline"
@@ -80,6 +86,28 @@ export default async function RopaPage() {
             </Link>
           ) : (
             'Someone who manages the organisation can record them.'
+          )}
+        </p>
+      ) : null}
+
+      {establishmentMissing.length > 0 ? (
+        <p
+          role="alert"
+          className="max-w-prose rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900"
+        >
+          {establishmentMissing.map((e) => e.name).join(', ')}{' '}
+          {establishmentMissing.length === 1 ? 'has' : 'have'} no
+          representative, main establishment or lead authority recorded where
+          the law needs one (Articles 27, 30(1)(a) and 56).{' '}
+          {mayManageOrg ? (
+            <Link
+              href="/app/admin/organisation"
+              className="underline"
+            >
+              Record the establishment
+            </Link>
+          ) : (
+            'Someone who manages the organisation can record it.'
           )}
         </p>
       ) : null}

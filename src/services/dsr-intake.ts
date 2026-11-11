@@ -26,6 +26,7 @@ import {
 import { ukLawApplies } from '@/lib/dpa2018/applies';
 import { requestClock } from '@/lib/dsr/statutory';
 import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
+import { regulatorFor } from '@/lib/gdpr/establishment';
 import { formIsOpen } from '@/lib/intake-forms';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
@@ -249,6 +250,9 @@ export async function openIntakeLink(slug: string) {
       foiAct: entities.foiAct,
       foiTimeProfile: entities.foiTimeProfile,
       dataProtectionLaw: entities.dataProtectionLaw,
+      euLeadAuthority: entities.euLeadAuthority,
+      euEstablishments: entities.euEstablishments,
+      euMainEstablishment: entities.euMainEstablishment,
       organisationName: organisations.name
     })
     .from(dsrIntakeLinks)
@@ -292,6 +296,8 @@ export async function openIntakeLink(slug: string) {
     // The 30-day acknowledgement is DPA 2018 s.164A: promised only where UK
     // law applies. The EU GDPR puts no such duty on the controller.
     ukLaw: ukLawApplies(row.dataProtectionLaw),
+    // Named on the form where only EU law applies (Article 77).
+    euRegulator: regulatorFor('eu', row).complainTo,
     otherFormSlug: other?.slug ?? null,
     appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.

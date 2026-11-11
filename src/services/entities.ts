@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
@@ -16,6 +17,10 @@ import {
   type FoiAct,
   type TimeProfile
 } from '@/lib/foi/statutory';
+import {
+  cleanEstablishment,
+  type Establishment
+} from '@/lib/gdpr/establishment';
 
 import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
 import { forgetFrameOrigins } from './frame-origins';
@@ -331,11 +336,23 @@ export async function setDataProtectionLaw(input: {
   actor: Actor;
 }) {
   if (!isDataProtectionLaw(input.law))
-    throw new Error('Choose UK law, EU law, or both.');
+    throw new EntityRefused('Choose UK law, EU law, or both.');
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.dataProtectionLaw === input.law) return before;
+      // The establishment record answers for each law; narrowing away from a
+      // law it answers for is refused, as for the UK law settings below.
+      if (input.law === 'uk' && hasEuEstablishmentFacts(before)) {
+        throw new EntityRefused(
+          `${before.name} has EU establishment, lead authority, representative or public body details recorded. Clear them first.`
+        );
+      }
+      if (input.law === 'eu' && hasUkEstablishmentFacts(before)) {
+        throw new EntityRefused(
+          `${before.name} has a UK representative or exemption recorded. Clear that first.`
+        );
+      }
       if (!ukLawApplies(input.law)) {
         const on = [
           before.publicAuthority ? 'public authority' : null,
@@ -343,14 +360,21 @@ export async function setDataProtectionLaw(input: {
           before.publicCommsProvider ? 'public communications provider' : null
         ].filter(Boolean);
         if (on.length > 0) {
-          throw new Error(
+          throw new EntityRefused(
             `${before.name} is marked as a ${on.join(' and ')}, which only UK law knows. Turn that off first.`
           );
         }
       }
       const [after] = await tx
         .update(entities)
-        .set({ dataProtectionLaw: input.law, updatedAt: new Date() })
+        .set({
+          dataProtectionLaw: input.law,
+          // Established in the UK means subject to the UK GDPR (Article 3(1)),
+          // so EU law only means not established there. Widening back to both
+          // then asks for a UK representative until someone says otherwise.
+          ...(input.law === 'eu' ? { ukEstablishment: false } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(entities.id, before.id))
         .returning();
       await appendAuditEvent(tx, {
@@ -362,6 +386,78 @@ export async function setDataProtectionLaw(input: {
         entityId: before.id,
         before: { dataProtectionLaw: before.dataProtectionLaw },
         after: { dataProtectionLaw: input.law }
+      });
+      return after;
+    })
+  );
+}
+
+function hasEuEstablishmentFacts(e: typeof entities.$inferSelect) {
+  return (
+    e.euEstablishments.length > 0 ||
+    Boolean(e.euMainEstablishment) ||
+    Boolean(e.euLeadAuthority) ||
+    Boolean(e.euRepresentative) ||
+    Boolean(e.euRepresentativeExemption) ||
+    e.euPublicBody
+  );
+}
+
+function hasUkEstablishmentFacts(e: typeof entities.$inferSelect) {
+  return Boolean(e.ukRepresentative) || Boolean(e.ukRepresentativeExemption);
+}
+
+/** The establishment as `lib/gdpr/establishment.ts` reads it. */
+export function establishmentOf(
+  e: typeof entities.$inferSelect
+): Establishment {
+  return {
+    ukEstablishment: e.ukEstablishment,
+    euEstablishments: e.euEstablishments,
+    euMainEstablishment: e.euMainEstablishment,
+    euLeadAuthority: e.euLeadAuthority,
+    euRepresentative: e.euRepresentative,
+    euRepresentativeExemption: e.euRepresentativeExemption,
+    ukRepresentative: e.ukRepresentative,
+    ukRepresentativeExemption: e.ukRepresentativeExemption,
+    euPublicBody: e.euPublicBody
+  };
+}
+
+/**
+ * Where the entity is established, who represents it and which EU authority
+ * leads (Articles 3, 27, 56), for the laws it is subject to. Answers about a
+ * law it is not subject to are refused. Audited before and after.
+ */
+export async function setEstablishment(input: {
+  organisationId: string;
+  entityId: string;
+  establishment: Parameters<typeof cleanEstablishment>[1];
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await entityIn(tx, input.organisationId, input.entityId);
+      const cleaned = cleanEstablishment(
+        before.dataProtectionLaw,
+        input.establishment
+      );
+      const was = establishmentOf(before);
+      if (isDeepStrictEqual(was, cleaned)) return before;
+      const [after] = await tx
+        .update(entities)
+        .set({ ...cleaned, updatedAt: new Date() })
+        .where(eq(entities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'entity.establishment_changed',
+        subjectType: 'entity',
+        subjectId: before.id,
+        entityId: before.id,
+        before: was,
+        after: cleaned
       });
       return after;
     })
@@ -687,13 +783,14 @@ export async function dpoPosition(organisationId: string) {
       entities: rows.map((e) => ({
         id: e.id,
         name: e.name,
-        publicAuthority: e.publicAuthority,
+        publicAuthority: e.publicAuthority || e.euPublicBody,
         competentAuthority: e.competentAuthority,
         ownDpo: e.dpo ?? null,
         effectiveDpo: e.dpo ?? organisationDpo,
         missing: dpoMissing(
           {
-            publicAuthority: e.publicAuthority,
+            // Article 37(1)(a) binds a public body under either law.
+            publicAuthority: e.publicAuthority || e.euPublicBody,
             competentAuthority: e.competentAuthority,
             dpo: e.dpo ?? null
           },

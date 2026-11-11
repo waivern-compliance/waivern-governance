@@ -150,6 +150,12 @@ export const NAV: NavItem[] = [
     capability: 'record.read'
   },
   {
+    href: '/app/authorities',
+    label: 'Supervisory authorities',
+    hint: "the UK regulator and each EEA State's, as complaints and refusals name them",
+    capability: 'record.read'
+  },
+  {
     href: '/app/exports',
     label: 'Exports',
     hint: 'spreadsheets of anything you can see',

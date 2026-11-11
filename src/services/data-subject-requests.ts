@@ -47,9 +47,11 @@ import {
   type ProcessingBasis,
   type Right
 } from '@/lib/dsr/statutory';
+import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
 
 import { canonicalise } from './ingest';
+import { regulatorOfEntity } from './regulator';
 import type { Actor } from './templates';
 import {
   assertEntityIn,
@@ -1166,6 +1168,16 @@ export async function respondToRequest(input: {
           responseSummary: summary,
           responseLink: link,
           toldOfComplaintRight: input.toldOfComplaintRight ?? null,
+          toldComplaintTo: input.toldOfComplaintRight
+            ? (
+                await regulatorOfEntity(
+                  tx,
+                  input.organisationId,
+                  request.entityId,
+                  request.jurisdiction
+                )
+              ).complainTo
+            : null,
           lateReason,
           status: input.outcome === 'refused' ? 'refused' : 'responded',
           updatedAt: new Date()
@@ -1754,7 +1766,12 @@ export async function loadRequest(
   requestId: string,
   organisationId: string
 ): Promise<
-  (LoadedRequest & { scope: ScopeEntry[]; competentAuthority: boolean }) | null
+  | (LoadedRequest & {
+      scope: ScopeEntry[];
+      competentAuthority: boolean;
+      regulator: ReturnType<typeof regulatorFor>;
+    })
+  | null
 > {
   return withOrganisation(organisationId, async () => {
     const [row] = await db
@@ -1762,7 +1779,10 @@ export async function loadRequest(
         request: dataSubjectRequests,
         entityName: entities.name,
         ownerEmail: users.email,
-        competentAuthority: entities.competentAuthority
+        competentAuthority: entities.competentAuthority,
+        euLeadAuthority: entities.euLeadAuthority,
+        euEstablishments: entities.euEstablishments,
+        euMainEstablishment: entities.euMainEstablishment
       })
       .from(dataSubjectRequests)
       .innerJoin(entities, eq(entities.id, dataSubjectRequests.entityId))
@@ -1787,7 +1807,9 @@ export async function loadRequest(
     return {
       ...assemble(row.request, row.entityName, row.ownerEmail, decisions),
       scope,
-      competentAuthority: row.competentAuthority
+      competentAuthority: row.competentAuthority,
+      // Who a refusal names (Article 12(4)), under the law the request is handled under.
+      regulator: regulatorFor(row.request.jurisdiction, row)
     };
   });
 }

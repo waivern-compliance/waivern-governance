@@ -27,9 +27,11 @@ import {
   jurisdictionRefusal
 } from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
+import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
 
 import { CHANNELS, type ControllerRole } from './data-subject-requests';
+import { regulatorOfEntity } from './regulator';
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 import { monthsEnding } from './trends';
@@ -554,6 +556,17 @@ export async function recordComplaintEvent(input: {
           kind: input.kind,
           note: note || 'Acknowledged receipt.',
           channel: input.channel ?? null,
+          authority:
+            input.kind === 'regulator_contact'
+              ? (
+                  await regulatorOfEntity(
+                    tx,
+                    input.organisationId,
+                    complaint.entityId,
+                    complaint.jurisdiction
+                  )
+                ).short
+              : null,
           occurredAt: at,
           recordedBy: input.actor.actorUserId,
           recordedByLabel: input.actor.actorLabel
@@ -680,6 +693,16 @@ export async function recordComplaintOutcome(input: {
           remedialAction: input.remedialAction?.trim() || null,
           outcomeLink: link,
           toldOfRegulatorRight: input.toldOfRegulatorRight ?? null,
+          toldRegulator: input.toldOfRegulatorRight
+            ? (
+                await regulatorOfEntity(
+                  tx,
+                  input.organisationId,
+                  complaint.entityId,
+                  complaint.jurisdiction
+                )
+              ).complainTo
+            : null,
           outcomeLateReason: late ? lateReason : null,
           ...(complaint.acknowledgedAt
             ? {}
@@ -838,6 +861,7 @@ export async function loadComplaint(
 ): Promise<
   | (LoadedComplaint & {
       request: { id: string; reference: string; status: string } | null;
+      regulator: ReturnType<typeof regulatorFor>;
     })
   | null
 > {
@@ -846,7 +870,10 @@ export async function loadComplaint(
       .select({
         complaint: dataProtectionComplaints,
         entityName: entities.name,
-        ownerEmail: users.email
+        ownerEmail: users.email,
+        euLeadAuthority: entities.euLeadAuthority,
+        euEstablishments: entities.euEstablishments,
+        euMainEstablishment: entities.euMainEstablishment
       })
       .from(dataProtectionComplaints)
       .innerJoin(entities, eq(entities.id, dataProtectionComplaints.entityId))
@@ -883,7 +910,9 @@ export async function loadComplaint(
       ownerEmail: row.ownerEmail,
       events,
       clock: clockOf(row.complaint, events, targets),
-      request: request ?? null
+      request: request ?? null,
+      // Who the complainant may go to, under the law the complaint is handled under.
+      regulator: regulatorFor(row.complaint.jurisdiction, row)
     };
   });
 }

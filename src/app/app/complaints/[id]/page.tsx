@@ -19,6 +19,7 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { loadComplaint } from '@/services/complaints';
+import { regulatorWithoutEstablishment } from '@/services/regulator';
 
 import { ActionForm } from '../../requests/ActionForm';
 import {
@@ -40,8 +41,7 @@ const EVENT_LABEL: Record<string, string> = {
   enquiry: 'Enquiry',
   progress_update: 'Progress update',
   outcome_sent: 'Outcome sent',
-  withdrawn: 'Withdrawn',
-  regulator_contact: 'Contact with the Information Commission'
+  withdrawn: 'Withdrawn'
 };
 
 export default async function ComplaintPage({
@@ -55,7 +55,15 @@ export default async function ComplaintPage({
 
   const loaded = await loadComplaint(id, active.membership.organisationId);
   if (!loaded) notFound();
-  const { complaint, entityName, events, clock, ownerEmail, request } = loaded;
+  const {
+    complaint,
+    entityName,
+    events,
+    clock,
+    ownerEmail,
+    request,
+    regulator
+  } = loaded;
 
   if (!can(active.membership.grants, 'dsr.handle', complaint.entityId)) {
     return (
@@ -154,7 +162,9 @@ export default async function ComplaintPage({
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-sm font-medium">
-                  {EVENT_LABEL[e.kind] ?? e.kind}
+                  {e.kind === 'regulator_contact'
+                    ? `Contact with ${e.authority ?? regulatorWithoutEstablishment(complaint.jurisdiction).short}`
+                    : (EVENT_LABEL[e.kind] ?? e.kind)}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {stamp(e.occurredAt)}
@@ -212,7 +222,7 @@ export default async function ComplaintPage({
                   </>
                 ) : null}
                 <option value="regulator_contact">
-                  Contact with the Information Commission
+                  Contact with {regulator.short}
                 </option>
               </select>
             </label>
@@ -295,7 +305,11 @@ export default async function ComplaintPage({
           ) : null}
           {complaint.toldOfRegulatorRight ? (
             <p className="text-xs text-ink-soft">
-              Told they may complain to the Information Commission.
+              Told they may complain to{' '}
+              {complaint.toldRegulator ??
+                regulatorWithoutEstablishment(complaint.jurisdiction)
+                  .complainTo}
+              .
             </p>
           ) : null}
           {complaint.outcomeLateReason ? (
@@ -403,8 +417,8 @@ export default async function ComplaintPage({
               className="mt-1 accent-brand"
             />
             <span>
-              It told them they may complain to the Information Commission if
-              they are not satisfied
+              It told them they may complain to {regulator.complainTo} if they
+              are not satisfied
             </span>
           </label>
           {clock.outcome.state === 'overdue' ||

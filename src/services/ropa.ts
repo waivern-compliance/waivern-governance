@@ -430,6 +430,13 @@ export async function childrenDpiaStates(
 export class LawfulBasisRefused extends Error {}
 
 /**
+ * A public body under either law: DPA 2018 s.7 for the UK GDPR, or a public
+ * authority or body under a member State's law for the EU GDPR. Either way
+ * Article 6(1)'s final subparagraph bars legitimate interests for its tasks.
+ */
+const publicBody = sql<boolean>`(${entities.publicAuthority} or ${entities.euPublicBody})`;
+
+/**
  * The bases and Annex 1 condition as they will be stored. Unknown values are
  * refused rather than dropped, and a condition is kept only where recognised
  * legitimate interests is among the bases — a condition with nothing relying
@@ -492,7 +499,7 @@ export async function listActivities(
         .select({
           activity: processingActivities,
           entityName: entities.name,
-          publicAuthority: entities.publicAuthority,
+          publicAuthority: publicBody,
           competentAuthority: entities.competentAuthority,
           dataProtectionLaw: entities.dataProtectionLaw,
           ownerEmail: users.email
@@ -550,7 +557,7 @@ export async function loadActivity(activityId: string, organisationId: string) {
       .select({
         activity: processingActivities,
         entityName: entities.name,
-        publicAuthority: entities.publicAuthority,
+        publicAuthority: publicBody,
         competentAuthority: entities.competentAuthority,
         dataProtectionLaw: entities.dataProtectionLaw,
         ownerEmail: users.email
