@@ -3548,6 +3548,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside a caller's transaction, with that caller's organisation",
   'workflow.queueNotification':
     "called inside a caller's transaction, with that caller's organisation",
+  'regulator.regulatorOfEntity':
+    "called inside a caller's transaction, with that caller's organisation, and filters the entity by it",
   // Read by id alone, and only after the caller loaded the record within its organisation.
   'ai-framework-switch.previewAiFrameworkSwitch':
     "reads the caller's own organisation",

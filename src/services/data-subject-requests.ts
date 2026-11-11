@@ -51,6 +51,7 @@ import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
 
 import { canonicalise } from './ingest';
+import { regulatorOfEntity } from './regulator';
 import type { Actor } from './templates';
 import {
   assertEntityIn,
@@ -1167,6 +1168,16 @@ export async function respondToRequest(input: {
           responseSummary: summary,
           responseLink: link,
           toldOfComplaintRight: input.toldOfComplaintRight ?? null,
+          toldComplaintTo: input.toldOfComplaintRight
+            ? (
+                await regulatorOfEntity(
+                  tx,
+                  input.organisationId,
+                  request.entityId,
+                  request.jurisdiction
+                )
+              ).complainTo
+            : null,
           lateReason,
           status: input.outcome === 'refused' ? 'refused' : 'responded',
           updatedAt: new Date()

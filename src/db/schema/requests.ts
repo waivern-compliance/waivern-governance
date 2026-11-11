@@ -248,6 +248,8 @@ export const dataSubjectRequests = pgTable(
     responseLink: text('response_link'),
     /** Article 12(4): required in any response that does not do what was asked. */
     toldOfComplaintRight: boolean('told_of_complaint_right'),
+    /** Who they were told they may complain to, as it read when the response was recorded. */
+    toldComplaintTo: text('told_complaint_to'),
     lateReason: text('late_reason'),
 
     /** The published web form it came through, if it did. */

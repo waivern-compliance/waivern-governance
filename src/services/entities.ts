@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
@@ -349,7 +350,7 @@ export async function setDataProtectionLaw(input: {
       }
       if (input.law === 'eu' && hasUkEstablishmentFacts(before)) {
         throw new EntityRefused(
-          `${before.name} has a UK representative or exemption, or is recorded as not established in the UK. Clear that first.`
+          `${before.name} has a UK representative or exemption recorded. Clear that first.`
         );
       }
       if (!ukLawApplies(input.law)) {
@@ -366,7 +367,14 @@ export async function setDataProtectionLaw(input: {
       }
       const [after] = await tx
         .update(entities)
-        .set({ dataProtectionLaw: input.law, updatedAt: new Date() })
+        .set({
+          dataProtectionLaw: input.law,
+          // Established in the UK means subject to the UK GDPR (Article 3(1)),
+          // so EU law only means not established there. Widening back to both
+          // then asks for a UK representative until someone says otherwise.
+          ...(input.law === 'eu' ? { ukEstablishment: false } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(entities.id, before.id))
         .returning();
       await appendAuditEvent(tx, {
@@ -396,11 +404,7 @@ function hasEuEstablishmentFacts(e: typeof entities.$inferSelect) {
 }
 
 function hasUkEstablishmentFacts(e: typeof entities.$inferSelect) {
-  return (
-    !e.ukEstablishment ||
-    Boolean(e.ukRepresentative) ||
-    Boolean(e.ukRepresentativeExemption)
-  );
+  return Boolean(e.ukRepresentative) || Boolean(e.ukRepresentativeExemption);
 }
 
 /** The establishment as `lib/gdpr/establishment.ts` reads it. */
@@ -438,6 +442,8 @@ export async function setEstablishment(input: {
         before.dataProtectionLaw,
         input.establishment
       );
+      const was = establishmentOf(before);
+      if (isDeepStrictEqual(was, cleaned)) return before;
       const [after] = await tx
         .update(entities)
         .set({ ...cleaned, updatedAt: new Date() })
@@ -450,7 +456,7 @@ export async function setEstablishment(input: {
         subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
-        before: establishmentOf(before),
+        before: was,
         after: cleaned
       });
       return after;
@@ -777,13 +783,14 @@ export async function dpoPosition(organisationId: string) {
       entities: rows.map((e) => ({
         id: e.id,
         name: e.name,
-        publicAuthority: e.publicAuthority,
+        publicAuthority: e.publicAuthority || e.euPublicBody,
         competentAuthority: e.competentAuthority,
         ownDpo: e.dpo ?? null,
         effectiveDpo: e.dpo ?? organisationDpo,
         missing: dpoMissing(
           {
-            publicAuthority: e.publicAuthority,
+            // Article 37(1)(a) binds a public body under either law.
+            publicAuthority: e.publicAuthority || e.euPublicBody,
             competentAuthority: e.competentAuthority,
             dpo: e.dpo ?? null
           },

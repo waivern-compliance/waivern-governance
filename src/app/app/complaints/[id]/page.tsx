@@ -19,6 +19,7 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { loadComplaint } from '@/services/complaints';
+import { regulatorWithoutEstablishment } from '@/services/regulator';
 
 import { ActionForm } from '../../requests/ActionForm';
 import {
@@ -162,7 +163,7 @@ export default async function ComplaintPage({
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-sm font-medium">
                   {e.kind === 'regulator_contact'
-                    ? `Contact with ${regulator.short}`
+                    ? `Contact with ${e.authority ?? regulatorWithoutEstablishment(complaint.jurisdiction).short}`
                     : (EVENT_LABEL[e.kind] ?? e.kind)}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
@@ -304,7 +305,11 @@ export default async function ComplaintPage({
           ) : null}
           {complaint.toldOfRegulatorRight ? (
             <p className="text-xs text-ink-soft">
-              Told they may complain to {regulator.complainTo}.
+              Told they may complain to{' '}
+              {complaint.toldRegulator ??
+                regulatorWithoutEstablishment(complaint.jurisdiction)
+                  .complainTo}
+              .
             </p>
           ) : null}
           {complaint.outcomeLateReason ? (

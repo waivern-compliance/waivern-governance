@@ -12,6 +12,7 @@ import { DpoRefused } from '@/lib/dpa2018/public-authority';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { isEmailAddress } from '@/lib/email-address';
 import { EstablishmentRefused } from '@/lib/gdpr/establishment';
+import { establishmentFromForm } from '@/lib/gdpr/establishment-form';
 import { waivernHosted } from '@/lib/hosting';
 import { entityAgreementFrom } from '@/lib/legal/acceptance';
 import { PERSONAS, type Persona } from '@/lib/persona';
@@ -558,29 +559,10 @@ export async function setEstablishmentAction(
   formData: FormData
 ): Promise<AdminResult> {
   return entityResult(async (active) => {
-    const text = (k: string) => String(formData.get(k) ?? '').trim();
-    const representative = (prefix: string) => ({
-      name: text(`${prefix}Name`),
-      contact: text(`${prefix}Contact`),
-      country: text(`${prefix}Country`) || null
-    });
-    const has = (k: string) => formData.has(k);
     const updated = await setEstablishment({
       organisationId: active.membership.organisationId,
       entityId,
-      establishment: {
-        ...(has('ukEstablishment')
-          ? { ukEstablishment: text('ukEstablishment') === 'yes' }
-          : {}),
-        euEstablishments: formData.getAll('euEstablishments').map(String),
-        euMainEstablishment: text('euMainEstablishment') || null,
-        euLeadAuthority: text('euLeadAuthority') || null,
-        euRepresentative: representative('euRep'),
-        euRepresentativeExemption: text('euRepExemption') || null,
-        ukRepresentative: representative('ukRep'),
-        ukRepresentativeExemption: text('ukRepExemption') || null,
-        euPublicBody: formData.get('euPublicBody') === 'on'
-      },
+      establishment: establishmentFromForm(formData),
       actor: actorOf(active)
     });
     return `${updated.name}'s establishment and representation are saved.`;

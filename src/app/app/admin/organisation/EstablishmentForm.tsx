@@ -163,7 +163,9 @@ export function EstablishmentForm({
                 defaultChecked={e.euPublicBody}
                 className="accent-brand"
               />
-              A public authority or body under the law of a member State
+              A public authority or body under the law of a member State (it
+              then needs a DPO, and may not rely on legitimate interests for its
+              tasks)
             </label>
           </fieldset>
         ) : null}

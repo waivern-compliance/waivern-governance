@@ -90,6 +90,8 @@ export const dataProtectionComplaints = pgTable(
     outcomeLink: text('outcome_link'),
     /** Not required by s.164A, but what the Commission will expect to see. */
     toldOfRegulatorRight: boolean('told_of_regulator_right'),
+    /** Who they were told they may complain to, as it read when the outcome was recorded. */
+    toldRegulator: text('told_regulator'),
     /** Required where the outcome came after the organisation's own target. */
     outcomeLateReason: text('outcome_late_reason'),
 
@@ -143,6 +145,8 @@ export const dataProtectionComplaintEvents = pgTable(
     note: text('note').notNull(),
     /** How the complainant was contacted, for the steps that contact them. */
     channel: text('channel'),
+    /** For contact with the regulator: which one, as named when it was recorded. */
+    authority: text('authority'),
     /** When it happened, which may be before it was recorded. */
     occurredAt: timestamp('occurred_at', { withTimezone: true })
       .notNull()

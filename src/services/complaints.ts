@@ -31,6 +31,7 @@ import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
 
 import { CHANNELS, type ControllerRole } from './data-subject-requests';
+import { regulatorOfEntity } from './regulator';
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 import { monthsEnding } from './trends';
@@ -555,6 +556,17 @@ export async function recordComplaintEvent(input: {
           kind: input.kind,
           note: note || 'Acknowledged receipt.',
           channel: input.channel ?? null,
+          authority:
+            input.kind === 'regulator_contact'
+              ? (
+                  await regulatorOfEntity(
+                    tx,
+                    input.organisationId,
+                    complaint.entityId,
+                    complaint.jurisdiction
+                  )
+                ).short
+              : null,
           occurredAt: at,
           recordedBy: input.actor.actorUserId,
           recordedByLabel: input.actor.actorLabel
@@ -681,6 +693,16 @@ export async function recordComplaintOutcome(input: {
           remedialAction: input.remedialAction?.trim() || null,
           outcomeLink: link,
           toldOfRegulatorRight: input.toldOfRegulatorRight ?? null,
+          toldRegulator: input.toldOfRegulatorRight
+            ? (
+                await regulatorOfEntity(
+                  tx,
+                  input.organisationId,
+                  complaint.entityId,
+                  complaint.jurisdiction
+                )
+              ).complainTo
+            : null,
           outcomeLateReason: late ? lateReason : null,
           ...(complaint.acknowledgedAt
             ? {}

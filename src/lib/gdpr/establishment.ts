@@ -142,9 +142,16 @@ export function cleanEstablishment(
       );
     }
   }
-  if (!uk && (ukRep || ukExemption || input.ukEstablishment === false)) {
+  if (!uk && (ukRep || ukExemption)) {
     throw new EstablishmentRefused(
-      'The UK establishment and representative are UK law, and this entity is subject to EU law only.'
+      'The UK representative is UK law, and this entity is subject to EU law only.'
+    );
+  }
+  // An establishment in the UK brings the UK GDPR with it (Article 3(1)), so an
+  // entity under EU law only is, by that record, not established there.
+  if (!uk && input.ukEstablishment === true) {
+    throw new EstablishmentRefused(
+      'An entity established in the UK is subject to the UK GDPR (Article 3(1)). Record it as subject to both laws first.'
     );
   }
   if (main && !states.includes(main))
@@ -155,10 +162,20 @@ export function cleanEstablishment(
     const authority = authorityByCode(lead);
     if (!authority || authority.law !== 'eu')
       throw new EstablishmentRefused('Choose an EU supervisory authority.');
+    // The one-stop shop needs an establishment in the EU (Article 56(1));
+    // without one every authority where people are affected is competent.
+    if (states.length === 0)
+      throw new EstablishmentRefused(
+        'A lead authority is for an entity established in the EU (Article 56(1)). With no EU establishment there is none; tick where it is established, or clear the lead authority.'
+      );
     const home = main ?? (states.length === 1 ? states[0] : null);
     if (home && authority.country !== home)
       throw new EstablishmentRefused(
         `The lead authority is the authority of the main establishment (Article 56(1)), which is in ${EEA_STATES[home]}.`
+      );
+    if (!home && !states.includes(authority.country))
+      throw new EstablishmentRefused(
+        `The lead authority is the authority of the main establishment (Article 56(1)), and ${EEA_STATES[authority.country]} is not among the EU establishments.`
       );
   }
   if (euExemption && !isRepresentativeExemption(euExemption))
@@ -167,7 +184,7 @@ export function cleanEstablishment(
     throw new EstablishmentRefused('That is not an Article 27(2) exemption.');
 
   return {
-    ukEstablishment: uk ? (input.ukEstablishment ?? true) : true,
+    ukEstablishment: uk ? (input.ukEstablishment ?? true) : false,
     euEstablishments: states,
     euMainEstablishment: main,
     euLeadAuthority: lead,
@@ -246,10 +263,15 @@ export function establishmentGaps(
 
 /**
  * Who a person may complain to about the entity, under one law. `complainTo`
- * reads after "complain to"; `short` names the authority in a label. UK law:
- * the Information Commission. EU law: the recorded lead authority, else the one
- * authority of the only or main establishment's State, else the authority where
- * the person lives or works (Article 77(1)), which Govern cannot know.
+ * reads after "complain to"; `short` names the authority the organisation
+ * deals with, in a label such as "Contact with ...".
+ *
+ * UK law: the Information Commission. EU law: a person may complain to any
+ * supervisory authority, in particular in the member State where they live or
+ * work or where the alleged infringement took place (Article 77(1)), so that
+ * right is what `complainTo` says; the authority the organisation deals with
+ * (the recorded lead authority, else the one authority of the only or main
+ * establishment's State) is named alongside it and in `short`.
  */
 export function regulatorFor(
   jurisdiction: 'uk' | 'eu',
@@ -262,23 +284,30 @@ export function regulatorFor(
   short: string;
   authority: SupervisoryAuthority | null;
 } {
-  const named = (a: SupervisoryAuthority) => ({
-    complainTo: a.code === 'gb-ico' ? 'the Information Commission' : a.name,
-    short: a.code === 'gb-ico' ? 'the Information Commission' : a.name,
-    authority: a
-  });
-  if (jurisdiction === 'uk') return named(authorityByCode('gb-ico')!);
-  const lead = authorityByCode(e.euLeadAuthority);
-  if (lead) return named(lead);
+  if (jurisdiction === 'uk')
+    return {
+      complainTo: 'the Information Commission',
+      short: 'the Information Commission',
+      authority: authorityByCode('gb-ico')
+    };
   const home =
     e.euMainEstablishment ??
     (e.euEstablishments.length === 1 ? e.euEstablishments[0] : null);
   const there = home ? authoritiesIn(home) : [];
-  if (there.length === 1) return named(there[0]);
-  return {
-    complainTo:
-      'a data protection supervisory authority, in particular in the member State where they live or work',
-    short: 'a supervisory authority',
-    authority: null
-  };
+  const authority =
+    authorityByCode(e.euLeadAuthority) ??
+    (there.length === 1 ? there[0] : null);
+  const anywhere =
+    'a data protection supervisory authority, in particular in the member State where they live or work or where the alleged infringement took place';
+  return authority
+    ? {
+        complainTo: `${anywhere} (the lead authority for this organisation is ${authority.name})`,
+        short: authority.name,
+        authority
+      }
+    : {
+        complainTo: anywhere,
+        short: 'a supervisory authority',
+        authority: null
+      };
 }

@@ -13,11 +13,23 @@ import {
   regulatorFor,
   suggestedLeadAuthority
 } from '@/lib/gdpr/establishment';
-import { loadComplaint, recordComplaint } from '@/services/complaints';
-import { loadRequest, recordRequest } from '@/services/data-subject-requests';
+import { establishmentFromForm } from '@/lib/gdpr/establishment-form';
+import {
+  loadComplaint,
+  recordComplaint,
+  recordComplaintEvent,
+  recordComplaintOutcome
+} from '@/services/complaints';
+import {
+  loadRequest,
+  recordRequest,
+  respondToRequest
+} from '@/services/data-subject-requests';
 import { issueIntakeLink, openIntakeLink } from '@/services/dsr-intake';
 import {
+  dpoPosition,
   EntityRefused,
+  establishmentOf,
   setDataProtectionLaw,
   setEstablishment
 } from '@/services/entities';
@@ -51,10 +63,18 @@ describe('the establishment rules', () => {
       EstablishmentRefused
     );
     assert.throws(
-      () => cleanEstablishment('eu', { ukEstablishment: false }),
+      () => cleanEstablishment('eu', { ukEstablishment: true }),
+      /Article 3\(1\)/
+    );
+    assert.throws(
+      () =>
+        cleanEstablishment('eu', {
+          ukRepresentative: { name: 'Rep', contact: 'rep@example.uk' }
+        }),
       EstablishmentRefused
     );
-    assert.equal(cleanEstablishment('eu', {}).ukEstablishment, true);
+    // EU law only means not established in the UK.
+    assert.equal(cleanEstablishment('eu', {}).ukEstablishment, false);
   });
 
   it('keep the main establishment and the lead authority consistent', () => {
@@ -82,6 +102,27 @@ describe('the establishment rules', () => {
     assert.throws(
       () => cleanEstablishment('eu', { euLeadAuthority: 'gb-ico' }),
       /EU supervisory authority/
+    );
+    // No one-stop shop without an EU establishment.
+    assert.throws(
+      () => cleanEstablishment('eu', { euLeadAuthority: 'fr-cnil' }),
+      /established in the EU/
+    );
+    // Several establishments and no main one: the lead must still be one of them.
+    assert.throws(
+      () =>
+        cleanEstablishment('eu', {
+          euEstablishments: ['FR', 'IE'],
+          euLeadAuthority: 'nl-ap'
+        }),
+      /not among the EU establishments/
+    );
+    assert.equal(
+      cleanEstablishment('eu', {
+        euEstablishments: ['FR', 'IE'],
+        euLeadAuthority: 'ie-dpc'
+      }).euLeadAuthority,
+      'ie-dpc'
     );
     assert.throws(
       () =>
@@ -143,10 +184,14 @@ describe('the establishment rules', () => {
       regulatorFor('uk', blank).complainTo,
       'the Information Commission'
     );
-    assert.match(
-      regulatorFor('eu', { ...blank, euLeadAuthority: 'de-hh' }).complainTo,
-      /Hamburgische/
-    );
+    const hamburg = regulatorFor('eu', {
+      ...blank,
+      euLeadAuthority: 'de-hh'
+    });
+    assert.match(hamburg.complainTo, /Hamburgische/);
+    assert.match(hamburg.short, /Hamburgische/);
+    // Article 77(1): the right is to any authority, not only the lead one.
+    assert.match(hamburg.complainTo, /where they live or work/);
     assert.match(
       regulatorFor('eu', { ...blank, euEstablishments: ['FR'] }).complainTo,
       /CNIL/
@@ -269,5 +314,210 @@ describe('recording an establishment', () => {
       actor: SYSTEM
     });
     assert.match((await openIntakeLink(link.slug))!.euRegulator, /CNIL/);
+  });
+});
+
+describe('the establishment form', () => {
+  it('reads every field, and leaves the UK answer out when it is not asked', () => {
+    const f = new FormData();
+    f.append('euEstablishments', 'FR');
+    f.append('euEstablishments', 'IE');
+    f.set('euMainEstablishment', 'IE');
+    f.set('euLeadAuthority', 'ie-dpc');
+    f.set('euRepName', ' ');
+    f.set('euRepContact', '');
+    f.set('euRepExemption', '');
+    f.set('ukRepName', 'UK Rep Ltd');
+    f.set('ukRepContact', 'rep@example.uk');
+    f.set('ukRepExemption', '');
+    f.set('euPublicBody', 'on');
+    const read = establishmentFromForm(f);
+    assert.equal('ukEstablishment' in read, false);
+    assert.deepEqual(read.euEstablishments, ['FR', 'IE']);
+    assert.equal(read.euMainEstablishment, 'IE');
+    assert.equal(read.euLeadAuthority, 'ie-dpc');
+    assert.equal(read.euRepresentativeExemption, null);
+    assert.equal(read.euPublicBody, true);
+    const cleaned = cleanEstablishment('uk_eu', read);
+    assert.equal(cleaned.euRepresentative, null);
+    assert.deepEqual(cleaned.ukRepresentative, {
+      name: 'UK Rep Ltd',
+      contact: 'rep@example.uk',
+      country: null
+    });
+
+    f.set('ukEstablishment', 'no');
+    assert.equal(establishmentFromForm(f).ukEstablishment, false);
+    f.set('ukEstablishment', 'yes');
+    assert.equal(establishmentFromForm(f).ukEstablishment, true);
+  });
+});
+
+describe('narrowing and widening the law', () => {
+  it('marks an EU-only entity as not established in the UK, so widening asks for a UK representative', async () => {
+    const w = await world('narrow');
+    await setDataProtectionLaw({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      law: 'eu',
+      actor: SYSTEM
+    });
+    const read = async () =>
+      (await db.select().from(entities).where(eq(entities.id, w.entity.id)))[0];
+    assert.equal((await read()).ukEstablishment, false);
+    await setDataProtectionLaw({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      law: 'uk_eu',
+      actor: SYSTEM
+    });
+    const widened = await read();
+    assert.ok(
+      establishmentGaps('uk_eu', establishmentOf(widened)).includes(
+        'uk_representative'
+      )
+    );
+  });
+
+  it('refuses narrowing to EU only while a UK representative is recorded', async () => {
+    const w = await world('narrow-rep');
+    await setEstablishment({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      establishment: {
+        euEstablishments: ['FR'],
+        ukEstablishment: false,
+        ukRepresentative: { name: 'UK Rep', contact: 'rep@example.uk' }
+      },
+      actor: SYSTEM
+    });
+    await assert.rejects(
+      setDataProtectionLaw({
+        organisationId: w.org.id,
+        entityId: w.entity.id,
+        law: 'eu',
+        actor: SYSTEM
+      }),
+      (e: Error) =>
+        e instanceof EntityRefused && /UK representative/.test(e.message)
+    );
+  });
+});
+
+describe('saving the establishment', () => {
+  it('does not audit a save that changes nothing', async () => {
+    const w = await world('noop');
+    const save = () =>
+      setEstablishment({
+        organisationId: w.org.id,
+        entityId: w.entity.id,
+        establishment: {
+          euEstablishments: ['FR'],
+          euLeadAuthority: 'fr-cnil',
+          ukRepresentative: { name: 'UK Rep', contact: 'rep@example.uk' }
+        },
+        actor: SYSTEM
+      });
+    await save();
+    await save();
+    const events = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, w.org.id),
+          eq(auditEvents.action, 'entity.establishment_changed')
+        )
+      );
+    assert.equal(events.length, 1);
+  });
+
+  it('treats an EU public body as needing a DPO', async () => {
+    const w = await world('public');
+    await setEstablishment({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      establishment: { euEstablishments: ['FR'], euPublicBody: true },
+      actor: SYSTEM
+    });
+    const position = await dpoPosition(w.org.id);
+    assert.equal(
+      position.entities.find((e) => e.id === w.entity.id)?.missing,
+      true
+    );
+  });
+});
+
+describe('what was said to people', () => {
+  it('keeps the regulator named at the time, after the lead authority changes', async () => {
+    const w = await world('history');
+    const establish = (lead: string, state: string) =>
+      setEstablishment({
+        organisationId: w.org.id,
+        entityId: w.entity.id,
+        establishment: { euEstablishments: [state], euLeadAuthority: lead },
+        actor: SYSTEM
+      });
+    await establish('fr-cnil', 'FR');
+    const complaint = await recordComplaint({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      channel: 'email',
+      receivedAt: new Date(Date.now() - DAY),
+      subject: 'marketing',
+      description: 'Still emailing me.',
+      complainantName: 'A person',
+      jurisdiction: 'eu',
+      actor: SYSTEM
+    });
+    await recordComplaintOutcome({
+      complaintId: complaint.id,
+      organisationId: w.org.id,
+      outcome: 'upheld',
+      channel: 'email',
+      summary: 'Stopped the emails.',
+      toldOfRegulatorRight: true,
+      actor: SYSTEM
+    });
+    await recordComplaintEvent({
+      complaintId: complaint.id,
+      organisationId: w.org.id,
+      kind: 'regulator_contact',
+      note: 'The CNIL asked for our account.',
+      actor: SYSTEM
+    });
+    const request = await recordRequest({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      rights: ['erasure'],
+      channel: 'email',
+      receivedAt: new Date(Date.now() - DAY),
+      description: 'Delete me',
+      requesterName: 'A person',
+      jurisdiction: 'eu',
+      actor: SYSTEM
+    });
+    await respondToRequest({
+      requestId: request.id,
+      organisationId: w.org.id,
+      outcome: 'refused',
+      channel: 'email',
+      summary: 'Kept for a legal claim.',
+      toldOfComplaintRight: true,
+      actor: SYSTEM
+    });
+
+    await establish('ie-dpc', 'IE');
+
+    const loaded = (await loadComplaint(complaint.id, w.org.id))!;
+    assert.match(loaded.complaint.toldRegulator ?? '', /CNIL/);
+    assert.match(
+      loaded.events.find((e) => e.kind === 'regulator_contact')?.authority ??
+        '',
+      /CNIL/
+    );
+    assert.match(loaded.regulator.short, /Data Protection Commission/);
+    const answered = (await loadRequest(request.id, w.org.id))!;
+    assert.match(answered.request.toldComplaintTo ?? '', /CNIL/);
   });
 });

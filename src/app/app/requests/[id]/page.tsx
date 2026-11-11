@@ -45,6 +45,7 @@ import { getActiveSession } from '@/lib/session';
 import { complaintsAboutRequest } from '@/services/complaints';
 import { loadRequest } from '@/services/data-subject-requests';
 import { convertedFrom } from '@/services/information-requests';
+import { regulatorWithoutEstablishment } from '@/services/regulator';
 
 import { ActionForm } from '../ActionForm';
 import {
@@ -553,8 +554,11 @@ export default async function RequestPage({
           ) : null}
           {request.toldOfComplaintRight ? (
             <p className="text-xs text-ink-soft">
-              Told they may complain to {regulator.complainTo} and seek a
-              judicial remedy.
+              Told they may complain to{' '}
+              {request.toldComplaintTo ??
+                regulatorWithoutEstablishment(request.jurisdiction)
+                  .complainTo}{' '}
+              and seek a judicial remedy.
             </p>
           ) : null}
           {request.lateReason ? (
