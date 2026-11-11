@@ -1,6 +1,6 @@
 # Plan: export all of an organisation's data
 
-Status: draft for decision. Written 11 November 2026. Nothing is built yet.
+Status: decisions settled as recommended and built. Written 11 November 2026.
 
 ## Why
 
@@ -19,9 +19,10 @@ few summaries, not the whole organisation:
   is right for a spreadsheet passed around day to day; on exit the controller is owed
   that personal data back.
 
-The schema has 87 tables. 78 carry `organisation_id`; 9 hang off a parent that does
-(answers, revisions, mitigations, approvals, workflow stages and similar) or are
-platform-level. The aim is one export, run by an owner, that is **provably** complete:
+The database has 89 tables. 72 carry `organisation_id`; 11 belong to an organisation
+through a parent that does (answers, revisions, mitigations, approvals, workflow stages,
+role assignments and similar) or name it another way (the organisation itself, the
+request that created it); 4 are not the organisation's at all. The aim is one export, run by an owner, that is **provably** complete:
 a new table cannot be added without someone deciding whether it leaves with the client.
 
 ## What the owner gets
@@ -32,22 +33,22 @@ One download, `govern-export-<organisation-slug>-<yyyy-mm-dd>.zip`:
 manifest.json            what is in the archive, how it was made, how to check it
 README.txt               the same in plain words, plus how to verify the audit chain
 data/<table>.jsonl       every row of every exported table, one JSON object per line
-files/<document-id>/<filename>    each attached file, byte for byte as uploaded
-files/imports/<batch-id>/<filename>   source files uploaded for imports
-files/form-logos/<id>.<ext>       request form logos
-csv/<dataset>.csv        the existing twelve spreadsheets, for people without a JSON reader
+files/document/<id>/<filename>          each attached file, byte for byte as uploaded
+files/import_batch/<id>/<filename>      source files uploaded for imports
+files/form_appearance_logo/<id>/logo.<ext>   request form logos
+csv/<dataset>.csv        the existing spreadsheets, for people without a JSON reader
 audit/audit-log.csv      the complete audit log, with its verification manifest
-audit/manifest.txt       the hash-chain verification instructions on their own
+audit/verification.txt   the hash-chain verification instructions on their own
 ```
 
 - **JSON Lines** rather than one JSON array per table, so large tables stream in and out
   without being held in memory, and a reader can process them line by line. Each line
-  is the row as the database holds it: column names as in `src/db/schema`, dates as
-  ISO 8601, enums as their stored values. A bytea column is replaced by a reference to
+  is the row as the database holds it: the database's column names, timestamps as
+  ISO 8601, dates exactly as stored, enums as their stored values. A bytea column is replaced by a reference to
   its file in `files/` and its SHA-256.
 - **`manifest.json`** lists, per table, the row count and the SHA-256 of its `.jsonl`
   file; per file, its path, size and the SHA-256 recorded at upload; the schema version
-  (last applied migration); when and by whom the export was made; and every table and
+  (migrations applied); when and by whom the export was made; and every table and
   column deliberately left out, with the reason (see the appendix). A reader can check
   the archive against its manifest without trusting us.
 - **Files** are checked against the SHA-256 recorded at upload as they are written. A
@@ -128,7 +129,7 @@ Limits and fallbacks:
 
 ## How completeness is guaranteed
 
-The export is driven by a single registry, `src/services/organisation-export/registry.ts`:
+The export is driven by a single registry, `src/services/organisation-export-tables.ts`:
 every table in `src/db/schema` appears exactly once, as either
 
 - **exported**: how it is scoped (its own `organisation_id`, or through a named parent),
@@ -139,7 +140,8 @@ The registry is what the export runs from and what the manifest's exclusions lis
 printed from, so the documentation of what was left out cannot disagree with what was
 left out.
 
-Tests (`tests/organisation-export.test.ts`):
+Tests (`tests/organisation-export.test.ts`, with an independent zip reader in
+`tests/fixtures/unzip.ts`):
 
 1. **No table unaccounted for.** Reads every base table in the `public` schema from
    `information_schema` and fails if any is in neither list, naming the table. Adding a
@@ -193,61 +195,69 @@ credentials, or Waivern's own records about the client.
 - Deletion on termination is out of scope; it is a separate, Waivern-run process under
   clause 5(h).
 
-## Decisions needed
+## Decisions
 
-1. **Format**: zip of JSON Lines per table + files + existing CSVs + audit log and
-   manifest, as above. *Recommended.*
-2. **Who**: organisation-wide owners only, with name-typing confirmation and an email to
-   the other owners. *Recommended.*
-3. **Audit**: start and completion events as above. *Recommended.*
-4. **Size**: stream with no stored copy, a 2 GB ceiling above which Waivern runs the
-   command-line export, one export at a time per organisation. *Recommended;* say if you
-   want a different ceiling or none.
-5. **Completeness**: registry plus the seven tests above, CI failing on any table or
-   column not accounted for. *Recommended.*
-6. **Withheld**: secrets, one-time-secret hashes and the four platform tables, as in the
-   appendix. Confirm, or name anything you want included.
-7. **Command-line export for Waivern** after access has ended. *Recommended.*
+Agreed on 11 November 2026, all as recommended:
 
-Build would be one PR on `feature/whole-organisation-export`, with this document updated
-to record the decisions.
+1. **Format**: zip of JSON Lines per table, the files, the existing CSVs, the audit log
+   and the manifest.
+2. **Who**: organisation-wide owners only (`mayExportOrganisation`), with the
+   organisation's name typed to confirm, and every other owner notified.
+3. **Audit**: `organisation.export_started` before the first byte,
+   `organisation.exported` with the manifest's SHA-256 at the end.
+4. **Size**: streamed with no stored copy; `EXPORT_MAX_BYTES` (default 2 GB) above which
+   the page sends the owner to Waivern; one export at a time per organisation (a
+   Postgres advisory lock, so it holds across instances).
+5. **Completeness**: the registry and its tests.
+6. **Withheld**: as below.
+7. **Command line**: `pnpm export:organisation <slug> <file.zip> --operator <email>`.
+
+### As built
+
+- The notification to the other owners is an in-app notification of kind
+  `organisation.exported`, emailed where the deployment sends member email
+  (`NOTIFICATION_EMAILS`). Waivern-hosted deployments never email members, so there it
+  is in-app only.
+- A file quarantined by the virus scan is not handed out; its record is, and the
+  manifest lists it under `filesWithheld`.
+- The archive is read on a connection of its own in one read-only `REPEATABLE READ`
+  snapshot, so `data/` and `files/` agree with each other and a long download does not
+  hold the instance's shared connection. The spreadsheets are produced alongside and
+  may include changes made during the export; the manifest says so.
+- Tables without a primary key (`reference_counter`) are ordered by every column, so
+  two exports of the same data are the same bytes.
 
 ## Appendix: every table
 
-**Exported, scoped by its own `organisation_id`** (78 less the excluded ones below):
-the registers and their decisions and events (risks, risk appetite, assessments,
-contributor links, AI use cases and their changes, assurance records, incidents, intake
-requests, ATRS records, training records, breaches and breach decisions, complaints and
-their events, DSRs with their decisions, scope and intake attempts, FOI requests with
-decisions, reviews and regulator events, processing activities, suppliers, DPAs,
-evidence, scan findings, record links, PECR digital properties, storage items,
-decisions, proposals and consent scans, marketing activities and decisions, policy
-documents, sharing agreements with parties and activities, entity agreements, templates
-and template versions, framework profile items, retention profiles, workflow
-definitions, tasks, SLA policies, schedules, notifications, comments, documents, import
-sources, batches, rows and mappings, extractions with findings and links, the
-organisation's own country risks, the AI assistant's conversations and suggestions,
-webhook deliveries, the reference counter, form appearance and logo, DSR intake links,
-entities, memberships, role assignments, organisation requests, organisation domains,
-the audit log and the audit chain head).
+The registry in `src/services/organisation-export-tables.ts` is the authority; this
+summarises it.
 
-**Exported through a parent**: `assessment_answer` and `assessment_revision` (via
-assessment), `ai_incident_event` (via AI incident), `ai_message` (via conversation),
-`mitigation` and `risk_acceptance` (via risk), `workflow_stage` (via workflow
-definition), `approval` (via assessment), `country_risk_review` (via the
-organisation's own country risk).
+**Exported, by their own `organisation_id`** (all 72 such tables): the registers and
+their decisions and events, assessments and contributor links, the AI register and
+everything under it, breaches, DSRs with their scope, decisions and intake attempts,
+FOI requests, complaints, processing activities, suppliers, DPAs, evidence, scan
+findings, PECR properties, storage and consent scans, marketing activities, policy
+documents, sharing agreements, templates, retention profiles, workflow definitions,
+tasks, SLA policies, schedules, notifications, comments, documents, imports,
+extractions, the organisation's own country assessments (the shared library's rows
+have no organisation and are not exported), the assistant's conversations and
+suggestions, integration connections and webhook deliveries, entities, memberships
+(with each member's name and email), organisation domains, the audit log and its chain
+head.
 
-**Exported as a single record**: `organisation` (name, slug, settings; token columns
-withheld).
+**Exported through a parent**: `assessment_answer`, `assessment_revision` and
+`approval` (assessment), `ai_incident_event` (AI incident), `ai_message` (conversation),
+`mitigation` and `risk_acceptance` (risk), `workflow_stage` (workflow definition),
+`country_risk_review` (the organisation's own country risk), `role_assignment`
+(membership), `template_version` (template).
 
-**Excluded**: `legal_reference`, `terms_acceptance`, `feedback`, `app_user` (members
-exported via membership), shared `country_risk` rows with no organisation.
+**Exported by another column**: `organisation` (its `id`) and `organisation_request`
+(`created_organisation_id`).
+
+**Excluded**: `app_user` (members are exported through membership), `legal_reference`,
+`terms_acceptance`, `feedback`.
 
 **Columns withheld**: `integration_connection.secret_ciphertext/secret_iv/secret_tag`;
-`organisation.consent_analyser_token_ciphertext/_iv/_tag`; `organisation_domain.token`;
-`contributor_link.token_hash` and `last_used_ip_hash`; and
-`dsr_intake_attempt.ip_hash`. Bytea columns are not withheld: they
-become files.
-
-The exact list is fixed in the registry during the build; the test makes any later
-divergence fail.
+`organisation.consent_analyser_token_ciphertext/_iv/_tag` (the hint is kept);
+`organisation_domain.token`; `contributor_link.token_hash` and `last_used_ip_hash`;
+`dsr_intake_attempt.ip_hash`. Bytea columns are not withheld: they become files.

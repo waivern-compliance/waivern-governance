@@ -54,6 +54,7 @@ Every help topic the application carries, in the order it presents them.
 - [Reviews that come round again](#reviews-that-come-round-again) - Approved assessments carry a review date, and both the owner and the people who approved it are reminded.
 - [Service levels and things that come round again](#service-levels-and-things-that-come-round-again) - Due dates, breaches, and the hourly sweep that raises recurring work.
 - [Exports](#exports) - Spreadsheets of anything you can see, scoped to your access, and recorded when taken.
+- [Exporting all your organisation's data](#exporting-all-your-organisations-data) - One archive of every record, every file and the audit log, for an owner taking the organisation out of Govern.
 - [The audit trail](#the-audit-trail) - An append-only record of who did what, hash-linked so an altered entry breaks everything after it.
 
 **Setting it up**
@@ -1477,9 +1478,43 @@ It carries a manifest so the recipient can verify the hash chain themselves. Tam
 
 Taking the risk register out of the building is an act worth knowing about, so each export is written to the audit log with who took it and how many rows.
 
-**See also:** The audit trail · Trends · The processing register (Article 30)
+**See also:** The audit trail · Trends · The processing register (Article 30) · Exporting all your organisation's data
 
 <sub>Also searchable as: csv, download, spreadsheet, excel, report, regulator, evidence</sub>
+
+## Exporting all your organisation's data
+
+*One archive of every record, every file and the audit log, for an owner taking the organisation out of Govern.*
+
+**Screen:** `/app/exports`
+
+### What is in it
+
+Every record the organisation holds, one file per kind of record in data/, as JSON Lines: one record per line, with the column names and values as stored. Every attached file in files/, exactly as uploaded. The spreadsheets from the Exports page in csv/, and the complete audit log with instructions for checking it in audit/.
+
+Unlike the day-to-day spreadsheets, it includes the personal data in data subject requests, complaints and breaches: who asked, how to reach them, what they asked for and what was sent. On leaving, that is yours to take back.
+
+manifest.json lists every kind of record with how many there are and a SHA-256 of its file, and every attached file with its size and SHA-256, so you can check nothing was lost on the way. All of data/ and files/ is read at one moment, so the records agree with each other.
+
+### What is left out, and why
+
+Credentials for this deployment (integration secrets and the consent analyser's token), the value that proves a domain in DNS, and one-way hashes of link tokens and addresses: none means anything outside Govern. A file quarantined by the virus scan is not handed out, though its record is. Waivern's own records, such as who accepted its terms and product feedback, are not the organisation's.
+
+The manifest names everything left out with the reason. Govern is tested so that no kind of record can be added without deciding whether it leaves with you.
+
+### Who can run it
+
+Only an owner of the whole organisation, because it contains every entity's records and personal data no other role sees all of. You type the organisation's name to confirm. The start and the completion are written to the audit log, the completion with a fingerprint of the manifest, and every other owner is notified.
+
+One export runs at a time. An organisation too large to download from the browser is told so, and Waivern runs the same export for it. Waivern can also run it for an organisation whose access has ended, during the export period the terms allow.
+
+### Afterwards
+
+Keep the archive as carefully as you kept the records. Exporting does not delete anything: deletion when you leave follows the terms and the Data Processing Agreement.
+
+**See also:** Exports · The audit trail
+
+<sub>Also searchable as: export, leave, termination, portability, return, zip, archive, backup, download everything, offboarding</sub>
 
 ## The audit trail
 

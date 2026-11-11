@@ -1944,7 +1944,57 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       }
     ],
-    related: ['audit', 'trends', 'ropa']
+    related: ['audit', 'trends', 'ropa', 'export-everything']
+  },
+  {
+    id: 'export-everything',
+    title: "Exporting all your organisation's data",
+    summary:
+      'One archive of every record, every file and the audit log, for an owner taking the organisation out of Govern.',
+    path: '/app/exports',
+    keywords: [
+      'export',
+      'leave',
+      'termination',
+      'portability',
+      'return',
+      'zip',
+      'archive',
+      'backup',
+      'download everything',
+      'offboarding'
+    ],
+    sections: [
+      {
+        heading: 'What is in it',
+        body: [
+          'Every record the organisation holds, one file per kind of record in data/, as JSON Lines: one record per line, with the column names and values as stored. Every attached file in files/, exactly as uploaded. The spreadsheets from the Exports page in csv/, and the complete audit log with instructions for checking it in audit/.',
+          'Unlike the day-to-day spreadsheets, it includes the personal data in data subject requests, complaints and breaches: who asked, how to reach them, what they asked for and what was sent. On leaving, that is yours to take back.',
+          'manifest.json lists every kind of record with how many there are and a SHA-256 of its file, and every attached file with its size and SHA-256, so you can check nothing was lost on the way. All of data/ and files/ is read at one moment, so the records agree with each other.'
+        ]
+      },
+      {
+        heading: 'What is left out, and why',
+        body: [
+          "Credentials for this deployment (integration secrets and the consent analyser's token), the value that proves a domain in DNS, and one-way hashes of link tokens and addresses: none means anything outside Govern. A file quarantined by the virus scan is not handed out, though its record is. Waivern's own records, such as who accepted its terms and product feedback, are not the organisation's.",
+          'The manifest names everything left out with the reason. Govern is tested so that no kind of record can be added without deciding whether it leaves with you.'
+        ]
+      },
+      {
+        heading: 'Who can run it',
+        body: [
+          "Only an owner of the whole organisation, because it contains every entity's records and personal data no other role sees all of. You type the organisation's name to confirm. The start and the completion are written to the audit log, the completion with a fingerprint of the manifest, and every other owner is notified.",
+          'One export runs at a time. An organisation too large to download from the browser is told so, and Waivern runs the same export for it. Waivern can also run it for an organisation whose access has ended, during the export period the terms allow.'
+        ]
+      },
+      {
+        heading: 'Afterwards',
+        body: [
+          'Keep the archive as carefully as you kept the records. Exporting does not delete anything: deletion when you leave follows the terms and the Data Processing Agreement.'
+        ]
+      }
+    ],
+    related: ['exports', 'audit']
   },
   {
     id: 'audit',
@@ -2656,6 +2706,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'reviews',
       'service-levels',
       'exports',
+      'export-everything',
       'audit'
     ]
   },

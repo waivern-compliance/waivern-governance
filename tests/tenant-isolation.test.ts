@@ -3593,6 +3593,10 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
   'countries.needingSafeguards':
     "reads the shared library and the caller's own overrides",
   'exports.recordExport': "records an export in the caller's own audit trail",
+  'exports.renderDataset':
+    "renders the exports above for the caller's own organisation, each under withOrganisation",
+  'organisation-export.openOrganisationExport':
+    "reads the caller's own organisation under row-level security; organisation-export.test.ts checks nothing of another leaves",
   'risk-policy.setRiskScale': "configures the caller's own organisation",
   'data-subject-requests.setDefaultJurisdiction':
     "configures the caller's own organisation",
