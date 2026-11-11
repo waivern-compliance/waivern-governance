@@ -1,4 +1,4 @@
-import { open } from 'node:fs/promises';
+import { open, rm } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { eq } from 'drizzle-orm';
@@ -47,25 +47,33 @@ async function main() {
 
   // Before the export opens: never overwrite an earlier archive by mistake.
   const out = await open(file, 'wx', 0o600);
-
-  const opened = await openOrganisationExport({
-    organisationId: organisation.id,
-    actor: {
-      actorKind: 'system',
-      actorUserId: null,
-      actorLabel: 'export:organisation'
-    },
-    via: 'command line',
-    maxBytes: null,
-    operator
-  });
-  console.log(
-    `Exporting ${organisation.name} (about ${Math.ceil(opened.estimatedBytes / 1024 / 1024)} MB held) to ${file}`
-  );
+  let finished = false;
   try {
-    await pipeline(Readable.from(opened.stream()), out.createWriteStream());
+    const opened = await openOrganisationExport({
+      organisationId: organisation.id,
+      actor: {
+        actorKind: 'system',
+        actorUserId: null,
+        actorLabel: 'export:organisation'
+      },
+      via: 'command line',
+      maxBytes: null,
+      operator
+    });
+    console.log(
+      `Exporting ${organisation.name} (about ${Math.ceil(opened.estimatedBytes / 1024 / 1024)} MB held) to ${file}`
+    );
+    try {
+      await pipeline(Readable.from(opened.stream()), out.createWriteStream());
+      finished = true;
+    } finally {
+      await opened.close();
+    }
   } finally {
-    await opened.close();
+    await out.close().catch(() => undefined);
+    // A refused or broken export leaves nothing behind that could be taken
+    // for an archive, or that would stop the next attempt writing its file.
+    if (!finished) await rm(file, { force: true });
   }
   console.log("Done. Recorded in the organisation's audit log.");
 }

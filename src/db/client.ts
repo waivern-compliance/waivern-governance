@@ -59,6 +59,22 @@ export const db: Db = new Proxy(base, {
   }
 });
 
+/** The setting the row-level security policies read, and the role they bind. */
+const TENANT_SETTING = 'app.organisation_id';
+const TENANT_ROLE = 'govern_tenant';
+
+/**
+ * Act for one organisation on a connection of its own, inside the transaction
+ * already open on it, as `withOrganisation` does on the shared one. For work
+ * that needs its own connection, such as a long export reading one snapshot.
+ */
+export async function enterTenant(
+  connection: postgres.Sql,
+  organisationId: string
+) {
+  await connection`select set_config(${TENANT_SETTING}, ${organisationId}, true), set_config('role', ${TENANT_ROLE}, true)`;
+}
+
 /**
  * Run `work` for one organisation, under row-level security.
  *
@@ -85,7 +101,7 @@ export async function withOrganisation<T>(
   }
   return base.transaction(async (tx) => {
     await tx.execute(
-      drizzleSql`select set_config('app.organisation_id', ${organisationId}, true), set_config('role', 'govern_tenant', true)`
+      drizzleSql`select set_config(${TENANT_SETTING}, ${organisationId}, true), set_config('role', ${TENANT_ROLE}, true)`
     );
     return scope.run({ organisationId, tx: tx as unknown as Db }, work);
   });

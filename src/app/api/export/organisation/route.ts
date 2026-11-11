@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { log } from '@/lib/log';
-import { mayExportOrganisation } from '@/lib/rbac';
+import { checkExportRequest } from '@/lib/organisation-export-request';
 import { requestOrigin } from '@/lib/request-origin';
 import { getActiveSession } from '@/lib/session';
 import {
@@ -25,26 +25,18 @@ export async function POST(request: Request) {
   if (!active) {
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
   }
-  if (!mayExportOrganisation(active.membership.grants)) {
-    return NextResponse.json(
-      {
-        error:
-          "Exporting all of the organisation's data is for an owner of the whole organisation"
-      },
-      { status: 403 }
-    );
-  }
-  // The session cookie is not sent on a cross-site POST, but a form on another
-  // site has no business starting this, so it is refused outright.
-  const origin = request.headers.get('origin');
-  if (origin && origin !== (await requestOrigin())) {
-    return NextResponse.json({ error: 'Not from this site' }, { status: 403 });
-  }
-
   const form = await request.formData();
-  const typed = String(form.get('confirm') ?? '').trim();
-  if (typed !== active.membership.organisationName.trim()) {
-    return backToPage('confirm');
+  const check = checkExportRequest({
+    grants: active.membership.grants,
+    origin: request.headers.get('origin'),
+    ownOrigin: await requestOrigin(),
+    organisationName: active.membership.organisationName,
+    typed: String(form.get('confirm') ?? '')
+  });
+  if (!check.ok) {
+    return check.status === 303
+      ? backToPage(check.reason)
+      : NextResponse.json({ error: check.error }, { status: 403 });
   }
 
   let opened;
@@ -65,6 +57,12 @@ export async function POST(request: Request) {
   }
 
   const archive = opened.stream();
+  const release = opened.close;
+  // Gone before the stream noticed: end the reader at once rather than leave
+  // it to the stall timeout. A pending read then fails and the stream ends.
+  request.signal.addEventListener('abort', () => void release(), {
+    once: true
+  });
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
@@ -75,14 +73,18 @@ export async function POST(request: Request) {
         log('error', 'organisation_export.failed', {
           error: error instanceof Error ? error.name : 'unknown'
         });
-        controller.error(error);
+        try {
+          controller.error(error);
+        } catch {
+          // Already cancelled: the reader went away first.
+        }
       }
     },
     // The person closed the tab or lost the connection. The archive is
     // incomplete, so no completion is recorded; the start already is.
     async cancel() {
+      await release();
       await archive.return(undefined);
-      await opened.close();
     }
   });
 

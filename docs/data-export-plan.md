@@ -91,8 +91,11 @@ the operator recorded in the metadata. Same code path, so the two cannot drift.
 - `organisation.exported`, written when the archive has been fully written: row counts
   per table, file count, total bytes, the SHA-256 of `manifest.json`, and any file
   warnings. The client can later prove which archive it was given by its manifest hash.
-- The audit log inside the archive is read after `export_started` is written, so the
-  export records itself. The completion event is necessarily not in the archive.
+- The archive's snapshot is fixed before `export_started` is written, so the lock and
+  the size check share one transaction (which also holds behind a connection pooler).
+  The archive's audit log therefore stops just before that event, and the manifest
+  names it (`exportStartedEvent`, with its sequence number and hash). The completion
+  event is necessarily not in the archive either.
 - The existing `data.exported` event for single CSVs is unchanged.
 
 ## Size and timing
@@ -207,7 +210,9 @@ Agreed on 11 November 2026, all as recommended:
    `organisation.exported` with the manifest's SHA-256 at the end.
 4. **Size**: streamed with no stored copy; `EXPORT_MAX_BYTES` (default 2 GB) above which
    the page sends the owner to Waivern; one export at a time per organisation (a
-   Postgres advisory lock, so it holds across instances).
+   transaction-scoped Postgres advisory lock, so it holds across instances). A download
+   that stalls for 10 minutes is ended by Postgres
+   (`idle_in_transaction_session_timeout`), releasing the lock and the snapshot.
 5. **Completeness**: the registry and its tests.
 6. **Withheld**: as below.
 7. **Command line**: `pnpm export:organisation <slug> <file.zip> --operator <email>`.

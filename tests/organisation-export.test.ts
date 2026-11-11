@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { after, describe, it } from 'node:test';
 import { and, eq } from 'drizzle-orm';
 
@@ -16,6 +16,7 @@ import {
 } from '@/db/schema';
 import { GENESIS_HASH } from '@/lib/audit';
 import { canonicalise } from '@/lib/canonical';
+import { checkExportRequest } from '@/lib/organisation-export-request';
 import { mayExportOrganisation } from '@/lib/rbac';
 import { zip } from '@/lib/zip';
 import { recordRequest } from '@/services/data-subject-requests';
@@ -249,9 +250,9 @@ describe('exporting an organisation', () => {
           : `select count(*)::int as count from "${rule.table}" c join "${rule.parent}" p on p.id = c."${rule.via}" where p.organisation_id = $1`,
         [w.org.id]
       );
-      // The completion is recorded once the archive is written, so it is the
-      // one event the archive cannot hold.
-      const expected = table.table === 'audit_event' ? count - 1 : count;
+      // The start is recorded just after the snapshot is fixed and the
+      // completion once the archive is written: the two events it cannot hold.
+      const expected = table.table === 'audit_event' ? count - 2 : count;
       const file = files.get(table.path);
       assert.ok(file, table.path);
       assert.equal(lines(file).length, expected, table.table);
@@ -369,10 +370,13 @@ describe('exporting an organisation', () => {
       (done.after?.rowsByTable as Record<string, number>).risk,
       manifest.tables.find((t: { table: string }) => t.table === 'risk').rows
     );
-    // The archive records its own start; its completion comes after.
+    // Both come after the snapshot; the manifest names the start instead.
     const exported = lines(files.get('data/audit_event.jsonl'));
-    assert.ok(exported.some((e) => e.action === 'organisation.export_started'));
-    assert.ok(!exported.some((e) => e.action === 'organisation.exported'));
+    assert.ok(
+      !exported.some((e) => String(e.action).startsWith('organisation.export'))
+    );
+    assert.equal(manifest.exportStartedEvent.hash, started.hash);
+    assert.equal(manifest.exportStartedEvent.seq, Number(started.seq));
 
     const told = await db
       .select()
@@ -406,7 +410,7 @@ describe('exporting an organisation', () => {
     const events = lines(files.get('data/audit_event.jsonl')).sort(
       (a, b) => Number(a.seq) - Number(b.seq)
     );
-    assert.ok(events.length >= 3);
+    assert.ok(events.length >= 2);
     let previous = GENESIS_HASH;
     for (const e of events) {
       assert.equal(e.prev_hash, previous);
@@ -464,8 +468,8 @@ describe('exporting an organisation', () => {
 
   it('refuses an organisation too large to download, before recording a start', async () => {
     const w = await world('large');
-    // Random, so it does not compress: what is stored is what would be sent.
-    await attach(w.org.id, 'big.pdf', randomBytes(4096));
+    // Compresses to almost nothing on disk, but is sent at its full length.
+    await attach(w.org.id, 'big.pdf', Buffer.alloc(4096, 1));
     await assert.rejects(
       openOrganisationExport({
         organisationId: w.org.id,
@@ -508,6 +512,59 @@ describe('who may export everything', () => {
       mayExportOrganisation([{ role: 'auditor', scope: 'organisation' }]),
       false
     );
+  });
+});
+
+describe('asking for the export', () => {
+  const OWNER = [{ role: 'owner' as const, scope: 'organisation' as const }];
+  const request = {
+    grants: OWNER,
+    origin: 'https://govern.example',
+    ownOrigin: 'https://govern.example',
+    organisationName: 'Acme Ltd',
+    typed: 'Acme Ltd'
+  };
+
+  it('goes ahead for an owner of the whole organisation who typed its name', () => {
+    assert.deepEqual(checkExportRequest(request), { ok: true });
+    assert.deepEqual(
+      checkExportRequest({ ...request, origin: null, typed: ' Acme Ltd ' }),
+      { ok: true }
+    );
+  });
+
+  it('refuses anybody else, whatever they typed', () => {
+    for (const grants of [
+      [{ role: 'privacy_admin' as const, scope: 'organisation' as const }],
+      [
+        {
+          role: 'owner' as const,
+          scope: 'entity' as const,
+          entityId: crypto.randomUUID()
+        }
+      ],
+      []
+    ]) {
+      const check = checkExportRequest({ ...request, grants });
+      assert.equal(check.ok, false);
+      assert.equal(check.ok === false && check.status, 403);
+    }
+  });
+
+  it('refuses a form posted from another site', () => {
+    const check = checkExportRequest({
+      ...request,
+      origin: 'https://elsewhere.example'
+    });
+    assert.equal(check.ok === false && check.status, 403);
+  });
+
+  it('sends the owner back when the name does not match', () => {
+    assert.deepEqual(checkExportRequest({ ...request, typed: 'acme ltd' }), {
+      ok: false,
+      status: 303,
+      reason: 'confirm'
+    });
   });
 });
 

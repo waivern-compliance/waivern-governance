@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import { sql as sqlTag } from 'drizzle-orm';
 import postgres from 'postgres';
 
-import { db, withOrganisation } from '@/db/client';
+import { db, enterTenant, withOrganisation } from '@/db/client';
 import { appendAuditEvent } from '@/lib/audit';
+import { log } from '@/lib/log';
 import { PRODUCT_NAME } from '@/lib/product';
 import { zip, type ZipEntry } from '@/lib/zip';
 
@@ -109,8 +110,20 @@ type Manifest = {
 };
 
 /**
- * Open an export: take the organisation's export lock, check its size, record
- * that it has started, and fix the snapshot it will be read from.
+ * How long the archive's reader may sit idle in its transaction, waiting for
+ * the person downloading to take the next part, before Postgres ends it.
+ *
+ * A download that stalls without disconnecting would otherwise hold the
+ * snapshot, and with it the organisation's export lock and the oldest
+ * transaction every tenant's vacuum has to wait behind, for as long as the
+ * instance lives. Postgres enforces it, so it holds even if this process does
+ * not notice. Generous: a 10 MB file to a slow connection is the longest wait.
+ */
+const STALL_TIMEOUT = '10min';
+
+/**
+ * Open an export: fix the snapshot it will be read from, take the
+ * organisation's export lock, check its size and record that it has started.
  *
  * Refuses, with `ExportRefused`, when another export for the organisation is
  * running, or when it is larger than `maxBytes` (null for no limit, as on the
@@ -132,17 +145,7 @@ export async function openOrganisationExport(input: {
     max: 1,
     prepare: false,
     idle_timeout: 0,
-    onnotice: () => undefined,
-    // Dates as stored. Parsed, a date becomes midnight UTC and gains a time
-    // nobody recorded.
-    types: {
-      date: {
-        to: 1082,
-        from: [1082],
-        serialize: (x: string) => x,
-        parse: (x: string) => x
-      }
-    }
+    onnotice: () => undefined
   });
 
   let open = true;
@@ -153,18 +156,28 @@ export async function openOrganisationExport(input: {
   };
 
   try {
-    // Session-level, so it lasts as long as this connection and goes with it
-    // however the export ends, on whichever instance it runs.
+    // Everything happens in this one transaction, so it holds behind a
+    // transaction pooler too. Its first statement fixes the snapshot.
+    await snapshot`begin isolation level repeatable read read only`;
+    // Transaction-scoped, so it goes with the transaction however the export
+    // ends, on whichever instance it runs.
     const [{ locked }] = await snapshot<[{ locked: boolean }]>`
-      select pg_try_advisory_lock(hashtextextended(${`organisation-export:${input.organisationId}`}, 0)) as locked`;
+      select pg_try_advisory_xact_lock(hashtextextended(${`organisation-export:${input.organisationId}`}, 0)) as locked`;
     if (!locked) {
       throw new ExportRefused(
         'busy',
         'An export of this organisation is already running. Try again when it has finished.'
       );
     }
-
+    await snapshot.unsafe(
+      `set local idle_in_transaction_session_timeout = '${STALL_TIMEOUT}'`
+    );
+    const [migration] = await snapshot<
+      [{ applied: number; lastAppliedAt: Date | null }]
+    >`select count(*)::int as applied, to_timestamp(max(created_at) / 1000.0) as "lastAppliedAt" from drizzle.__drizzle_migrations`;
     const columns = await readColumns(snapshot);
+    await enterTenant(snapshot, input.organisationId);
+
     const estimatedBytes = await measure(
       snapshot,
       input.organisationId,
@@ -177,8 +190,15 @@ export async function openOrganisationExport(input: {
       );
     }
 
+    const [organisation] = await snapshot<
+      [{ id: string; name: string; slug: string }]
+    >`select id, name, slug from organisation where id = ${input.organisationId}`;
+    if (!organisation) throw new Error('No such organisation');
+
+    // Written after the snapshot was fixed, so the archive's audit log stops
+    // just before it; the manifest names it instead.
     const startedAt = new Date();
-    await withOrganisation(input.organisationId, () =>
+    const started = await withOrganisation(input.organisationId, () =>
       db.transaction((tx) =>
         appendAuditEvent(tx, {
           ...input.actor,
@@ -194,17 +214,6 @@ export async function openOrganisationExport(input: {
         })
       )
     );
-
-    // Started after the audit event above, so the archive records itself.
-    const [migration] = await snapshot<
-      [{ applied: number; lastAppliedAt: Date | null }]
-    >`select count(*)::int as applied, to_timestamp(max(created_at) / 1000.0) as "lastAppliedAt" from drizzle.__drizzle_migrations`;
-    await snapshot`begin isolation level repeatable read read only`;
-    await snapshot`select set_config('app.organisation_id', ${input.organisationId}, true), set_config('role', 'govern_tenant', true)`;
-    const [organisation] = await snapshot<
-      [{ id: string; name: string; slug: string }]
-    >`select id, name, slug from organisation where id = ${input.organisationId}`;
-    if (!organisation) throw new Error('No such organisation');
 
     return {
       filename: `govern-export-${organisation.slug}-${startedAt.toISOString().slice(0, 10)}.zip`,
@@ -226,6 +235,7 @@ export async function openOrganisationExport(input: {
             organisation,
             manifest,
             startedAt,
+            startedEvent: { seq: Number(started.seq), hash: started.hash },
             exportedBy: input.operator ?? input.actor.actorLabel,
             via: input.via,
             migration,
@@ -235,15 +245,25 @@ export async function openOrganisationExport(input: {
           });
           yield* zip(entries);
           await snapshot`commit`;
-          await recordCompletion({
-            organisationId: organisation.id,
-            organisationName: organisation.name,
-            actor: input.actor,
-            via: input.via,
-            operator: input.operator,
-            manifest,
-            manifestSha256
-          });
+          try {
+            await recordCompletion({
+              organisationId: organisation.id,
+              organisationName: organisation.name,
+              actor: input.actor,
+              via: input.via,
+              operator: input.operator,
+              manifest,
+              manifestSha256
+            });
+          } catch (error) {
+            // The archive has been handed over in full. Failing the download
+            // now would have the owner throw away a good archive; the start is
+            // on record, and this says the completion is not.
+            log('error', 'organisation_export.completion_not_recorded', {
+              organisationId: organisation.id,
+              error: error instanceof Error ? error.name : 'unknown'
+            });
+          }
         } finally {
           await close();
         }
@@ -304,33 +324,35 @@ function dataColumns(rule: ExportedTable, columns: Map<string, Column[]>) {
   );
 }
 
-/** What is held, from the stored row sizes: a guard, not a promise. */
+/**
+ * What is held, from the stored sizes: a guard, not a promise.
+ *
+ * Files count at their full length, which `octet_length` reads from the stored
+ * value's header without fetching it. Measuring the whole row instead would
+ * decompress every file just to weigh it, reading them all twice.
+ */
 async function measure(
   snapshot: Snapshot,
   organisationId: string,
   columns: Map<string, Column[]>
 ): Promise<number> {
-  await snapshot`begin read only`;
-  try {
-    await snapshot`select set_config('app.organisation_id', ${organisationId}, true), set_config('role', 'govern_tenant', true)`;
-    let total = 0;
-    for (const rule of TABLES.filter(isExported)) {
-      columnsOf(rule, columns);
-      // Stored files are compressed on disk but not in the archive, so they
-      // count at their full length.
-      const file = rule.file
-        ? ` - coalesce(sum(pg_column_size(c.${quote(rule.file.column)})), 0) + coalesce(sum(octet_length(c.${quote(rule.file.column)})), 0)`
-        : '';
-      const [{ bytes }] = await snapshot.unsafe<[{ bytes: string }]>(
-        `select (coalesce(sum(pg_column_size(c.*)), 0)${file})::text as bytes ${fromClause(rule)}`,
-        [organisationId]
-      );
-      total += Number(bytes);
-    }
-    return total;
-  } finally {
-    await snapshot`rollback`;
+  let total = 0;
+  for (const rule of TABLES.filter(isExported)) {
+    const all = columnsOf(rule, columns);
+    const fields = all
+      .filter((c) => c.type !== 'bytea')
+      .map((c) => `c.${quote(c.name)}`);
+    const files = all
+      .filter((c) => c.type === 'bytea')
+      .map((c) => ` + coalesce(sum(octet_length(c.${quote(c.name)})), 0)`)
+      .join('');
+    const [{ bytes }] = await snapshot.unsafe<[{ bytes: string }]>(
+      `select (coalesce(sum(pg_column_size(row(${fields.join(', ')}))), 0)${files})::text as bytes ${fromClause(rule)}`,
+      [organisationId]
+    );
+    total += Number(bytes);
   }
+  return total;
 }
 
 async function* archiveEntries(input: {
@@ -339,6 +361,7 @@ async function* archiveEntries(input: {
   organisation: { id: string; name: string; slug: string };
   manifest: Manifest;
   startedAt: Date;
+  startedEvent: { seq: number; hash: string };
   exportedBy: string;
   via: string;
   migration: { applied: number; lastAppliedAt: Date | null };
@@ -417,6 +440,10 @@ async function* archiveEntries(input: {
       exportedAt: startedAt.toISOString(),
       exportedBy: input.exportedBy,
       via: input.via,
+      exportStartedEvent: {
+        ...input.startedEvent,
+        note: 'The audit event recording this export. It was written after the snapshot was taken, so data/audit_event.jsonl ends just before it; it is in the organisation audit log in Govern.'
+      },
       schema: {
         migrationsApplied: input.migration.applied,
         lastMigratedAt: input.migration.lastAppliedAt?.toISOString() ?? null
