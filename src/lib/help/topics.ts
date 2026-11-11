@@ -1652,6 +1652,35 @@ export const HELP_TOPICS: HelpTopic[] = [
     related: ['ai-register', 'risks', 'assessments']
   },
   {
+    id: 'authorities',
+    title: 'Supervisory authorities',
+    summary:
+      "The UK's regulator and each EEA State's data protection authorities, as Govern names them on complaints, refusals and an entity's lead authority.",
+    path: '/app/authorities',
+    keywords: [
+      'regulator',
+      'supervisory authority',
+      'lead authority',
+      'one-stop shop',
+      'information commission',
+      'ico',
+      'cnil',
+      'dpc',
+      'article 56',
+      'article 77'
+    ],
+    sections: [
+      {
+        heading: 'What the list is',
+        body: [
+          "The Information Commission for the UK, and the authorities of each State of the European Economic Area, where the EU GDPR applies: the 27 member States and Iceland, Liechtenstein and Norway. Germany supervises the private sector by Land, so each Land authority is listed; Bavaria has a separate office for businesses (BayLDA). The federal authority covers federal bodies and telecommunications and postal services. Waivern maintains the list for every client from the EDPB's list of its members and the German federal authority's list of Land authorities, and it shows when it was last checked.",
+          "Govern names an authority where a person needs one: on a complaint, the authority the complainant may go to; on a refused request, the authority to name in the refusal; on the public form, for an entity under EU law only. Under UK law that is the Information Commission. Under EU law it is the entity's lead authority where one is recorded, or the authority of its only establishment; otherwise people may complain to the authority where they live or work (Article 77(1)), which Govern cannot know, so it says so."
+        ]
+      }
+    ],
+    related: ['organisation', 'complaints', 'data-subject-requests']
+  },
+  {
     id: 'transfers',
     title: 'Countries, UK approval and transfers',
     summary:
@@ -2160,6 +2189,14 @@ export const HELP_TOPICS: HelpTopic[] = [
           'Say for each entity whether it is subject to UK law, EU law, or both. An entity starts as subject to UK law. Part 2 of the Data Protection Act 2018 supplements the UK GDPR, so any entity subject to the UK GDPR is subject to the Act too, along with PECR; one subject to EU law only - a company in an EU member State with no UK establishment and no UK-targeted processing - is subject to none of them.',
           "For an entity subject to EU law only, the Act's own questions and flags are not shown: the Schedule 1 conditions and appropriate policy document on its processing records (Article 10 offers Union or Member State law instead), the data sharing code, the Schedule 2 and 3 exemptions and health opinion on its requests, and the public authority, competent authority and PECR settings. Requests to it are handled under EU law. Where no entity is subject to UK law, the policy document and sharing agreement registers, the UK data protection templates and the s.164A complaints step are not offered either.",
           'Narrowing an entity to EU law only is refused while it is marked as a public authority, competent authority or public communications provider, since those are UK law. Answers already recorded under UK law are kept, not cleared, so widening it again finds them.'
+        ]
+      },
+      {
+        heading: 'Establishment and representation',
+        body: [
+          "Under each entity, 'Establishment and representation' asks only about the laws it is subject to. Both the UK GDPR and the EU GDPR apply to an entity in two ways (Article 3): because it is established there, or because, established elsewhere, it offers goods or services to people there or monitors them. In the second case it must name a representative there (Article 27), unless its processing is occasional and unlikely to result in a risk, without large-scale special category or criminal offence data, or it is a public authority or body. An EU representative must be in a member State where the people it targets are; a UK representative need only be in the UK.",
+          'For the EU, tick each member State the entity is established in. Where there is more than one, say which is the main establishment: its central administration, or where decisions on the purposes and means of processing are taken (Article 4(16)). The authority of the main or only establishment leads for cross-border processing (Article 56(1)). Govern suggests it where that State has one authority; Germany has one per Land, so choose it. Identifying the main establishment is a judgement the EDPB has written guidance on (Guidelines 8/2022), so Govern records it rather than deciding it.',
+          "Gaps are shown in red under the entity: EU law with no establishment and no representative or exemption, several establishments with no main one, an establishment with no lead authority, and the UK equivalent. Narrowing an entity to one law is refused while the other law's establishment details are recorded; clear them first. Every save is in the audit log, before and after."
         ]
       },
       {
@@ -2695,6 +2732,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'ai-profile',
       'transparency-records',
       'transfers',
+      'authorities',
       'findings'
     ]
   },

@@ -708,6 +708,13 @@
       "when": 1794358979239,
       "tag": "0100_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1794421449544,
+      "tag": "0101_entity_establishment",
+      "breakpoints": true
     }
   ]
 }

@@ -27,7 +27,8 @@ export type SeedEntry = {
   sources?: Array<{ title: string; url?: string; published?: string }>;
 };
 
-const EEA: Array<[string, string]> = [
+/** The EEA States: the EU's 27 and Iceland, Liechtenstein and Norway. */
+export const EEA: ReadonlyArray<readonly [string, string]> = [
   ['AT', 'Austria'],
   ['BE', 'Belgium'],
   ['BG', 'Bulgaria'],

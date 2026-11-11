@@ -8,6 +8,7 @@ import {
   verifyDomainAction,
   type AdminResult
 } from '../actions';
+import { Outcome } from './Outcome';
 
 type Claim = {
   id: string;
@@ -16,18 +17,6 @@ type Claim = {
   recordName: string;
   recordValue: string;
 };
-
-function Outcome({ result }: { result: AdminResult }) {
-  if (!result) return null;
-  return (
-    <p
-      role={result.ok ? 'status' : 'alert'}
-      className={`text-xs ${result.ok ? 'text-emerald-800' : 'text-red-800'}`}
-    >
-      {result.message}
-    </p>
-  );
-}
 
 /**
  * The email domains this organisation has claimed.

@@ -27,6 +27,7 @@ import {
   jurisdictionRefusal
 } from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
+import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
 
 import { CHANNELS, type ControllerRole } from './data-subject-requests';
@@ -838,6 +839,7 @@ export async function loadComplaint(
 ): Promise<
   | (LoadedComplaint & {
       request: { id: string; reference: string; status: string } | null;
+      regulator: ReturnType<typeof regulatorFor>;
     })
   | null
 > {
@@ -846,7 +848,10 @@ export async function loadComplaint(
       .select({
         complaint: dataProtectionComplaints,
         entityName: entities.name,
-        ownerEmail: users.email
+        ownerEmail: users.email,
+        euLeadAuthority: entities.euLeadAuthority,
+        euEstablishments: entities.euEstablishments,
+        euMainEstablishment: entities.euMainEstablishment
       })
       .from(dataProtectionComplaints)
       .innerJoin(entities, eq(entities.id, dataProtectionComplaints.entityId))
@@ -883,7 +888,9 @@ export async function loadComplaint(
       ownerEmail: row.ownerEmail,
       events,
       clock: clockOf(row.complaint, events, targets),
-      request: request ?? null
+      request: request ?? null,
+      // Who the complainant may go to, under the law the complaint is handled under.
+      regulator: regulatorFor(row.complaint.jurisdiction, row)
     };
   });
 }

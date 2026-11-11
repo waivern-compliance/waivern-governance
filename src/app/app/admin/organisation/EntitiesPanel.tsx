@@ -10,6 +10,7 @@ import {
   ukLawApplies,
   type DataProtectionLaw
 } from '@/lib/dpa2018/applies';
+import type { Establishment } from '@/lib/gdpr/establishment';
 import { documentPath, type DocumentRef } from '@/lib/legal/shared';
 import { savedKey } from '@/lib/saved-key';
 import { useRefusableAction } from '@/lib/use-refusable-action';
@@ -25,6 +26,8 @@ import {
   setPublicAuthorityAction,
   type AdminResult
 } from '../actions';
+import { EstablishmentForm } from './EstablishmentForm';
+import { Outcome } from './Outcome';
 
 type Entity = {
   id: string;
@@ -39,6 +42,7 @@ type Entity = {
   foiAct: 'foia' | 'foisa' | null;
   foiTimeProfile: string;
   foiCoveredFor: string | null;
+  establishment: Establishment;
   /** The latest acceptance of the terms and agreement, on the hosted service. */
   agreement?: {
     acceptedByName: string;
@@ -60,18 +64,6 @@ const input =
   'rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
 const label =
   'block text-xs font-medium uppercase tracking-wider text-ink-soft';
-
-function Outcome({ result }: { result: AdminResult }) {
-  if (!result) return null;
-  return (
-    <p
-      role={result.ok ? 'status' : 'alert'}
-      className={`text-xs ${result.ok ? 'text-emerald-800' : 'text-red-800'}`}
-    >
-      {result.message}
-    </p>
-  );
-}
 
 /**
  * The legal entities within this organisation — for the BBC, BBC Public
@@ -354,6 +346,12 @@ function EntityRow({
         </button>
       </form>
       <Outcome result={law.result} />
+      <EstablishmentForm
+        entityId={entity.id}
+        name={entity.name}
+        law={entity.dataProtectionLaw}
+        establishment={entity.establishment}
+      />
       {uk ? (
         <>
           <form

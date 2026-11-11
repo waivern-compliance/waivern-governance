@@ -2302,6 +2302,16 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'setEstablishment',
+      () =>
+        entitiesSvc.setEstablishment({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          establishment: {},
+          actor: as()
+        })
+    ],
+    [
       'updateSharingAgreement',
       () =>
         sharingSvc.updateSharingAgreement({

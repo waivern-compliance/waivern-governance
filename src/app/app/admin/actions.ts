@@ -11,6 +11,7 @@ import {
 import { DpoRefused } from '@/lib/dpa2018/public-authority';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { isEmailAddress } from '@/lib/email-address';
+import { EstablishmentRefused } from '@/lib/gdpr/establishment';
 import { waivernHosted } from '@/lib/hosting';
 import { entityAgreementFrom } from '@/lib/legal/acceptance';
 import { PERSONAS, type Persona } from '@/lib/persona';
@@ -47,6 +48,7 @@ import {
   setCompetentAuthority,
   setDataProtectionLaw,
   setDpo,
+  setEstablishment,
   setFreedomOfInformation,
   setPublicAuthority,
   setPublicCommsProvider
@@ -426,7 +428,8 @@ async function entityResult(
       error instanceof EntityRefused ||
       error instanceof AgreementRefused ||
       error instanceof NotInOrganisation ||
-      error instanceof DpoRefused
+      error instanceof DpoRefused ||
+      error instanceof EstablishmentRefused
     ) {
       return { ok: false, message: error.message };
     }
@@ -545,6 +548,42 @@ export async function setDataProtectionLawAction(
     return law === 'eu'
       ? `${updated.name} is subject to EU law only. The Data Protection Act 2018's questions and flags are no longer shown for it.`
       : `${updated.name} is subject to ${DATA_PROTECTION_LAWS[law].charAt(0).toLowerCase()}${DATA_PROTECTION_LAWS[law].slice(1)}.`;
+  });
+}
+
+/** Where an entity is established, who represents it, and which EU authority leads. */
+export async function setEstablishmentAction(
+  entityId: string,
+  _prev: AdminResult,
+  formData: FormData
+): Promise<AdminResult> {
+  return entityResult(async (active) => {
+    const text = (k: string) => String(formData.get(k) ?? '').trim();
+    const representative = (prefix: string) => ({
+      name: text(`${prefix}Name`),
+      contact: text(`${prefix}Contact`),
+      country: text(`${prefix}Country`) || null
+    });
+    const has = (k: string) => formData.has(k);
+    const updated = await setEstablishment({
+      organisationId: active.membership.organisationId,
+      entityId,
+      establishment: {
+        ...(has('ukEstablishment')
+          ? { ukEstablishment: text('ukEstablishment') === 'yes' }
+          : {}),
+        euEstablishments: formData.getAll('euEstablishments').map(String),
+        euMainEstablishment: text('euMainEstablishment') || null,
+        euLeadAuthority: text('euLeadAuthority') || null,
+        euRepresentative: representative('euRep'),
+        euRepresentativeExemption: text('euRepExemption') || null,
+        ukRepresentative: representative('ukRep'),
+        ukRepresentativeExemption: text('ukRepExemption') || null,
+        euPublicBody: formData.get('euPublicBody') === 'on'
+      },
+      actor: actorOf(active)
+    });
+    return `${updated.name}'s establishment and representation are saved.`;
   });
 }
 

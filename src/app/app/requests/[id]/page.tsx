@@ -92,7 +92,8 @@ export default async function RequestPage({
     extended,
     ownerEmail,
     scope,
-    competentAuthority
+    competentAuthority,
+    regulator
   } = loaded;
   const part3 = request.regime === 'dpa_part3';
 
@@ -552,7 +553,7 @@ export default async function RequestPage({
           ) : null}
           {request.toldOfComplaintRight ? (
             <p className="text-xs text-ink-soft">
-              Told they may complain to the supervisory authority and seek a
+              Told they may complain to {regulator.complainTo} and seek a
               judicial remedy.
             </p>
           ) : null}
@@ -640,8 +641,8 @@ export default async function RequestPage({
               className="mt-1 accent-brand"
             />
             <span>
-              It told them they may complain to the supervisory authority and
-              seek a judicial remedy
+              It told them they may complain to {regulator.complainTo} and seek
+              a judicial remedy
             </span>
           </label>
           {clock.state === 'overdue' ? (

@@ -15,7 +15,7 @@ import { getActiveSession } from '@/lib/session';
 import { organisationDetail } from '@/services/access';
 import { agreementsOf } from '@/services/agreements';
 import { domainsFor } from '@/services/domains';
-import { dpoPosition, entitiesOf } from '@/services/entities';
+import { dpoPosition, entitiesOf, establishmentOf } from '@/services/entities';
 import { riskCount, riskScaleOf } from '@/services/risk-policy';
 
 import { DomainsPanel } from './DomainsPanel';
@@ -111,6 +111,7 @@ export default async function OrganisationPage() {
           foiAct: e.foiAct,
           foiTimeProfile: e.foiTimeProfile,
           foiCoveredFor: e.foiCoveredFor,
+          establishment: establishmentOf(e),
           agreement: (() => {
             const a = latestAgreement.get(e.id);
             return a

@@ -15,6 +15,10 @@ import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import type { Dpo } from '@/lib/dpa2018/public-authority';
 import type { FoiAct, TimeProfile } from '@/lib/foi/statutory';
+import type {
+  Representative,
+  RepresentativeExemption
+} from '@/lib/gdpr/establishment';
 
 import {
   aiFramework,
@@ -141,6 +145,36 @@ export const entities = pgTable(
       .$type<DataProtectionLaw>()
       .notNull()
       .default('uk'),
+    /**
+     * Where the entity is established, who represents it and which EU
+     * authority leads, for the laws it is subject to (Articles 3, 27, 56).
+     * See `lib/gdpr/establishment.ts`. Recorded by a person: the main
+     * establishment and the lead authority are judgements.
+     */
+    ukEstablishment: boolean('uk_establishment').notNull().default(true),
+    /** ISO codes of the EEA States it is established in. */
+    euEstablishments: jsonb('eu_establishments')
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    euMainEstablishment: text('eu_main_establishment'),
+    /** A code from `lib/gdpr/authorities.ts`. */
+    euLeadAuthority: text('eu_lead_authority'),
+    euRepresentative: jsonb('eu_representative').$type<Representative>(),
+    euRepresentativeExemption: text(
+      'eu_representative_exemption'
+    ).$type<RepresentativeExemption>(),
+    ukRepresentative: jsonb('uk_representative').$type<Representative>(),
+    ukRepresentativeExemption: text(
+      'uk_representative_exemption'
+    ).$type<RepresentativeExemption>(),
+    /**
+     * A public authority or body in the EU sense, decided by member State
+     * law: it may not rely on legitimate interests for its tasks (Article
+     * 6(1)) and must have a DPO (Article 37(1)(a)). `publicAuthority` is the
+     * UK's (DPA 2018 s.7).
+     */
+    euPublicBody: boolean('eu_public_body').notNull().default(false),
     publicCommsProvider: boolean('public_comms_provider')
       .notNull()
       .default(false),
