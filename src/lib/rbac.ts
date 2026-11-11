@@ -208,6 +208,18 @@ export function mayManageEntities(grants: readonly Grant[]): boolean {
 }
 
 /**
+ * May this person take everything the organisation holds out of Govern at
+ * once: every entity's records, requesters' personal data, every file?
+ *
+ * An owner over the whole organisation only, as for the shape of the
+ * organisation. No other role sees all of it, so no other role may export it,
+ * and an owner confined to one entity sees only that entity.
+ */
+export function mayExportOrganisation(grants: readonly Grant[]): boolean {
+  return grants.some((g) => g.role === 'owner' && g.scope === 'organisation');
+}
+
+/**
  * May this person choose the AI governance framework the organisation follows?
  *
  * Whoever configures how AI risk is assessed and approved, across the whole

@@ -19,6 +19,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
+    "export:organisation": "tsx --env-file-if-exists=.env.local scripts/export-organisation.ts",
     "audit:verify": "tsx --env-file-if-exists=.env.local scripts/verify-audit.ts",
     "db:reset": "docker exec govern-db psql -U govern -d govern -q -c 'drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;' && pnpm db:migrate",
     "test": "DATABASE_URL=postgresql://govern:govern@localhost:55432/govern_test tsx --env-file-if-exists=.env.local --test tests/**/*.test.ts",

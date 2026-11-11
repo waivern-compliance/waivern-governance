@@ -18,7 +18,7 @@ import {
 } from '@/db/schema';
 import { categoryLabel } from '@/lib/ai-frameworks';
 import { appendAuditEvent, GENESIS_HASH } from '@/lib/audit';
-import { toCsv } from '@/lib/csv';
+import { BOM, toCsv } from '@/lib/csv';
 import {
   ART9_CONDITIONS,
   describeArt10,
@@ -572,6 +572,60 @@ export async function recordExport(input: {
 }
 
 export { toCsv };
+
+/**
+ * One dataset as the CSV a person downloads, whoever asks for it: the export
+ * page for one spreadsheet, or the whole-organisation archive for all of them.
+ *
+ * @param entityIds the entities the person can see, or null for all of them
+ */
+export async function renderDataset(
+  key: Dataset,
+  organisationId: string,
+  organisationName: string,
+  entityIds: string[] | null
+): Promise<{ body: string; rows: number; complete?: boolean }> {
+  if (key === 'audit') {
+    const result = await exportAudit(organisationId, entityIds);
+    // The manifest travels with the data. Tamper-evidence a recipient cannot
+    // check without asking us is a claim, not evidence.
+    const header = result.complete
+      ? verificationManifest(organisationName, result.rows.length)
+      : `${PRODUCT_NAME} - audit log extract\n\n${result.caveat}`;
+    // The mark leads the file, ahead of the commentary — it only works at byte
+    // zero, and anywhere else it silently becomes part of the first column name.
+    const body =
+      BOM +
+      header
+        .split('\n')
+        .map((line) => `# ${line}`)
+        .join('\n') +
+      '\n\n' +
+      toCsv(result.columns, result.rows, false);
+    return { body, rows: result.rows.length, complete: result.complete };
+  }
+  const result = await DATASET_EXPORT[key](organisationId, entityIds);
+  return { body: toCsv(result.columns, result.rows), rows: result.rows.length };
+}
+
+type Table = { columns: string[]; rows: unknown[][] };
+
+const DATASET_EXPORT: Record<
+  Exclude<Dataset, 'audit'>,
+  (organisationId: string, entityIds: string[] | null) => Promise<Table>
+> = {
+  risks: exportRisks,
+  assessments: exportAssessments,
+  'ai-register': exportAiRegister,
+  'ai-risks': exportAiRiskLog,
+  ropa: exportRopa,
+  'third-parties': (org) => exportThirdParties(org),
+  breaches: exportBreaches,
+  requests: exportRequests,
+  'information-requests': exportInformationRequests,
+  trends: exportTrends,
+  countries: (org) => exportCountries(org)
+};
 
 /**
  * The Article 30 register, as a regulator would ask for it.

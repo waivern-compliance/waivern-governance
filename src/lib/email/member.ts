@@ -57,7 +57,8 @@ export const EMAILED_KINDS = {
   'task.raised': 'New work for you',
   'task.sla_breached': 'Overdue work',
   mention: 'Mentions',
-  'assessment.decided': 'Decisions on your assessments'
+  'assessment.decided': 'Decisions on your assessments',
+  'organisation.exported': "Exports of all the organisation's data"
 } as const;
 
 export type EmailedKind = keyof typeof EMAILED_KINDS;
@@ -101,6 +102,8 @@ export function memberEmail(
         return `${notice.subject} ${where}.`;
       case 'assessment.decided':
         return `${notice.subject} ${where}.`;
+      case 'organisation.exported':
+        return `${notice.subject} ${where}. If you did not expect this, ask them about it and check the activity log.`;
     }
   })();
   return {

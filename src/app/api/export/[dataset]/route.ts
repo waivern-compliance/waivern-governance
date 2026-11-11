@@ -1,25 +1,12 @@
 import { NextResponse } from 'next/server';
 
-import { BOM, exportFilename, toCsv } from '@/lib/csv';
-import { PRODUCT_NAME } from '@/lib/product';
+import { exportFilename } from '@/lib/csv';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
   DATASET_LABEL,
-  exportAiRegister,
-  exportAiRiskLog,
-  exportAssessments,
-  exportAudit,
-  exportBreaches,
-  exportCountries,
-  exportInformationRequests,
-  exportRequests,
-  exportRisks,
-  exportRopa,
-  exportThirdParties,
-  exportTrends,
   recordExport,
-  verificationManifest,
+  renderDataset,
   type Dataset
 } from '@/services/exports';
 
@@ -76,55 +63,12 @@ export async function GET(
     actorLabel: active.email
   };
 
-  let body: string;
-  let rows: number;
-  let complete: boolean | undefined;
-
-  if (key === 'audit') {
-    const result = await exportAudit(org, entityIds);
-    rows = result.rows.length;
-    complete = result.complete;
-    // The manifest travels with the data. Tamper-evidence a recipient cannot
-    // check without asking us is a claim, not evidence.
-    const header = result.complete
-      ? verificationManifest(active.membership.organisationName, rows)
-      : `${PRODUCT_NAME} - audit log extract\n\n${result.caveat}`;
-    // The mark leads the file, ahead of the commentary — it only works at byte
-    // zero, and anywhere else it silently becomes part of the first column name.
-    body =
-      BOM +
-      header
-        .split('\n')
-        .map((line) => `# ${line}`)
-        .join('\n') +
-      '\n\n' +
-      toCsv(result.columns, result.rows, false);
-  } else {
-    const result =
-      key === 'risks'
-        ? await exportRisks(org, entityIds)
-        : key === 'assessments'
-          ? await exportAssessments(org, entityIds)
-          : key === 'ai-register'
-            ? await exportAiRegister(org, entityIds)
-            : key === 'ai-risks'
-              ? await exportAiRiskLog(org, entityIds)
-              : key === 'ropa'
-                ? await exportRopa(org, entityIds)
-                : key === 'third-parties'
-                  ? await exportThirdParties(org)
-                  : key === 'trends'
-                    ? await exportTrends(org, entityIds)
-                    : key === 'breaches'
-                      ? await exportBreaches(org, entityIds)
-                      : key === 'requests'
-                        ? await exportRequests(org, entityIds)
-                        : key === 'information-requests'
-                          ? await exportInformationRequests(org, entityIds)
-                          : await exportCountries(org);
-    rows = result.rows.length;
-    body = toCsv(result.columns, result.rows);
-  }
+  const { body, rows, complete } = await renderDataset(
+    key,
+    org,
+    active.membership.organisationName,
+    entityIds
+  );
 
   await recordExport({
     organisationId: org,

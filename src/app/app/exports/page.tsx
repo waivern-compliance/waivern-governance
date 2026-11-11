@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
-import { can } from '@/lib/rbac';
+import { can, mayExportOrganisation } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { DATASET_LABEL, type Dataset } from '@/services/exports';
 
@@ -32,7 +32,20 @@ const BLURB: Record<Dataset, string> = {
     'The complete record of who did what, with the hash chain, so a recipient can verify it themselves.'
 };
 
-export default async function ExportsPage() {
+const REFUSAL: Record<string, string> = {
+  confirm:
+    "The name typed did not match the organisation's name exactly, so nothing was exported.",
+  busy: 'An export of this organisation is already running. Try again when it has finished.',
+  too_large:
+    'This organisation holds more than can be downloaded from the browser. Ask Waivern, who will run the same export for you and send it securely.'
+};
+
+export default async function ExportsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ everything?: string }>;
+}) {
+  const { everything } = await searchParams;
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
@@ -48,6 +61,8 @@ export default async function ExportsPage() {
   const mayExportAudit = can(active.membership.grants, 'audit.export');
   const mayExportRequests = can(active.membership.grants, 'dsr.handle');
   const mayExportFoi = can(active.membership.grants, 'foi.handle');
+  const mayExportEverything = mayExportOrganisation(active.membership.grants);
+  const refusal = everything ? REFUSAL[everything] : undefined;
   // A complete chain is what makes an audit export verifiable, and an
   // entity-scoped viewer cannot have one.
   const wholeChain = visibleEntityIds(active, 'audit.export') === null;
@@ -103,6 +118,59 @@ export default async function ExportsPage() {
             </li>
           ))}
       </ul>
+
+      {mayExportEverything ? (
+        <section
+          id="everything"
+          className="space-y-3 rounded border border-line bg-surface p-4"
+        >
+          <h2 className="font-semibold">Everything the organisation holds</h2>
+          <p className="max-w-prose text-sm text-ink-soft">
+            One zip with every record of every entity, every attached file, the
+            spreadsheets above and the complete audit log, for when you leave
+            Govern or want your own copy. It includes the personal data in data
+            subject requests, breaches and complaints, so only an owner of the
+            whole organisation can take it, and the other owners are told when
+            you do.
+          </p>
+          {refusal ? (
+            <p
+              role="alert"
+              className="text-sm text-red-800"
+            >
+              {refusal}
+            </p>
+          ) : null}
+          <form
+            method="post"
+            action="/api/export/organisation"
+            className="flex flex-wrap items-end gap-3"
+          >
+            <label className="space-y-1 text-sm">
+              <span className="block">
+                Type <strong>{active.membership.organisationName}</strong> to
+                confirm
+              </span>
+              <input
+                name="confirm"
+                required
+                autoComplete="off"
+                className="w-72 rounded border border-line bg-surface px-2 py-1.5"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded border border-line bg-surface px-3 py-1.5 text-sm hover:border-brand focus-visible:outline-2 focus-visible:outline-brand"
+            >
+              Download everything
+            </button>
+          </form>
+          <p className="text-xs text-ink-soft">
+            Large organisations take a few minutes. Keep this tab open until the
+            download finishes.
+          </p>
+        </section>
+      ) : null}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
