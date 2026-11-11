@@ -15,6 +15,7 @@ import {
   suppliers
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { ukLawApplies, type DataProtectionLaw } from '@/lib/dpa2018/applies';
 import {
   AutomatedDecisionRefused,
   cleanAdm
@@ -23,7 +24,7 @@ import {
   cleanFurtherProcessing,
   FurtherProcessingRefused
 } from '@/lib/gdpr/further-processing';
-import { basesFromText } from '@/lib/gdpr/lawful-basis';
+import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
 import { connectionActor, type AuthedConnection } from '@/lib/integration/auth';
 import type {
   AiUseCaseIn,
@@ -41,7 +42,7 @@ import {
 } from '@/lib/integration/duaa';
 
 import { createUseCase } from './ai-register';
-import { cleanLawfulBases } from './ropa';
+import { cleanLawfulBases, LawfulBasisRefused } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise as canonicaliseByHand } from './third-party';
 
@@ -52,6 +53,7 @@ function refusedBy(error: unknown): string | null {
   if (
     error instanceof AutomatedDecisionRefused ||
     error instanceof FurtherProcessingRefused ||
+    error instanceof LawfulBasisRefused ||
     error instanceof RecordRefused
   ) {
     return error.message;
@@ -87,25 +89,49 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  * to the default: silently filing another legal entity's records under the
  * wrong one is worse than rejecting the batch.
  */
+type ResolvedEntity =
+  | { ok: true; entityId: string; law: DataProtectionLaw }
+  | { ok: false; reason: string };
+
+/**
+ * `resolveEntity` for one batch, looked up once per distinct name: a push of
+ * hundreds of records to one entity is one query, not hundreds.
+ */
+function entityResolver(
+  organisationId: string,
+  connection: AuthedConnection
+): (named: string | undefined) => Promise<ResolvedEntity> {
+  const seen = new Map<string, Promise<ResolvedEntity>>();
+  return (named) => {
+    const key = named ?? '';
+    let found = seen.get(key);
+    if (!found) {
+      found = resolveEntity(organisationId, connection, named);
+      seen.set(key, found);
+    }
+    return found;
+  };
+}
+
 async function resolveEntity(
   organisationId: string,
   connection: AuthedConnection,
   named: string | undefined
-): Promise<{ ok: true; entityId: string } | { ok: false; reason: string }> {
+): Promise<ResolvedEntity> {
   if (!named) {
-    if (connection.defaultEntityId)
-      return { ok: true, entityId: connection.defaultEntityId };
     const [fallback] = await db
       .select()
       .from(entities)
       .where(
         and(
           eq(entities.organisationId, organisationId),
-          eq(entities.isDefault, true)
+          connection.defaultEntityId
+            ? eq(entities.id, connection.defaultEntityId)
+            : eq(entities.isDefault, true)
         )
       );
     return fallback
-      ? { ok: true, entityId: fallback.id }
+      ? { ok: true, entityId: fallback.id, law: fallback.dataProtectionLaw }
       : { ok: false, reason: 'No entity named and no default configured' };
   }
 
@@ -119,7 +145,7 @@ async function resolveEntity(
       )
     );
   return match
-    ? { ok: true, entityId: match.id }
+    ? { ok: true, entityId: match.id, law: match.dataProtectionLaw }
     : { ok: false, reason: `Unknown entity "${named}"` };
 }
 
@@ -164,12 +190,9 @@ export async function ingestProcessingActivities(
     const actor = connectionActor(connection);
     const year = new Date().getUTCFullYear();
 
+    const entityOf = entityResolver(connection.organisationId, connection);
     for (const r of records) {
-      const entity = await resolveEntity(
-        connection.organisationId,
-        connection,
-        r.entity
-      );
+      const entity = await entityOf(r.entity);
       if (!entity.ok) {
         outcome.skipped.push({
           externalRef: r.externalRef,
@@ -256,7 +279,9 @@ export async function ingestProcessingActivities(
           // unambiguous. Where neither says anything, a basis somebody chose in
           // Govern is left alone rather than wiped by a push that had no view.
           const bases =
-            r.lawfulBases ?? basesFromText(r.lawfulBasis) ?? undefined;
+            r.lawfulBases ??
+            basesFromTextFor(r.lawfulBasis, ukLawApplies(entity.law)) ??
+            undefined;
           const condition =
             r.recognisedCondition ??
             (bases?.includes('recognised_legitimate_interests')
@@ -267,7 +292,13 @@ export async function ingestProcessingActivities(
             description: r.description,
             purposes: r.purposes,
             lawfulBasis: r.lawfulBasis,
-            ...(bases ? cleanLawfulBases(bases, condition ?? null) : {}),
+            ...(bases
+              ? cleanLawfulBases(
+                  bases,
+                  condition ?? null,
+                  ukLawApplies(entity.law)
+                )
+              : {}),
             dataCategories: r.dataCategories,
             subjectCategories: r.subjectCategories,
             recipients: r.recipients,
@@ -438,12 +469,9 @@ export async function ingestAiUseCases(
     };
     const actor = connectionActor(connection);
 
+    const entityOf = entityResolver(connection.organisationId, connection);
     for (const r of records) {
-      const entity = await resolveEntity(
-        connection.organisationId,
-        connection,
-        r.entity
-      );
+      const entity = await entityOf(r.entity);
       if (!entity.ok) {
         outcome.skipped.push({
           externalRef: r.externalRef,
@@ -712,12 +740,9 @@ export async function ingestEvidence(
     };
     const actor = connectionActor(connection);
 
+    const entityOf = entityResolver(connection.organisationId, connection);
     for (const r of records) {
-      const entity = await resolveEntity(
-        connection.organisationId,
-        connection,
-        r.entity
-      );
+      const entity = await entityOf(r.entity);
       if (!entity.ok) {
         outcome.skipped.push({
           externalRef: r.externalRef,

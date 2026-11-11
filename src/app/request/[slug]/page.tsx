@@ -166,7 +166,9 @@ export default async function RequestPage({
               corrected or deleted, or object to how it is used. They must
               normally respond within one month.
               {form.takesComplaints
-                ? ' You can also complain to them if you think they have not handled your personal data properly. They must acknowledge a complaint within 30 days, and tell you the outcome.'
+                ? form.ukLaw
+                  ? ' You can also complain to them if you think they have not handled your personal data properly. They must acknowledge a complaint within 30 days, and tell you the outcome.'
+                  : ' You can also complain to them if you think they have not handled your personal data properly, and you have the right to complain to a data protection supervisory authority.'
                 : ''}
             </p>
             <p className="max-w-prose text-xs text-ink-soft">

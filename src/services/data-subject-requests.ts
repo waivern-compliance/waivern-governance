@@ -15,7 +15,7 @@ import {
 import { appendAuditEvent } from '@/lib/audit';
 import {
   defaultRequestJurisdiction,
-  jurisdictionAllowed
+  jurisdictionRefusal
 } from '@/lib/dpa2018/applies';
 import {
   cleanExemption,
@@ -520,11 +520,8 @@ export async function recordRequest(input: {
         entity.law,
         await defaultJurisdiction(input.organisationId)
       );
-    if (!jurisdictionAllowed(entity.law, jurisdiction)) {
-      throw new RequestRefused(
-        `${entity.name} is recorded as subject to ${entity.law === 'eu' ? 'EU' : 'UK'} law only, so a request to it cannot be handled under ${jurisdiction === 'uk' ? 'UK' : 'EU'} law. Change the entity's law on the Organisation page if it is wrong.`
-      );
-    }
+    const refusal = jurisdictionRefusal(entity, jurisdiction, 'request');
+    if (refusal) throw new RequestRefused(refusal);
     const regime = await checkedRegime(db, {
       entityId: input.entityId,
       regime: input.regime,

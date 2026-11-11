@@ -1304,6 +1304,134 @@ const REFERENCES = [
     jurisdiction: 'EU'
   },
   {
+    code: 'eugdpr.art3',
+    regime: 'EU GDPR',
+    citation: 'Article 3',
+    title:
+      'Territorial scope: an establishment in the Union, or offering goods or services to, or monitoring, people in the Union',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art4.16',
+    regime: 'EU GDPR',
+    citation: 'Article 4(16)',
+    title: 'Main establishment',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art6.4',
+    regime: 'EU GDPR',
+    citation: 'Article 6(4)',
+    title:
+      'Compatibility of processing for a purpose other than that for which the data was collected',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art8',
+    regime: 'EU GDPR',
+    citation: 'Article 8',
+    title:
+      "Conditions applicable to a child's consent in relation to information society services: 16, or a lower age set by a Member State, not below 13",
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art22.2',
+    regime: 'EU GDPR',
+    citation: 'Article 22(2)-(4)',
+    title:
+      'Exceptions to the prohibition of solely automated decisions: contract, Union or Member State law, explicit consent; special category data',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art27',
+    regime: 'EU GDPR',
+    citation: 'Article 27',
+    title:
+      'Representatives of controllers or processors not established in the Union',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art37',
+    regime: 'EU GDPR',
+    citation: 'Article 37',
+    title: 'Designation of the data protection officer',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art45',
+    regime: 'EU GDPR',
+    citation: 'Article 45',
+    title: 'Transfers on the basis of an adequacy decision',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art56',
+    regime: 'EU GDPR',
+    citation: 'Article 56',
+    title: 'Competence of the lead supervisory authority',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art77',
+    regime: 'EU GDPR',
+    citation: 'Article 77',
+    title: 'Right to lodge a complaint with a supervisory authority',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art89',
+    regime: 'EU GDPR',
+    citation: 'Article 89',
+    title:
+      'Safeguards and derogations for archiving in the public interest, scientific or historical research or statistical purposes',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eu.scc2021',
+    regime: 'European Commission',
+    citation: 'Commission Implementing Decision (EU) 2021/914',
+    title:
+      'Standard contractual clauses for the transfer of personal data to third countries',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32021D0914',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eu.adequacy.uk',
+    regime: 'European Commission',
+    citation: 'Commission Implementing Decision (EU) 2025/2574',
+    title:
+      'Adequate protection of personal data by the United Kingdom, until 27 December 2031',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32025D2574',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'edpb.gl08-2022',
+    regime: 'EDPB',
+    citation: 'Guidelines 8/2022',
+    title: "Identifying a controller or processor's lead supervisory authority",
+    url: 'https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-82022-identifying-controller-or-processors-lead_en',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'edpb.gl09-2022',
+    regime: 'EDPB',
+    citation: 'Guidelines 9/2022',
+    title: 'Personal data breach notification under the GDPR',
+    url: 'https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-92022-personal-data-breach-notification-under_en',
+    jurisdiction: 'EU'
+  },
+  {
     code: 'edpb.access',
     regime: 'EDPB',
     citation: 'Guidelines 01/2022',

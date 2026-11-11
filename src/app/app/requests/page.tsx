@@ -255,9 +255,13 @@ export default async function RequestsPage() {
                 />
                 <select
                   name="jurisdiction"
-                  defaultValue={jurisdiction}
+                  defaultValue=""
                   className={inputClass}
                 >
+                  <option value="">
+                    The entity&apos;s law ({jurisdiction.toUpperCase()} where it
+                    is subject to both)
+                  </option>
                   <option value="uk">UK GDPR</option>
                   <option value="eu">EU GDPR</option>
                 </select>

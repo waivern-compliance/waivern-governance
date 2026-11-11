@@ -459,13 +459,13 @@ It asks four things to start: what the processing is called, why you do it, your
 
 ### What the flags mean
 
-Red items are unqualified Article 30 requirements - purposes, categories of data subject and of personal data, recipients, transfer safeguards, and the controller's identity where you act as processor. Missing any of those is a compliance failure, not untidiness. Red is also used where the record describes processing the law does not allow: a solely automated significant decision relying on recognised legitimate interests, or on special category data with no Article 22B condition, and further processing on a route Article 8A(4) closes for data collected on consent.
+Red items are unqualified Article 30 requirements - purposes, categories of data subject and of personal data, recipients, transfer safeguards, and the controller's identity where you act as processor. Missing any of those is a compliance failure, not untidiness. Red is also used where the record describes processing the law does not allow: a solely automated significant decision relying on recognised legitimate interests, or on special category data with no Article 22B condition, and further processing on a route Article 8A(4) closes for data collected on consent. So is reliance on recognised legitimate interests by an entity subject to EU law only.
 
 Amber items are reported without being called a breach. Retention and security measures are qualified in the Regulation by 'where possible', so their absence is worth knowing and is not the same thing.
 
 ### Lawful basis
 
-Tick each Article 6(1) basis the processing relies on. Recognised legitimate interests, which the Data (Use and Access) Act 2025 added, covers only the five conditions in Annex 1 - disclosure for another's public task, national security, emergencies, crime and safeguarding - and asks which one. It needs no balancing test, but people can still object to it, and a significant decision may not rest solely on automated processing under it. A public authority may not rely on it, or on ordinary legitimate interests, for its tasks.
+Tick each Article 6(1) basis the processing relies on. Recognised legitimate interests, which the Data (Use and Access) Act 2025 added, covers only the five conditions in Annex 1 - disclosure for another's public task, national security, emergencies, crime and safeguarding - and asks which one. It needs no balancing test, but people can still object to it, and a significant decision may not rest solely on automated processing under it. A public authority may not rely on it, or on ordinary legitimate interests, for its tasks. It is UK law only: the EU GDPR has no such basis, so it is not offered for an entity subject to EU law only, and a record of such an entity that already relies on it is flagged red until another basis is chosen.
 
 The text field beside it is a note. Where a record's basis used to be written as text and named one basis plainly, that basis was ticked for you; anything less clear was left for you to choose, and shows as 'No lawful basis chosen' until you do.
 

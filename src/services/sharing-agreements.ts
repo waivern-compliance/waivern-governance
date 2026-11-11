@@ -13,6 +13,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { ukLawApplies } from '@/lib/dpa2018/applies';
 import {
   isArt10Condition,
   isSchedule1Condition
@@ -173,6 +174,7 @@ async function rowsFor(
     .select({
       agreement: sharingAgreements,
       entityName: entities.name,
+      entityLaw: entities.dataProtectionLaw,
       ownerEmail: users.email
     })
     .from(sharingAgreements)
@@ -426,6 +428,18 @@ export async function updateSharingAgreement(input: {
     return db.transaction(async (tx) => {
       const before = await loadForWrite(tx, input.id, input.organisationId);
       if (before.endedAt) throw new SharingRefused('This agreement has ended.');
+      // Our side rests on our entity's law; the other controller's side on
+      // theirs, which is not ours to judge.
+      if (basis.lawfulBases.includes('recognised_legitimate_interests')) {
+        const [entity] = await tx
+          .select({ law: entities.dataProtectionLaw })
+          .from(entities)
+          .where(eq(entities.id, before.entityId));
+        if (!ukLawApplies(entity.law))
+          throw new SharingRefused(
+            'Recognised legitimate interests is a basis in UK law only (UK GDPR Article 6(1)(ea)), and this entity is subject to EU law only. Choose another basis for our side.'
+          );
+      }
       if (activityIds.length > 0) {
         const found = await tx
           .select({ id: processingActivities.id })

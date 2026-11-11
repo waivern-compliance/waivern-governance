@@ -235,6 +235,10 @@ describe('acknowledging', () => {
 
   it('shows no statutory clock for an EU complaint', async () => {
     const w = await world('eu');
+    await db
+      .update(entities)
+      .set({ dataProtectionLaw: 'eu' })
+      .where(eq(entities.id, w.entity.id));
     const c = await aComplaint(w, {
       jurisdiction: 'eu',
       receivedAt: daysAgo(40)

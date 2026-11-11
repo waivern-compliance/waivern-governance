@@ -37,7 +37,11 @@ import {
   RESEARCH_SAFEGUARD_KEYS,
   RESEARCH_SAFEGUARDS
 } from '@/lib/gdpr/further-processing';
-import { describeBases, RECOGNISED_CONDITIONS } from '@/lib/gdpr/lawful-basis';
+import {
+  basesUnder,
+  describeBases,
+  RECOGNISED_CONDITIONS
+} from '@/lib/gdpr/lawful-basis';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
@@ -370,6 +374,7 @@ export default async function ActivityPage({
                   note={activity.lawfulBasis ?? ''}
                   publicAuthority={loaded.publicAuthority}
                   outsidePublicTasks={activity.outsidePublicTasks}
+                  ukLaw={ukLaw}
                 />
                 <SpecialCategoryFields
                   record={activity}
@@ -816,7 +821,7 @@ export default async function ActivityPage({
         side="processing_activity"
         recordId={activity.id}
         record={activity}
-        bases={activity.lawfulBases ?? []}
+        bases={basesUnder(activity.lawfulBases ?? [], ukLaw)}
         linked={linkedUseCases}
         mayEdit={mayEdit}
         regime={activity.regime}

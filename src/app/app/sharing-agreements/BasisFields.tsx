@@ -5,20 +5,28 @@ import {
   SCHEDULE_1_KEYS
 } from '@/lib/dpa2018/schedule-1';
 import type { PartyBasis } from '@/lib/dpa2018/sharing';
-import { LAWFUL_BASES, LAWFUL_BASIS_KEYS } from '@/lib/gdpr/lawful-basis';
+import {
+  basesFor,
+  LAWFUL_BASES,
+  LAWFUL_BASIS_KEYS
+} from '@/lib/gdpr/lawful-basis';
 
 import { inputClass, Label } from '../requests/fields';
 
 /**
  * One controller's basis for its side of the sharing: Article 6, and where
  * special category or criminal offence data is shared, the condition.
+ * `ukLaw` false (our side, for an entity under EU law only): recognised
+ * legitimate interests is not offered unless already recorded.
  */
 export function BasisFields({
   basis,
-  who
+  who,
+  ukLaw = true
 }: {
   basis: PartyBasis;
   who: string;
+  ukLaw?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -30,7 +38,9 @@ export function BasisFields({
           />
         </legend>
         <div className="grid gap-1.5 sm:grid-cols-2">
-          {LAWFUL_BASIS_KEYS.map((b) => (
+          {LAWFUL_BASIS_KEYS.filter(
+            (b) => basesFor(ukLaw).includes(b) || basis.lawfulBases.includes(b)
+          ).map((b) => (
             <label
               key={b}
               className="flex items-start gap-2.5 text-sm"

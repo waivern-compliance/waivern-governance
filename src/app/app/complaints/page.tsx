@@ -20,10 +20,7 @@ import {
   complaintRegister,
   complaintTargets
 } from '@/services/complaints';
-import {
-  defaultJurisdiction,
-  loadRequest
-} from '@/services/data-subject-requests';
+import { loadRequest } from '@/services/data-subject-requests';
 import { intakeLinksFor } from '@/services/dsr-intake';
 
 import { ActionForm } from '../requests/ActionForm';
@@ -54,13 +51,12 @@ export default async function ComplaintsPage({
 
   const org = active.membership.organisationId;
   const { request: requestId } = await searchParams;
-  const [register, orgEntities, jurisdiction, targets, about, metrics, links] =
+  const [register, orgEntities, targets, about, metrics, links] =
     await Promise.all([
       complaintRegister(org, visibleEntityIds(active, 'dsr.handle')),
       scoped(org, () =>
         db.select().from(entities).where(eq(entities.organisationId, org))
       ),
-      defaultJurisdiction(org),
       complaintTargets(org),
       requestId && /^[0-9a-f-]{36}$/i.test(requestId)
         ? loadRequest(requestId, org)
@@ -282,11 +278,12 @@ export default async function ComplaintsPage({
                 />
                 <select
                   name="jurisdiction"
-                  defaultValue={
-                    aboutRequest?.request.jurisdiction ?? jurisdiction
-                  }
+                  defaultValue={aboutRequest?.request.jurisdiction ?? ''}
                   className={inputClass}
                 >
+                  <option value="">
+                    The entity&apos;s law (UK where it is subject to both)
+                  </option>
                   <option value="uk">UK GDPR and DPA 2018</option>
                   <option value="eu">EU GDPR</option>
                 </select>

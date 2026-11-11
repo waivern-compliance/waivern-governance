@@ -22,14 +22,14 @@ import {
   type ComplaintClock,
   type ComplaintOutcome
 } from '@/lib/complaints/statutory';
+import {
+  defaultComplaintJurisdiction,
+  jurisdictionRefusal
+} from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
 import { BadQuery } from '@/lib/integration/query';
 
-import {
-  CHANNELS,
-  defaultJurisdiction,
-  type ControllerRole
-} from './data-subject-requests';
+import { CHANNELS, type ControllerRole } from './data-subject-requests';
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 import { monthsEnding } from './trends';
@@ -252,7 +252,7 @@ export async function recordComplaint(input: {
   complainantContact?: string | null;
   representative?: string | null;
   controllerRole?: ControllerRole;
-  /** Defaults to the organisation's. */
+  /** Defaults to the entity's law, UK where it is subject to both (`defaultComplaintJurisdiction`). */
   jurisdiction?: Jurisdiction;
   /** The request it is about, if it is about one. */
   requestId?: string | null;
@@ -279,8 +279,14 @@ export async function recordComplaint(input: {
     await assertEntityIn(input.organisationId, input.entityId);
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
+    const [entity] = await db
+      .select({ name: entities.name, law: entities.dataProtectionLaw })
+      .from(entities)
+      .where(eq(entities.id, input.entityId));
     const jurisdiction =
-      input.jurisdiction ?? (await defaultJurisdiction(input.organisationId));
+      input.jurisdiction ?? defaultComplaintJurisdiction(entity.law);
+    const refusal = jurisdictionRefusal(entity, jurisdiction, 'complaint');
+    if (refusal) throw new ComplaintRefused(refusal);
     const reference = await nextReference(
       input.organisationId,
       new Date().getUTCFullYear()

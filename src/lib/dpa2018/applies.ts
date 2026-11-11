@@ -38,10 +38,30 @@ export function defaultRequestJurisdiction(
   return law === 'uk' ? 'uk' : law === 'eu' ? 'eu' : organisationDefault;
 }
 
-/** Whether a request under this jurisdiction can be made to the entity at all. */
-export function jurisdictionAllowed(
-  law: DataProtectionLaw,
-  jurisdiction: 'uk' | 'eu'
-): boolean {
-  return law === 'uk_eu' || law === jurisdiction;
+/**
+ * The jurisdiction a complaint to the entity is handled under, where it is not
+ * stated. Unlike a request, the organisation's default does not decide for an
+ * entity under both laws: the duty to acknowledge within 30 days (DPA 2018
+ * s.164A) applies wherever UK law does, and the EU GDPR sets no period, so the
+ * UK clock is the one that can be missed.
+ */
+export function defaultComplaintJurisdiction(
+  law: DataProtectionLaw
+): 'uk' | 'eu' {
+  return law === 'eu' ? 'eu' : 'uk';
+}
+
+/**
+ * Why a request or complaint cannot be handled under this jurisdiction, or
+ * null where it can: an entity under one law only cannot be asked to answer
+ * under the other.
+ */
+export function jurisdictionRefusal(
+  entity: { name: string; law: DataProtectionLaw },
+  jurisdiction: 'uk' | 'eu',
+  what: 'request' | 'complaint'
+): string | null {
+  if (entity.law === 'uk_eu' || entity.law === jurisdiction) return null;
+  const law = (j: 'uk' | 'eu') => (j === 'uk' ? 'UK' : 'EU');
+  return `${entity.name} is recorded as subject to ${law(entity.law)} law only, so a ${what} to it cannot be handled under ${law(jurisdiction)} law. Change the entity's law on the Organisation page if it is wrong.`;
 }

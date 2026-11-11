@@ -12,6 +12,7 @@ import {
   suppliers,
   users
 } from '@/db/schema';
+import { ukLawApplies } from '@/lib/dpa2018/applies';
 import { describeArt10, describeSchedule1 } from '@/lib/dpa2018/schedule-1';
 import {
   GATEWAY_KINDS,
@@ -65,8 +66,15 @@ export default async function SharingAgreementPage({
   const org = active.membership.organisationId;
   const loaded = await loadSharingAgreement(id, org);
   if (!loaded) notFound();
-  const { agreement, entityName, ownerEmail, parties, activities, gaps } =
-    loaded;
+  const {
+    agreement,
+    entityName,
+    entityLaw,
+    ownerEmail,
+    parties,
+    activities,
+    gaps
+  } = loaded;
   if (!can(active.membership.grants, 'record.read', agreement.entityId)) {
     return (
       <NotPermitted
@@ -383,6 +391,7 @@ export default async function SharingAgreementPage({
           <BasisFields
             basis={agreement}
             who="Our"
+            ukLaw={ukLawApplies(entityLaw)}
           />
           <fieldset className="space-y-1.5">
             <legend>
