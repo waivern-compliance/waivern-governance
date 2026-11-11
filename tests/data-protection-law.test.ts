@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import { entities, organisations, processingActivities } from '@/db/schema';
 import {
+  defaultComplaintJurisdiction,
   defaultRequestJurisdiction,
-  jurisdictionAllowed,
+  jurisdictionRefusal,
   ukLawApplies
 } from '@/lib/dpa2018/applies';
 import {
@@ -14,7 +15,12 @@ import {
   conditionGaps,
   type SpecialCategoryRecord
 } from '@/lib/dpa2018/schedule-1';
-import { basesFor, lawfulBasisGaps } from '@/lib/gdpr/lawful-basis';
+import {
+  basesFor,
+  basesFromTextFor,
+  basesUnder,
+  lawfulBasisGaps
+} from '@/lib/gdpr/lawful-basis';
 import type { AuthedConnection } from '@/lib/integration/auth';
 import { navFor } from '@/lib/nav';
 import type { Grant } from '@/lib/rbac';
@@ -93,8 +99,17 @@ describe('the rules', () => {
     assert.equal(defaultRequestJurisdiction('eu', 'uk'), 'eu');
     assert.equal(defaultRequestJurisdiction('uk', 'eu'), 'uk');
     assert.equal(defaultRequestJurisdiction('uk_eu', 'eu'), 'eu');
-    assert.equal(jurisdictionAllowed('eu', 'uk'), false);
-    assert.equal(jurisdictionAllowed('uk_eu', 'uk'), true);
+    assert.match(
+      jurisdictionRefusal({ name: 'E', law: 'eu' }, 'uk', 'request') ?? '',
+      /EU law only, so a request/
+    );
+    assert.equal(
+      jurisdictionRefusal({ name: 'E', law: 'uk_eu' }, 'uk', 'complaint'),
+      null
+    );
+    // s.164A applies wherever UK law does, whatever the organisation's default.
+    assert.equal(defaultComplaintJurisdiction('uk_eu'), 'uk');
+    assert.equal(defaultComplaintJurisdiction('eu'), 'eu');
   });
 
   it('ask Schedule 1 and the policy document only under UK law, and take Member State law for Article 10 only under EU law', () => {
@@ -298,6 +313,21 @@ describe('recognised legitimate interests', () => {
       lawfulBasisGaps({ bases, recognisedCondition: 'crime' }),
       []
     );
+    // Text naming it is not read under EU law only; it stays as the note.
+    assert.equal(
+      basesFromTextFor('Recognised legitimate interests', false),
+      null
+    );
+    assert.deepEqual(basesFromTextFor('Contract', false), ['contract']);
+    assert.deepEqual(
+      basesFromTextFor('Recognised legitimate interests', true),
+      ['recognised_legitimate_interests']
+    );
+    // Rules that assume (ea), such as Article 22B's bar, do not judge it again.
+    assert.deepEqual(
+      basesUnder(['recognised_legitimate_interests', 'contract'], false),
+      ['contract']
+    );
   });
 
   it('is refused on an EU-only entity, and an existing reliance shows as a serious gap', async () => {
@@ -404,6 +434,30 @@ describe('recognised legitimate interests', () => {
     assert.equal(out.skipped.length, 1);
     assert.equal(out.skipped[0].externalRef, 'eu-1');
     assert.match(out.skipped[0].reason, /UK law only/);
+
+    // Named only in the free text: the record arrives, with the text as the note.
+    const fromText = await ingestProcessingActivities(portal, [
+      {
+        ...record,
+        lawfulBases: undefined,
+        recognisedCondition: undefined,
+        lawfulBasis: 'Recognised legitimate interests',
+        externalRef: 'eu-2',
+        entity: 'Europe GmbH'
+      }
+    ]);
+    assert.equal(fromText.created, 1);
+    const [row] = await db
+      .select()
+      .from(processingActivities)
+      .where(
+        and(
+          eq(processingActivities.organisationId, w.org.id),
+          eq(processingActivities.externalRef, 'eu-2')
+        )
+      );
+    assert.deepEqual(row.lawfulBases, []);
+    assert.equal(row.lawfulBasis, 'Recognised legitimate interests');
   });
 });
 
@@ -421,6 +475,22 @@ describe('complaints', () => {
       actor: SYSTEM
     };
     assert.equal((await recordComplaint(base)).jurisdiction, 'eu');
+    const [dual] = await db
+      .insert(entities)
+      .values({
+        organisationId: w.org.id,
+        name: 'Both Ltd',
+        dataProtectionLaw: 'uk_eu'
+      })
+      .returning();
+    await db
+      .update(organisations)
+      .set({ dataProtectionJurisdiction: 'eu' })
+      .where(eq(organisations.id, w.org.id));
+    assert.equal(
+      (await recordComplaint({ ...base, entityId: dual.id })).jurisdiction,
+      'uk'
+    );
     await assert.rejects(
       recordComplaint({ ...base, jurisdiction: 'uk' }),
       /EU law only/

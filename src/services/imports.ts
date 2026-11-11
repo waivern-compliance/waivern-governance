@@ -14,7 +14,8 @@ import {
   suppliers
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { basesFromText } from '@/lib/gdpr/lawful-basis';
+import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
 import {
   convertRow,
   FIELDS,
@@ -492,9 +493,10 @@ export async function previewImport(input: {
 
 /** The activity fields an import writes, from a checked record. */
 function activityValues(
-  data: Extract<ImportRecord, { kind: 'processing_activity' }>['data']
+  data: Extract<ImportRecord, { kind: 'processing_activity' }>['data'],
+  ukLaw: boolean
 ) {
-  const bases = basesFromText(data.lawfulBasis);
+  const bases = basesFromTextFor(data.lawfulBasis, ukLaw);
   return {
     name: data.name,
     description: data.description ?? null,
@@ -503,7 +505,7 @@ function activityValues(
     // Always written, so a re-import never leaves the old bases behind text
     // that no longer says them.
     ...(bases
-      ? cleanLawfulBases(bases, null)
+      ? cleanLawfulBases(bases, null, ukLaw)
       : { lawfulBases: [], recognisedCondition: null }),
     dataCategories: data.dataCategories,
     subjectCategories: data.subjectCategories,
@@ -601,7 +603,10 @@ export async function commitImport(input: {
         .orderBy(importRows.rowNumber);
       const [entity] = batch.entityId
         ? await tx
-            .select({ defaultRegime: entities.defaultRegime })
+            .select({
+              defaultRegime: entities.defaultRegime,
+              dataProtectionLaw: entities.dataProtectionLaw
+            })
             .from(entities)
             .where(eq(entities.id, batch.entityId))
         : [];
@@ -632,7 +637,10 @@ export async function commitImport(input: {
 
         if (record.kind === 'processing_activity') {
           const values = {
-            ...activityValues(record.data),
+            ...activityValues(
+              record.data,
+              ukLawApplies(entity?.dataProtectionLaw)
+            ),
             legacy: record.legacy,
             importBatchId: batch.id,
             // Changed by the import, so it is history again until confirmed.

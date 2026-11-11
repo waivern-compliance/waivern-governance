@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import { eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import { entities, organisations } from '@/db/schema';
@@ -436,5 +437,47 @@ describe('the register', () => {
     const year = new Date().getUTCFullYear();
     assert.equal(a.reference, `DSA-${year}-0001`);
     assert.equal(b.reference, `DSA-${year}-0002`);
+  });
+});
+
+describe('recognised legitimate interests on our side', () => {
+  it('is refused for an entity under EU law only, and allowed under UK law', async () => {
+    const w = await world('ea');
+    await db
+      .update(entities)
+      .set({ dataProtectionLaw: 'eu' })
+      .where(eq(entities.id, w.other.id));
+    const changes = {
+      ...CHANGES,
+      schedule1Condition: null,
+      lawfulBases: ['recognised_legitimate_interests']
+    };
+    const eu = await createSharingAgreement({
+      organisationId: w.org.id,
+      entityId: w.other.id,
+      title: 'EU ISA',
+      actor: SYSTEM
+    });
+    await assert.rejects(
+      updateSharingAgreement({
+        id: eu.id,
+        organisationId: w.org.id,
+        changes,
+        actor: SYSTEM
+      }),
+      (e: Error) => e instanceof SharingRefused && /UK law only/.test(e.message)
+    );
+    const uk = await createSharingAgreement({
+      organisationId: w.org.id,
+      entityId: w.council.id,
+      title: 'UK ISA',
+      actor: SYSTEM
+    });
+    await updateSharingAgreement({
+      id: uk.id,
+      organisationId: w.org.id,
+      changes,
+      actor: SYSTEM
+    });
   });
 });

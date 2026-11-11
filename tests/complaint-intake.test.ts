@@ -145,6 +145,18 @@ describe('complaints through the public form', () => {
     );
   });
 
+  it('runs the s.164A clock for an entity under both laws, whatever the organisation default', async () => {
+    const w = await form('dual', { dataProtectionLaw: 'uk_eu' });
+    await db
+      .update(organisations)
+      .set({ dataProtectionJurisdiction: 'eu' })
+      .where(eq(organisations.id, w.org.id));
+    assert.equal((await openIntakeLink(w.link.slug))?.ukLaw, true);
+    const result = await complaint(w.link.slug);
+    assert.ok(result.ok);
+    assert.match(result.dueWords, /by \d/);
+  });
+
   it('files an unknown subject as something else, and asks for what is missing', async () => {
     const w = await form('missing');
     assert.ok((await complaint(w.link.slug, { subject: 'nonsense' })).ok);

@@ -111,7 +111,7 @@ export const DPIA: TemplateDefinition = {
               { value: 'public_task', label: 'Public task' },
               {
                 value: 'recognised_legitimate_interests',
-                label: 'Recognised legitimate interests (Annex 1)'
+                label: 'Recognised legitimate interests (Annex 1, UK law only)'
               },
               { value: 'legitimate_interests', label: 'Legitimate interests' }
             ]

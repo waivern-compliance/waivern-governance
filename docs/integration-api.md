@@ -132,6 +132,11 @@ interests"); text that does not is kept as the note and no basis is guessed, and
 basis already chosen in Waivern Governance Tool is left as it was. Exports carry all
 three fields, with `lawfulBasis` as the note.
 
+Recognised legitimate interests exists in UK law only. For an entity recorded as
+subject to EU law only, a record whose `lawfulBases` includes it is **skipped with
+the reason**, as an unknown entity is; text in `lawfulBasis` naming it is not read as
+a basis and is kept as the note.
+
 **Automated decisions, further processing, research and children.** Four more
 optional fields on a processing activity, in the same shape both ways. Each is a
 group: on ingest, a group that is sent replaces what is recorded for it, and a

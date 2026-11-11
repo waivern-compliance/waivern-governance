@@ -163,6 +163,23 @@ export function basesFromText(
 }
 
 /**
+ * The bases free text names, read as `basesFromText` does, for a record whose
+ * entity may be under EU law only. There, text naming recognised legitimate
+ * interests is not read at all: the basis does not exist, so the text stays
+ * as the note for a person to resolve, rather than refusing the whole record
+ * over a word in a note.
+ */
+export function basesFromTextFor(
+  text: string | null | undefined,
+  ukLaw: boolean
+): LawfulBasis[] | null {
+  const bases = basesFromText(text);
+  return !ukLaw && bases?.includes('recognised_legitimate_interests')
+    ? null
+    : bases;
+}
+
+/**
  * The bases open to a record. Recognised legitimate interests is the UK's own
  * (point (ea), inserted by the DUAA): the EU GDPR's Article 6(1) has the six
  * original bases only, so where UK law does not apply it is not offered.
@@ -173,6 +190,20 @@ export function basesFor(ukLaw: boolean): LawfulBasis[] {
     : LAWFUL_BASIS_KEYS.filter((b) => b !== 'recognised_legitimate_interests');
 }
 
+/**
+ * The recorded bases that exist under the record's law. A basis that does not
+ * (recognised legitimate interests under EU law only) is reported once, as
+ * `recognised_not_uk_law`, and not judged again by rules that assume it, such
+ * as Article 22B's bar on (ea).
+ */
+export function basesUnder(
+  bases: readonly LawfulBasis[],
+  ukLaw: boolean
+): LawfulBasis[] {
+  const open = basesFor(ukLaw);
+  return bases.filter((b) => open.includes(b));
+}
+
 export type LawfulBasisGap =
   'no_basis' | 'no_recognised_condition' | 'recognised_not_uk_law';
 
@@ -181,7 +212,7 @@ export const LAWFUL_BASIS_GAP_WORDS: Record<LawfulBasisGap, string> = {
   no_recognised_condition:
     'Recognised legitimate interests with no Annex 1 condition',
   recognised_not_uk_law:
-    'Relies on recognised legitimate interests, which is UK law only, under EU law only (EU GDPR Article 6(1))'
+    'Relies on recognised legitimate interests, but the entity is under EU law only, which has no such basis (EU GDPR Article 6(1))'
 };
 
 /**

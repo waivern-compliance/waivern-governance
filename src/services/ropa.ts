@@ -54,6 +54,7 @@ import {
   type FurtherProcessingGap
 } from '@/lib/gdpr/further-processing';
 import {
+  basesUnder,
   isLawfulBasis,
   isRecognisedCondition,
   LAWFUL_BASIS_GAP_WORDS,
@@ -288,7 +289,13 @@ export function article30Gaps(
       );
     }
     // Articles 22A–22C, only where significant decisions are solely automated.
-    gaps.push(...admGaps(activity, activity.lawfulBases ?? [], 'uk_gdpr'));
+    gaps.push(
+      ...admGaps(
+        activity,
+        basesUnder(activity.lawfulBases ?? [], context.ukLaw ?? true),
+        'uk_gdpr'
+      )
+    );
     // Articles 8A, 13(5) and 84C, only where further processing or research is recorded.
     gaps.push(...furtherProcessingGaps(activity, originalConsent));
     // Section 36(4): data first collected for law enforcement, reused here.
@@ -432,7 +439,7 @@ export function cleanLawfulBases(
   bases: readonly string[],
   condition: string | null | undefined,
   /** False where the entity is subject to EU law only: (ea) does not exist there. */
-  ukLaw = true
+  ukLaw: boolean
 ): {
   lawfulBases: LawfulBasis[];
   recognisedCondition: RecognisedCondition | null;

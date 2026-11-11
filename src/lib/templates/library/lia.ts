@@ -42,7 +42,7 @@ export const LIA: TemplateDefinition = {
             label: 'Does an Annex 1 condition apply?',
             type: 'single_select',
             required: true,
-            help: 'Only these five. Anything else, however worthy, is an ordinary legitimate interest and needs the full test.',
+            help: 'Only these five. Anything else, however worthy, is an ordinary legitimate interest and needs the full test. UK law only: for an entity subject to EU law only, answer no.',
             legalRefs: ['ukgdpr.art6.1ea', 'ukgdpr.annex1'],
             evidence: 'none',
             options: [

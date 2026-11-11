@@ -213,19 +213,31 @@ describe('Article 30 completeness', () => {
 
   it('refuses unknown bases, and drops a condition nothing relies on', () => {
     assert.throws(
-      () => cleanLawfulBases(['vibes'], null),
+      () => cleanLawfulBases(['vibes'], null, true),
       /Not a lawful basis/
     );
     assert.throws(
-      () => cleanLawfulBases(['recognised_legitimate_interests'], 'marketing'),
+      () =>
+        cleanLawfulBases(
+          ['recognised_legitimate_interests'],
+          'marketing',
+          true
+        ),
       /Not an Annex 1 condition/
     );
-    assert.deepEqual(cleanLawfulBases(['contract', 'contract'], 'crime'), {
-      lawfulBases: ['contract'],
-      recognisedCondition: null
-    });
     assert.deepEqual(
-      cleanLawfulBases(['recognised_legitimate_interests'], 'safeguarding'),
+      cleanLawfulBases(['contract', 'contract'], 'crime', true),
+      {
+        lawfulBases: ['contract'],
+        recognisedCondition: null
+      }
+    );
+    assert.deepEqual(
+      cleanLawfulBases(
+        ['recognised_legitimate_interests'],
+        'safeguarding',
+        true
+      ),
       {
         lawfulBases: ['recognised_legitimate_interests'],
         recognisedCondition: 'safeguarding'

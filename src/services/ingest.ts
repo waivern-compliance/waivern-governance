@@ -24,7 +24,7 @@ import {
   cleanFurtherProcessing,
   FurtherProcessingRefused
 } from '@/lib/gdpr/further-processing';
-import { basesFromText } from '@/lib/gdpr/lawful-basis';
+import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
 import { connectionActor, type AuthedConnection } from '@/lib/integration/auth';
 import type {
   AiUseCaseIn,
@@ -89,14 +89,35 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  * to the default: silently filing another legal entity's records under the
  * wrong one is worse than rejecting the batch.
  */
+type ResolvedEntity =
+  | { ok: true; entityId: string; law: DataProtectionLaw }
+  | { ok: false; reason: string };
+
+/**
+ * `resolveEntity` for one batch, looked up once per distinct name: a push of
+ * hundreds of records to one entity is one query, not hundreds.
+ */
+function entityResolver(
+  organisationId: string,
+  connection: AuthedConnection
+): (named: string | undefined) => Promise<ResolvedEntity> {
+  const seen = new Map<string, Promise<ResolvedEntity>>();
+  return (named) => {
+    const key = named ?? '';
+    let found = seen.get(key);
+    if (!found) {
+      found = resolveEntity(organisationId, connection, named);
+      seen.set(key, found);
+    }
+    return found;
+  };
+}
+
 async function resolveEntity(
   organisationId: string,
   connection: AuthedConnection,
   named: string | undefined
-): Promise<
-  | { ok: true; entityId: string; law: DataProtectionLaw }
-  | { ok: false; reason: string }
-> {
+): Promise<ResolvedEntity> {
   if (!named) {
     const [fallback] = await db
       .select()
@@ -169,12 +190,9 @@ export async function ingestProcessingActivities(
     const actor = connectionActor(connection);
     const year = new Date().getUTCFullYear();
 
+    const entityOf = entityResolver(connection.organisationId, connection);
     for (const r of records) {
-      const entity = await resolveEntity(
-        connection.organisationId,
-        connection,
-        r.entity
-      );
+      const entity = await entityOf(r.entity);
       if (!entity.ok) {
         outcome.skipped.push({
           externalRef: r.externalRef,
@@ -261,7 +279,9 @@ export async function ingestProcessingActivities(
           // unambiguous. Where neither says anything, a basis somebody chose in
           // Govern is left alone rather than wiped by a push that had no view.
           const bases =
-            r.lawfulBases ?? basesFromText(r.lawfulBasis) ?? undefined;
+            r.lawfulBases ??
+            basesFromTextFor(r.lawfulBasis, ukLawApplies(entity.law)) ??
+            undefined;
           const condition =
             r.recognisedCondition ??
             (bases?.includes('recognised_legitimate_interests')
@@ -449,12 +469,9 @@ export async function ingestAiUseCases(
     };
     const actor = connectionActor(connection);
 
+    const entityOf = entityResolver(connection.organisationId, connection);
     for (const r of records) {
-      const entity = await resolveEntity(
-        connection.organisationId,
-        connection,
-        r.entity
-      );
+      const entity = await entityOf(r.entity);
       if (!entity.ok) {
         outcome.skipped.push({
           externalRef: r.externalRef,
@@ -723,12 +740,9 @@ export async function ingestEvidence(
     };
     const actor = connectionActor(connection);
 
+    const entityOf = entityResolver(connection.organisationId, connection);
     for (const r of records) {
-      const entity = await resolveEntity(
-        connection.organisationId,
-        connection,
-        r.entity
-      );
+      const entity = await entityOf(r.entity);
       if (!entity.ok) {
         outcome.skipped.push({
           externalRef: r.externalRef,
