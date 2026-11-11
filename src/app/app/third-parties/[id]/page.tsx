@@ -6,6 +6,7 @@ import { Discussion } from '@/components/Discussion';
 import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
 import { GapChips } from '@/components/GapChips';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { StartAssessment } from '@/components/StartAssessment';
 import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
@@ -33,6 +34,7 @@ import {
 } from '@/lib/thirdparty/ai-procurement';
 import { documentsFor } from '@/services/documents';
 import { extractionAvailable, latestExtraction } from '@/services/extraction';
+import { importSourceName } from '@/services/imports';
 import { agreementsFor } from '@/services/sharing-agreements';
 import { GAP_WORDS, HARD_GAPS, loadSupplier } from '@/services/third-party';
 
@@ -134,8 +136,15 @@ export default async function SupplierPage({
   const here = `/app/third-parties/${supplier.id}`;
 
   const needsConfirming = Boolean(
-    supplier.sourceConnectionId && !supplier.reviewedAt
+    (supplier.sourceConnectionId || supplier.importSourceId) &&
+    !supplier.reviewedAt
   );
+  const importedFrom = supplier.importSourceId
+    ? ((await importSourceName(
+        active.membership.organisationId,
+        supplier.importSourceId
+      )) ?? 'another platform')
+    : null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
@@ -152,7 +161,9 @@ export default async function SupplierPage({
         <p className="text-xs text-ink-soft">
           {supplier.sourceConnectionId
             ? 'Reported by a connected tool'
-            : 'Recorded by a person'}
+            : importedFrom
+              ? `Imported from ${importedFrom}`
+              : 'Recorded by a person'}
           {supplier.reviewedAt
             ? ` · confirmed ${day(supplier.reviewedAt)}`
             : ''}
@@ -180,16 +191,29 @@ export default async function SupplierPage({
         ) : null}
       </header>
 
+      {importedFrom ? (
+        <ImportedFrom
+          sourceName={importedFrom}
+          batchId={supplier.importBatchId}
+          // Its confirmation is the one below, shared with reported suppliers.
+          confirmed
+          legacy={supplier.legacy}
+        />
+      ) : null}
+
       {needsConfirming && mayEdit ? (
         <section className="space-y-3 rounded border border-amber-700 bg-amber-50 p-5">
           <h2 className="text-sm font-semibold text-amber-900">
-            A tool reported this. Is it really your processor?
+            {importedFrom
+              ? `Imported from ${importedFrom}. Is it really your processor?`
+              : 'A tool reported this. Is it really your processor?'}
           </h2>
           <p className="max-w-prose text-xs text-amber-900">
-            A scanner sees a third party on a page; it cannot tell whether that
-            party processes personal data on your behalf, or is a recipient in
-            its own right, or was a mistake. Confirming records that a person
-            looked - it does not assert an agreement exists.
+            A scanner, or another platform&rsquo;s list, names a third party; it
+            cannot tell whether that party processes personal data on your
+            behalf, or is a recipient in its own right, or was a mistake.
+            Confirming records that a person looked - it does not assert an
+            agreement exists.
           </p>
           <form action={confirmSupplierAction.bind(null, supplier.id)}>
             <button

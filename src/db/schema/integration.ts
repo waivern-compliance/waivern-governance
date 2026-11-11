@@ -47,6 +47,7 @@ import {
   recordType,
   supplierAiInvolvement
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { risks } from './risks';
 import { entities, organisations, users } from './tenancy';
 
@@ -290,6 +291,20 @@ export const processingActivities = pgTable(
       { onDelete: 'set null' }
     ),
     externalRef: text('external_ref'),
+    /**
+     * Brought in from another platform (docs/migration-plan.md): the source,
+     * the batch, and the source's fields with no home here, kept to read.
+     */
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /** An imported activity confirmed by a person here; until then it is history. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
 
     reviewDueAt: timestamp('review_due_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -309,6 +324,12 @@ export const processingActivities = pgTable(
     uniqueIndex('processing_activity_external')
       .on(t.organisationId, t.sourceConnectionId, t.externalRef)
       .where(sql`${t.externalRef} is not null`),
+    // The same for a platform it was imported from.
+    uniqueIndex('processing_activity_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     index('processing_activity_entity_idx').on(t.organisationId, t.entityId)
   ]
 );
@@ -361,6 +382,18 @@ export const suppliers = pgTable(
       { onDelete: 'set null' }
     ),
     externalRef: text('external_ref'),
+    /**
+     * Brought in from another platform (docs/migration-plan.md): the source,
+     * the batch, and the source's fields with no home here, kept to read.
+     */
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

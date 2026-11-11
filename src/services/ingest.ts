@@ -123,7 +123,7 @@ async function resolveEntity(
     : { ok: false, reason: `Unknown entity "${named}"` };
 }
 
-async function nextReference(
+export async function nextReference(
   tx: Tx,
   organisationId: string,
   prefix: string,

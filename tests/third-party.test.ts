@@ -30,6 +30,9 @@ function supplier(over: Partial<Supplier> = {}): Supplier {
     role: 'processor',
     sourceConnectionId: null,
     externalRef: null,
+    importSourceId: null,
+    importBatchId: null,
+    legacy: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...over

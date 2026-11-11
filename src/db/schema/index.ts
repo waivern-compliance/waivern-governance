@@ -14,6 +14,7 @@ export * from './documents';
 export * from './extraction';
 export * from './profiles';
 export * from './requests';
+export * from './imports';
 export * from './foi';
 export * from './complaints';
 export * from './pecr';

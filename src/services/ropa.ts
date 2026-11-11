@@ -107,7 +107,8 @@ export type Article30Gap =
   | Part3FurtherGap
   | 'controller_recipient_no_agreement'
   | 'no_owner'
-  | 'review_overdue';
+  | 'review_overdue'
+  | 'import_unconfirmed';
 
 export const GAP_WORDS: Record<Article30Gap, string> = {
   purposes: 'No purposes recorded',
@@ -134,7 +135,9 @@ export const GAP_WORDS: Record<Article30Gap, string> = {
   controller_recipient_no_agreement:
     'Shares with another controller that no current data sharing agreement covers',
   no_owner: 'No named owner',
-  review_overdue: 'Review overdue'
+  review_overdue: 'Review overdue',
+  import_unconfirmed:
+    'Imported from another platform and not yet confirmed by a person'
 };
 
 /**
@@ -312,6 +315,9 @@ export function article30Gaps(
   )
     gaps.push('controller_recipient_no_agreement');
   if (!activity.ownerId) gaps.push('no_owner');
+  // Brought in from another platform: nobody here has checked it yet.
+  if (activity.importBatchId && !activity.importConfirmedAt)
+    gaps.push('import_unconfirmed');
   if (activity.reviewDueAt && activity.reviewDueAt.getTime() <= Date.now()) {
     gaps.push('review_overdue');
   }

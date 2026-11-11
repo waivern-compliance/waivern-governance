@@ -62,6 +62,7 @@ Every help topic the application carries, in the order it presents them.
 - [Who approves what, and changing it](#who-approves-what-and-changing-it) - Approvers are named by role rather than by person, so a departure is handled by moving the role - and both are managed on one screen.
 - [AI governance framework](#ai-governance-framework) - Whether AI risk follows the UK framework or NIST AI RMF, and what changes when the organisation moves from one to the other.
 - [Connected tools](#connected-tools) - Signed endpoints that let the Compliance Portal and scanning tools push records in and pull current state out.
+- [Importing records from another platform](#importing-records-from-another-platform) - Bring processing activities and suppliers in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
 - [The organisation and its legal entities](#the-organisation-and-its-legal-entities) - What this organisation is called, the legal entities within it, and who may add them.
 - [Accepting Waivern's terms and Data Processing Agreement](#accepting-waiverns-terms-and-data-processing-agreement) - On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.
 - [Giving somebody access](#giving-somebody-access) - Grant a role, confine it to one entity, suspend or reinstate. Every change is written to the audit log.
@@ -1641,6 +1642,40 @@ The Portal reads the register back, with each system's gaps and its latest appro
 **See also:** Scan findings · Third parties and processor agreements (Article 28) · The processing register (Article 30) · The AI register
 
 <sub>Also searchable as: api, integration, portal, har analyser, webhook, sync, connection</sub>
+
+## Importing records from another platform
+
+*Bring processing activities and suppliers in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
+
+**Screen:** `/app/admin/imports`
+
+### How an import works
+
+Under Settings, an owner or privacy administrator uploads an export: a CSV file or an Excel workbook, with column names in the first row, up to 5,000 rows. Say what it holds (processing activities, or suppliers and vendors) and which platform it comes from. Then match each of Govern's fields to the column that holds it; columns are matched by their names to start with, so check them.
+
+Preview shows what every row would become: new, an update to a record imported before, added to a supplier already recorded, or not imported, with the reason. Nothing is written until you import, and then every previewed record is written in one step, or none is.
+
+Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.
+
+### Importing again
+
+Give a column with each record's ID in the other platform. Importing the same platform's file again then updates the records it brought in before; it never duplicates them. Without an ID column, the name is used instead. A supplier whose name is already recorded is added to, not duplicated: what the file says about it joins what is known.
+
+The matching of columns is remembered for each platform and kind of record, and offered again next time.
+
+### Where imported records stand
+
+Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.
+
+An imported processing activity shows the gap "not yet confirmed" on the register until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
+
+### Undoing an import
+
+An import can be undone as a whole while nobody has worked on its records since: undoing removes the records it created and puts back what it changed. Once any of them has been edited or confirmed, or is linked to an assessment, an agreement or another record, it can no longer be undone as a whole; change or remove them one by one.
+
+**See also:** Third parties and processor agreements (Article 28) · The processing register (Article 30) · Exports
+
+<sub>Also searchable as: import, migrate, migration, OneTrust, Vanta, CSV, Excel, spreadsheet, upload</sub>
 
 ## The organisation and its legal entities
 
