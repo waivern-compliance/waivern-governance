@@ -13,6 +13,7 @@ import { log } from '@/lib/log';
 import { isPlatformAdmin, platformAdmins } from '@/lib/platform';
 import {
   approveRequest,
+  createOrganisation,
   declineRequest,
   RequestRefused
 } from '@/services/organisation-requests';
@@ -50,6 +51,25 @@ export async function approveAction(
       decidedByEmail: email
     });
     return `${organisation.name} is set up. Its owner can sign in now.`;
+  });
+}
+
+export async function createOrganisationAction(
+  _prev: DecisionResult,
+  formData: FormData
+): Promise<DecisionResult> {
+  const email = await operator();
+  return decide(async () => {
+    const owner = String(formData.get('ownerEmail') ?? '');
+    const organisation = await createOrganisation({
+      organisationName: String(formData.get('organisationName') ?? ''),
+      entityName: String(formData.get('entityName') ?? ''),
+      ownerEmail: owner,
+      createdByEmail: email
+    });
+    return owner.trim().toLowerCase() === email.toLowerCase()
+      ? `${organisation.name} is set up, with you as its owner. Switch to it from the organisation menu.`
+      : `${organisation.name} is set up. ${owner.trim()} becomes its owner when they sign in.`;
   });
 }
 

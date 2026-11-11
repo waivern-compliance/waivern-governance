@@ -22,6 +22,7 @@ import { SYSTEM_TEMPLATES } from '@/lib/templates/library';
 import { DEFAULT_SLA, DEFAULT_WORKFLOWS } from '@/lib/workflow/defaults';
 import {
   approveRequest,
+  createOrganisation,
   declineRequest,
   requestOrganisation,
   RequestRefused,
@@ -220,5 +221,112 @@ describe('approving', () => {
       .from(organisations)
       .where(eq(organisations.name, 'Same Name Council'));
     assert.ok(both.length >= 2);
+  });
+});
+
+describe('creating one directly', () => {
+  const membersOf = (organisationId: string) =>
+    db
+      .select({
+        email: users.email,
+        role: roleAssignments.role,
+        scope: roleAssignments.scope
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .innerJoin(
+        roleAssignments,
+        eq(roleAssignments.membershipId, memberships.id)
+      )
+      .where(eq(memberships.organisationId, organisationId));
+
+  it('makes the operator its owner, with everything an organisation starts with', async () => {
+    const operator = await person('operator');
+    const org = await createOrganisation({
+      organisationName: 'Waivern Test Client',
+      entityName: '',
+      ownerEmail: operator.email.toUpperCase(),
+      createdByEmail: operator.email
+    });
+    assert.deepEqual(await membersOf(org.id), [
+      { email: operator.email, role: 'owner', scope: 'organisation' }
+    ]);
+    const [entity] = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.organisationId, org.id));
+    assert.equal(entity.name, 'Waivern Test Client');
+    assert.equal(entity.isDefault, true);
+    const shipped = await db
+      .select()
+      .from(templates)
+      .where(eq(templates.organisationId, org.id));
+    assert.ok(shipped.length > 0);
+    const [created] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, org.id),
+          eq(auditEvents.action, 'organisation.created')
+        )
+      );
+    assert.equal(created.actorLabel, `Waivern: ${operator.email}`);
+    assert.deepEqual(
+      (created.after as { createdDirectly: boolean }).createdDirectly,
+      true
+    );
+    assert.equal((await verifyAuditChain(org.id)).ok, true);
+  });
+
+  it('can name somebody with no account yet, who becomes owner on signing in', async () => {
+    const operator = await person('operator');
+    const contact = `contact-${crypto.randomUUID().slice(0, 8)}@client.example`;
+    const org = await createOrganisation({
+      organisationName: 'New Client',
+      entityName: 'New Client Ltd',
+      ownerEmail: contact,
+      createdByEmail: operator.email
+    });
+    assert.deepEqual(await membersOf(org.id), [
+      { email: contact, role: 'owner', scope: 'organisation' }
+    ]);
+    const [entity] = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.organisationId, org.id));
+    assert.equal(entity.name, 'New Client Ltd');
+  });
+
+  it('refuses a missing name or owner, and leaves nothing behind', async () => {
+    const operator = await person('operator');
+    await assert.rejects(
+      createOrganisation({
+        organisationName: ' ',
+        entityName: '',
+        ownerEmail: operator.email,
+        createdByEmail: operator.email
+      }),
+      RequestRefused
+    );
+    const name = `Nobody ${crypto.randomUUID().slice(0, 8)}`;
+    await assert.rejects(
+      createOrganisation({
+        organisationName: name,
+        entityName: '',
+        ownerEmail: 'not an address',
+        createdByEmail: operator.email
+      }),
+      RequestRefused
+    );
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(organisations)
+          .where(eq(organisations.name, name))
+      ).length,
+      0
+    );
   });
 });

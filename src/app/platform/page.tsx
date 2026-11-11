@@ -8,6 +8,7 @@ import { missingEmailSettings } from '@/lib/email/resend';
 import { isPlatformAdmin, platformAdmins } from '@/lib/platform';
 import { requestQueue } from '@/services/organisation-requests';
 
+import { CreateOrganisation } from './CreateOrganisation';
 import { Decision } from './Decision';
 import { TestEmail } from './TestEmail';
 
@@ -70,6 +71,17 @@ export default async function Platform() {
             settings.
           </p>
         </header>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            Create an organisation
+          </h2>
+          <p className="max-w-prose text-sm text-ink-soft">
+            For a new client, or one of Waivern&rsquo;s own, without waiting for
+            a request. It is set up as approving one does.
+          </p>
+          <CreateOrganisation operatorEmail={session.user.email} />
+        </section>
 
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
