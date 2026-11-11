@@ -76,3 +76,18 @@ export function narrowedTo(
   if (to === 'uk_eu' || recordLaw === to) return recordLaw;
   return recordLaw === 'uk_eu' ? to : null;
 }
+
+/**
+ * The laws of several records together: UK where any is under UK law, EU
+ * where any is under EU law. An AI use case is under the laws of the
+ * processing it is used in, or failing that its entity's.
+ */
+export function unionOfLaws(
+  laws: ReadonlyArray<DataProtectionLaw>,
+  fallback: DataProtectionLaw
+): DataProtectionLaw {
+  if (laws.length === 0) return fallback;
+  const uk = laws.some(appliesUk);
+  const eu = laws.some(appliesEu);
+  return uk && eu ? 'uk_eu' : eu ? 'eu' : 'uk';
+}

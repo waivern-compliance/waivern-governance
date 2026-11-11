@@ -512,11 +512,15 @@ On a record under Part 3 of the Data Protection Act 2018 the questions are Part 
 
 Data collected for a law enforcement purpose may be processed for any other purpose only where that is authorised by law (s.36(4)). So where a UK GDPR record's data comes from an activity under Part 3 - vetting staff from custody records, say - it also asks which law authorises that, and is red until it says.
 
+Under the EU GDPR the new purpose is compatible on consent, under a Union or member State law safeguarding an Article 23(1) objective, after weighing the same five factors (Article 6(4)), or because it is research, archiving or statistics (Article 5(1)(b)). There is no Annex 2 and no Article 8A(4). Research needs safeguards ensuring data minimisation, such as pseudonymisation (Article 89(1)), rather than the UK's Article 84C tests; telling people may be dispensed with under Article 14(5)(b) where the data was not obtained from them. A record under EU law only is not asked the UK questions; one under both is asked each.
+
 ### Children
 
 Say whether an online service in the processing is likely to be accessed by children, whether or not it is aimed at them; preventive and counselling services are not included. Where it is, UK GDPR Article 25(1A) requires the measures to take the children's higher protection matters into account: how children can best be protected and supported, and that they may understand less of the risks, consequences and their rights, with needs that differ by age and development.
 
 The DPIA is where that is shown. The record is flagged until a DPIA of the activity exists, and again until that DPIA says how the higher protection matters shaped the measures. The ICO's Children's code sets out what this looks like in practice.
+
+Under the EU GDPR, where an information society service is offered directly to children on the basis of consent, consent below the age of digital consent must be given or authorised by a parent (Article 8(1)). The age is set by each member State, from 13 to 16. Tick the States the service is offered in: a State whose age is above 13 is flagged so the parental consent route is in place, and a State whose age Govern has not checked against its own law is flagged as not established rather than assumed. The ages and their sources are listed on the supervisory authorities page.
 
 ### Automated decisions
 
@@ -529,6 +533,8 @@ The same questions sit on each AI use case. Link a use case to the processing ac
 On a record under Part 3 of the Data Protection Act 2018, the same questions cite ss.50A–50C. Sensitive processing may be behind the decisions only where they rest entirely on data given with explicit consent, or are required or authorised by law (s.50B); a contract is not enough, and there is no recognised legitimate interests bar. One more question is asked: whether some decisions may be taken without the safeguards. Section 50C(3) allows that only where it is required for one of five reasons - an inquiry, crime work, public security, national security or others' rights - and each such decision is reconsidered as soon as reasonably practicable with a person meaningfully involved, which the record asks you to describe.
 
 An AI use case is read under Part 3 when every processing activity it is linked to is; otherwise under the UK GDPR. A copy between the two is checked against the regime of the record it lands on, so a Part 3 condition or set-aside is refused on a UK GDPR record, and a contract condition on a Part 3 one.
+
+Under the EU GDPR the rule is the other way round. Article 22(1) gives people a right not to be subject to such a decision at all, unless it is necessary for a contract with them, authorised by Union or member State law, or based on their explicit consent (Article 22(2)). Where the record is under EU law, it asks which exception applies and, for law, which law; with none, a red flag says the decision may not be taken. For the contract and consent exceptions people must be able to obtain human intervention, express their view and contest the decision (22(3)), the same confirmations as three of the UK safeguards. Special category data is allowed only on explicit consent or substantial public interest (22(4)). A record under both laws answers both sets of questions, and each flag says which law it comes from.
 
 ### Transfers
 

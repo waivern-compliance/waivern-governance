@@ -50,6 +50,12 @@ import {
   type AdmGap
 } from '@/lib/gdpr/automated-decisions';
 import {
+  CHILDREN_GAP_WORDS,
+  childrenConsentGaps,
+  cleanChildrenStates,
+  type ChildrenGap
+} from '@/lib/gdpr/children';
+import {
   cleanFurtherProcessing,
   FURTHER_PROCESSING_GAP_WORDS,
   furtherProcessingGaps,
@@ -118,6 +124,7 @@ export type Article30Gap =
   | FurtherProcessingGap
   | 'children_no_dpia'
   | 'children_dpia_unanswered'
+  | ChildrenGap
   | 'public_authority_legitimate_interests'
   | ConditionGap
   | Part3Gap
@@ -148,6 +155,7 @@ export const GAP_WORDS: Record<Article30Gap, string> = {
   children_no_dpia: 'Likely accessed by children, with no DPIA',
   children_dpia_unanswered:
     "Likely accessed by children; the DPIA does not say how the children's higher protection matters were taken into account",
+  ...CHILDREN_GAP_WORDS,
   public_authority_legitimate_interests:
     'Public authority relying on legitimate interests or recognised legitimate interests for its tasks (Article 6(1))',
   ...CONDITION_GAP_WORDS,
@@ -187,6 +195,7 @@ export const HARD_GAPS: Article30Gap[] = [
   'ea_without_eu_basis',
   'f_by_eu_public_body',
   'adm_relies_on_ea',
+  'adm_eu_no_exception',
   'adm_special_no_condition',
   'further_route_closed',
   'public_authority_legitimate_interests',
@@ -206,8 +215,19 @@ export const GAP_LAW: Partial<Record<Article30Gap, Law>> = {
   ea_without_eu_basis: 'eu',
   f_by_eu_public_body: 'eu',
   adm_relies_on_ea: 'uk',
+  adm_safeguards: 'uk',
+  adm_eu_no_exception: 'eu',
+  adm_eu_law_unnamed: 'eu',
+  adm_eu_safeguards: 'eu',
+  further_no_route: 'uk',
+  further_route_incomplete: 'uk',
   further_route_closed: 'uk',
   research_safeguards: 'uk',
+  eu_further_no_route: 'eu',
+  eu_further_route_incomplete: 'eu',
+  eu_research_safeguards: 'eu',
+  children_age_unknown: 'eu',
+  children_parental_consent: 'eu',
   art13_no_public_information: 'uk',
   children_no_dpia: 'uk',
   children_dpia_unanswered: 'uk',
@@ -360,11 +380,20 @@ export function article30Gaps(
       ...admGaps(
         activity,
         basesUnder(activity.lawfulBases ?? [], ukLaw),
-        'gdpr'
+        'gdpr',
+        laws
       )
     );
     // Articles 8A, 13(5) and 84C, only where further processing or research is recorded.
-    gaps.push(...furtherProcessingGaps(activity, originalConsent));
+    gaps.push(...furtherProcessingGaps(activity, originalConsent, laws));
+    // EU Article 8(1): a service offered to children on consent, by State.
+    gaps.push(
+      ...childrenConsentGaps({
+        laws,
+        lawfulBases: activity.lawfulBases ?? [],
+        childrenMemberStates: activity.childrenMemberStates ?? []
+      })
+    );
     // Section 36(4): data first collected for law enforcement, reused here.
     gaps.push(...part3ReuseGaps(activity, context.originalPart3 ?? false));
     // Article 6(1), final subparagraph: not for a public authority's tasks.
@@ -898,6 +927,8 @@ export async function updateActivity(input: {
     ownerId: string | null;
     reviewDueAt: Date | null;
     childrenLikely: boolean | null;
+    /** EU GDPR Article 8(1): member States, EEA codes. */
+    childrenMemberStates: string[];
     outsidePublicTasks: boolean;
     specialCategory: boolean | null;
     art9Condition: string | null;
@@ -948,6 +979,7 @@ export async function updateActivity(input: {
         retentionPolicyNote,
         regime: regimeChange,
         laws: lawsChange,
+        childrenMemberStates: childrenStatesChange,
         part3Basis,
         sensitiveProcessing,
         sensitiveRoute,
@@ -1076,6 +1108,11 @@ export async function updateActivity(input: {
         .update(processingActivities)
         .set({
           ...rest,
+          ...(childrenStatesChange !== undefined
+            ? {
+                childrenMemberStates: cleanChildrenStates(childrenStatesChange)
+              }
+            : {}),
           ...bases,
           ...conditions,
           ...part3,
@@ -1127,6 +1164,18 @@ export async function updateActivity(input: {
   });
 }
 
+/** The answers one law's questions hold, left alone when the form did not ask them. */
+const KEPT_WHEN_ABSENT = [
+  'originalConsent',
+  'compatibilityRoute',
+  'annex2Condition',
+  'consentUnobtainable',
+  'compatibilityNote',
+  'compatibilityFactors',
+  'euCompatibilityRoute',
+  'euCompatibilityNote'
+] as const;
+
 /**
  * Record whether this is further processing or research, and on what ground.
  * Its own write, so the audit chain keeps the before and after of the answers
@@ -1174,7 +1223,13 @@ export async function setFurtherProcessing(input: {
               }
             })()
           : (() => {
-              const r = cleanFurtherProcessing(input.record);
+              // A law's answers not on the form are kept as recorded.
+              const kept = Object.fromEntries(
+                KEPT_WHEN_ABSENT.filter(
+                  (k) => input.record[k] === undefined
+                ).map((k) => [k, before[k]])
+              );
+              const r = cleanFurtherProcessing({ ...input.record, ...kept });
               return {
                 ...r,
                 furtherAuthorisedBy: r.furtherProcessing

@@ -7,6 +7,9 @@ import {
   aiUseCases,
   assessmentRevisions,
   assessments,
+  entities,
+  processingActivities,
+  recordLinks,
   referenceCounters,
   suppliers,
   templates,
@@ -15,11 +18,13 @@ import {
 } from '@/db/schema';
 import type { AssuranceSummary } from '@/lib/ai/assurance';
 import { appendAuditEvent } from '@/lib/audit';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import {
   ADM_GAP_WORDS,
   admGaps,
   type AdmGap
 } from '@/lib/gdpr/automated-decisions';
+import { unionOfLaws } from '@/lib/gdpr/regimes';
 
 import { assuranceByUseCase } from './ai-assurance';
 import { systemsWithUnresolvedHarm } from './ai-incidents';
@@ -516,6 +521,35 @@ async function latestAssessment(
 }
 
 /**
+ * The laws of the processing activities each use case is used in, the same
+ * links the use case page reads, so the register and the page judge a use
+ * case under the same laws. Called inside the caller's withOrganisation.
+ */
+async function linkedLawsOf(
+  useCaseIds: string[]
+): Promise<Map<string, DataProtectionLaw[]>> {
+  const out = new Map<string, DataProtectionLaw[]>();
+  if (useCaseIds.length === 0) return out;
+  const rows = await db
+    .select({ id: recordLinks.fromId, laws: processingActivities.laws })
+    .from(recordLinks)
+    .innerJoin(
+      processingActivities,
+      eq(processingActivities.id, recordLinks.toId)
+    )
+    .where(
+      and(
+        eq(recordLinks.fromType, 'ai_use_case'),
+        inArray(recordLinks.fromId, useCaseIds),
+        eq(recordLinks.toType, 'processing_activity'),
+        eq(recordLinks.relation, 'used_in')
+      )
+    );
+  for (const r of rows) out.set(r.id, [...(out.get(r.id) ?? []), r.laws]);
+  return out;
+}
+
+/**
  * What is wrong with this entry, if anything.
  *
  * Deliberately computed rather than stored. A gap is a fact about the present —
@@ -541,6 +575,11 @@ export function gapsFor(
     advisedAgainstSuppliers?: ReadonlySet<string>;
     /** Owners whose owner-level AI learning is current. */
     trainedOwners?: ReadonlySet<string>;
+    /**
+     * The laws the use case is under: those of the processing it is used in,
+     * or failing that its entity's (`useCaseLaws`). EU law adds Article 22(2).
+     */
+    laws?: DataProtectionLaw;
   } = {}
 ): Gap[] {
   const {
@@ -619,7 +658,7 @@ export function gapsFor(
   // Articles 22A–22C. The use case has no lawful basis of its own, so whether
   // it relies on recognised legitimate interests (22B(4)) is shown on the page
   // from the processing activities it is linked to, not reported here.
-  gaps.push(...admGaps(useCase));
+  gaps.push(...admGaps(useCase, undefined, undefined, context.laws ?? 'uk'));
 
   // Somebody reported actual harm and nobody has said how it was put right.
   if (unresolvedHarm) gaps.push('unresolved_harm');
@@ -657,8 +696,13 @@ export async function listRegister(
 ): Promise<RegisterEntry[]> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
-      .select({ useCase: aiUseCases, ownerEmail: users.email })
+      .select({
+        useCase: aiUseCases,
+        ownerEmail: users.email,
+        laws: entities.dataProtectionLaw
+      })
       .from(aiUseCases)
+      .innerJoin(entities, eq(entities.id, aiUseCases.entityId))
       .leftJoin(users, eq(users.id, aiUseCases.ownerId))
       .where(
         entityIds === null
@@ -679,14 +723,16 @@ export async function listRegister(
         ownersWithTraining(organisationId)
       ]);
 
+    const linkedLaws = await linkedLawsOf(rows.map((r) => r.useCase.id));
     return Promise.all(
-      rows.map(async ({ useCase, ownerEmail }) => {
+      rows.map(async ({ useCase, ownerEmail, laws: entityLaw }) => {
         const assessed = await latestAssessment(useCase.id);
         return {
           useCase,
           ownerEmail,
           assessed,
           gaps: gapsFor(useCase, assessed, {
+            laws: unionOfLaws(linkedLaws.get(useCase.id) ?? [], entityLaw),
             transparency: { hasCurrentRecord: recorded.has(useCase.id) },
             lastMaterialChangeAt: changed.get(useCase.id) ?? null,
             assurance: tested.get(useCase.id) ?? null,
@@ -708,9 +754,11 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
       .select({
         useCase: aiUseCases,
         ownerEmail: users.email,
-        officerEmail: officers.email
+        officerEmail: officers.email,
+        laws: entities.dataProtectionLaw
       })
       .from(aiUseCases)
+      .innerJoin(entities, eq(entities.id, aiUseCases.entityId))
       .leftJoin(users, eq(users.id, aiUseCases.ownerId))
       .leftJoin(officers, eq(officers.id, aiUseCases.governanceOfficerId))
       .where(
@@ -771,6 +819,10 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
       assessed,
       assessments: related,
       gaps: gapsFor(row.useCase, assessed, {
+        laws: unionOfLaws(
+          (await linkedLawsOf([row.useCase.id])).get(row.useCase.id) ?? [],
+          row.laws
+        ),
         transparency: { hasCurrentRecord: recorded.has(useCaseId) },
         lastMaterialChangeAt: changed.get(useCaseId) ?? null,
         assurance: tested.get(useCaseId) ?? null,

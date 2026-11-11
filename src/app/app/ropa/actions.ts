@@ -142,6 +142,14 @@ export async function updateActivityAction(
       lawfulBases: formData.getAll('lawfulBases').map(String),
       recognisedCondition: text(formData.get('recognisedCondition')) || null,
       childrenLikely: yesNo(formData.get('childrenLikely')),
+      // Asked only where EU law applies.
+      ...(formData.has('childrenStatesAsked')
+        ? {
+            childrenMemberStates: formData
+              .getAll('childrenMemberStates')
+              .map(String)
+          }
+        : {}),
       outsidePublicTasks: formData.get('outsidePublicTasks') === 'on',
       specialCategory: yesNo(formData.get('specialCategory')),
       art9Condition: text(formData.get('art9Condition')) || null,
@@ -218,17 +226,37 @@ export async function saveFurtherProcessingAction(
       record: {
         furtherProcessing: yesNo(formData.get('furtherProcessing')),
         originalActivityId: text(formData.get('originalActivityId')) || null,
-        originalConsent: yesNo(formData.get('originalConsent')),
-        compatibilityRoute: text(formData.get('compatibilityRoute')) || null,
-        annex2Condition: text(formData.get('annex2Condition')) || null,
-        consentUnobtainable: yesNo(formData.get('consentUnobtainable')),
-        compatibilityFactors: Object.fromEntries(
-          COMPATIBILITY_FACTOR_KEYS.map((k) => [
-            k,
-            text(formData.get(`factor_${k}`))
-          ])
-        ),
-        compatibilityNote: text(formData.get('compatibilityNote')) || null,
+        // Each law's route only where its questions were on the form; the
+        // other law's answers are left as they were, not cleared for being
+        // absent.
+        ...(formData.has('ukRouteAsked')
+          ? {
+              originalConsent: yesNo(formData.get('originalConsent')),
+              compatibilityRoute:
+                text(formData.get('compatibilityRoute')) || null,
+              annex2Condition: text(formData.get('annex2Condition')) || null,
+              consentUnobtainable: yesNo(formData.get('consentUnobtainable')),
+              compatibilityNote: text(formData.get('compatibilityNote')) || null
+            }
+          : {}),
+        ...(formData.has('euRouteAsked')
+          ? {
+              euCompatibilityRoute:
+                text(formData.get('euCompatibilityRoute')) || null,
+              euCompatibilityNote:
+                text(formData.get('euCompatibilityNote')) || null
+            }
+          : {}),
+        ...(formData.has(`factor_${COMPATIBILITY_FACTOR_KEYS[0]}`)
+          ? {
+              compatibilityFactors: Object.fromEntries(
+                COMPATIBILITY_FACTOR_KEYS.map((k) => [
+                  k,
+                  text(formData.get(`factor_${k}`))
+                ])
+              )
+            }
+          : {}),
         furtherAuthorisedBy: text(formData.get('furtherAuthorisedBy')) || null,
         furtherNecessaryProportionate: yesNo(
           formData.get('furtherNecessaryProportionate')

@@ -11,6 +11,7 @@ import { StartAssessment } from '@/components/StartAssessment';
 import { db, scoped } from '@/db/client';
 import {
   aiUseCaseRequests,
+  entities,
   processingActivities,
   suppliers
 } from '@/db/schema';
@@ -28,6 +29,7 @@ import {
   unmetConditions,
   type Stage
 } from '@/lib/ai/lifecycle';
+import { unionOfLaws } from '@/lib/gdpr/regimes';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
@@ -106,6 +108,16 @@ export default async function UseCasePage({
       />
     );
   }
+  // Its own laws come from the processing it is used in; until it is linked,
+  // from its entity.
+  const [{ law: useCaseLaw }] = await scoped(
+    active.membership.organisationId,
+    () =>
+      db
+        .select({ law: entities.dataProtectionLaw })
+        .from(entities)
+        .where(eq(entities.id, useCase.entityId))
+  );
   const mayEdit = can(
     active.membership.grants,
     'record.write',
@@ -641,6 +653,10 @@ export default async function UseCasePage({
         bases={linkedBases}
         linked={linkedActivities}
         mayEdit={mayEdit}
+        laws={unionOfLaws(
+          linkedActivities.flatMap((a) => (a.laws ? [a.laws] : [])),
+          useCaseLaw
+        )}
         regime={regimeOfUseCase(
           linkedActivities.map((a) => ({ regime: a.regime ?? 'gdpr' }))
         )}

@@ -30,6 +30,7 @@ import {
   PROCESSING_BASIS_LABEL,
   REFUSAL_MUST_SAY,
   RESTRICT_WHILE_WEIGHED,
+  rightArticle,
   RIGHTS,
   type ProcessingBasis,
   type Right
@@ -250,7 +251,9 @@ export default async function RequestPage({
                 className="rounded border border-line bg-surface px-3 py-2 text-xs"
               >
                 <span className="font-medium">{right.label}</span>{' '}
-                <span className="font-mono text-ink-soft">{right.article}</span>{' '}
+                <span className="font-mono text-ink-soft">
+                  {rightArticle(r as Right, request.jurisdiction)}
+                </span>{' '}
                 - {right.summary}
               </li>
             ) : null;

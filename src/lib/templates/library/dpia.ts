@@ -28,6 +28,9 @@ import type { TemplateDefinition } from '../schema';
  * Access) Act 2025 left them: whether significant decisions are solely
  * automated, the 22B restrictions on special category data and on recognised
  * legitimate interests, and the four 22C safeguards.
+ * Where the processing is also under the EU GDPR, which the answers alone
+ * must say because conditions cannot read the entity, it asks for the
+ * Article 22(2) exception and, for special category data, Article 22(4).
  *
  * `residual_accepted` and `ico_consultation` are read by the AI register's
  * lifecycle gate: a system whose DPIA leaves high risk cannot go live until
@@ -595,6 +598,136 @@ export const DPIA: TemplateDefinition = {
             },
             legalRefs: ['ukgdpr.art22b', 'ukgdpr.art6.1ea'],
             evidence: 'none'
+          },
+          {
+            key: 'adm_eu_law',
+            label: 'Is this processing subject to the EU GDPR?',
+            type: 'boolean',
+            required: false,
+            help: 'It is where the entity is established in the EU, or offers goods or services to people in the EU or monitors their behaviour there. EU law does not permit these decisions by default: Article 22 gives people the right not to be subject to them unless an exception applies.',
+            showWhen: {
+              op: 'equals',
+              question: 'solely_automated',
+              value: true
+            },
+            requireWhen: {
+              op: 'equals',
+              question: 'solely_automated',
+              value: true
+            },
+            legalRefs: ['eugdpr.art3', 'eugdpr.art22'],
+            evidence: 'none'
+          },
+          {
+            key: 'adm_eu_exception',
+            label: 'Which Article 22(2) exception applies under the EU GDPR?',
+            type: 'single_select',
+            required: false,
+            help: 'Without one of these, the decision may not be taken solely by automated means under EU law: a person must be meaningfully involved. For a contract or explicit consent, Article 22(3) requires at least the right to obtain human intervention, to express a point of view and to contest the decision.',
+            showWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'solely_automated', value: true },
+                { op: 'equals', question: 'adm_eu_law', value: true }
+              ]
+            },
+            requireWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'solely_automated', value: true },
+                { op: 'equals', question: 'adm_eu_law', value: true }
+              ]
+            },
+            legalRefs: ['eugdpr.art22', 'eugdpr.art22.2'],
+            evidence: 'none',
+            options: [
+              {
+                value: 'contract',
+                label:
+                  'Necessary for entering into or performing a contract with them (22(2)(a))'
+              },
+              {
+                value: 'law',
+                label:
+                  'Authorised by Union or Member State law that lays down suitable safeguards (22(2)(b))'
+              },
+              {
+                value: 'explicit_consent',
+                label: 'Based on their explicit consent (22(2)(c))'
+              },
+              { value: 'none', label: 'None of these' }
+            ]
+          },
+          {
+            key: 'adm_eu_law_basis',
+            label:
+              'Which Union or Member State law authorises these decisions, and what safeguards does it lay down?',
+            type: 'long_text',
+            required: false,
+            showWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'solely_automated', value: true },
+                { op: 'equals', question: 'adm_eu_law', value: true },
+                { op: 'equals', question: 'adm_eu_exception', value: 'law' }
+              ]
+            },
+            requireWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'solely_automated', value: true },
+                { op: 'equals', question: 'adm_eu_law', value: true },
+                { op: 'equals', question: 'adm_eu_exception', value: 'law' }
+              ]
+            },
+            legalRefs: ['eugdpr.art22.2'],
+            evidence: 'optional'
+          },
+          {
+            key: 'adm_eu_special_condition',
+            label:
+              'Under the EU GDPR, does Article 9(2)(a) or (g) apply, with suitable safeguards in place?',
+            type: 'single_select',
+            required: false,
+            help: 'Article 22(4): these decisions may not be based on special category data unless the person gave explicit consent (9(2)(a)) or the processing is necessary for reasons of substantial public interest under Union or Member State law (9(2)(g)), and suitable safeguards are in place.',
+            showWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'solely_automated', value: true },
+                { op: 'equals', question: 'adm_eu_law', value: true },
+                {
+                  op: 'equals',
+                  question: 'adm_special_category',
+                  value: true
+                }
+              ]
+            },
+            requireWhen: {
+              op: 'and',
+              all: [
+                { op: 'equals', question: 'solely_automated', value: true },
+                { op: 'equals', question: 'adm_eu_law', value: true },
+                {
+                  op: 'equals',
+                  question: 'adm_special_category',
+                  value: true
+                }
+              ]
+            },
+            legalRefs: ['eugdpr.art22.2', 'eugdpr.art9'],
+            evidence: 'none',
+            options: [
+              {
+                value: 'explicit_consent',
+                label: 'Explicit consent (9(2)(a))'
+              },
+              {
+                value: 'substantial_public_interest',
+                label:
+                  'Substantial public interest under Union or Member State law (9(2)(g))'
+              },
+              { value: 'none', label: 'Neither' }
+            ]
           },
           {
             key: 'adm_safeguards',

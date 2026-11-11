@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import {
+  ADM_EU_EXCEPTION_KEYS,
+  ADM_EU_EXCEPTIONS,
   ADM_SAFEGUARD_KEYS,
   ADM_SAFEGUARDS,
   ADM_SET_ASIDE_REASON_KEYS,
@@ -12,7 +15,8 @@ import {
   ADM_SPECIAL_CONDITIONS_FOR,
   admConditionParagraph,
   admSafeguardPoint,
-  type AdmRecord
+  type AdmRecord,
+  type AdmSpecialCondition
 } from '@/lib/gdpr/automated-decisions';
 
 const label =
@@ -36,12 +40,31 @@ const yesNo = (v: boolean | null) => (v === null ? '' : v ? 'yes' : 'no');
  */
 export function AutomatedDecisionFields({
   record,
-  regime = 'gdpr'
+  regime = 'gdpr',
+  laws = 'uk'
 }: {
   record: AdmRecord;
   regime?: Regime;
+  /** The laws the record is under: the EU question is asked where EU law applies. */
+  laws?: DataProtectionLaw;
 }) {
   const [solely, setSolely] = useState(yesNo(record.automatedDecisions));
+  const [euException, setEuException] = useState(record.admEuException ?? '');
+  const euLaw = laws !== 'uk' && regime !== 'dpa_part3';
+  // Under EU law only, the UK Articles 22A-22C are not cited.
+  const euOnly = laws === 'eu' && regime !== 'dpa_part3';
+  const point = (k: (typeof ADM_SAFEGUARD_KEYS)[number]) =>
+    euOnly
+      ? k === 'information'
+        ? 'Articles 13(2)(f) and 14(2)(g)'
+        : 'Article 22(3)'
+      : admSafeguardPoint(k, regime);
+  const conditionPoint = (c: string) =>
+    euOnly
+      ? c === 'explicit_consent'
+        ? 'Articles 22(4) and 9(2)(a)'
+        : 'Articles 22(4) and 9(2)(g)'
+      : admConditionParagraph(c as AdmSpecialCondition, regime);
   const [special, setSpecial] = useState(yesNo(record.admSpecialCategory));
   const [setAside, setSetAside] = useState(Boolean(record.admSetAside));
   const part3 = regime === 'dpa_part3';
@@ -52,10 +75,11 @@ export function AutomatedDecisionFields({
         <span className={label}>
           Significant decisions taken solely by automated means?
           <span className={hint}>
-            {part3 ? 'Section 50A' : 'Article 22A'} - a decision with{' '}
-            {part3 ? 'an adverse' : 'a'} legal or similarly significant{' '}
-            {part3 ? 'adverse ' : ''}effect on someone, with no meaningful human
-            involvement. Consider how far it is reached by profiling.
+            {part3 ? 'Section 50A' : euOnly ? 'Article 22(1)' : 'Article 22A'} -
+            a decision with {part3 ? 'an adverse' : 'a'} legal or similarly
+            significant {part3 ? 'adverse ' : ''}effect on someone, with no
+            meaningful human involvement. Consider how far it is reached by
+            profiling.
           </span>
         </span>
         <select
@@ -73,6 +97,54 @@ export function AutomatedDecisionFields({
         </select>
       </label>
 
+      {solely === 'yes' && euLaw ? (
+        <div className="space-y-2">
+          <label className="block space-y-1">
+            <span className={label}>
+              Which Article 22(2) exception applies?
+              <span className={hint}>
+                EU GDPR Article 22(1) gives people a right not to be subject to
+                such a decision. It may be taken only where one of these
+                applies; for a contract or explicit consent, people must also be
+                able to obtain human intervention, express their view and
+                contest it (22(3)).
+              </span>
+            </span>
+            <select
+              name="admEuException"
+              value={euException}
+              onChange={(e) => setEuException(e.target.value)}
+              className={select}
+            >
+              <option value="">None recorded</option>
+              {ADM_EU_EXCEPTION_KEYS.map((k) => (
+                <option
+                  key={k}
+                  value={k}
+                >
+                  {ADM_EU_EXCEPTIONS[k].label} ({ADM_EU_EXCEPTIONS[k].point})
+                </option>
+              ))}
+            </select>
+          </label>
+          {euException === 'law' ? (
+            <label className="block space-y-1">
+              <span className={label}>
+                The Union or member State law
+                <span className={hint}>
+                  Name it, and where it lays down the safeguards.
+                </span>
+              </span>
+              <input
+                name="admEuLawNote"
+                defaultValue={record.admEuLawNote ?? ''}
+                className={select}
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+
       {solely === 'yes' ? (
         <>
           <label className="block space-y-1">
@@ -83,7 +155,7 @@ export function AutomatedDecisionFields({
               <span className={hint}>
                 {part3
                   ? 'Section 50B(1) - the categories in s.35(8): racial or ethnic origin, political opinions, beliefs, trade union membership, genetic or biometric data to identify someone, health, sex life or orientation'
-                  : 'Article 22B(1) - health, ethnicity, beliefs, biometrics and the rest of Article 9(1)'}
+                  : `${euOnly ? 'Article 22(4)' : 'Article 22B(1)'} - health, ethnicity, beliefs, biometrics and the rest of Article 9(1)`}
               </span>
             </span>
             <select
@@ -101,7 +173,13 @@ export function AutomatedDecisionFields({
           {special === 'yes' ? (
             <label className="block space-y-1">
               <span className={label}>
-                Which {part3 ? 'section 50B' : 'Article 22B'} condition is met?
+                Which{' '}
+                {part3
+                  ? 'section 50B'
+                  : euOnly
+                    ? 'Article 22(4)'
+                    : 'Article 22B'}{' '}
+                condition is met?
                 <span className={hint}>
                   Without one, the decision may not be taken solely by automated
                   means.
@@ -118,8 +196,7 @@ export function AutomatedDecisionFields({
                     key={c}
                     value={c}
                   >
-                    {ADM_SPECIAL_CONDITIONS[c].label} -{' '}
-                    {admConditionParagraph(c, regime)}
+                    {ADM_SPECIAL_CONDITIONS[c].label} - {conditionPoint(c)}
                   </option>
                 ))}
               </select>
@@ -130,8 +207,12 @@ export function AutomatedDecisionFields({
             <legend className={label}>
               Safeguards in place
               <span className={hint}>
-                {part3 ? 'Section 50C(2)' : 'Article 22C(2)'} - tick each one
-                that is in place, and say how
+                {part3
+                  ? 'Section 50C(2)'
+                  : euOnly
+                    ? 'Article 22(3), and telling people (Articles 13-14)'
+                    : 'Article 22C(2)'}{' '}
+                - tick each one that is in place, and say how
               </span>
             </legend>
             {ADM_SAFEGUARD_KEYS.map((k) => (
@@ -151,7 +232,7 @@ export function AutomatedDecisionFields({
                   <span>
                     {ADM_SAFEGUARDS[k].label}{' '}
                     <span className="font-mono text-[11px] text-ink-soft">
-                      {admSafeguardPoint(k, regime)}
+                      {point(k)}
                     </span>
                   </span>
                 </label>

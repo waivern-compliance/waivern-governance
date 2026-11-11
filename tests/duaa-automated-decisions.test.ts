@@ -102,7 +102,9 @@ describe('the record', () => {
         automatedDecisions: false,
         admSpecialCategory: null,
         admSpecialCondition: null,
-        admSafeguards: {}
+        admSafeguards: {},
+        admEuException: null,
+        admEuLawNote: null
       }
     );
     assert.equal(

@@ -10,6 +10,8 @@ import {
   COMPATIBILITY_ROUTE_KEYS,
   COMPATIBILITY_ROUTES,
   compatibilityRoutes,
+  EU_COMPATIBILITY_ROUTE_KEYS,
+  EU_COMPATIBILITY_ROUTES,
   RESEARCH_SAFEGUARD_KEYS,
   RESEARCH_SAFEGUARDS,
   type FurtherProcessingRecord
@@ -67,8 +69,11 @@ function YesNo({
  */
 export function FurtherProcessingFields({
   record,
-  activities
+  activities,
+  laws = 'uk'
 }: {
+  /** The laws the record is under: each law's route is asked where it applies. */
+  laws?: 'uk' | 'eu' | 'uk_eu';
   record: FurtherProcessingRecord & { furtherAuthorisedBy?: string | null };
   /** Other activities this one could reuse data from, whether each relies on consent, and whether it is under Part 3. */
   activities: Array<{
@@ -84,6 +89,11 @@ export function FurtherProcessingFields({
     yesNo(record.originalConsent)
   );
   const [route, setRoute] = useState<string>(record.compatibilityRoute ?? '');
+  const [euRoute, setEuRoute] = useState<string>(
+    record.euCompatibilityRoute ?? ''
+  );
+  const uk = laws !== 'eu';
+  const eu = laws !== 'uk';
   const [unobtainable, setUnobtainable] = useState(
     yesNo(record.consentUnobtainable)
   );
@@ -107,7 +117,11 @@ export function FurtherProcessingFields({
         value={further}
         onChange={setFurther}
         title="Is this further processing?"
-        help="Article 8A - using data first collected for a different purpose. The new purpose must be compatible with the original one."
+        help={
+          uk
+            ? 'Article 8A - using data first collected for a different purpose. The new purpose must be compatible with the original one.'
+            : 'Article 6(4) - using data first collected for a different purpose. The new purpose must be compatible with the original one.'
+        }
       />
 
       {further === 'yes' ? (
@@ -164,7 +178,7 @@ export function FurtherProcessingFields({
                 ? 'That activity relies on consent, so Article 8A(4) applies.'
                 : 'That activity does not rely on consent.'}
             </p>
-          ) : (
+          ) : !uk ? null : (
             <YesNo
               name="originalConsent"
               value={originalConsent}
@@ -174,43 +188,104 @@ export function FurtherProcessingFields({
             />
           )}
 
-          <fieldset className="space-y-1.5">
-            <legend className={label}>
-              Why the new purpose is compatible
-              <span className={hint}>
-                Article 8A(3) cases are deemed compatible; otherwise weigh the
-                8A(2) factors
-              </span>
-            </legend>
-            {COMPATIBILITY_ROUTE_KEYS.map((r) => (
-              <label
-                key={r}
-                className="flex items-start gap-2.5 text-sm"
-              >
-                <input
-                  type="radio"
-                  name="compatibilityRoute"
-                  value={r}
-                  checked={route === r}
-                  onChange={() => setRoute(r)}
-                  className="mt-1 accent-brand"
-                />
-                <span>
-                  {COMPATIBILITY_ROUTES[r].label}{' '}
-                  <span className="font-mono text-[11px] text-ink-soft">
-                    {COMPATIBILITY_ROUTES[r].point}
-                  </span>
-                  {!routes[r].open ? (
-                    <span className="block text-xs text-amber-900">
-                      {routes[r].why}
-                    </span>
-                  ) : null}
+          {eu ? (
+            <fieldset className="space-y-1.5">
+              <input
+                type="hidden"
+                name="euRouteAsked"
+                value="yes"
+              />
+              <legend className={label}>
+                Why the new purpose is compatible
+                {uk ? ' under the EU GDPR' : ''}
+                <span className={hint}>
+                  Article 6(4): consent, Union or member State law, or the five
+                  factors weighed; or Article 5(1)(b) for research, archiving
+                  and statistics
                 </span>
-              </label>
-            ))}
-          </fieldset>
+              </legend>
+              {EU_COMPATIBILITY_ROUTE_KEYS.map((r) => (
+                <label
+                  key={r}
+                  className="flex items-start gap-2.5 text-sm"
+                >
+                  <input
+                    type="radio"
+                    name="euCompatibilityRoute"
+                    value={r}
+                    checked={euRoute === r}
+                    onChange={() => setEuRoute(r)}
+                    className="mt-1 accent-brand"
+                  />
+                  <span>
+                    {EU_COMPATIBILITY_ROUTES[r].label}{' '}
+                    <span className="font-mono text-[11px] text-ink-soft">
+                      {EU_COMPATIBILITY_ROUTES[r].point}
+                    </span>
+                  </span>
+                </label>
+              ))}
+              {euRoute === 'law' ? (
+                <label className="block space-y-1">
+                  <span className={label}>
+                    The law, and the Article 23(1) objective it safeguards
+                  </span>
+                  <textarea
+                    name="euCompatibilityNote"
+                    rows={2}
+                    defaultValue={record.euCompatibilityNote ?? ''}
+                    className={input}
+                  />
+                </label>
+              ) : null}
+            </fieldset>
+          ) : null}
 
-          {route === 'annex2' ? (
+          {uk ? (
+            <fieldset className="space-y-1.5">
+              <input
+                type="hidden"
+                name="ukRouteAsked"
+                value="yes"
+              />
+              <legend className={label}>
+                Why the new purpose is compatible
+                {eu ? ' under the UK GDPR' : ''}
+                <span className={hint}>
+                  Article 8A(3) cases are deemed compatible; otherwise weigh the
+                  8A(2) factors
+                </span>
+              </legend>
+              {COMPATIBILITY_ROUTE_KEYS.map((r) => (
+                <label
+                  key={r}
+                  className="flex items-start gap-2.5 text-sm"
+                >
+                  <input
+                    type="radio"
+                    name="compatibilityRoute"
+                    value={r}
+                    checked={route === r}
+                    onChange={() => setRoute(r)}
+                    className="mt-1 accent-brand"
+                  />
+                  <span>
+                    {COMPATIBILITY_ROUTES[r].label}{' '}
+                    <span className="font-mono text-[11px] text-ink-soft">
+                      {COMPATIBILITY_ROUTES[r].point}
+                    </span>
+                    {!routes[r].open ? (
+                      <span className="block text-xs text-amber-900">
+                        {routes[r].why}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
+
+          {uk && route === 'annex2' ? (
             <label className="block space-y-1">
               <span className={label}>Which Annex 2 condition?</span>
               <select
@@ -232,7 +307,9 @@ export function FurtherProcessingFields({
             </label>
           ) : null}
 
-          {(route === 'annex2' || route === 'article23') && consentAtSource ? (
+          {uk &&
+          (route === 'annex2' || route === 'article23') &&
+          consentAtSource ? (
             <YesNo
               name="consentUnobtainable"
               value={unobtainable}
@@ -243,10 +320,10 @@ export function FurtherProcessingFields({
             />
           ) : null}
 
-          {route === 'assessed' ? (
+          {(uk && route === 'assessed') || (eu && euRoute === 'assessed') ? (
             <fieldset className="space-y-2">
               <legend className={label}>
-                The Article 8A(2) factors
+                {uk ? 'The Article 8A(2) factors' : 'The Article 6(4) factors'}
                 <span className={hint}>Say how each was weighed</span>
               </legend>
               {COMPATIBILITY_FACTOR_KEYS.map((f) => (
@@ -271,7 +348,7 @@ export function FurtherProcessingFields({
             </fieldset>
           ) : null}
 
-          {route ? (
+          {uk && route ? (
             <label className="block space-y-1">
               <span className={label}>
                 {route === 'article23'
@@ -299,7 +376,11 @@ export function FurtherProcessingFields({
         value={research}
         onChange={setResearch}
         title="Is it for research, archiving or statistics?"
-        help="Articles 84A–84B - scientific or historical research (commercial or not), archiving in the public interest, or statistics producing aggregate results"
+        help={
+          uk
+            ? 'Articles 84A–84B - scientific or historical research (commercial or not), archiving in the public interest, or statistics producing aggregate results'
+            : 'Article 89 - scientific or historical research, archiving in the public interest, or statistics'
+        }
       />
 
       {research === 'yes' ? (
@@ -308,10 +389,15 @@ export function FurtherProcessingFields({
             <legend className={label}>
               Safeguards
               <span className={hint}>
-                Article 84C - tick each that holds, and say how
+                {uk
+                  ? `Article 84C${eu ? ', and for the EU GDPR Article 89(1) (data minimisation)' : ''} - tick each that holds, and say how`
+                  : 'Article 89(1) - safeguards ensuring data minimisation, such as pseudonymisation'}
               </span>
             </legend>
-            {RESEARCH_SAFEGUARD_KEYS.map((k) => (
+            {(uk
+              ? RESEARCH_SAFEGUARD_KEYS
+              : RESEARCH_SAFEGUARD_KEYS.filter((k) => k === 'data_minimisation')
+            ).map((k) => (
               <div
                 key={k}
                 className="grid gap-1.5 sm:grid-cols-[1fr_1fr] sm:items-center"
@@ -366,7 +452,11 @@ export function FurtherProcessingFields({
                 value={art13}
                 onChange={setArt13}
                 title="Is telling people about the new purpose impossible or disproportionate?"
-                help="Article 13(5)–(6) - judged by the number of people, the age of the data and the safeguards"
+                help={
+                  uk
+                    ? 'Article 13(5)–(6) - judged by the number of people, the age of the data and the safeguards'
+                    : 'Article 14(5)(b) - where the data was not obtained from them; judged by the number of people, the age of the data and the safeguards'
+                }
                 no="No - they will be told"
               />
               {art13 === 'yes' ? (

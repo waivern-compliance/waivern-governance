@@ -9,6 +9,10 @@ import {
   EEA_STATES,
   SUPERVISORY_AUTHORITIES
 } from '@/lib/gdpr/authorities';
+import {
+  childrenAges,
+  DIGITAL_CONSENT_AGES_REVIEWED_AT
+} from '@/lib/gdpr/children';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
 
@@ -111,6 +115,53 @@ export default async function AuthoritiesPage() {
           ))}
         </tbody>
       </table>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Ages of digital consent</h2>
+        <p className="max-w-prose text-xs text-ink-soft">
+          EU GDPR Article 8(1): below this age, consent to an information
+          society service offered directly to a child must be given or
+          authorised by a parent. The Regulation sets 16 and lets each State go
+          as low as 13. Only ages checked against the State&apos;s own law are
+          held, last on {DIGITAL_CONSENT_AGES_REVIEWED_AT}; the rest are shown
+          as not established, and a record offering a service there says so.
+        </p>
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-line text-xs text-ink-soft">
+            <tr>
+              <th className="py-2 pr-3 font-medium">State</th>
+              <th className="py-2 pr-3 font-medium">Age</th>
+              <th className="py-2 font-medium">Provision</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {childrenAges(Object.keys(EEA_STATES))
+              .sort((x, y) => x.name.localeCompare(y.name))
+              .map((c) => (
+                <tr key={c.code}>
+                  <td className="py-2 pr-3 align-top">{c.name}</td>
+                  <td className="py-2 pr-3 align-top">
+                    {c.age ? c.age.age : 'Not established'}
+                  </td>
+                  <td className="py-2 align-top text-xs">
+                    {c.age ? (
+                      <a
+                        href={c.age.source}
+                        className="underline-offset-2 hover:underline"
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {c.age.provision}
+                      </a>
+                    ) : (
+                      <span className="text-ink-soft">-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </section>
     </main>
   );
 }

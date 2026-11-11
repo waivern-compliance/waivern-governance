@@ -154,6 +154,21 @@ export const RIGHTS: Record<
 
 export const RIGHT_KEYS = Object.keys(RIGHTS) as Right[];
 
+/**
+ * Where a right is found, under the law the request is handled under. Only
+ * the automated-decision right differs: UK Article 22C's safeguards, EU
+ * Article 22(3)'s (human intervention, expressing a view, contesting), and
+ * under both, each.
+ */
+export function rightArticle(right: Right, jurisdiction: Jurisdiction): string {
+  if (right !== 'automated_decision') return RIGHTS[right].article;
+  return jurisdiction === 'eu'
+    ? 'EU GDPR Article 22(3)'
+    : jurisdiction === 'uk_eu'
+      ? 'UK GDPR Article 22C and EU GDPR Article 22(3)'
+      : RIGHTS[right].article;
+}
+
 /** Article 6(1), plus direct marketing, which Article 21 treats on its own terms. */
 export type ProcessingBasis = LawfulBasis | 'direct_marketing';
 

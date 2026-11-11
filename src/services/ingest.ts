@@ -73,6 +73,9 @@ function furtherRecordOf(row: typeof processingActivities.$inferSelect) {
     consentUnobtainable: row.consentUnobtainable,
     compatibilityFactors: row.compatibilityFactors,
     compatibilityNote: row.compatibilityNote,
+    // Not in the Integration API yet: a push keeps what a person recorded.
+    euCompatibilityRoute: row.euCompatibilityRoute,
+    euCompatibilityNote: row.euCompatibilityNote,
     research: row.research,
     researchSafeguards: row.researchSafeguards,
     approvedMedicalResearch: row.approvedMedicalResearch,
