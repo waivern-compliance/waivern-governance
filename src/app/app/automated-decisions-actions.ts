@@ -60,9 +60,15 @@ export async function saveAutomatedDecisionsAction(
           reasons: formData.getAll('setAsideReasons').map(String),
           reconsideration: String(formData.get('setAsideReconsideration') ?? '')
         },
-        // Asked only where EU law applies; absent, nothing is recorded.
-        admEuException: String(formData.get('admEuException') ?? '') || null,
-        admEuLawNote: String(formData.get('admEuLawNote') ?? '') || null
+        // Asked only where EU law applies and decisions are solely
+        // automated; where it is not on the form, what was recorded stays.
+        ...(formData.has('admEuException')
+          ? {
+              admEuException:
+                String(formData.get('admEuException') ?? '') || null,
+              admEuLawNote: String(formData.get('admEuLawNote') ?? '') || null
+            }
+          : {})
       },
       actor: {
         actorKind: 'user',

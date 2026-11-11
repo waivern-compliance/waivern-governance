@@ -447,6 +447,15 @@ export default async function ActivityPage({
                       text="Offered directly to children on consent, in which member States?"
                       hint="EU GDPR Article 8(1) - an information society service relying on consent. Below each State's age of digital consent, a parent must give or authorise it. Leave all unticked where none applies."
                     />
+                    {(activity.childrenMemberStates ?? []).length > 0 &&
+                    !(activity.lawfulBases ?? []).includes('consent') ? (
+                      <p className="rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        This record does not rely on consent, so Article 8(1)
+                        does not apply and the States ticked are not checked.
+                        Untick them, or tick consent above if the service does
+                        rely on it.
+                      </p>
+                    ) : null}
                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-sm sm:grid-cols-3">
                       {childrenAges(Object.keys(EEA_STATES)).map((c) => (
                         <label

@@ -8,6 +8,8 @@ import {
   assessmentRevisions,
   assessments,
   entities,
+  processingActivities,
+  recordLinks,
   referenceCounters,
   suppliers,
   templates,
@@ -22,6 +24,7 @@ import {
   admGaps,
   type AdmGap
 } from '@/lib/gdpr/automated-decisions';
+import { unionOfLaws } from '@/lib/gdpr/regimes';
 
 import { assuranceByUseCase } from './ai-assurance';
 import { systemsWithUnresolvedHarm } from './ai-incidents';
@@ -518,6 +521,35 @@ async function latestAssessment(
 }
 
 /**
+ * The laws of the processing activities each use case is used in, the same
+ * links the use case page reads, so the register and the page judge a use
+ * case under the same laws. Called inside the caller's withOrganisation.
+ */
+async function linkedLawsOf(
+  useCaseIds: string[]
+): Promise<Map<string, DataProtectionLaw[]>> {
+  const out = new Map<string, DataProtectionLaw[]>();
+  if (useCaseIds.length === 0) return out;
+  const rows = await db
+    .select({ id: recordLinks.fromId, laws: processingActivities.laws })
+    .from(recordLinks)
+    .innerJoin(
+      processingActivities,
+      eq(processingActivities.id, recordLinks.toId)
+    )
+    .where(
+      and(
+        eq(recordLinks.fromType, 'ai_use_case'),
+        inArray(recordLinks.fromId, useCaseIds),
+        eq(recordLinks.toType, 'processing_activity'),
+        eq(recordLinks.relation, 'used_in')
+      )
+    );
+  for (const r of rows) out.set(r.id, [...(out.get(r.id) ?? []), r.laws]);
+  return out;
+}
+
+/**
  * What is wrong with this entry, if anything.
  *
  * Deliberately computed rather than stored. A gap is a fact about the present —
@@ -543,7 +575,10 @@ export function gapsFor(
     advisedAgainstSuppliers?: ReadonlySet<string>;
     /** Owners whose owner-level AI learning is current. */
     trainedOwners?: ReadonlySet<string>;
-    /** The laws the use case is under: its entity's. EU law adds Article 22(2). */
+    /**
+     * The laws the use case is under: those of the processing it is used in,
+     * or failing that its entity's (`useCaseLaws`). EU law adds Article 22(2).
+     */
     laws?: DataProtectionLaw;
   } = {}
 ): Gap[] {
@@ -688,15 +723,16 @@ export async function listRegister(
         ownersWithTraining(organisationId)
       ]);
 
+    const linkedLaws = await linkedLawsOf(rows.map((r) => r.useCase.id));
     return Promise.all(
-      rows.map(async ({ useCase, ownerEmail, laws }) => {
+      rows.map(async ({ useCase, ownerEmail, laws: entityLaw }) => {
         const assessed = await latestAssessment(useCase.id);
         return {
           useCase,
           ownerEmail,
           assessed,
           gaps: gapsFor(useCase, assessed, {
-            laws,
+            laws: unionOfLaws(linkedLaws.get(useCase.id) ?? [], entityLaw),
             transparency: { hasCurrentRecord: recorded.has(useCase.id) },
             lastMaterialChangeAt: changed.get(useCase.id) ?? null,
             assurance: tested.get(useCase.id) ?? null,
@@ -783,7 +819,10 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
       assessed,
       assessments: related,
       gaps: gapsFor(row.useCase, assessed, {
-        laws: row.laws,
+        laws: unionOfLaws(
+          (await linkedLawsOf([row.useCase.id])).get(row.useCase.id) ?? [],
+          row.laws
+        ),
         transparency: { hasCurrentRecord: recorded.has(useCaseId) },
         lastMaterialChangeAt: changed.get(useCaseId) ?? null,
         assurance: tested.get(useCaseId) ?? null,

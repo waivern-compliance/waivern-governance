@@ -17,11 +17,16 @@ import {
   cleanFurtherProcessing,
   furtherProcessingGaps
 } from '@/lib/gdpr/further-processing';
-import { setAutomatedDecisions } from '@/services/automated-decisions';
+import { createUseCase, listRegister } from '@/services/ai-register';
+import {
+  linkUseCaseToActivity,
+  setAutomatedDecisions
+} from '@/services/automated-decisions';
 import {
   createActivity,
   gapWordsFor,
   loadActivity,
+  setFurtherProcessing,
   updateActivity
 } from '@/services/ropa';
 
@@ -316,5 +321,123 @@ describe('on a processing record', () => {
       }),
       /Not an EEA member State/
     );
+  });
+});
+
+describe('the review fixes', () => {
+  it('leaves the EU exception alone where the caller did not ask it', () => {
+    const r = cleanAdm({ automatedDecisions: true, admSpecialCategory: false });
+    assert.equal('admEuException' in r, false);
+    assert.equal('admEuLawNote' in r, false);
+    assert.equal(
+      cleanAdm({ automatedDecisions: true, admEuException: null })
+        .admEuException,
+      null
+    );
+  });
+
+  it('keeps a recorded EU exception through a save that does not ask it', async () => {
+    const w = await world('keep-adm', 'uk_eu');
+    const activity = await createActivity({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      name: 'Pricing',
+      lawfulBases: ['contract'],
+      actor: SYSTEM
+    });
+    const save = (eu: Partial<AdmRecord>) =>
+      setAutomatedDecisions({
+        organisationId: w.org.id,
+        side: 'processing_activity',
+        id: activity.id,
+        record: {
+          automatedDecisions: true,
+          admSpecialCategory: false,
+          admSafeguards: allSafeguards,
+          ...eu
+        },
+        actor: SYSTEM
+      });
+    await save({ admEuException: 'contract' });
+    await save({});
+    const loaded = (await loadActivity(activity.id, w.org.id))!;
+    assert.equal(loaded.activity.admEuException, 'contract');
+  });
+
+  it("keeps the other law's further-processing route through a save that does not ask it", async () => {
+    const w = await world('keep-route', 'uk_eu');
+    const activity = await createActivity({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      name: 'Analytics',
+      actor: SYSTEM
+    });
+    await setFurtherProcessing({
+      activityId: activity.id,
+      organisationId: w.org.id,
+      record: {
+        furtherProcessing: true,
+        compatibilityRoute: 'compliance',
+        euCompatibilityRoute: 'consent'
+      },
+      actor: SYSTEM
+    });
+    await setFurtherProcessing({
+      activityId: activity.id,
+      organisationId: w.org.id,
+      record: { furtherProcessing: true, compatibilityRoute: 'consent' },
+      actor: SYSTEM
+    });
+    const loaded = (await loadActivity(activity.id, w.org.id))!;
+    assert.equal(loaded.activity.compatibilityRoute, 'consent');
+    assert.equal(loaded.activity.euCompatibilityRoute, 'consent');
+  });
+});
+
+describe('an AI use case', () => {
+  it('is judged in the register under the laws of the processing it is used in', async () => {
+    const w = await world('ai-laws', 'uk_eu');
+    const activity = await createActivity({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      name: 'UK payroll',
+      lawfulBases: ['contract'],
+      laws: 'uk',
+      actor: SYSTEM
+    });
+    const useCase = await createUseCase({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      name: 'Payroll checks',
+      purpose: 'Flag anomalies.',
+      systemType: 'predictive',
+      provenance: 'built_in_house',
+      actor: SYSTEM
+    });
+    await setAutomatedDecisions({
+      organisationId: w.org.id,
+      side: 'ai_use_case',
+      id: useCase.id,
+      record: {
+        automatedDecisions: true,
+        admSpecialCategory: false,
+        admSafeguards: allSafeguards
+      },
+      actor: SYSTEM
+    });
+    const gapsOf = async () =>
+      (await listRegister(w.org.id, null)).find(
+        (r) => r.useCase.id === useCase.id
+      )!.gaps;
+    // Not linked: its entity's laws, both, so the EU question is owed.
+    assert.ok((await gapsOf()).includes('adm_eu_no_exception'));
+    await linkUseCaseToActivity({
+      organisationId: w.org.id,
+      useCaseId: useCase.id,
+      activityId: activity.id,
+      actor: SYSTEM
+    });
+    // Used only in UK processing: UK law alone, as the page shows it.
+    assert.ok(!(await gapsOf()).includes('adm_eu_no_exception'));
   });
 });

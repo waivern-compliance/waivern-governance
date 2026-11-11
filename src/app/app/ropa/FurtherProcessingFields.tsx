@@ -178,7 +178,7 @@ export function FurtherProcessingFields({
                 ? 'That activity relies on consent, so Article 8A(4) applies.'
                 : 'That activity does not rely on consent.'}
             </p>
-          ) : (
+          ) : !uk ? null : (
             <YesNo
               name="originalConsent"
               value={originalConsent}
@@ -190,6 +190,11 @@ export function FurtherProcessingFields({
 
           {eu ? (
             <fieldset className="space-y-1.5">
+              <input
+                type="hidden"
+                name="euRouteAsked"
+                value="yes"
+              />
               <legend className={label}>
                 Why the new purpose is compatible
                 {uk ? ' under the EU GDPR' : ''}
@@ -238,6 +243,11 @@ export function FurtherProcessingFields({
 
           {uk ? (
             <fieldset className="space-y-1.5">
+              <input
+                type="hidden"
+                name="ukRouteAsked"
+                value="yes"
+              />
               <legend className={label}>
                 Why the new purpose is compatible
                 {eu ? ' under the UK GDPR' : ''}
@@ -366,7 +376,11 @@ export function FurtherProcessingFields({
         value={research}
         onChange={setResearch}
         title="Is it for research, archiving or statistics?"
-        help="Articles 84A–84B - scientific or historical research (commercial or not), archiving in the public interest, or statistics producing aggregate results"
+        help={
+          uk
+            ? 'Articles 84A–84B - scientific or historical research (commercial or not), archiving in the public interest, or statistics producing aggregate results'
+            : 'Article 89 - scientific or historical research, archiving in the public interest, or statistics'
+        }
       />
 
       {research === 'yes' ? (

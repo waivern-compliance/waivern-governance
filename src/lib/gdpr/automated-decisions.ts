@@ -244,8 +244,13 @@ export function cleanAdm(
     throw new AutomatedDecisionRefused(
       'Part 3 is UK law; the EU GDPR Article 22(2) exceptions do not apply to it.'
     );
+  // Only where the EU answer was given: a caller that does not ask it (the
+  // Integration API, a form for a record under UK law only) leaves what a
+  // person recorded as it was, rather than clearing it.
+  const euGiven =
+    input.admEuException !== undefined || input.admEuLawNote !== undefined;
   const eu =
-    regime === 'dpa_part3'
+    regime === 'dpa_part3' || !euGiven
       ? {}
       : {
           admEuException: euException as AdmEuException | null,
@@ -361,7 +366,7 @@ export const ADM_GAP_WORDS: Record<AdmGap, string> = {
   adm_special_unanswered:
     'Solely automated decisions: special category or sensitive data not answered',
   adm_special_no_condition:
-    'Solely automated decisions on special category or sensitive data with no condition met (Article 22B, or s.50B under Part 3)',
+    'Solely automated decisions on special category or sensitive data with no condition met (UK Article 22B, EU Article 22(4), or s.50B under Part 3)',
   adm_safeguards:
     'Solely automated decisions with safeguards unconfirmed (Article 22C, or s.50C under Part 3)',
   adm_eu_no_exception:

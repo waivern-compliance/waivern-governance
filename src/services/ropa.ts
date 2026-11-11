@@ -1164,6 +1164,18 @@ export async function updateActivity(input: {
   });
 }
 
+/** The answers one law's questions hold, left alone when the form did not ask them. */
+const KEPT_WHEN_ABSENT = [
+  'originalConsent',
+  'compatibilityRoute',
+  'annex2Condition',
+  'consentUnobtainable',
+  'compatibilityNote',
+  'compatibilityFactors',
+  'euCompatibilityRoute',
+  'euCompatibilityNote'
+] as const;
+
 /**
  * Record whether this is further processing or research, and on what ground.
  * Its own write, so the audit chain keeps the before and after of the answers
@@ -1211,7 +1223,13 @@ export async function setFurtherProcessing(input: {
               }
             })()
           : (() => {
-              const r = cleanFurtherProcessing(input.record);
+              // A law's answers not on the form are kept as recorded.
+              const kept = Object.fromEntries(
+                KEPT_WHEN_ABSENT.filter(
+                  (k) => input.record[k] === undefined
+                ).map((k) => [k, before[k]])
+              );
+              const r = cleanFurtherProcessing({ ...input.record, ...kept });
               return {
                 ...r,
                 furtherAuthorisedBy: r.furtherProcessing

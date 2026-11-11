@@ -15,7 +15,8 @@ import {
   ADM_SPECIAL_CONDITIONS_FOR,
   admConditionParagraph,
   admSafeguardPoint,
-  type AdmRecord
+  type AdmRecord,
+  type AdmSpecialCondition
 } from '@/lib/gdpr/automated-decisions';
 
 const label =
@@ -50,6 +51,20 @@ export function AutomatedDecisionFields({
   const [solely, setSolely] = useState(yesNo(record.automatedDecisions));
   const [euException, setEuException] = useState(record.admEuException ?? '');
   const euLaw = laws !== 'uk' && regime !== 'dpa_part3';
+  // Under EU law only, the UK Articles 22A-22C are not cited.
+  const euOnly = laws === 'eu' && regime !== 'dpa_part3';
+  const point = (k: (typeof ADM_SAFEGUARD_KEYS)[number]) =>
+    euOnly
+      ? k === 'information'
+        ? 'Articles 13(2)(f) and 14(2)(g)'
+        : 'Article 22(3)'
+      : admSafeguardPoint(k, regime);
+  const conditionPoint = (c: string) =>
+    euOnly
+      ? c === 'explicit_consent'
+        ? 'Articles 22(4) and 9(2)(a)'
+        : 'Articles 22(4) and 9(2)(g)'
+      : admConditionParagraph(c as AdmSpecialCondition, regime);
   const [special, setSpecial] = useState(yesNo(record.admSpecialCategory));
   const [setAside, setSetAside] = useState(Boolean(record.admSetAside));
   const part3 = regime === 'dpa_part3';
@@ -60,10 +75,11 @@ export function AutomatedDecisionFields({
         <span className={label}>
           Significant decisions taken solely by automated means?
           <span className={hint}>
-            {part3 ? 'Section 50A' : 'Article 22A'} - a decision with{' '}
-            {part3 ? 'an adverse' : 'a'} legal or similarly significant{' '}
-            {part3 ? 'adverse ' : ''}effect on someone, with no meaningful human
-            involvement. Consider how far it is reached by profiling.
+            {part3 ? 'Section 50A' : euOnly ? 'Article 22(1)' : 'Article 22A'} -
+            a decision with {part3 ? 'an adverse' : 'a'} legal or similarly
+            significant {part3 ? 'adverse ' : ''}effect on someone, with no
+            meaningful human involvement. Consider how far it is reached by
+            profiling.
           </span>
         </span>
         <select
@@ -139,7 +155,7 @@ export function AutomatedDecisionFields({
               <span className={hint}>
                 {part3
                   ? 'Section 50B(1) - the categories in s.35(8): racial or ethnic origin, political opinions, beliefs, trade union membership, genetic or biometric data to identify someone, health, sex life or orientation'
-                  : 'Article 22B(1) - health, ethnicity, beliefs, biometrics and the rest of Article 9(1)'}
+                  : `${euOnly ? 'Article 22(4)' : 'Article 22B(1)'} - health, ethnicity, beliefs, biometrics and the rest of Article 9(1)`}
               </span>
             </span>
             <select
@@ -157,7 +173,13 @@ export function AutomatedDecisionFields({
           {special === 'yes' ? (
             <label className="block space-y-1">
               <span className={label}>
-                Which {part3 ? 'section 50B' : 'Article 22B'} condition is met?
+                Which{' '}
+                {part3
+                  ? 'section 50B'
+                  : euOnly
+                    ? 'Article 22(4)'
+                    : 'Article 22B'}{' '}
+                condition is met?
                 <span className={hint}>
                   Without one, the decision may not be taken solely by automated
                   means.
@@ -174,8 +196,7 @@ export function AutomatedDecisionFields({
                     key={c}
                     value={c}
                   >
-                    {ADM_SPECIAL_CONDITIONS[c].label} -{' '}
-                    {admConditionParagraph(c, regime)}
+                    {ADM_SPECIAL_CONDITIONS[c].label} - {conditionPoint(c)}
                   </option>
                 ))}
               </select>
@@ -186,8 +207,12 @@ export function AutomatedDecisionFields({
             <legend className={label}>
               Safeguards in place
               <span className={hint}>
-                {part3 ? 'Section 50C(2)' : 'Article 22C(2)'} - tick each one
-                that is in place, and say how
+                {part3
+                  ? 'Section 50C(2)'
+                  : euOnly
+                    ? 'Article 22(3), and telling people (Articles 13-14)'
+                    : 'Article 22C(2)'}{' '}
+                - tick each one that is in place, and say how
               </span>
             </legend>
             {ADM_SAFEGUARD_KEYS.map((k) => (
@@ -207,7 +232,7 @@ export function AutomatedDecisionFields({
                   <span>
                     {ADM_SAFEGUARDS[k].label}{' '}
                     <span className="font-mono text-[11px] text-ink-soft">
-                      {admSafeguardPoint(k, regime)}
+                      {point(k)}
                     </span>
                   </span>
                 </label>
