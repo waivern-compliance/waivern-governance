@@ -12,6 +12,7 @@ import {
   type AnyPgColumn
 } from 'drizzle-orm/pg-core';
 
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type {
   LoggingStatement,
   Part3Basis,
@@ -226,12 +227,19 @@ export const processingActivities = pgTable(
     retentionFollowsPolicy: boolean('retention_follows_policy'),
     retentionPolicyNote: text('retention_policy_note'),
     /**
-     * The regime: UK GDPR, or law enforcement processing under Part 3 of the
-     * Data Protection Act 2018, available only on a competent authority's
-     * entity. A police force's staff records are UK GDPR; its investigations
-     * are Part 3.
+     * The regime: general processing under the GDPR (UK, EU or both, as
+     * `laws` says), or law enforcement processing under Part 3 of the Data
+     * Protection Act 2018, available only on a competent authority's entity
+     * and only under UK law. A police force's staff records are GDPR; its
+     * investigations are Part 3.
      */
-    regime: text('regime').$type<Regime>().notNull().default('uk_gdpr'),
+    regime: text('regime').$type<Regime>().notNull().default('gdpr'),
+    /**
+     * Which of its entity's laws govern this record: UK, EU or both. Set from
+     * the entity on creation and narrowed by a person; never outside the
+     * entity's (`lib/gdpr/regimes.ts`).
+     */
+    laws: text('laws').$type<DataProtectionLaw>().notNull().default('uk'),
     /** Part 3: how s.35(2) is met. */
     part3Basis: text('part3_basis').$type<Part3Basis>(),
     /** Part 3: sensitive processing (s.35(8)), and the route and Schedule 8 condition relied on. */

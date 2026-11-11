@@ -8,14 +8,22 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { establishmentGaps } from '@/lib/gdpr/establishment';
+import { lawsLabel, lawsOf, type Law } from '@/lib/gdpr/regimes';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { dpoPosition, establishmentOf } from '@/services/entities';
-import { GAP_WORDS, HARD_GAPS, registerHealth } from '@/services/ropa';
+import { gapWordsFor, HARD_GAPS, registerHealth } from '@/services/ropa';
 
 import { recordActivity } from './actions';
 
-export default async function RopaPage() {
+export default async function RopaPage({
+  searchParams
+}: {
+  searchParams: Promise<{ law?: string }>;
+}) {
+  const { law: lawParam } = await searchParams;
+  const law: Law | undefined =
+    lawParam === 'uk' || lawParam === 'eu' ? lawParam : undefined;
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
@@ -30,7 +38,7 @@ export default async function RopaPage() {
 
   const org = active.membership.organisationId;
   const [health, orgEntities, dpo] = await Promise.all([
-    registerHealth(org, visibleEntityIds(active)),
+    registerHealth(org, visibleEntityIds(active), law),
     scoped(org, () =>
       db.select().from(entities).where(eq(entities.organisationId, org))
     ),
@@ -43,6 +51,11 @@ export default async function RopaPage() {
     (e) => establishmentGaps(e.dataProtectionLaw, establishmentOf(e)).length > 0
   );
   const mayManageOrg = can(active.membership.grants, 'org.manage');
+  // The law is worth showing, and filtering on, only where more than one is in play.
+  const lawsInPlay = new Set(
+    orgEntities.flatMap((e) => lawsOf(e.dataProtectionLaw))
+  );
+  const severalLaws = lawsInPlay.size > 1;
   const mayAdd = can(active.membership.grants, 'record.write');
 
   return (
@@ -255,8 +268,36 @@ export default async function RopaPage() {
         </details>
       ) : null}
 
+      {severalLaws ? (
+        <nav
+          aria-label="Filter by law"
+          className="flex flex-wrap gap-2 text-xs"
+        >
+          {(
+            [
+              [undefined, 'All records'],
+              ['uk', 'Under the UK GDPR'],
+              ['eu', 'Under the EU GDPR']
+            ] as const
+          ).map(([value, words]) => (
+            <Link
+              key={words}
+              href={value ? `/app/ropa?law=${value}` : '/app/ropa'}
+              aria-current={law === value ? 'page' : undefined}
+              className={`rounded border px-2.5 py-1 ${
+                law === value
+                  ? 'border-brand bg-brand text-white'
+                  : 'border-line bg-surface hover:border-brand'
+              }`}
+            >
+              {words}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+
       <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
-        {health.rows.map(({ activity, entityName, ownerEmail, gaps }) => (
+        {health.rows.map(({ activity, entityName, ownerEmail, laws, gaps }) => (
           <li key={activity.id}>
             <Link
               href={`/app/ropa/${activity.id}`}
@@ -271,6 +312,7 @@ export default async function RopaPage() {
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
                   {entityName}
+                  {severalLaws ? ` · ${lawsLabel(laws)}` : ''}
                   {activity.regime === 'dpa_part3' ? ' · Part 3' : ''}
                 </span>
               </div>
@@ -281,7 +323,7 @@ export default async function RopaPage() {
               </p>
               <GapChips
                 gaps={gaps}
-                words={GAP_WORDS}
+                words={gapWordsFor(laws)}
                 serious={HARD_GAPS}
                 clear="Article 30 complete"
               />

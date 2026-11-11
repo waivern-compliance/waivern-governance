@@ -36,7 +36,7 @@ const yesNo = (v: boolean | null) => (v === null ? '' : v ? 'yes' : 'no');
  */
 export function AutomatedDecisionFields({
   record,
-  regime = 'uk_gdpr'
+  regime = 'gdpr'
 }: {
   record: AdmRecord;
   regime?: Regime;

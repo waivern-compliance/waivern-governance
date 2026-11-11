@@ -89,7 +89,7 @@ async function world(label: string) {
     organisationId: org.id,
     entityId: force.id,
     name: 'Payroll',
-    regime: 'uk_gdpr',
+    regime: 'gdpr',
     lawfulBases: ['contract'],
     actor: SYSTEM
   });
@@ -239,11 +239,11 @@ describe('automated decisions under Part 3, as checked', () => {
   });
 
   it('reads an AI use case as Part 3 only when every activity it is linked to is', () => {
-    assert.equal(regimeOfUseCase([]), 'uk_gdpr');
+    assert.equal(regimeOfUseCase([]), 'gdpr');
     assert.equal(regimeOfUseCase([{ regime: 'dpa_part3' }]), 'dpa_part3');
     assert.equal(
-      regimeOfUseCase([{ regime: 'dpa_part3' }, { regime: 'uk_gdpr' }]),
-      'uk_gdpr'
+      regimeOfUseCase([{ regime: 'dpa_part3' }, { regime: 'gdpr' }]),
+      'gdpr'
     );
   });
 

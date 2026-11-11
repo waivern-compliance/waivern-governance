@@ -69,7 +69,7 @@ export const PART3_ADM_SAFEGUARD_POINTS: Record<AdmSafeguard, string> = {
 /** Where the safeguard is cited, by regime. */
 export function admSafeguardPoint(
   k: AdmSafeguard,
-  regime: Regime = 'uk_gdpr'
+  regime: Regime = 'gdpr'
 ): string {
   return regime === 'dpa_part3'
     ? PART3_ADM_SAFEGUARD_POINTS[k]
@@ -107,17 +107,17 @@ export const ADM_SPECIAL_CONDITIONS_FOR: Record<
   Regime,
   readonly AdmSpecialCondition[]
 > = {
-  uk_gdpr: ['explicit_consent', 'contract_or_law'],
+  gdpr: ['explicit_consent', 'contract_or_law'],
   dpa_part3: ['explicit_consent', 'required_by_law']
 };
 
 /** The UK GDPR's, for the forms and the integration API that know no other. */
-export const ADM_SPECIAL_CONDITION_KEYS = ADM_SPECIAL_CONDITIONS_FOR.uk_gdpr;
+export const ADM_SPECIAL_CONDITION_KEYS = ADM_SPECIAL_CONDITIONS_FOR.gdpr;
 
 /** Where the condition is cited, by regime. */
 export function admConditionParagraph(
   c: AdmSpecialCondition,
-  regime: Regime = 'uk_gdpr'
+  regime: Regime = 'gdpr'
 ): string {
   return regime === 'dpa_part3' && c === 'explicit_consent'
     ? 'Section 50B(2)'
@@ -185,7 +185,7 @@ export function cleanAdm(
       reconsideration?: unknown;
     } | null;
   },
-  regime: Regime = 'uk_gdpr'
+  regime: Regime = 'gdpr'
 ): AdmRecord {
   const part3 = regime === 'dpa_part3';
   const condition = input.admSpecialCondition || null;

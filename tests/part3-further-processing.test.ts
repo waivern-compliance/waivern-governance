@@ -71,7 +71,7 @@ async function world(label: string) {
     organisationId: org.id,
     entityId: force.id,
     name: 'Staff vetting',
-    regime: 'uk_gdpr',
+    regime: 'gdpr',
     lawfulBases: ['legal_obligation'],
     actor: SYSTEM
   });
@@ -279,7 +279,7 @@ describe('the register', () => {
     await updateActivity({
       activityId: w.custody.id,
       organisationId: w.org.id,
-      changes: { regime: 'uk_gdpr' },
+      changes: { regime: 'gdpr' },
       actor: SYSTEM
     });
     assert.ok(

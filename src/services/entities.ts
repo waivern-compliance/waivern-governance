@@ -2,7 +2,12 @@ import { isDeepStrictEqual } from 'node:util';
 import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
-import { dsrIntakeLinks, entities, organisations } from '@/db/schema';
+import {
+  dsrIntakeLinks,
+  entities,
+  organisations,
+  processingActivities
+} from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import {
   isDataProtectionLaw,
@@ -21,6 +26,7 @@ import {
   cleanEstablishment,
   type Establishment
 } from '@/lib/gdpr/establishment';
+import { lawsLabel, narrowedTo } from '@/lib/gdpr/regimes';
 
 import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
 import { forgetFrameOrigins } from './frame-origins';
@@ -365,6 +371,39 @@ export async function setDataProtectionLaw(input: {
           );
         }
       }
+      // Records follow the entity's law down: one under both laws keeps the law
+      // that remains. One under the dropped law alone is for a person to
+      // decide (move it, or close it), so the change is refused naming it.
+      const records = await tx
+        .select({
+          id: processingActivities.id,
+          reference: processingActivities.reference,
+          laws: processingActivities.laws
+        })
+        .from(processingActivities)
+        .where(eq(processingActivities.entityId, before.id));
+      const stranded = records.filter(
+        (r) => narrowedTo(r.laws, input.law) === null
+      );
+      if (stranded.length > 0) {
+        throw new EntityRefused(
+          `${stranded.map((r) => r.reference).join(', ')} ${stranded.length === 1 ? 'is' : 'are'} recorded under the ${lawsLabel(stranded[0].laws)} only, which ${before.name} would no longer be subject to. Change the laws on ${stranded.length === 1 ? 'that record' : 'those records'} first (with the entity under both laws while you do).`
+        );
+      }
+      const narrowed = records.filter(
+        (r) => narrowedTo(r.laws, input.law) !== r.laws
+      );
+      if (narrowed.length > 0) {
+        await tx
+          .update(processingActivities)
+          .set({ laws: input.law, updatedAt: new Date() })
+          .where(
+            and(
+              eq(processingActivities.entityId, before.id),
+              eq(processingActivities.laws, 'uk_eu')
+            )
+          );
+      }
       const [after] = await tx
         .update(entities)
         .set({
@@ -385,7 +424,12 @@ export async function setDataProtectionLaw(input: {
         subjectId: before.id,
         entityId: before.id,
         before: { dataProtectionLaw: before.dataProtectionLaw },
-        after: { dataProtectionLaw: input.law }
+        after: {
+          dataProtectionLaw: input.law,
+          ...(narrowed.length > 0
+            ? { recordsNarrowed: narrowed.map((r) => r.reference) }
+            : {})
+        }
       });
       return after;
     })
@@ -662,8 +706,8 @@ export async function setCompetentAuthority(input: {
   actor: Actor;
 }) {
   const defaultRegime: Regime = input.competentAuthority
-    ? (input.defaultRegime ?? 'uk_gdpr')
-    : 'uk_gdpr';
+    ? (input.defaultRegime ?? 'gdpr')
+    : 'gdpr';
   if (!isRegime(defaultRegime))
     throw new Error('Choose the regime new records start under.');
   return withOrganisation(input.organisationId, () =>

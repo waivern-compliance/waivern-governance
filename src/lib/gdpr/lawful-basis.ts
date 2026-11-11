@@ -205,30 +205,45 @@ export function basesUnder(
 }
 
 export type LawfulBasisGap =
-  'no_basis' | 'no_recognised_condition' | 'recognised_not_uk_law';
+  | 'no_basis'
+  | 'no_recognised_condition'
+  | 'recognised_not_uk_law'
+  | 'ea_without_eu_basis';
 
 export const LAWFUL_BASIS_GAP_WORDS: Record<LawfulBasisGap, string> = {
   no_basis: 'No lawful basis chosen',
   no_recognised_condition:
     'Recognised legitimate interests with no Annex 1 condition',
   recognised_not_uk_law:
-    'Relies on recognised legitimate interests, but the entity is under EU law only, which has no such basis (EU GDPR Article 6(1))'
+    'Relies on recognised legitimate interests, but the record is under EU law only, which has no such basis (EU GDPR Article 6(1))',
+  ea_without_eu_basis:
+    'Relies on recognised legitimate interests, which the EU GDPR does not have, with no other basis for the EU side (EU GDPR Article 6(1))'
 };
 
 /**
- * What the chosen bases still lack. `ukLaw` false: the entity is subject to EU
- * law only, where recognised legitimate interests does not exist, so relying
- * on it is reported rather than its Annex 1 condition asked for.
+ * What the chosen bases still lack, under each law the record is under.
+ * `ukLaw` false: EU law only, where recognised legitimate interests does not
+ * exist, so relying on it is reported rather than its Annex 1 condition asked
+ * for. `euLaw` true alongside UK law: (ea) answers for the UK side only, so
+ * the EU side needs one of the six original bases beside it.
  */
 export function lawfulBasisGaps(input: {
   bases: readonly LawfulBasis[];
   recognisedCondition: string | null;
   ukLaw?: boolean;
+  euLaw?: boolean;
 }): LawfulBasisGap[] {
   if (input.bases.length === 0) return ['no_basis'];
   if (!input.bases.includes('recognised_legitimate_interests')) return [];
   if (input.ukLaw === false) return ['recognised_not_uk_law'];
-  return input.recognisedCondition ? [] : ['no_recognised_condition'];
+  const gaps: LawfulBasisGap[] = [];
+  if (!input.recognisedCondition) gaps.push('no_recognised_condition');
+  if (
+    input.euLaw &&
+    !input.bases.some((b) => b !== 'recognised_legitimate_interests')
+  )
+    gaps.push('ea_without_eu_basis');
+  return gaps;
 }
 
 /** Bases in the order Article 6(1) lists them, for display. */

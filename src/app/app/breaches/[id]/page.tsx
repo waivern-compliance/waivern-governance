@@ -456,7 +456,7 @@ export default async function BreachPage({
                 defaultValue={breach.regime}
                 className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
               >
-                <option value="uk_gdpr">UK GDPR (Articles 33–34)</option>
+                <option value="gdpr">UK GDPR (Articles 33–34)</option>
                 <option value="dpa_part3">
                   Law enforcement processing (Part 3, ss.67–68)
                 </option>

@@ -389,7 +389,7 @@ async function checkedRegime(
     input.jurisdiction === 'uk' &&
     input.rights.every((r) => PART3_RIGHTS.includes(r))
       ? entity.defaultRegime
-      : 'uk_gdpr');
+      : 'gdpr');
   if (!isRegime(regime)) throw new RequestRefused('Choose the regime.');
   if (regime === 'dpa_part3') {
     if (!entity?.competentAuthority) {

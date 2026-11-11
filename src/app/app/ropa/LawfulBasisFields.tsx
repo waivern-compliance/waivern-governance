@@ -33,7 +33,9 @@ export function LawfulBasisFields({
   note,
   publicAuthority = false,
   outsidePublicTasks = false,
-  ukLaw = true
+  ukLaw = true,
+  euLaw = false,
+  euPublicBody = false
 }: {
   bases: readonly LawfulBasis[];
   condition: RecognisedCondition | null;
@@ -41,8 +43,12 @@ export function LawfulBasisFields({
   /** The entity is a public authority: legitimate interests is not for its tasks. */
   publicAuthority?: boolean;
   outsidePublicTasks?: boolean;
-  /** The entity is subject to UK law, where recognised legitimate interests exists. */
+  /** The record is under UK law, where recognised legitimate interests exists. */
   ukLaw?: boolean;
+  /** The record is under EU law, which has the six original bases only. */
+  euLaw?: boolean;
+  /** The entity is a public authority or body under a member State's law. */
+  euPublicBody?: boolean;
 }) {
   const [recognised, setRecognised] = useState(
     bases.includes('recognised_legitimate_interests')
@@ -50,6 +56,13 @@ export function LawfulBasisFields({
   const [legitimate, setLegitimate] = useState(
     bases.includes('legitimate_interests')
   );
+  const [others, setOthers] = useState(
+    bases.some((b) => b !== 'recognised_legitimate_interests')
+  );
+  // Article 6(1), final subparagraph, under each law: a UK public authority
+  // may rely on neither (f) nor (ea) for its tasks, an EU public body not on (f).
+  const ukBarred = ukLaw && publicAuthority && (recognised || legitimate);
+  const euBarred = euLaw && euPublicBody && legitimate;
 
   return (
     <fieldset className="space-y-3">
@@ -72,13 +85,20 @@ export function LawfulBasisFields({
               name="lawfulBases"
               value={b}
               defaultChecked={bases.includes(b)}
-              onChange={
-                b === 'recognised_legitimate_interests'
-                  ? (e) => setRecognised(e.target.checked)
-                  : b === 'legitimate_interests'
-                    ? (e) => setLegitimate(e.target.checked)
-                    : undefined
-              }
+              onChange={(e) => {
+                const ticked = Array.from(
+                  e.currentTarget.form?.querySelectorAll<HTMLInputElement>(
+                    'input[name="lawfulBases"]:checked'
+                  ) ?? []
+                ).map((i) => i.value);
+                setRecognised(
+                  ticked.includes('recognised_legitimate_interests')
+                );
+                setLegitimate(ticked.includes('legitimate_interests'));
+                setOthers(
+                  ticked.some((t) => t !== 'recognised_legitimate_interests')
+                );
+              }}
               className="mt-1 accent-brand"
             />
             <span>
@@ -90,13 +110,12 @@ export function LawfulBasisFields({
           </label>
         ))}
       </div>
-      {publicAuthority && (recognised || legitimate) ? (
+      {ukBarred || euBarred ? (
         <div className="space-y-2 rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900">
           <p>
-            This entity is a public authority. Article 6(1) does not let a
-            public authority rely on legitimate interests or recognised
-            legitimate interests for processing in the performance of its tasks:
-            those rest on public task (Article 6(1)(e)) or another basis.
+            {ukBarred
+              ? 'This entity is a public authority. UK GDPR Article 6(1) does not let a public authority rely on legitimate interests or recognised legitimate interests for processing in the performance of its tasks: those rest on public task (Article 6(1)(e)) or another basis.'
+              : 'This entity is a public authority or body under the law of a member State. EU GDPR Article 6(1) does not let it rely on legitimate interests for processing in the performance of its tasks: those rest on public task (Article 6(1)(e)) or another basis.'}
           </p>
           <label className="flex items-start gap-2">
             <input
@@ -114,10 +133,17 @@ export function LawfulBasisFields({
       ) : null}
       {!ukLaw && recognised ? (
         <p className="rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900">
-          This entity is subject to EU law only. Recognised legitimate interests
-          is a basis in UK law only (UK GDPR Article 6(1)(ea)); the EU GDPR has
-          no equivalent. Untick it and choose the basis this processing rests on
+          This record is under EU law only. Recognised legitimate interests is a
+          basis in UK law only (UK GDPR Article 6(1)(ea)); the EU GDPR has no
+          equivalent. Untick it and choose the basis this processing rests on
           under EU law, such as legitimate interests with an assessment.
+        </p>
+      ) : null}
+      {recognised && ukLaw && euLaw && !others ? (
+        <p className="rounded border border-red-800 bg-red-50 px-3 py-2 text-xs text-red-900">
+          This record is under the EU GDPR as well. Recognised legitimate
+          interests answers for the UK side only; the EU GDPR has no such basis,
+          so tick the basis this processing rests on under EU law too.
         </p>
       ) : null}
       {recognised && ukLaw ? (
