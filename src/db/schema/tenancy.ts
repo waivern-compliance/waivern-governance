@@ -195,7 +195,7 @@ export const entities = pgTable(
     defaultRegime: text('default_regime')
       .$type<Regime>()
       .notNull()
-      .default('uk_gdpr'),
+      .default('gdpr'),
     /**
      * The freedom of information Act the entity answers requests under: the
      * Freedom of Information Act 2000 (with the EIR) or the Freedom of

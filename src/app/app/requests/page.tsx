@@ -279,7 +279,7 @@ export default async function RequestsPage() {
                   className={inputClass}
                 >
                   <option value="">As the entity&apos;s default</option>
-                  <option value="uk_gdpr">UK GDPR</option>
+                  <option value="gdpr">UK GDPR</option>
                   <option value="dpa_part3">
                     Law enforcement processing (Part 3)
                   </option>

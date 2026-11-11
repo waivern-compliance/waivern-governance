@@ -8,8 +8,11 @@
  * UK-targeted processing — is subject to none of them, and the questions,
  * decisions and flags that exist only because of the Act are not shown for it.
  *
- * Set per entity, because a group can have UK and EU companies. Pure.
+ * Set per entity, because a group can have UK and EU companies. Pure. Which of
+ * an entity's laws govern each record is `lib/gdpr/regimes.ts`.
  */
+
+import { appliesUk } from '@/lib/gdpr/regimes';
 
 export type DataProtectionLaw = 'uk' | 'eu' | 'uk_eu';
 
@@ -23,12 +26,8 @@ export function isDataProtectionLaw(v: unknown): v is DataProtectionLaw {
   return typeof v === 'string' && v in DATA_PROTECTION_LAWS;
 }
 
-/** Whether the UK GDPR, the DPA 2018 and PECR apply to the entity. */
-export function ukLawApplies(
-  law: DataProtectionLaw | null | undefined
-): boolean {
-  return law !== 'eu';
-}
+/** Whether the UK GDPR, the DPA 2018 and PECR apply to the entity or record. */
+export const ukLawApplies = appliesUk;
 
 /** The jurisdiction a request to the entity is handled under, where it is not stated. */
 export function defaultRequestJurisdiction(

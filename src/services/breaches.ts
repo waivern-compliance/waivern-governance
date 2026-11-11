@@ -170,7 +170,7 @@ async function checkedRegime(
     .from(entities)
     .where(eq(entities.id, entityId));
   const chosen =
-    regime ?? (entity?.competentAuthority ? entity.defaultRegime : 'uk_gdpr');
+    regime ?? (entity?.competentAuthority ? entity.defaultRegime : 'gdpr');
   if (!isRegime(chosen)) throw new Error('Choose the regime.');
   if (chosen === 'dpa_part3' && !entity?.competentAuthority) {
     throw new Error(

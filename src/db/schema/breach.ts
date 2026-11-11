@@ -62,7 +62,7 @@ export const breaches = pgTable(
      * the Data Protection Act 2018 (ss.67–68). Part 3 only on a competent
      * authority's entity.
      */
-    regime: text('regime').$type<Regime>().notNull().default('uk_gdpr'),
+    regime: text('regime').$type<Regime>().notNull().default('gdpr'),
 
     /**
      * When the organisation became aware. This starts the seventy-two hours,

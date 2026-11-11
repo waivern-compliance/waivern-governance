@@ -195,7 +195,7 @@ export const dataSubjectRequests = pgTable(
      * the Schedule 2 and 3 exemptions. Part 3 only for a UK request to a
      * competent authority.
      */
-    regime: text('regime').$type<Regime>().notNull().default('uk_gdpr'),
+    regime: text('regime').$type<Regime>().notNull().default('gdpr'),
     /**
      * A processor does not answer the request. Under Article 28(3)(e) it passes
      * it to the controller and helps, and a register that treated the two alike

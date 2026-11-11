@@ -464,16 +464,26 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Under which law',
+        body: [
+          "Each record is under the laws of its entity that govern it: the UK GDPR, the EU GDPR, or both. A new record takes its entity's laws. For an entity under both, the record asks which, because a group's UK payroll may be under the UK GDPR only while its EU customer records are under both. A record cannot be under a law its entity is not subject to, and Part 3 records must be under UK law.",
+          "Every check is made once for each law that applies, and the record's heading names them. Where more than one law is in play across your entities, the register shows each record's laws and can be filtered to the records under one of them.",
+          'Narrowing an entity to one law narrows its records under both laws with it. A record under the other law alone stops the change until you decide what to do with it.'
+        ]
+      },
+      {
         heading: 'What the flags mean',
         body: [
-          "Red items are unqualified Article 30 requirements - purposes, categories of data subject and of personal data, recipients, transfer safeguards, and the controller's identity where you act as processor. Missing any of those is a compliance failure, not untidiness. Red is also used where the record describes processing the law does not allow: a solely automated significant decision relying on recognised legitimate interests, or on special category data with no Article 22B condition, and further processing on a route Article 8A(4) closes for data collected on consent. So is reliance on recognised legitimate interests by an entity subject to EU law only.",
+          "Red items are unqualified Article 30 requirements - purposes, categories of data subject and of personal data, recipients, transfer safeguards, and the controller's identity where you act as processor. Missing any of those is a compliance failure, not untidiness. Red is also used where the record describes processing the law does not allow: a solely automated significant decision relying on recognised legitimate interests, or on special category data with no Article 22B condition, and further processing on a route Article 8A(4) closes for data collected on consent. So is reliance on recognised legitimate interests where EU law applies with no EU basis beside it.",
+          "On a record under both laws, an item that only one law asks for starts with that law's name ('UK GDPR:' or 'EU GDPR:'), so you can tell which regime it comes from. Items both laws share are not labelled.",
           "Amber items are reported without being called a breach. Retention and security measures are qualified in the Regulation by 'where possible', so their absence is worth knowing and is not the same thing."
         ]
       },
       {
         heading: 'Lawful basis',
         body: [
-          "Tick each Article 6(1) basis the processing relies on. Recognised legitimate interests, which the Data (Use and Access) Act 2025 added, covers only the five conditions in Annex 1 - disclosure for another's public task, national security, emergencies, crime and safeguarding - and asks which one. It needs no balancing test, but people can still object to it, and a significant decision may not rest solely on automated processing under it. A public authority may not rely on it, or on ordinary legitimate interests, for its tasks. It is UK law only: the EU GDPR has no such basis, so it is not offered for an entity subject to EU law only, and a record of such an entity that already relies on it is flagged red until another basis is chosen.",
+          "Tick each Article 6(1) basis the processing relies on. Recognised legitimate interests, which the Data (Use and Access) Act 2025 added, covers only the five conditions in Annex 1 - disclosure for another's public task, national security, emergencies, crime and safeguarding - and asks which one. It needs no balancing test, but people can still object to it, and a significant decision may not rest solely on automated processing under it. A public authority may not rely on it, or on ordinary legitimate interests, for its tasks. It is UK law only: the EU GDPR has no such basis, so it is not offered on a record under EU law only, and such a record that already relies on it is flagged red until another basis is chosen. On a record under both laws it answers for the UK side only, so it is flagged red until a basis for the EU side is ticked beside it.",
+          'A public body under the law of a member State (recorded on the Organisation page) may not rely on legitimate interests for its tasks under the EU GDPR either; a record under EU law that does is flagged red, unless you record that the processing is outside its tasks.',
           "The text field beside it is a note. Where a record's basis used to be written as text and named one basis plainly, that basis was ticked for you; anything less clear was left for you to choose, and shows as 'No lawful basis chosen' until you do."
         ]
       },

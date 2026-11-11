@@ -11,10 +11,9 @@ import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, processingActivities, users } from '@/db/schema';
-import { ukLawApplies } from '@/lib/dpa2018/applies';
 import {
   PART3_BASES,
-  REGIMES,
+  regimeLabel,
   SCHEDULE_8,
   SENSITIVE_ROUTES
 } from '@/lib/dpa2018/part3';
@@ -42,6 +41,7 @@ import {
   describeBases,
   RECOGNISED_CONDITIONS
 } from '@/lib/gdpr/lawful-basis';
+import { appliesEu, appliesUk, RECORD_LAWS } from '@/lib/gdpr/regimes';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
@@ -55,7 +55,7 @@ import {
   objectionReviewThreshold
 } from '@/services/data-subject-requests';
 import { importSourceName } from '@/services/imports';
-import { GAP_WORDS, HARD_GAPS, loadActivity } from '@/services/ropa';
+import { gapWordsFor, HARD_GAPS, loadActivity } from '@/services/ropa';
 import { agreementsFor } from '@/services/sharing-agreements';
 
 import { confirmImportedActivityAction } from '../../admin/imports/actions';
@@ -87,7 +87,11 @@ export default async function ActivityPage({
 
   const { activity, entityName, gaps, hardGaps, assessments, original } =
     loaded;
-  const ukLaw = ukLawApplies(loaded.dataProtectionLaw);
+  // The record's own laws, within its entity's: every rule below is asked
+  // once per law that applies.
+  const { laws } = loaded;
+  const ukLaw = appliesUk(laws);
+  const euLaw = appliesEu(laws);
   if (!can(active.membership.grants, 'record.read', activity.entityId)) {
     return (
       <NotPermitted
@@ -175,9 +179,12 @@ export default async function ActivityPage({
             ? ' · arrived from a connected tool'
             : ''}
         </p>
+        <p className="text-xs font-medium">
+          {regimeLabel(activity.regime, laws)}
+        </p>
         <GapChips
           gaps={gaps}
-          words={GAP_WORDS}
+          words={gapWordsFor(laws)}
           serious={HARD_GAPS}
           clear="Article 30 complete"
         />
@@ -332,6 +339,30 @@ export default async function ActivityPage({
             name="name"
             defaultValue={activity.name}
           />
+          {loaded.dataProtectionLaw === 'uk_eu' ? (
+            <label className="block space-y-1">
+              <Label
+                text="Under which law"
+                hint={`${entityName} is subject to both. A record is under each law whose people it concerns, or whose establishment it is processed in: UK payroll may be under the UK GDPR only, and EU customers under both. Each law's questions and gaps follow from this.`}
+              />
+              <select
+                name="laws"
+                defaultValue={activity.laws}
+                className="w-full rounded border border-line bg-ground px-3 py-2 text-sm"
+              >
+                {(Object.keys(RECORD_LAWS) as (keyof typeof RECORD_LAWS)[]).map(
+                  (l) => (
+                    <option
+                      key={l}
+                      value={l}
+                    >
+                      {RECORD_LAWS[l]}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+          ) : null}
           <Area
             label="Description"
             name="description"
@@ -375,6 +406,8 @@ export default async function ActivityPage({
                   publicAuthority={loaded.publicAuthority}
                   outsidePublicTasks={activity.outsidePublicTasks}
                   ukLaw={ukLaw}
+                  euLaw={euLaw}
+                  euPublicBody={loaded.euPublicBody}
                 />
                 <SpecialCategoryFields
                   record={activity}
@@ -500,7 +533,7 @@ export default async function ActivityPage({
           />
           <Read
             label="Regime"
-            value={REGIMES[activity.regime]}
+            value={regimeLabel(activity.regime, laws)}
           />
           {activity.regime === 'dpa_part3' ? (
             <>
