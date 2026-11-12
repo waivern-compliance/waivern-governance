@@ -6,7 +6,7 @@ import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 
 import { db } from '@/db/client';
 import { memberships, users } from '@/db/schema';
-import { servedOrigins } from '@/lib/app-url';
+import { listsAddresses } from '@/lib/app-url';
 import {
   mayJoinByDomain,
   mayRequestOrganisation,
@@ -183,16 +183,11 @@ export async function loadMemberships(
 /** How long a sign-in lasts before the identity provider is asked again. */
 export const SESSION_HOURS = 12;
 
-/** Whether this deployment lists its addresses instead of naming one AUTH_URL. */
-function signInOrigins(): boolean {
-  return !process.env.AUTH_URL?.trim() && servedOrigins().length > 0;
-}
-
 export const authConfig: NextAuthConfig = {
   providers: providers(),
-  // With addresses listed and no AUTH_URL, the host is trusted only after the
+  // With addresses listed, the host is trusted only after the proxy or the
   // auth route has checked it against the list (see src/lib/app-url.ts).
-  ...(signInOrigins() ? { trustHost: true } : {}),
+  ...(listsAddresses() ? { trustHost: true } : {}),
   session: { strategy: 'jwt', maxAge: SESSION_HOURS * 60 * 60 },
   pages: { signIn: '/sign-in', error: '/sign-in' },
   callbacks: {

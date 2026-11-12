@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { pinForwardedAddress } from '@/lib/app-url';
 import {
   BANNER_HEADER,
   bannerFor,
@@ -106,6 +107,9 @@ export async function proxy(request: NextRequest) {
   );
 
   const requestHeaders = new Headers(request.headers);
+  // Pages, and the server actions they post to (sign-in among them), see only
+  // an address this deployment lists. See src/lib/app-url.ts.
+  pinForwardedAddress(requestHeaders);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
   // For the root layout, which cannot see the path. Set or removed here, so a
