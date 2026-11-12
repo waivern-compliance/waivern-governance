@@ -122,6 +122,10 @@ describe('exporting the audit log', () => {
     // columns alone. This is the whole point of a tamper-evident log: if only
     // we can check it, it is a claim rather than evidence.
     const index = Object.fromEntries(result.columns.map((c, i) => [c, i]));
+    // Each event's own id, so an 'Erased by' can be followed to its event.
+    assert.ok('Id' in index && 'Erased by' in index);
+    const ids = result.rows.map((r) => r[index['Id']]);
+    assert.equal(new Set(ids).size, ids.length);
     let expectedPrev = GENESIS_HASH;
     let expectedSeq = 1;
 

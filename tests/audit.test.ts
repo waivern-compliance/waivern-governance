@@ -11,6 +11,7 @@ import {
   eraseAuditContents,
   GENESIS_HASH,
   SCHEME_CHANGED,
+  upgradeAuditChains,
   verifyAuditChain
 } from '@/lib/audit';
 import { canonicalise, sha256Hex } from '@/lib/canonical';
@@ -380,6 +381,58 @@ describe('erasing contents', () => {
     );
   });
 
+  it('is refused by the database outside the erasure that names it', async () => {
+    const org = await freshOrg('erase-outside');
+    for (let i = 0; i < 3; i++) await audit(withContents(org.id, i));
+    await erase(org.id, [1]);
+    const [declaring] = (await eventsOf(org.id)).filter(
+      (r) => r.action === CONTENTS_ERASED
+    );
+    // A real declaration, reused from another transaction: refused.
+    await assert.rejects(
+      db.execute(sql`update audit_event
+        set before = null, after = null, metadata = '{}'::jsonb,
+            erased_at = now(), erased_by = ${declaring.id}
+        where organisation_id = ${org.id} and seq = 2`),
+      (err) => /audit_event is append-only: UPDATE/.test(messageChain(err))
+    );
+  });
+
+  it('never erases the events that declare an erasure or a change of scheme', async () => {
+    const org = await freshOrg('erase-declaring');
+    for (let i = 0; i < 2; i++) await audit(withContents(org.id, i));
+    await erase(org.id, [1]);
+    const all = await eventsOf(org.id);
+    const done = await db.transaction((tx) =>
+      eraseAuditContents(tx, {
+        organisationId: org.id,
+        eventIds: all.map((r) => r.id),
+        reason: 'test',
+        actor: { actorKind: 'system', actorLabel: 'test' },
+        subject: { subjectType: 'organisation', subjectId: org.id }
+      })
+    );
+    assert.equal(done.erased, 1, 'only the one event not yet erased');
+    const declaring = (await eventsOf(org.id)).filter(
+      (r) => r.action === CONTENTS_ERASED
+    );
+    assert.ok(declaring.every((r) => r.erasedAt === null));
+    assert.equal((await verifyAuditChain(org.id)).ok, true);
+
+    await assert.rejects(
+      db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select set_config('govern.audit_erasure', ${declaring[1].id}, true)`
+        );
+        await tx.execute(sql`update audit_event
+          set before = null, after = null, metadata = '{}'::jsonb,
+              erased_at = now(), erased_by = ${declaring[1].id}
+          where id = ${declaring[0].id}`);
+      }),
+      (err) => /audit_event is append-only: UPDATE/.test(messageChain(err))
+    );
+  });
+
   it('catches an erasure nobody declared', async () => {
     const org = await freshOrg('erase-undeclared');
     for (let i = 0; i < 2; i++) await audit(withContents(org.id, i));
@@ -438,6 +491,22 @@ describe('a chain begun before digests', () => {
     const check = await verifyAuditChain(org.id);
     assert.equal(check.ok, true);
     assert.equal(check.ok && check.events, 3);
+  });
+
+  it('moves before any event, when upgraded at deploy', async () => {
+    const org = await freshOrg('legacy-deploy');
+    const oldHead = await legacyChain(org.id, 3);
+    const result = await upgradeAuditChains();
+    assert.ok(result.upgraded >= 1);
+    assert.ok(!result.failed.includes(org.id));
+    const rows = await eventsOf(org.id);
+    assert.equal(rows.length, 4);
+    assert.equal(rows[3].action, SCHEME_CHANGED);
+    assert.equal(rows[3].prevHash, oldHead);
+    assert.equal((await verifyAuditChain(org.id)).ok, true);
+    const again = await upgradeAuditChains();
+    assert.ok(!again.failed.includes(org.id));
+    assert.equal((await eventsOf(org.id)).length, 4, 'moved once only');
   });
 
   it('moves to digests on its next event, rewriting no hash', async () => {

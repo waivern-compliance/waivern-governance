@@ -480,7 +480,8 @@ export async function exportAudit(
         'Scheme',
         'Content digest',
         'Contents erased at',
-        'Erased by'
+        'Erased by',
+        'Id'
       ],
       rows: rows.map((e) => [
         e.seq,
@@ -500,7 +501,8 @@ export async function exportAudit(
         e.scheme,
         e.contentDigest,
         e.erasedAt,
-        e.erasedBy
+        e.erasedBy,
+        e.id
       ]),
       caveat: complete
         ? undefined
@@ -555,8 +557,10 @@ export function verificationManifest(
     ``,
     `Erased contents. An event with "Contents erased at" set had its before,`,
     `after and metadata erased, because the records it describes were deleted`,
-    `for good. Erased by names an audit.contents_erased event whose metadata`,
-    `lists its sequence number; without one, the erasure is not genuine. Skip`,
+    `for good. Erased by is the Id of an audit.contents_erased event whose`,
+    `metadata lists its sequence number; without one, the erasure is not`,
+    `genuine. Events of that action, and audit.scheme_changed, are never`,
+    `erased: their metadata is what this check reads. Skip`,
     `step 3 for it. Under scheme 2, step 4 still applies, from its digest.`,
     ``,
     `Moving from scheme 1. Where a chain began under scheme 1, the first scheme 2`,
