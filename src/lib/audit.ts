@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
 import { db, type Db } from '@/db/client';
 import { auditChainHeads, auditEvents } from '@/db/schema';
@@ -349,7 +349,7 @@ export async function eraseAuditContents(
     .where(
       and(
         eq(auditEvents.organisationId, input.organisationId),
-        inArray(auditEvents.id, input.eventIds),
+        anyId(input.eventIds),
         isNull(auditEvents.erasedAt)
       )
     )
@@ -383,13 +383,19 @@ export async function eraseAuditContents(
     .where(
       and(
         eq(auditEvents.organisationId, input.organisationId),
-        inArray(
-          auditEvents.id,
-          targets.map((t) => t.id)
-        )
+        anyId(targets.map((t) => t.id))
       )
     );
   return { erased: targets.length, eventId: row.id };
+}
+
+/**
+ * `id = any(...)` with every id in one parameter. `inArray` binds one
+ * parameter per id, and Postgres refuses more than 65,535 in a statement,
+ * which a large entity's audit trail can pass.
+ */
+function anyId(ids: string[]) {
+  return sql`${auditEvents.id} = any(string_to_array(${ids.join(',')}, ',')::uuid[])`;
 }
 
 export type ChainVerification =

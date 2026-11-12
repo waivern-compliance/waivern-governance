@@ -411,6 +411,24 @@ describe('erasing contents', () => {
     assert.deepEqual(await eventsOf(theirs.id), before);
     assert.equal((await verifyAuditChain(theirs.id)).ok, true);
   });
+
+  it('takes more ids than one statement can bind', async () => {
+    const org = await freshOrg('erase-many');
+    for (let i = 0; i < 2; i++) await audit(withContents(org.id, i));
+    const rows = await eventsOf(org.id);
+    const many = Array.from({ length: 70_000 }, () => crypto.randomUUID());
+    const done = await db.transaction((tx) =>
+      eraseAuditContents(tx, {
+        organisationId: org.id,
+        eventIds: [...many, ...rows.map((r) => r.id)],
+        reason: 'test',
+        actor: { actorKind: 'system', actorLabel: 'test' },
+        subject: { subjectType: 'organisation', subjectId: org.id }
+      })
+    );
+    assert.equal(done.erased, 2);
+    assert.equal((await verifyAuditChain(org.id)).ok, true);
+  });
 });
 
 describe('a chain begun before digests', () => {
