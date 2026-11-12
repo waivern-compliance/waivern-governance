@@ -21,11 +21,19 @@ import {
   cleanAdm
 } from '@/lib/gdpr/automated-decisions';
 import {
+  ChildrenStatesRefused,
+  cleanChildrenStates
+} from '@/lib/gdpr/children';
+import {
   cleanFurtherProcessing,
   FurtherProcessingRefused
 } from '@/lib/gdpr/further-processing';
 import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
 import { appliesUk, effectiveLaws } from '@/lib/gdpr/regimes';
+import {
+  cleanMechanisms,
+  TransferMechanismRefused
+} from '@/lib/gdpr/transfers';
 import { connectionActor, type AuthedConnection } from '@/lib/integration/auth';
 import type {
   AiUseCaseIn,
@@ -43,7 +51,12 @@ import {
 } from '@/lib/integration/duaa';
 
 import { createUseCase } from './ai-register';
-import { cleanLawfulBases, LawfulBasisRefused } from './ropa';
+import {
+  cleanLawfulBases,
+  cleanRecordLaws,
+  LawfulBasisRefused,
+  RecordLawsRefused
+} from './ropa';
 import type { Actor } from './templates';
 import { canonicalise as canonicaliseByHand } from './third-party';
 
@@ -55,6 +68,9 @@ function refusedBy(error: unknown): string | null {
     error instanceof AutomatedDecisionRefused ||
     error instanceof FurtherProcessingRefused ||
     error instanceof LawfulBasisRefused ||
+    error instanceof RecordLawsRefused ||
+    error instanceof ChildrenStatesRefused ||
+    error instanceof TransferMechanismRefused ||
     error instanceof RecordRefused
   ) {
     return error.message;
@@ -278,25 +294,45 @@ export async function ingestProcessingActivities(
             duaa.childrenLikely = r.childrenLikely;
             recorded.push('childrenLikely');
           }
+          if (r.childrenMemberStates !== undefined) {
+            duaa.childrenMemberStates = cleanChildrenStates(
+              r.childrenMemberStates
+            );
+            recorded.push('childrenMemberStates');
+          }
+          // The record's laws, judged against the entity it belongs to: its
+          // own once it exists (a push does not move a record), else the one
+          // the push names. As sent, else as recorded, else the entity's; one
+          // outside the entity's, or Part 3 off UK law, skips the record.
+          const [owner] = await tx
+            .select({ name: entities.name, law: entities.dataProtectionLaw })
+            .from(entities)
+            .where(eq(entities.id, existing?.entityId ?? entity.entityId));
+          const laws = r.laws
+            ? cleanRecordLaws(owner, r.laws, existing?.regime ?? 'gdpr')
+            : (existing?.laws ?? owner.law);
+          if (r.laws) recorded.push('laws');
 
           // Structured bases win; otherwise read them from the text where it is
           // unambiguous. Where neither says anything, a basis somebody chose in
-          // Govern is left alone rather than wiped by a push that had no view.
-          // Judged under the record's own laws where it exists; a new record
-          // takes its entity's.
-          const ukLaw = appliesUk(
-            effectiveLaws(entity.law, existing?.laws ?? entity.law)
-          );
+          // Govern is left alone rather than wiped by a push that had no view,
+          // unless the push changed the record's laws: then the bases recorded
+          // are checked again, so recognised legitimate interests cannot
+          // outlive the UK law that has it.
+          const ukLaw = appliesUk(effectiveLaws(owner.law, laws));
           const bases =
             r.lawfulBases ??
             basesFromTextFor(r.lawfulBasis, ukLaw) ??
-            undefined;
+            (existing && laws !== existing.laws
+              ? existing.lawfulBases
+              : undefined);
           const condition =
             r.recognisedCondition ??
             (bases?.includes('recognised_legitimate_interests')
               ? existing?.recognisedCondition
               : undefined);
           const values = {
+            ...(r.laws ? { laws } : {}),
             name: r.name,
             description: r.description,
             purposes: r.purposes,
@@ -353,7 +389,7 @@ export async function ingestProcessingActivities(
               reference,
               sourceConnectionId: connection.id,
               externalRef: r.externalRef,
-              laws: entity.law,
+              laws,
               ...values
             })
             .returning();
@@ -615,6 +651,16 @@ export async function ingestDpas(
 
     for (const r of records) {
       const key = canonicalise(r.vendorName);
+      // An unknown mechanism skips this record with the reason, not the batch.
+      let mechanisms: ReturnType<typeof cleanMechanisms>;
+      try {
+        mechanisms = cleanMechanisms(r.transferMechanisms ?? []);
+      } catch (error) {
+        const reason = refusedBy(error);
+        if (reason === null) throw error;
+        outcome.skipped.push({ externalRef: r.externalRef ?? r.title, reason });
+        continue;
+      }
       await db.transaction(async (tx) => {
         const [supplier] = await tx
           .insert(suppliers)
@@ -640,6 +686,7 @@ export async function ingestDpas(
             signedAt: r.signedAt ? new Date(r.signedAt) : undefined,
             expiresAt: r.expiresAt ? new Date(r.expiresAt) : undefined,
             transferMechanism: r.transferMechanism,
+            transferMechanisms: mechanisms,
             subProcessors: r.subProcessors,
             terms: r.terms,
             sourceConnectionId: connection.id,

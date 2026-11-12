@@ -22,7 +22,10 @@ import {
   type ComplaintClock,
   type ComplaintOutcome
 } from '@/lib/complaints/statutory';
-import { jurisdictionRefusal } from '@/lib/dpa2018/applies';
+import {
+  DATA_PROTECTION_LAW_KEYS,
+  jurisdictionRefusal
+} from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
 import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
@@ -1059,19 +1062,24 @@ export async function complaintMetrics(
   entityIds: string[] | null,
   months = 12,
   now = new Date()
-): Promise<ComplaintCounts & { months: number; from: Date; to: Date }> {
+): Promise<
+  ComplaintCounts & {
+    months: number;
+    from: Date;
+    to: Date;
+    /** `totals` for the complaints handled under each law. */
+    byLaw: Record<Jurisdiction, ComplaintCounts['totals']>;
+  }
+> {
   const periods = monthsEnding(now, months);
   const from = periods[0].start;
   const register = await complaintRegister(organisationId, entityIds);
   const inWindow = register.rows.filter(
     (r) => r.complaint.receivedAt >= from && r.complaint.receivedAt <= now
   );
-  return {
-    months,
-    from,
-    to: now,
-    ...complaintCounts(
-      inWindow.map((r) => ({
+  const counted = (rows: typeof inWindow, over = periods) =>
+    complaintCounts(
+      rows.map((r) => ({
         subject: r.complaint.subject,
         receivedAt: r.complaint.receivedAt,
         acknowledgedAt: r.complaint.acknowledgedAt,
@@ -1081,8 +1089,24 @@ export async function complaintMetrics(
         outcomeState: r.clock.outcome.state,
         status: r.complaint.status
       })),
-      periods
-    )
+      over
+    );
+  return {
+    months,
+    from,
+    to: now,
+    ...counted(inWindow),
+    // Totals only: no periods, so no month-by-month table is built to be
+    // thrown away.
+    byLaw: Object.fromEntries(
+      DATA_PROTECTION_LAW_KEYS.map((law) => [
+        law,
+        counted(
+          inWindow.filter((r) => r.complaint.jurisdiction === law),
+          []
+        ).totals
+      ])
+    ) as Record<Jurisdiction, ComplaintCounts['totals']>
   };
 }
 
@@ -1133,7 +1157,7 @@ export async function complaintsSummary(input: {
 
     const m = await complaintMetrics(input.organisationId, entityIds, months);
     return {
-      summaryVersion: '1.0',
+      summaryVersion: '1.1',
       generatedAt: new Date().toISOString(),
       organisation: {
         name: org.name,
@@ -1153,6 +1177,7 @@ export async function complaintsSummary(input: {
         to: m.to.toISOString()
       },
       totals: m.totals,
+      byLaw: m.byLaw,
       outcomes: m.outcomes,
       bySubject: m.bySubject,
       byMonth: m.byMonth

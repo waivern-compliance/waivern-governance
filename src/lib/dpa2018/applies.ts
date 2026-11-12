@@ -22,6 +22,10 @@ export const DATA_PROTECTION_LAWS: Record<DataProtectionLaw, string> = {
   uk_eu: 'Both UK and EU law'
 };
 
+export const DATA_PROTECTION_LAW_KEYS = Object.keys(
+  DATA_PROTECTION_LAWS
+) as DataProtectionLaw[];
+
 export function isDataProtectionLaw(v: unknown): v is DataProtectionLaw {
   return typeof v === 'string' && v in DATA_PROTECTION_LAWS;
 }

@@ -20,6 +20,11 @@ import {
   templateVersions,
   users
 } from '@/db/schema';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
+import { authorityByCode } from '@/lib/gdpr/authorities';
+import type { Representative } from '@/lib/gdpr/establishment';
+import { effectiveLaws } from '@/lib/gdpr/regimes';
+import type { RecordedMechanism } from '@/lib/gdpr/transfers';
 import {
   admToWire,
   furtherToWire,
@@ -45,10 +50,13 @@ import { listRegister } from './ai-register';
  */
 
 /**
- * 1.1 adds `aiSystems`. Additive: a reader of 1.0 that ignores unknown keys
- * reads 1.1 unchanged.
+ * 1.1 adds `aiSystems`; 1.2 the Data (Use and Access) Act records; 1.3 the EU
+ * GDPR facts (each entity's law, establishment, lead authority and
+ * representatives; each activity's laws and EU answers; agreements'
+ * mechanisms). Additive: a reader of 1.0 that ignores unknown keys reads 1.3
+ * unchanged.
  */
-export const CONTEXT_VERSION = '1.2';
+export const CONTEXT_VERSION = '1.3';
 
 export type ExportScope = {
   organisationId: string;
@@ -63,7 +71,7 @@ export type GovernanceContext = {
   contextVersion: string;
   generatedAt: string;
   organisation: { name: string; slug: string };
-  entities: Array<{ name: string; legalEntityRef: string | null }>;
+  entities: ContextEntity[];
   /** Present when the caller asked for a slice, so the Portal knows it has one. */
   scope: { entities: string[] | null; since: string | null };
   processingActivities: ContextActivity[];
@@ -120,6 +128,21 @@ export type ContextAiSystem = {
   updatedAt: string;
 };
 
+/**
+ * An entity, with what a privacy notice needs to name the right regulator
+ * and representative under each law it is subject to.
+ */
+export type ContextEntity = {
+  name: string;
+  legalEntityRef: string | null;
+  dataProtectionLaw: DataProtectionLaw;
+  euEstablishments: string[];
+  euMainEstablishment: string | null;
+  euLeadAuthority: { code: string; name: string } | null;
+  euRepresentative: Representative | null;
+  ukRepresentative: Representative | null;
+};
+
 export type ContextActivity = {
   reference: string;
   entity: string;
@@ -153,6 +176,10 @@ export type ContextActivity = {
   research: ResearchWire;
   /** Article 25(1A). */
   childrenLikely: boolean | null;
+  /** Which of its entity's laws govern it (1.3). */
+  laws: DataProtectionLaw;
+  /** EU GDPR Article 8(1): EEA States (1.3). */
+  childrenMemberStates: string[];
   updatedAt: string;
 };
 
@@ -221,6 +248,8 @@ export type ContextSupplier = {
     signedAt: string | null;
     expiresAt: string | null;
     transferMechanism: string | null;
+    /** Chosen from the list (1.3). */
+    transferMechanisms: RecordedMechanism[];
     subProcessors: string[];
   }>;
 };
@@ -268,6 +297,7 @@ export async function governanceContext(
     );
     const entityIds = selected.map((e) => e.id);
     const nameOf = new Map(all.map((e) => [e.id, e.name]));
+    const lawOf = new Map(all.map((e) => [e.id, e.dataProtectionLaw]));
     const limit = Math.min(scope.limit ?? DEFAULT_LIMIT, 1000);
     const inScope = entityIds.length > 0 ? entityIds : [''];
 
@@ -549,10 +579,19 @@ export async function governanceContext(
       contextVersion: CONTEXT_VERSION,
       generatedAt: new Date().toISOString(),
       organisation: { name: org.name, slug: org.slug },
-      entities: selected.map((e) => ({
-        name: e.name,
-        legalEntityRef: e.legalEntityRef
-      })),
+      entities: selected.map((e) => {
+        const lead = authorityByCode(e.euLeadAuthority);
+        return {
+          name: e.name,
+          legalEntityRef: e.legalEntityRef,
+          dataProtectionLaw: e.dataProtectionLaw,
+          euEstablishments: e.euEstablishments,
+          euMainEstablishment: e.euMainEstablishment,
+          euLeadAuthority: lead ? { code: lead.code, name: lead.name } : null,
+          euRepresentative: e.euRepresentative,
+          ukRepresentative: e.ukRepresentative
+        };
+      }),
       scope: {
         entities: scope.entities?.length ? scope.entities : null,
         since: scope.since?.toISOString() ?? null
@@ -584,6 +623,8 @@ export async function governanceContext(
         ),
         research: researchToWire(a),
         childrenLikely: a.childrenLikely,
+        laws: effectiveLaws(lawOf.get(a.entityId) ?? 'uk', a.laws),
+        childrenMemberStates: a.childrenMemberStates,
         updatedAt: a.updatedAt.toISOString()
       })),
       assessments: contextAssessments,
@@ -599,6 +640,7 @@ export async function governanceContext(
             signedAt: d.signedAt?.toISOString() ?? null,
             expiresAt: d.expiresAt?.toISOString() ?? null,
             transferMechanism: d.transferMechanism,
+            transferMechanisms: d.transferMechanisms,
             subProcessors: d.subProcessors
           }))
       })),

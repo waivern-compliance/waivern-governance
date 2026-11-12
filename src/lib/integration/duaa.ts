@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  ADM_EU_EXCEPTION_KEYS,
   ADM_SPECIAL_CONDITION_KEYS,
   type AdmRecord,
   type AdmSafeguard
@@ -9,6 +10,7 @@ import {
   ANNEX2_CONDITION_KEYS,
   COMPATIBILITY_FACTOR_KEYS,
   COMPATIBILITY_ROUTE_KEYS,
+  EU_COMPATIBILITY_ROUTE_KEYS,
   type FurtherProcessingRecord,
   type ResearchSafeguard
 } from '@/lib/gdpr/further-processing';
@@ -50,6 +52,9 @@ export const automatedDecisionsWire = z.object({
   solelyAutomated: z.boolean().nullable(),
   specialCategory: z.boolean().nullable().optional(),
   specialCondition: enumOf(ADM_SPECIAL_CONDITION_KEYS).nullable().optional(),
+  /** EU GDPR Article 22(2), from context version 1.3. Left out: kept as recorded. */
+  euException: enumOf(ADM_EU_EXCEPTION_KEYS).nullable().optional(),
+  euLawNote: note.nullable().optional(),
   safeguards: z
     .object(
       Object.fromEntries(
@@ -75,7 +80,10 @@ export const furtherProcessingWire = z.object({
     )
     .strict()
     .optional(),
-  note: note.nullable().optional()
+  note: note.nullable().optional(),
+  /** EU GDPR Article 6(4) or 5(1)(b), from context version 1.3. Left out: kept as recorded. */
+  euRoute: enumOf(EU_COMPATIBILITY_ROUTE_KEYS).nullable().optional(),
+  euNote: note.nullable().optional()
 });
 
 export const researchWire = z.object({
@@ -129,7 +137,15 @@ export function admFromWire(w: AutomatedDecisionsWire) {
     automatedDecisions: w.solelyAutomated,
     admSpecialCategory: w.specialCategory ?? null,
     admSpecialCondition: w.specialCondition ?? null,
-    admSafeguards: rename(ADM_WIRE, w.safeguards)
+    admSafeguards: rename(ADM_WIRE, w.safeguards),
+    // Only where sent: a Portal that does not know the field leaves the EU
+    // answer a person recorded here alone.
+    ...(w.euException !== undefined || w.euLawNote !== undefined
+      ? {
+          admEuException: w.euException ?? null,
+          admEuLawNote: w.euLawNote ?? null
+        }
+      : {})
   };
 }
 
@@ -138,7 +154,9 @@ export function admToWire(r: AdmRecord): AutomatedDecisionsWire {
     solelyAutomated: r.automatedDecisions,
     specialCategory: r.admSpecialCategory,
     specialCondition: r.admSpecialCondition,
-    safeguards: unrename(ADM_WIRE, r.admSafeguards)
+    safeguards: unrename(ADM_WIRE, r.admSafeguards),
+    euException: r.admEuException ?? null,
+    euLawNote: r.admEuLawNote ?? null
   };
 }
 
@@ -155,7 +173,13 @@ export function furtherFromWire(w: FurtherProcessingWire) {
         (e): e is [string, string] => typeof e[1] === 'string'
       )
     ),
-    compatibilityNote: w.note ?? null
+    compatibilityNote: w.note ?? null,
+    ...(w.euRoute !== undefined || w.euNote !== undefined
+      ? {
+          euCompatibilityRoute: w.euRoute ?? null,
+          euCompatibilityNote: w.euNote ?? null
+        }
+      : {})
   };
 }
 
@@ -172,7 +196,9 @@ export function furtherToWire(
     annex2Condition: r.annex2Condition,
     consentUnobtainable: r.consentUnobtainable,
     factors: r.compatibilityFactors ?? {},
-    note: r.compatibilityNote
+    note: r.compatibilityNote,
+    euRoute: r.euCompatibilityRoute ?? null,
+    euNote: r.euCompatibilityNote ?? null
   };
 }
 

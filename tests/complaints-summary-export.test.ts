@@ -145,7 +145,7 @@ describe('GET /api/v1/export/complaints-summary', () => {
     const body = await response.json();
     const text = JSON.stringify(body);
 
-    assert.equal(body.summaryVersion, '1.0');
+    assert.equal(body.summaryVersion, '1.1');
     assert.deepEqual(body.targets, {
       outcomeTargetDays: 30,
       updateIntervalDays: 30
