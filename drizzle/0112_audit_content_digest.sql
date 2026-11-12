@@ -20,8 +20,13 @@ ALTER TABLE "audit_event" ADD CONSTRAINT "audit_event_scheme_digest" CHECK ("sch
 --    (govern.audit_conversion names the organisation). A wrong digest would
 --    not match the contents, and the scheme_changed event commits to them all.
 -- 2. Erasing an event's contents: before and after cleared, metadata emptied,
---    digest and everything else kept, naming the audit.contents_erased event
---    of the same organisation that lists this event's sequence number.
+--    digest and everything else kept, naming an audit.contents_erased event
+--    of the same organisation, inside the transaction that wrote it
+--    (govern.audit_erasure names it). That event lists the sequence numbers it
+--    erases; the verifier checks each against the list. Checking it here too
+--    would scan the list once per row, which is quadratic for a large erasure.
+--    The events that declare an erasure or a change of scheme are never
+--    erased: verification reads their contents.
 CREATE OR REPLACE FUNCTION audit_event_is_append_only()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -42,6 +47,8 @@ BEGIN
      AND NEW.before IS NULL
      AND NEW.after IS NULL
      AND NEW.metadata = '{}'::jsonb
+     AND OLD.action NOT IN ('audit.contents_erased', 'audit.scheme_changed')
+     AND current_setting('govern.audit_erasure', true) = NEW.erased_by::text
      AND (to_jsonb(NEW) - ARRAY['before', 'after', 'metadata', 'erased_at', 'erased_by'])
          = (to_jsonb(OLD) - ARRAY['before', 'after', 'metadata', 'erased_at', 'erased_by'])
      AND EXISTS (
@@ -49,7 +56,6 @@ BEGIN
        WHERE e.id = NEW.erased_by
          AND e.organisation_id = OLD.organisation_id
          AND e.action = 'audit.contents_erased'
-         AND (e.metadata -> 'seqs') @> to_jsonb(OLD.seq)
      )
   THEN
     RETURN NEW;

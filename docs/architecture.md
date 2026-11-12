@@ -44,9 +44,12 @@ Each hash covers a SHA-256 digest of the event's contents (before, after,
 metadata) rather than the contents, so `eraseAuditContents` can clear the
 contents of events about records deleted for good while keeping the digest:
 the event and the chain still verify. That erasure is the only update the
-database allows, and it must name a declared `audit.contents_erased` event.
-Chains begun before digests (scheme 1) keep their original hashes; one
-declared `audit.scheme_changed` event commits to a digest of every older event.
+database allows, and it must name a declared `audit.contents_erased` event
+written in the same transaction; the events that declare an erasure or a change
+of scheme are never erased themselves. Chains begun before digests (scheme 1)
+keep their original hashes; one declared `audit.scheme_changed` event commits
+to a digest of every older event. The pre-deploy step (`scripts/migrate.ts`)
+moves every such chain, so no request pays for it.
 
 **AI is advisory only.** Model output never writes to a decision field. It lands
 in a suggestion record that a named human accepts or rejects, and the acceptance

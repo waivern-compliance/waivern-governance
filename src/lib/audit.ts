@@ -1,6 +1,6 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
 
-import { db, type Db } from '@/db/client';
+import { db, withOrganisation, type Db } from '@/db/client';
 import { auditChainHeads, auditEvents } from '@/db/schema';
 
 import { canonicalise, sha256Hex } from './canonical';
@@ -312,6 +312,38 @@ export async function appendAuditEvent(tx: Tx, input: AuditInput) {
   return row;
 }
 
+/**
+ * Move every chain still on scheme 1 to the current scheme, one organisation
+ * per transaction.
+ *
+ * Run before a release takes traffic (`scripts/migrate.ts`), so the cost of
+ * digesting an organisation's whole history falls on the deploy, not on
+ * whoever happens to save a record first. `lockHead` still moves a chain on
+ * its next append, so a chain this missed is never left behind.
+ */
+export async function upgradeAuditChains(): Promise<{
+  upgraded: number;
+  failed: string[];
+}> {
+  const stale = await db
+    .select({ organisationId: auditChainHeads.organisationId })
+    .from(auditChainHeads)
+    .where(lt(auditChainHeads.scheme, CURRENT_SCHEME));
+  let upgraded = 0;
+  const failed: string[] = [];
+  for (const { organisationId } of stale) {
+    try {
+      await withOrganisation(organisationId, () =>
+        db.transaction((tx) => lockHead(tx, organisationId))
+      );
+      upgraded += 1;
+    } catch {
+      failed.push(organisationId);
+    }
+  }
+  return { upgraded, failed };
+}
+
 /** Convenience wrapper for a change that has nothing else to write. */
 export async function audit(input: AuditInput) {
   return db.transaction((tx) => appendAuditEvent(tx, input));
@@ -350,7 +382,9 @@ export async function eraseAuditContents(
       and(
         eq(auditEvents.organisationId, input.organisationId),
         anyId(input.eventIds),
-        isNull(auditEvents.erasedAt)
+        isNull(auditEvents.erasedAt),
+        // Verification reads these events' contents; they are never erased.
+        notInArray(auditEvents.action, [CONTENTS_ERASED, SCHEME_CHANGED])
       )
     )
     .orderBy(asc(auditEvents.seq));
@@ -371,6 +405,9 @@ export async function eraseAuditContents(
     },
     head
   );
+  await tx.execute(
+    sql`select set_config('govern.audit_erasure', ${row.id}, true)`
+  );
   await tx
     .update(auditEvents)
     .set({
@@ -386,6 +423,7 @@ export async function eraseAuditContents(
         anyId(targets.map((t) => t.id))
       )
     );
+  await tx.execute(sql`select set_config('govern.audit_erasure', '', true)`);
   return { erased: targets.length, eventId: row.id };
 }
 
@@ -472,6 +510,22 @@ export async function verifyEvents(
     reason
   });
   const byId = new Map(events.map((e) => [e.id, e]));
+  // Each erasure's list of sequence numbers, as a set, built once: looking
+  // every erased event up in its list would be quadratic.
+  const declared = new Map<string, Set<number> | null>();
+  const declaredBy = (id: string): Set<number> | null => {
+    if (!declared.has(id)) {
+      const by = byId.get(id);
+      const seqs = (by?.metadata as { seqs?: unknown } | undefined)?.seqs;
+      declared.set(
+        id,
+        by && by.action === CONTENTS_ERASED && Array.isArray(seqs)
+          ? new Set(seqs as number[])
+          : null
+      );
+    }
+    return declared.get(id)!;
+  };
 
   let expectedPrev = GENESIS_HASH;
   let expectedSeq = 1;
@@ -486,13 +540,11 @@ export async function verifyEvents(
 
     const isErased = e.erasedAt !== null;
     if (isErased) {
-      const by = e.erasedBy ? byId.get(e.erasedBy) : undefined;
-      const seqs = (by?.metadata as { seqs?: unknown } | undefined)?.seqs;
+      const seqs = e.erasedBy ? declaredBy(e.erasedBy) : null;
       if (
-        !by ||
-        by.action !== CONTENTS_ERASED ||
-        !Array.isArray(seqs) ||
-        !seqs.includes(e.seq) ||
+        !seqs?.has(e.seq) ||
+        e.action === CONTENTS_ERASED ||
+        e.action === SCHEME_CHANGED ||
         e.before !== null ||
         e.after !== null ||
         Object.keys(e.metadata).length > 0 ||
