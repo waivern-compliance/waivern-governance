@@ -68,6 +68,7 @@ Every help topic the application carries, in the order it presents them.
 - [Connected tools](#connected-tools) - Signed endpoints that let the Compliance Portal and scanning tools push records in and pull current state out.
 - [Importing records from another platform](#importing-records-from-another-platform) - Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files: match the columns, preview every row, then import.
 - [The organisation and its legal entities](#the-organisation-and-its-legal-entities) - What this organisation is called, the legal entities within it, and who may add them.
+- [Deleting a legal entity](#deleting-a-legal-entity) - Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.
 - [Accepting Waivern's terms and Data Processing Agreement](#accepting-waiverns-terms-and-data-processing-agreement) - On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.
 - [Giving somebody access](#giving-somebody-access) - Grant a role, confine it to one entity, suspend or reinstate. Every change is written to the audit log.
 - [The assistant, and what it may not do](#the-assistant-and-what-it-may-not-do) - Optional help from a model your organisation chooses and controls. It drafts and explains; it never decides.
@@ -1649,7 +1650,7 @@ One export runs at a time. An organisation too large to download from the browse
 
 Keep the archive as carefully as you kept the records. Exporting does not delete anything: deletion when you leave follows the terms and the Data Processing Agreement.
 
-**See also:** Exports · The audit trail
+**See also:** Exports · The audit trail · Deleting a legal entity
 
 <sub>Also searchable as: export, leave, termination, portability, return, zip, archive, backup, download everything, offboarding</sub>
 
@@ -1958,6 +1959,50 @@ Google must have verified the address itself, or the sign-in is refused. Joining
 **See also:** Giving somebody access · Accepting Waivern's terms and Data Processing Agreement · Exports · The audit trail
 
 <sub>Also searchable as: organisation, company, client, rename, name, branding, tenant, entity, legal entity, subsidiary</sub>
+
+## Deleting a legal entity
+
+*Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.*
+
+**Screen:** `/app/admin/organisation/delete-entity`
+
+### Irrevocable
+
+Deleting a legal entity is permanent and cannot be undone. Every record held for it is deleted, with its files, and cannot be recovered, by you or by Waivern. Only do it with the full understanding and agreement of the relevant stakeholders and decision-makers in your firm.
+
+Export first. An owner of the whole organisation can export everything it holds in one archive; anyone else can export the registers they can see.
+
+### Who can do it, and how
+
+An owner whose access reaches the entity, or one of the deployment's own operators. Nobody else, whatever else they manage.
+
+Choose the entity on the Delete a legal entity page and confirm you understand. Govern emails a link to the address it holds for you, never to an address typed in. The link works once, for 30 minutes. Open it, sign in as yourself, and type "delete everything". Govern checks again that you may still do it, and deletes the entity at once.
+
+You get written confirmation by email, every other owner of the whole organisation is notified, and the Delete a legal entity page lists deleted entities with who deleted them, when, and how many records went.
+
+### What is deleted, and what is kept
+
+Deleted: every register entry, assessment, risk, request, complaint, breach, document and file held for the entity, with their comments, tasks, links and decisions, anything attached to them, queued notices and integration deliveries about them, and the access people had to that entity alone. All of it in one step: it all goes, or nothing does.
+
+The audit trail stays whole. Every entry about the entity keeps who did what, when and to which record, but what changed is erased, keeping only its digest, so the organisation's chain still verifies end to end. One entry records the erasure and another the deletion itself, naming who did it and how many records went, and nothing they held.
+
+Kept: what belongs to the whole organisation, such as suppliers, templates, workflows and people, and the record that the entity accepted the terms and the Data Processing Agreement, which is Waivern's own. An integration connection whose records landed in the entity is switched off until somebody chooses where they go now. Work that tries to write to the entity once it is gone, such as an import, fails rather than half-saving.
+
+### What cannot be deleted this way
+
+The organisation's only legal entity: to close the whole organisation, its owner emails info@waivern.com. The default entity: make another the default first. An entity whose AI systems have records in other entities that depend on them: move or remove those first.
+
+### Records you may be required to keep
+
+Govern does not decide what the law requires your firm to keep. Some records may be ones it must, for example the breach register (Article 33(5)), a communications provider's inventory of breaches under PECR regulation 5A, records of processing (Article 30) and impact assessments, and requests, complaints and their outcomes. Check with your data protection officer or legal adviser, and export them, before you delete.
+
+### Backups
+
+The service is backed up daily and each backup is kept for 27 days, so copies of the deleted records stay in backups until they are overwritten, within 27 days. Backups are kept to recover the whole service and are never restored for one organisation. If Waivern ever has to restore the whole service from a backup taken before your deletion, it is told of every deletion when it happens, so it can delete the entity again.
+
+**See also:** Exporting all your organisation's data · The organisation and its legal entities · The audit trail
+
+<sub>Also searchable as: delete, erase, erasure, remove entity, offboarding, termination, irrevocable, close</sub>
 
 ## Accepting Waivern's terms and Data Processing Agreement
 
