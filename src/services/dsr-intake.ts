@@ -305,13 +305,15 @@ export async function openIntakeLink(slug: string) {
     // Under the Irish ePrivacy Regulations, complaints about marketing and
     // cookies go to the Data Protection Commission whatever the entity's GDPR
     // lead authority: the one-stop shop does not reach them.
-    irishEprivacy: ['ie', 'uk_ie'].includes(
+    irishComplaintNote: ['ie', 'uk_ie'].includes(
       entityEprivacy({
         name: row.entityName,
         dataProtectionLaw: row.dataProtectionLaw,
         ieEprivacy: row.ieEprivacy
       }) ?? ''
-    ),
+    )
+      ? 'A complaint about their marketing emails, texts or calls, or about cookies on their website, can also be made to the Data Protection Commission in Ireland.'
+      : null,
     otherFormSlug: other?.slug ?? null,
     appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.

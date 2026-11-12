@@ -20,7 +20,7 @@ import { verifyAuditChain } from '@/lib/audit';
 import { isEmailAddress } from '@/lib/email-address';
 import { RETENTION_DEFAULTS, slugFor } from '@/lib/organisation/defaults';
 import { isPlatformAdmin, requestsOpen } from '@/lib/platform';
-import { SYSTEM_TEMPLATES } from '@/lib/templates/library';
+import { offeredTo, SYSTEM_TEMPLATES } from '@/lib/templates/library';
 import { DEFAULT_SLA, DEFAULT_WORKFLOWS } from '@/lib/workflow/defaults';
 import {
   approveRequest,
@@ -157,11 +157,13 @@ describe('approving', () => {
           .from(templates)
           .where(eq(templates.organisationId, org))
       ).length,
-      SYSTEM_TEMPLATES.filter(
-        (t) =>
-          (!t.aiFramework || t.aiFramework === 'uk_dsit') &&
-          !t.competentAuthority &&
-          !t.irishProvider
+      SYSTEM_TEMPLATES.filter((t) =>
+        offeredTo(t, {
+          aiFramework: 'uk_dsit',
+          competentAuthority: false,
+          ukLaw: true,
+          irishProvider: false
+        })
       ).length,
       'everything for the UK framework, which it starts on, bar the Part 3 DPIA and the Irish provider checklist'
     );

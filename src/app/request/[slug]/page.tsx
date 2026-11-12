@@ -116,11 +116,9 @@ export default async function RequestPage({
               {timeLimit(form.foiAct, form.foiTimeProfile)}: by sending the
               information, or by explaining why it cannot.
             </p>
-            {form.irishEprivacy ? (
+            {form.irishComplaintNote ? (
               <p className="max-w-prose text-sm text-ink-soft">
-                A complaint about their marketing emails, texts or calls, or
-                about cookies on their website, can also be made to the Data
-                Protection Commission in Ireland.
+                {form.irishComplaintNote}
               </p>
             ) : null}
             <p className="max-w-prose text-xs text-ink-soft">

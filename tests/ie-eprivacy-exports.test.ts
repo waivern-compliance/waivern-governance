@@ -5,6 +5,7 @@ import { db, sql as pg } from '@/db/client';
 import { entities, organisations } from '@/db/schema';
 import { SYSTEM_TEMPLATES } from '@/lib/templates/library';
 import { templateDefinition } from '@/lib/templates/schema';
+import { DEFAULT_WORKFLOWS } from '@/lib/workflow/defaults';
 import { issueIntakeLink, openIntakeLink } from '@/services/dsr-intake';
 import {
   EntityRefused,
@@ -78,7 +79,10 @@ describe('what other people see', () => {
       label: 'Privacy notice',
       actor: SYSTEM
     });
-    assert.equal((await openIntakeLink(link.slug))!.irishEprivacy, true);
+    assert.match(
+      (await openIntakeLink(link.slug))!.irishComplaintNote ?? '',
+      /Data Protection Commission/
+    );
 
     const uk = await world('form-uk', false);
     const ukLink = await issueIntakeLink({
@@ -87,7 +91,7 @@ describe('what other people see', () => {
       label: 'Privacy notice',
       actor: SYSTEM
     });
-    assert.equal((await openIntakeLink(ukLink.slug))!.irishEprivacy, false);
+    assert.equal((await openIntakeLink(ukLink.slug))!.irishComplaintNote, null);
   });
 });
 
@@ -125,6 +129,8 @@ describe('providers in Ireland', () => {
   it('offers the duties checklist only to a provider in Ireland', async () => {
     const shipped = SYSTEM_TEMPLATES.find((t) => t.name === CHECKLIST)!;
     assert.ok(templateDefinition.safeParse(shipped.definition).success);
+    // A finished checklist has a route to approval, so its review comes round.
+    assert.ok(DEFAULT_WORKFLOWS.some((w) => w.templateKind === shipped.kind));
 
     const w = await world('checklist', true);
     const names = async () =>

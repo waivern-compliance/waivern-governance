@@ -172,3 +172,34 @@ export const SYSTEM_TEMPLATES: Array<{
     definition: EIA
   }
 ];
+
+/** What an organisation is, as far as which shipped templates it is offered. */
+export type TemplateAudience = {
+  aiFramework: AiFrameworkId;
+  /** Some entity is a competent authority (Part 3). */
+  competentAuthority: boolean;
+  /** Some entity is subject to UK law, or there is no entity yet. */
+  ukLaw: boolean;
+  /** Some entity provides electronic communications services in Ireland. */
+  irishProvider: boolean;
+};
+
+/**
+ * Whether an organisation is offered a shipped template. The one place each
+ * template's audience is decided: the install, the update offer and the tests
+ * all ask here, so a new kind of audience is one change.
+ */
+export function offeredTo(
+  t: (typeof SYSTEM_TEMPLATES)[number],
+  o: TemplateAudience
+): boolean {
+  return (
+    (t.aiFramework === undefined || t.aiFramework === o.aiFramework) &&
+    // The Part 3 templates, once an entity is a competent authority.
+    (!t.competentAuthority || o.competentAuthority) &&
+    // The Irish provider checklist, once an entity is a provider in Ireland.
+    (!t.irishProvider || o.irishProvider) &&
+    // UK data protection templates, once an entity is subject to UK law.
+    (!t.ukLaw || o.ukLaw)
+  );
+}

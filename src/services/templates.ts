@@ -12,7 +12,11 @@ import type { AiFrameworkId } from '@/lib/ai-frameworks';
 import { appendAuditEvent, type AuditInput } from '@/lib/audit';
 import { canonicalise } from '@/lib/canonical';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
-import { LEGAL_REFERENCES, SYSTEM_TEMPLATES } from '@/lib/templates/library';
+import {
+  LEGAL_REFERENCES,
+  offeredTo,
+  SYSTEM_TEMPLATES
+} from '@/lib/templates/library';
 import {
   templateDefinition,
   type TemplateDefinition
@@ -385,13 +389,12 @@ export async function shippedTemplatesMissing(organisationId: string) {
     return SYSTEM_TEMPLATES.filter(
       (t) =>
         !names.has(t.name) &&
-        (t.aiFramework === undefined || t.aiFramework === framework) &&
-        // The Part 3 templates are offered once an entity is a competent authority.
-        (!t.competentAuthority || competent) &&
-        // The Irish provider checklist, once an entity is a provider in Ireland.
-        (!t.irishProvider || irishProvider) &&
-        // UK data protection templates, once an entity is subject to UK law.
-        (!t.ukLaw || ukLaw)
+        offeredTo(t, {
+          aiFramework: framework,
+          competentAuthority: competent,
+          ukLaw,
+          irishProvider
+        })
     );
   });
 }

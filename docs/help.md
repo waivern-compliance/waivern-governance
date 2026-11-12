@@ -1697,7 +1697,7 @@ When Waivern updates a template you already have, the library says which, and of
 
 ### Which templates, under which law
 
-The DPIA screening and the breach severity assessment serve the UK GDPR, the EU GDPR or both, because Articles 33 to 35 read the same in each; their questions cite both laws, and EU sources (the EDPB, WP29, the CNIL) beside the ICO. The full DPIA, the legitimate interests assessment and the UK transfer risk assessment are built on UK law and offered where some entity is subject to it. The CNIL method and the EU transfer impact assessment are offered to every organisation.
+The DPIA screening and the breach severity assessment serve the UK GDPR, the EU GDPR or both, because Articles 33 to 35 read the same in each; their questions cite both laws, and EU sources (the EDPB, WP29, the CNIL) beside the ICO. The full DPIA, the legitimate interests assessment and the UK transfer risk assessment are built on UK law and offered where some entity is subject to it. The CNIL method and the EU transfer impact assessment are offered to every organisation. An entity marked as a provider of electronic communications services in Ireland is also offered the Electronic communications provider duties (Ireland) checklist, of what the Irish ePrivacy Regulations ask of a provider; it goes for review like the organisation's own templates.
 
 Under EU law, check also the list of processing that needs a DPIA published by your lead or competent authority under Article 35(4): the CNIL's, for France.
 

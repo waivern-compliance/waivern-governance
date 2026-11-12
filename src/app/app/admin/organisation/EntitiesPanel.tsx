@@ -418,25 +418,13 @@ function EntityRow({
             )}
           </div>
           {entity.ieEprivacy === true ? (
-            <form
-              {...irishProvider.formProps}
-              className="flex flex-wrap items-baseline gap-2"
-            >
-              {entity.ieCommsProvider ? (
-                <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
-                  provider in Ireland
-                </span>
-              ) : null}
-              <button
-                type="submit"
-                disabled={irishProvider.pending}
-                className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-              >
-                {entity.ieCommsProvider
-                  ? 'Not a provider of electronic communications services in Ireland'
-                  : 'Mark as a provider of electronic communications services in Ireland (reg 4)'}
-              </button>
-            </form>
+            <FlagToggle
+              action={irishProvider}
+              on={entity.ieCommsProvider}
+              badge="provider in Ireland"
+              mark="Mark as a provider of electronic communications services in Ireland (reg 4)"
+              unmark="Not a provider of electronic communications services in Ireland"
+            />
           ) : null}
           <Outcome result={irishYes.result} />
           <Outcome result={irishNo.result} />
@@ -445,25 +433,14 @@ function EntityRow({
       ) : null}
       {uk ? (
         <>
-          <form
-            {...provider.formProps}
-            className="flex flex-wrap items-baseline gap-2 text-xs"
-          >
-            {entity.publicCommsProvider ? (
-              <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
-                public communications provider
-              </span>
-            ) : null}
-            <button
-              type="submit"
-              disabled={provider.pending}
-              className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-            >
-              {entity.publicCommsProvider
-                ? 'Not a public communications provider'
-                : 'Mark as a public communications provider (PECR reg 5A)'}
-            </button>
-          </form>
+          <FlagToggle
+            action={provider}
+            on={entity.publicCommsProvider}
+            badge="public communications provider"
+            mark="Mark as a public communications provider (PECR reg 5A)"
+            unmark="Not a public communications provider"
+            className="text-xs"
+          />
           <form
             {...authority.formProps}
             className="flex flex-wrap items-baseline gap-2 text-xs"
@@ -612,5 +589,45 @@ function AgreementRecord({ entity }: { entity: Entity }) {
       })}
       .
     </p>
+  );
+}
+
+/**
+ * A yes-or-no mark on an entity, such as being a communications provider:
+ * a badge while it is set, and one button to set or clear it.
+ */
+function FlagToggle({
+  action,
+  on,
+  badge,
+  mark,
+  unmark,
+  className = ''
+}: {
+  action: ReturnType<typeof useRefusableAction<AdminResult>>;
+  on: boolean;
+  badge: string;
+  mark: string;
+  unmark: string;
+  className?: string;
+}) {
+  return (
+    <form
+      {...action.formProps}
+      className={`flex flex-wrap items-baseline gap-2 ${className}`}
+    >
+      {on ? (
+        <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
+          {badge}
+        </span>
+      ) : null}
+      <button
+        type="submit"
+        disabled={action.pending}
+        className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+      >
+        {on ? unmark : mark}
+      </button>
+    </form>
   );
 }
