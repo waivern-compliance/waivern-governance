@@ -414,7 +414,16 @@ describe('exporting an organisation', () => {
     let previous = GENESIS_HASH;
     for (const e of events) {
       assert.equal(e.prev_hash, previous);
+      const sha = (text: string) =>
+        createHash('sha256').update(text).digest('hex');
+      assert.equal(Number(e.scheme), 2);
+      assert.equal(
+        sha(canonicalise([e.before ?? null, e.after ?? null, e.metadata])),
+        e.content_digest,
+        `contents of event ${e.seq}`
+      );
       const payload = canonicalise([
+        'govern-audit-2',
         e.organisation_id,
         Number(e.seq),
         e.at,
@@ -425,16 +434,10 @@ describe('exporting an organisation', () => {
         e.subject_type,
         e.subject_id,
         e.entity_id ?? null,
-        e.before ?? null,
-        e.after ?? null,
-        e.metadata,
+        e.content_digest,
         e.prev_hash
       ]);
-      assert.equal(
-        createHash('sha256').update(payload).digest('hex'),
-        e.hash,
-        `event ${e.seq}`
-      );
+      assert.equal(sha(payload), e.hash, `event ${e.seq}`);
       previous = String(e.hash);
     }
   });
