@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import type { CallNumbers } from '@/lib/ie-eprivacy/marketing';
 import { EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import type {
   MarketingBasis,
@@ -17,6 +18,7 @@ import {
   marketingEntity,
   MarketingRefused,
   recordMarketingDecision,
+  recordNddScreening,
   recordTpsScreening,
   updateMarketingActivity
 } from '@/services/marketing';
@@ -121,6 +123,19 @@ export async function updateActivityAction(
         processingActivityId:
           text(formData.get('processingActivityId')) || null,
         charityNumber: text(formData.get('charityNumber')) || null,
+        // Asked only under the Irish Regulations; absent, unchanged.
+        ...(formData.has('irishAsked')
+          ? {
+              // Read only where the form asked it: a call activity.
+              callNumbers: formData.has('callNumbers')
+                ? ((text(formData.get('callNumbers')) ||
+                    null) as CallNumbers | null)
+                : undefined,
+              inServiceTexts: formData.has('inServiceTextsAsked')
+                ? formData.get('inServiceTexts') === 'on'
+                : undefined
+            }
+          : {}),
         // Asked only where the entity is under both ePrivacy laws; absent, unchanged.
         ...(formData.has('eprivacyScope')
           ? { eprivacyScope: text(formData.get('eprivacyScope')) }
@@ -155,6 +170,26 @@ export async function recordTpsAction(
   return result;
 }
 
+export async function recordNddAction(
+  activityId: string,
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
+  const active = await writerFor(activityId);
+  if (!active) return NOT_YOURS;
+  const day = text(formData.get('screenedOn'));
+  const result = await refused(async () => {
+    await recordNddScreening({
+      activityId,
+      organisationId: active.membership.organisationId,
+      screenedAt: day ? new Date(`${day}T12:00:00Z`) : new Date(Number.NaN),
+      actor: actorOf(active)
+    });
+  }, 'Recorded. The next screening is due in 28 days.');
+  refresh(activityId);
+  return result;
+}
+
 export async function decideMarketingBasisAction(
   activityId: string,
   _prev: RequestResult,
@@ -169,6 +204,7 @@ export async function decideMarketingBasisAction(
       basis: text(formData.get('basis')) as MarketingBasis,
       conditions: formData.getAll('conditions').map(String),
       rationale: text(formData.get('rationale')),
+      law: text(formData.get('law')) === 'ie' ? 'ie' : 'uk',
       actor: actorOf(active)
     });
   }, 'Recorded.');

@@ -28,6 +28,10 @@ export type MarketingBasis =
   | 'charity_soft_opt_in'
   | 'corporate_subscriber'
   | 'screened_calls'
+  // Irish Regulations only (`lib/ie-eprivacy/marketing.ts`).
+  | 'business_address'
+  | 'not_objected'
+  | 'ndd_screened'
   | 'none';
 
 export type MarketingConditionKey =
@@ -44,7 +48,13 @@ export type MarketingConditionKey =
   | 'identity_and_opt_out'
   | 'no_prior_objection'
   | 'caller_identified'
-  | 'not_claims_or_pensions';
+  | 'not_claims_or_pensions'
+  // Irish Regulations only.
+  | 'within_12_months'
+  | 'business_use'
+  | 'business_related'
+  | 'non_natural_only'
+  | 'contact_identified';
 
 export type MarketingCondition = { key: MarketingConditionKey; label: string };
 
@@ -82,16 +92,22 @@ const REFUSE_EVERY_MESSAGE: MarketingCondition = {
 };
 const EMAIL_AND_TEXT: readonly MarketingChannel[] = ['email', 'sms'];
 
-export const MARKETING_BASES: Record<
+/** The bases PECR has. The Irish Regulations add three of their own. */
+export type PecrMarketingBasis = Exclude<
   MarketingBasis,
-  {
-    label: string;
-    citation: string;
-    summary: string;
-    channels: readonly MarketingChannel[];
-    conditions: MarketingCondition[];
-  }
-> = {
+  'business_address' | 'not_objected' | 'ndd_screened'
+>;
+
+/** One basis as a form and a gap check read it, under either ePrivacy law. */
+export type MarketingBasisSpec = {
+  label: string;
+  citation: string;
+  summary: string;
+  channels: readonly MarketingChannel[];
+  conditions: MarketingCondition[];
+};
+
+export const MARKETING_BASES: Record<PecrMarketingBasis, MarketingBasisSpec> = {
   consent: {
     label: 'Consent',
     citation: 'PECR regs 19, 21 and 22; UK GDPR art 4(11)',
@@ -204,14 +220,18 @@ export const MARKETING_BASES: Record<
 
 export const MARKETING_BASIS_KEYS = Object.keys(
   MARKETING_BASES
-) as MarketingBasis[];
+) as PecrMarketingBasis[];
+
+export function isPecrMarketingBasis(v: unknown): v is PecrMarketingBasis {
+  return typeof v === 'string' && v in MARKETING_BASES;
+}
 
 /**
  * What a basis needs on a channel. Regulation 23 applies to every marketing
  * email and text, whatever it relies on, so it is added for those channels.
  */
 export function conditionsOf(
-  basis: MarketingBasis,
+  basis: PecrMarketingBasis,
   channel: MarketingChannel
 ): MarketingCondition[] {
   const own = MARKETING_BASES[basis].conditions;
@@ -252,7 +272,14 @@ export type MarketingGapKind =
   | 'tps_never'
   | 'tps_stale'
   | 'objection_overridden'
-  | 'no_processing_activity';
+  | 'no_processing_activity'
+  // Irish Regulations only.
+  | 'consent_unrecorded'
+  | 'mobile_needs_consent'
+  | 'call_numbers_unknown'
+  | 'ndd_never'
+  | 'ndd_stale'
+  | 'service_texts';
 
 export type MarketingGap = { kind: MarketingGapKind; text: string };
 
@@ -273,13 +300,14 @@ export type MarketingGapInput = {
   objectionsOverridden: number;
 };
 
-/** What the record does not yet show. An activity that has ended has nothing left to show. */
-export function marketingGapsOf(
-  input: MarketingGapInput,
-  now = new Date()
+/**
+ * What either law needs of an activity: its objections, and its link to the
+ * ROPA so they can be counted. Judged once, whichever laws it is under.
+ */
+export function sharedMarketingGaps(
+  input: Pick<MarketingGapInput, 'activity' | 'objectionsOverridden'>
 ): MarketingGap[] {
-  const { activity, decision } = input;
-  if (activity.status === 'ended') return [];
+  if (input.activity.status === 'ended') return [];
   const out: MarketingGap[] = [];
   if (input.objectionsOverridden > 0) {
     out.push({
@@ -287,12 +315,23 @@ export function marketingGapsOf(
       text: `${input.objectionsOverridden} objection${input.objectionsOverridden === 1 ? '' : 's'} to direct marketing overridden in the last year. Article 21(3) makes the objection absolute.`
     });
   }
-  if (!activity.processingActivityId) {
+  if (!input.activity.processingActivityId) {
     out.push({
       kind: 'no_processing_activity',
       text: 'Not linked to its processing activity in the ROPA, so objections cannot be counted against it.'
     });
   }
+  return out;
+}
+
+/** What the record does not yet show. An activity that has ended has nothing left to show. */
+export function marketingGapsOf(
+  input: MarketingGapInput,
+  now = new Date()
+): MarketingGap[] {
+  const { activity, decision } = input;
+  if (activity.status === 'ended') return [];
+  const out: MarketingGap[] = sharedMarketingGaps(input);
   if (!decision) {
     out.push({ kind: 'no_basis', text: 'No basis recorded.' });
     return mostPressingFirst(out);
@@ -301,6 +340,14 @@ export function marketingGapsOf(
     out.push({
       kind: 'basis_none',
       text: 'Recorded as having no basis: it should stop.'
+    });
+    return mostPressingFirst(out);
+  }
+  // A basis only the Irish Regulations have is no basis under PECR.
+  if (!isPecrMarketingBasis(decision.basis)) {
+    out.push({
+      kind: 'basis_not_available',
+      text: 'That basis exists only under the Irish Regulations, not PECR.'
     });
     return mostPressingFirst(out);
   }
@@ -378,6 +425,30 @@ const GAP_PHRASE: Record<MarketingGapKind, [string, string]> = {
   no_processing_activity: [
     'activity not linked to the ROPA',
     'activities not linked to the ROPA'
+  ],
+  consent_unrecorded: [
+    'Irish activity with no record of consent',
+    'Irish activities with no record of consent'
+  ],
+  mobile_needs_consent: [
+    'call activity to mobiles without consent',
+    'call activities to mobiles without consent'
+  ],
+  call_numbers_unknown: [
+    'Irish call activity with its numbers not described',
+    'Irish call activities with their numbers not described'
+  ],
+  ndd_stale: [
+    'call activity overdue for National Directory Database screening',
+    'call activities overdue for National Directory Database screening'
+  ],
+  ndd_never: [
+    'call activity never screened against the National Directory Database',
+    'call activities never screened against the National Directory Database'
+  ],
+  service_texts: [
+    'activity adding marketing to service texts without consent',
+    'activities adding marketing to service texts without consent'
   ]
 };
 
@@ -386,15 +457,21 @@ const GAP_ORDER: MarketingGapKind[] = [
   'objection_overridden',
   'basis_none',
   'basis_not_available',
+  'consent_unrecorded',
+  'mobile_needs_consent',
+  'service_texts',
   'tps_stale',
   'tps_never',
+  'ndd_stale',
+  'ndd_never',
+  'call_numbers_unknown',
   'no_basis',
   'no_charity_number',
   'condition_unconfirmed',
   'no_processing_activity'
 ];
 
-function mostPressingFirst(gaps: MarketingGap[]): MarketingGap[] {
+export function mostPressingFirst(gaps: MarketingGap[]): MarketingGap[] {
   return [...gaps].sort(
     (a, b) => GAP_ORDER.indexOf(a.kind) - GAP_ORDER.indexOf(b.kind)
   );
@@ -427,7 +504,7 @@ export function summariseMarketingGaps(
 
 /** The conditions confirmed, keeping only those the basis needs on the channel. */
 export function conditionsFor(
-  basis: MarketingBasis,
+  basis: PecrMarketingBasis,
   channel: MarketingChannel,
   confirmed: Iterable<string>
 ): Partial<Record<MarketingConditionKey, boolean>> {

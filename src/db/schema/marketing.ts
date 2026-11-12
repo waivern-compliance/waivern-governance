@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import {
+  boolean,
   index,
   jsonb,
   pgTable,
@@ -9,6 +10,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { CallNumbers } from '@/lib/ie-eprivacy/marketing';
 import type { EprivacyScope } from '@/lib/ie-eprivacy/scope';
 
 import {
@@ -66,6 +68,16 @@ export const marketingActivities = pgTable(
     status: marketingActivityStatus('status').notNull().default('active'),
     /** For live calls: when the numbers were last screened against the TPS and CTPS. */
     tpsScreenedAt: timestamp('tps_screened_at', { withTimezone: true }),
+    /**
+     * Under the Irish Regulations: when the numbers were last screened
+     * against the National Directory Database (an opt-out binds after 28
+     * days), whether calls go to landlines or mobiles (mobiles need consent),
+     * and whether marketing is added to texts sent for another purpose
+     * (13(7)). See `lib/ie-eprivacy/marketing.ts`.
+     */
+    nddScreenedAt: timestamp('ndd_screened_at', { withTimezone: true }),
+    callNumbers: text('call_numbers').$type<CallNumbers>(),
+    inServiceTexts: boolean('in_service_texts'),
     /** For the charity soft opt-in: the charity's registration number. Only registered charities qualify. */
     charityNumber: text('charity_number'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -99,6 +111,11 @@ export const marketingDecisions = pgTable(
       .notNull()
       .references(() => marketingActivities.id, { onDelete: 'cascade' }),
     basis: marketingBasis('basis').notNull(),
+    /**
+     * The law the basis is recorded under: UK PECR or the Irish ePrivacy
+     * Regulations. An activity under both has a decision for each.
+     */
+    law: text('law').$type<'uk' | 'ie'>().notNull().default('uk'),
     /** Which of the basis's conditions the person confirmed. */
     conditions: jsonb('conditions')
       .$type<Record<string, boolean>>()

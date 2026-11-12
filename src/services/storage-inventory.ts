@@ -7,6 +7,7 @@ import {
   entities,
   evidence,
   organisations,
+  processingActivities,
   referenceCounters,
   scanFindings,
   storageDecisions,
@@ -223,6 +224,8 @@ export async function updateProperty(input: {
     consentRenewalJustification: string | null;
     /** The banner checks confirmed, by key (`BANNER_CHECKS`). */
     bannerChecks: string[];
+    /** The processing activity its consent is recorded under. */
+    processingActivityId: string | null;
   }>;
   actor: Actor;
 }) {
@@ -269,12 +272,30 @@ export async function updateProperty(input: {
   return withOrganisation(input.organisationId, async () => {
     if (changes.ownerId)
       await assertMemberOf(input.organisationId, changes.ownerId);
+    if (changes.processingActivityId)
+      await assertRecordIn(
+        input.organisationId,
+        'processing_activity',
+        changes.processingActivityId
+      );
     return db.transaction(async (tx) => {
       const before = await lockedProperty(
         tx,
         input.propertyId,
         input.organisationId
       );
+      // The record of its consent is the entity's own: another entity is
+      // another controller.
+      if (changes.processingActivityId) {
+        const [record] = await tx
+          .select({ entityId: processingActivities.entityId })
+          .from(processingActivities)
+          .where(eq(processingActivities.id, changes.processingActivityId));
+        if (record?.entityId !== before.entityId)
+          throw new InventoryRefused(
+            "Choose one of this website's own entity's processing activities."
+          );
+      }
       const { eprivacyScope: chosenScope, ...rest } = changes;
       const eprivacyScope =
         chosenScope === undefined
@@ -303,6 +324,7 @@ export async function updateProperty(input: {
           eprivacyScope: before.eprivacyScope,
           consentRenewalMonths: before.consentRenewalMonths,
           bannerChecks: before.bannerChecks,
+          processingActivityId: before.processingActivityId,
           changed: Object.keys(changes)
         },
         after: {
@@ -311,7 +333,8 @@ export async function updateProperty(input: {
           rescanIntervalMonths: after.rescanIntervalMonths,
           eprivacyScope: after.eprivacyScope,
           consentRenewalMonths: after.consentRenewalMonths,
-          bannerChecks: after.bannerChecks
+          bannerChecks: after.bannerChecks,
+          processingActivityId: after.processingActivityId
         }
       });
       return after;
@@ -1400,6 +1423,7 @@ export async function loadProperty(propertyId: string, organisationId: string) {
             consentRenewalJustification:
               row.property.consentRenewalJustification,
             bannerChecks: row.property.bannerChecks,
+            linkedToRopa: Boolean(row.property.processingActivityId),
             usesConsent: loaded.some(
               (i) =>
                 i.status === 'active' && i.irishDecision?.basis === 'consent'
@@ -1486,6 +1510,7 @@ export async function propertyRegister(
                 consentRenewalJustification:
                   property.consentRenewalJustification,
                 bannerChecks: property.bannerChecks,
+                linkedToRopa: Boolean(property.processingActivityId),
                 usesConsent: active.some(
                   (i) => i.irishDecision?.basis === 'consent'
                 )

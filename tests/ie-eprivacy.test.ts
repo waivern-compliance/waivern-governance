@@ -414,12 +414,15 @@ describe('keeping records under a law', () => {
         eprivacyScope: scope,
         actor: SYSTEM
       });
+      // Each under its own law's screening: the TPS for PECR, the National
+      // Directory Database for the Irish Regulations.
       await recordMarketingDecision({
         organisationId: w.org.id,
         activityId: a.id,
-        basis: 'screened_calls',
+        basis: scope === 'uk' ? 'screened_calls' : 'ndd_screened',
         conditions: [],
-        rationale: 'Screened against the TPS.',
+        rationale: 'Screened.',
+        law: scope,
         actor: SYSTEM
       });
       return a;

@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { asc, eq } from 'drizzle-orm';
 
 import { EditForm } from '@/components/EditForm';
 import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { EprivacyScopeNote } from '@/components/EprivacyScopeNote';
 import { NotPermitted } from '@/components/NotPermitted';
+import { db, scoped } from '@/db/client';
+import { processingActivities } from '@/db/schema';
 import {
   BANNER_CHECK_KEYS,
   BANNER_CHECKS,
@@ -141,6 +144,21 @@ export default async function PropertyPage({
     property.entityId
   );
   const analyser = await analyserSettings(active.membership.organisationId);
+  // The entity's processing activities, to say which one records this site's consent.
+  const ropa =
+    scope === 'ie' || scope === 'uk_ie'
+      ? await scoped(active.membership.organisationId, () =>
+          db
+            .select({
+              id: processingActivities.id,
+              reference: processingActivities.reference,
+              name: processingActivities.name
+            })
+            .from(processingActivities)
+            .where(eq(processingActivities.entityId, property.entityId))
+            .orderBy(asc(processingActivities.reference))
+        )
+      : [];
   const running = scans.find((s) => s.status === 'running');
   const latestScan = scans.find((s) => s.status === 'done') ?? null;
   const inUse = items.filter((i) => i.status === 'active');
@@ -691,7 +709,7 @@ export default async function PropertyPage({
       <EprivacyScopeNote
         entity={entityEprivacy}
         scope={property.eprivacyScope}
-        irishChecked
+        irishRules="regulation 5 and the Data Protection Commission's cookie guidance"
       />
 
       {irishPropertyGaps.length > 0 ? (
@@ -848,6 +866,28 @@ export default async function PropertyPage({
                 />
               </label>
             </div>
+            <label className="block space-y-1">
+              <Label
+                text="Where its consent is recorded"
+                hint="The processing activity in the ROPA. The Commission expects the record of consent kept with the Article 30 record."
+              />
+              <select
+                name="processingActivityId"
+                defaultValue={property.processingActivityId ?? ''}
+                disabled={!mayWrite}
+                className={inputClass}
+              >
+                <option value="">Not yet linked</option>
+                {ropa.map((r) => (
+                  <option
+                    key={r.id}
+                    value={r.id}
+                  >
+                    {r.reference} {r.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="space-y-1.5">
               <Label
                 text="The banner and consent"

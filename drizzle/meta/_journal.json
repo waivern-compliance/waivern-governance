@@ -771,6 +771,13 @@
       "when": 1794486592761,
       "tag": "0109_ie_eprivacy_cookies",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1794489602151,
+      "tag": "0110_ie_eprivacy_marketing",
+      "breakpoints": true
     }
   ]
 }

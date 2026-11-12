@@ -12,12 +12,12 @@ import {
 export function EprivacyScopeNote({
   entity,
   scope,
-  irishChecked = false
+  irishRules
 }: {
   entity: EprivacyScope | null;
   scope: EprivacyScope;
-  /** Whether this register checks the Irish rules yet (cookies do; marketing comes later). */
-  irishChecked?: boolean;
+  /** What this register checks under the Irish Regulations, read after "checked beside each item:". Absent where it checks nothing Irish. */
+  irishRules?: string;
 }) {
   const effective = effectiveEprivacy(entity, scope);
   if (!effective)
@@ -32,8 +32,8 @@ export function EprivacyScopeNote({
       Under {EPRIVACY_SCOPE_PHRASES[effective]}.
       {effective === 'uk'
         ? null
-        : irishChecked
-          ? " The Irish rules are checked beside each item: regulation 5 and the Data Protection Commission's cookie guidance."
+        : irishRules
+          ? ` The Irish rules are checked beside each item: ${irishRules}.`
           : " Govern does not check the Irish rules yet: the bases and gaps shown are PECR's, so judge it against S.I. 336/2011 itself."}
     </p>
   );

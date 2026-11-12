@@ -33,6 +33,7 @@ async function main() {
       r.complaintDeadlinesRaised +
       r.rescansRaised +
       r.tpsScreeningsRaised +
+      r.nddScreeningsRaised +
       r.consentScansFinished +
       r.objectionReviewsRaised +
       r.lapsedReviewsRaised +
@@ -78,6 +79,8 @@ async function main() {
           r.rescansRaised && `${r.rescansRaised} cookie rescan(s) due`,
           r.tpsScreeningsRaised &&
             `${r.tpsScreeningsRaised} TPS screening(s) due`,
+          r.nddScreeningsRaised &&
+            `${r.nddScreeningsRaised} National Directory Database screening(s) due`,
           r.consentScansFinished &&
             `${r.consentScansFinished} consent scan(s) finished`,
           r.objectionReviewsRaised &&

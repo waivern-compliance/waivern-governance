@@ -1520,6 +1520,11 @@ export const HELP_TOPICS: HelpTopic[] = [
       'Every campaign that markets by email, text or phone, and the basis it relies on under UK PECR, from consent to the soft opt-in.',
     path: '/app/marketing',
     keywords: [
+      'ireland',
+      'irish',
+      'national directory database',
+      'ndd',
+      'comreg',
       'marketing',
       'direct marketing',
       'email',
@@ -1546,7 +1551,10 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Under PECR or the Irish ePrivacy Regulations',
         body: [
-          "Each activity records which ePrivacy law it is under: UK PECR, the Irish ePrivacy Regulations (S.I. 336/2011), or both, within its entity's. The bases and gaps below are PECR's; the Irish rules (regulation 13) differ and Govern does not check them yet. See the Irish ePrivacy Regulations topic."
+          "Each activity records which ePrivacy law it is under: UK PECR, the Irish ePrivacy Regulations (S.I. 336/2011), or both, within its entity's. Under the Irish Regulations it has its own basis, recorded beside its PECR one where both apply, and its own gaps, labelled with the law they come from.",
+          "Regulation 13 has five bases: consent; the soft opt-in (13(11)), which runs only for twelve months from the sale and has no charity version; email to a person's business address about that business only, where they have not objected (13(2)); organisations that are not natural persons and have not objected (13(3), (4)); and live calls to landlines screened against the National Directory Database (13(5)). Calls to mobiles need consent (13(6)), so a call activity says whether it rings landlines, mobiles or both. Marketing added to a text sent for another purpose needs consent (13(7)).",
+          "Each message or call without a basis is a separate offence (13(13)(b)), and the sender must prove each person's consent (13(14)), so under Irish law a consent that is not recorded is shown as a serious gap. The National Directory Database is screened every 28 days, as an opt-out binds after 28 days (13(9)); a reminder is raised before a screening runs out. Fax is not recorded under either law.",
+          "The Data Protection Commission enforces regulation 13: by enforcement notice, and by prosecuting summarily, where it must apply to the District Court within six months of the offence (Petty Sessions (Ireland) Act 1851, s.10(4)). A prosecution on indictment by the Director of Public Prosecutions has no time limit. ComReg takes marketing that meets telecoms rules, such as nuisance calls, spoofed caller identification (regulation 8) or a provider's breach of a ComReg direction, and the running of the National Directory Database; a failure to screen a list against it is the Commission's. ComReg can also take a breach of regulations 7 to 15 to an adjudicator for an administrative sanction (S.I. No. 304 of 2023), at any time (2023 Act, s.115), but it cannot prosecute: it refers offences to the Director of Public Prosecutions."
         ]
       },
       {
@@ -1639,7 +1647,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'What Govern checks today',
         body: [
-          "The cookie register checks the Irish rules: each item has a basis under regulation 5, and the Data Protection Commission's cookie guidance is applied to items and to each website as a whole. See the cookies topic. The marketing register still shows PECR's bases and gaps for every activity; the Irish rules there differ - for example, the soft opt-in for email (regulation 13(11)) is limited to sales in the previous 12 months, and marketing calls to mobile numbers need consent (regulation 13(6)) - and checking them is planned. Until then, judge an Irish marketing activity against the Regulations themselves."
+          "Both registers check the Irish rules. On the cookie register, each item has a basis under regulation 5 and the Data Protection Commission's cookie guidance is applied to items and to each website as a whole. On the marketing register, each activity has a basis under regulation 13, with the twelve-month soft opt-in, consent for calls to mobiles, National Directory Database screening and the record of consent. See the cookies and marketing topics."
         ]
       }
     ],

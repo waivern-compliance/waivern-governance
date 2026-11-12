@@ -557,7 +557,11 @@ export const marketingBasis = pgEnum('marketing_basis', [
   'charity_soft_opt_in',
   'corporate_subscriber',
   'screened_calls',
-  'none'
+  'none',
+  // The Irish ePrivacy Regulations' own (`lib/ie-eprivacy/marketing.ts`).
+  'business_address',
+  'not_objected',
+  'ndd_screened'
 ]);
 
 export const marketingActivityStatus = pgEnum('marketing_activity_status', [
@@ -666,6 +670,8 @@ export const taskType = pgEnum('task_type', [
   'pecr_scan_changes',
   /** A live-call marketing activity is due to be screened against the TPS and CTPS again (every 28 days). */
   'marketing_tps_screening',
+  /** A call marketing activity under the Irish Regulations is due to be screened against the National Directory Database again (every 28 days). */
+  'marketing_ndd_screening',
   /**
    * The twenty working days to answer a freedom of information request, or
    * the date given for finishing a public interest test. Set by statute, and
