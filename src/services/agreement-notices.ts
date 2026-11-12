@@ -9,6 +9,7 @@ import {
   roleAssignments,
   users
 } from '@/db/schema';
+import { appUrl } from '@/lib/app-url';
 import { appendAuditEvent } from '@/lib/audit';
 import { emailConfig, sendEmail, type EmailConfig } from '@/lib/email/resend';
 import {
@@ -49,10 +50,6 @@ const longDate = (version: string) =>
     year: 'numeric',
     timeZone: 'UTC'
   });
-
-function appUrl(env: Record<string, string | undefined> = process.env) {
-  return (env.AUTH_URL ?? '').replace(/\/+$/, '');
-}
 
 /** The email that gives notice of a new version. */
 export function changeNoticeEmail(

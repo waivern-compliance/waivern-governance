@@ -1,3 +1,4 @@
+import { appUrl } from '@/lib/app-url';
 import { waivernHosted } from '@/lib/hosting';
 import { PRODUCT_NAME } from '@/lib/product';
 
@@ -80,11 +81,6 @@ export type MemberNotice = {
 };
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
-
-/** The deployment's own address, for links back into it. */
-function appUrl(env: Env = process.env): string {
-  return (env.AUTH_URL ?? '').replace(/\/+$/, '');
-}
 
 /** One person's email about one notification. Pure, so the wording can be tested. */
 export function memberEmail(

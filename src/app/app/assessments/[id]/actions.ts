@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { appUrl } from '@/lib/app-url';
 import { rolesOn } from '@/lib/rbac';
 import { requireCapability } from '@/lib/session';
 import type { AnswerValue } from '@/lib/templates/logic';
@@ -126,7 +127,7 @@ export async function inviteAction(
       }
     });
 
-    const base = process.env.AUTH_URL ?? 'http://localhost:3000';
+    const base = appUrl() || 'http://localhost:3000';
     revalidatePath(`/app/assessments/${assessmentId}`);
     return { url: `${base}/contribute/${issued.token}` };
   } catch (e) {

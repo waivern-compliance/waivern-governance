@@ -96,6 +96,10 @@ secret, note the tenant issuer URL.
 
 Only the provider you configure appears on the sign-in page.
 
+**More than one address.** If people will reach the service at your own domain
+as well as the Railway one (say `govern.example.org`), register the callback for
+each address with each provider, and follow *More than one address* in step 5.
+
 ## 5. Set the application's variables
 
 On the application service → **Variables**.
@@ -117,7 +121,8 @@ Then:
 | Name | Value |
 | --- | --- |
 | `AUTH_SECRET` | `openssl rand -base64 32` |
-| `AUTH_URL` | `https://<your-domain>` — no trailing slash |
+| `AUTH_URL` | `https://<your-domain>`, no trailing slash; only with one address, see below |
+| `APP_URL` / `APP_ALIAS_URLS` | instead of `AUTH_URL`, with more than one address; see below |
 | `INTEGRATION_KEY` | `openssl rand -base64 32` |
 | `CRON_SECRET` | `openssl rand -base64 32` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | from step 4 |
@@ -132,6 +137,19 @@ Then:
 address and belongs to no organisation can ask for one; nothing is created
 until an operator approves it. Leave it unset and sign-in stays invitation
 only, as it always was.
+
+**More than one address.** Auth.js sends every sign-in back to the host
+`AUTH_URL` names, so with `AUTH_URL` set to the Railway domain a sign-in begun on
+your own domain returns to the Railway one without its cookies, and fails. To
+serve both, delete `AUTH_URL` and list the addresses instead:
+
+| Name | Value |
+| --- | --- |
+| `APP_URL` | the main address, used for links in emails, e.g. `https://govern.example.org` |
+| `APP_ALIAS_URLS` | the others, comma-separated, e.g. `https://<service>.up.railway.app` |
+
+Sign-in then works on whichever listed address the browser used. A request
+claiming any other host is treated as arriving at `APP_URL`.
 
 `WAIVERN_HOSTED=true` adds the hosting, backup and dedicated-instance sections to
 the public `/security` page. They describe Waivern's promises (the provider, the
@@ -489,6 +507,10 @@ select email, sso_subject, last_seen_at from app_user;
 **Google returns `redirect_uri_mismatch`.** The authorised redirect URI does not
 exactly match `https://<domain>/api/auth/callback/google`, or `AUTH_URL` points
 somewhere other than the domain being used.
+
+**Sign-in works on one address but not another** (often `Configuration` or
+`InvalidCheck` in the logs). `AUTH_URL` names the other address. See *More than
+one address* in step 5.
 
 ## Afterwards
 

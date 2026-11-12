@@ -9,6 +9,7 @@ import {
   users,
   type EntityErasureStatus
 } from '@/db/schema';
+import { appUrl } from '@/lib/app-url';
 import { appendAuditEvent, eraseAuditContents } from '@/lib/audit';
 import { sha256Hex } from '@/lib/canonical';
 import {
@@ -152,9 +153,9 @@ async function blockers(
   return reasons;
 }
 
-/** The deployment's address for links in email: AUTH_URL where set. */
+/** The deployment's address for links in email, else the request's own. */
 function linkBase(origin: string): string {
-  return (process.env.AUTH_URL?.trim() || origin).replace(/\/+$/, '');
+  return appUrl() || origin.replace(/\/+$/, '');
 }
 
 /**

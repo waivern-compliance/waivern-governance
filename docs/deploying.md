@@ -11,7 +11,7 @@ administer yourself.
 | --- | --- |
 | Node 24 | Runs `pnpm build` then `pnpm start`. Nothing needs compiling at install time. |
 | PostgreSQL 13 or newer | 16 in development. No extensions — `gen_random_uuid()` is built in from 13. |
-| Environment variables | `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `INTEGRATION_KEY`, `CRON_SECRET`, and the credentials for at least one OIDC provider. |
+| Environment variables | `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL` (or `APP_URL` and `APP_ALIAS_URLS` for more than one address), `INTEGRATION_KEY`, `CRON_SECRET`, and the credentials for at least one OIDC provider. |
 | A scheduler | Hourly. Either runs `pnpm sweep:prod` as a job, or makes an authenticated request to `/api/cron/sweep`. |
 | TLS termination | Wherever it normally lives for you. The application assumes it is behind it. |
 

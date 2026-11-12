@@ -6,6 +6,7 @@ import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 
 import { db } from '@/db/client';
 import { memberships, users } from '@/db/schema';
+import { listsAddresses } from '@/lib/app-url';
 import {
   mayJoinByDomain,
   mayRequestOrganisation,
@@ -184,6 +185,9 @@ export const SESSION_HOURS = 12;
 
 export const authConfig: NextAuthConfig = {
   providers: providers(),
+  // With addresses listed, the host is trusted only after the proxy or the
+  // auth route has checked it against the list (see src/lib/app-url.ts).
+  ...(listsAddresses() ? { trustHost: true } : {}),
   session: { strategy: 'jwt', maxAge: SESSION_HOURS * 60 * 60 },
   pages: { signIn: '/sign-in', error: '/sign-in' },
   callbacks: {
