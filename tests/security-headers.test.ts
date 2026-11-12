@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 
+import { bannerFor, cookiebotId } from '@/lib/cookiebot';
 import { contentSecurityPolicy } from '@/proxy';
 
 import nextConfig from '../next.config';
@@ -59,6 +60,46 @@ describe('content security policy', () => {
       directive(contentSecurityPolicy('n', false), 'form-action'),
       "form-action 'self' https://login.microsoftonline.com https://accounts.google.com"
     );
+  });
+
+  it('reaches Cookiebot only where a consent banner is loaded', () => {
+    const plain = contentSecurityPolicy('n', false);
+    assert.equal(directive(plain, 'connect-src'), "connect-src 'self'");
+    assert.equal(directive(plain, 'frame-src'), undefined);
+    assert.doesNotMatch(plain, /cookiebot/);
+
+    const withBanner = contentSecurityPolicy('n', false, "'none'", true);
+    assert.equal(
+      directive(withBanner, 'connect-src'),
+      "connect-src 'self' https://consent.cookiebot.com https://consentcdn.cookiebot.com"
+    );
+    assert.equal(
+      directive(withBanner, 'frame-src'),
+      "frame-src 'self' https://consentcdn.cookiebot.com"
+    );
+    assert.match(
+      directive(withBanner, 'img-src') ?? '',
+      /https:\/\/imgsct\.cookiebot\.com/
+    );
+    // The banner's scripts are trusted through the nonce, never by host.
+    assert.equal(
+      directive(withBanner, 'script-src'),
+      "script-src 'self' 'nonce-n' 'strict-dynamic'"
+    );
+  });
+
+  it('shows a banner from COOKIEBOT_ID, never on a public request form', () => {
+    const id = 'FA73AFDF-3E2E-4EE6-9C8D-ACD111F6962E';
+    assert.equal(cookiebotId({}), null);
+    assert.equal(cookiebotId({ COOKIEBOT_ID: '' }), null);
+    // It goes into a script address, so only a domain group ID is accepted.
+    assert.equal(cookiebotId({ COOKIEBOT_ID: 'x"/><script>' }), null);
+    assert.equal(cookiebotId({ COOKIEBOT_ID: ` ${id} ` }), id.toLowerCase());
+
+    const env = { COOKIEBOT_ID: id };
+    assert.equal(bannerFor('/sign-in', env), id.toLowerCase());
+    assert.equal(bannerFor('/app/ropa', env), id.toLowerCase());
+    assert.equal(bannerFor('/request/abcdefgh12', env), null);
   });
 });
 

@@ -23,3 +23,30 @@ export const PRODUCT_DESCRIPTION = 'Privacy and AI governance workflow';
 
 /** Waivern's own website, for the line at the foot of a public form. */
 export const VENDOR_URL = 'https://www.waivern.com';
+
+/**
+ * Where people tell Waivern which countries and laws to cover next, linked
+ * from the hosted sign-in page.
+ */
+export const EXPANSION_SURVEY_URL = 'https://forms.gle/pSGsLSdvQQ6qbykQA';
+
+/** The ways to reach Waivern, the same as on its website's home page. */
+export const VENDOR_CONTACT_URL = `${VENDOR_URL}/contact`;
+export const VENDOR_BOOKING_URL =
+  'https://calendly.com/vincent-nunan-waivern/waivern-consultancy-session';
+/** Where to write to Waivern about anything. */
+export const VENDOR_EMAIL = 'info@waivern.com';
+/** WhatsApp Business, written for people and as a wa.me link. */
+export const VENDOR_WHATSAPP = {
+  display: '+44 7448 175379',
+  url: 'https://wa.me/447448175379'
+} as const;
+export const VENDOR_LINKEDIN_URL = 'https://www.linkedin.com/company/waivern/';
+
+/** Waivern's own policies, linked at the foot of every page of the hosted service. */
+export const VENDOR_PRIVACY_POLICY_URL = `${VENDOR_URL}/privacy-policy`;
+export const VENDOR_COOKIE_POLICY_URL = `${VENDOR_URL}/cookie-policy`;
+
+/** The open-source code of this tool. */
+export const SOURCE_CODE_URL =
+  'https://github.com/waivern-compliance/waivern-governance';

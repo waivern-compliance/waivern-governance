@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import {
+  BANNER_HEADER,
+  bannerFor,
+  COOKIEBOT_CSP,
+  isPublicForm,
+  PUBLIC_FORM_HEADER
+} from '@/lib/cookiebot';
 import { FORM_PATH, frameAncestors } from '@/lib/embedding';
 import { frameOriginsForSlug } from '@/services/frame-origins';
 
@@ -41,19 +48,26 @@ function identityProviderOrigins(): string[] {
  *
  * No page may be framed, except a public request form on the websites listed
  * against it (`lib/embedding.ts`), which the caller passes in.
+ *
+ * Where a page shows a cookie consent banner, it also needs to reach
+ * Cookiebot and show its consent frame (`lib/cookiebot.ts`).
  */
 export function contentSecurityPolicy(
   nonce: string,
   isDev: boolean,
-  ancestors = "'none'"
+  ancestors = "'none'",
+  cookiebot = false
 ): string {
+  const extra = (hosts: readonly string[]) =>
+    cookiebot ? hosts.map((h) => ` ${h}`).join('') : '';
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
+    `img-src 'self' blob: data:${extra(COOKIEBOT_CSP.img)}`,
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self'${extra(COOKIEBOT_CSP.connect)}`,
+    ...(cookiebot ? [`frame-src 'self'${extra(COOKIEBOT_CSP.frame)}`] : []),
     "object-src 'none'",
     "base-uri 'self'",
     ["form-action 'self'", ...identityProviderOrigins()].join(' '),
@@ -81,16 +95,25 @@ async function framingFor(pathname: string): Promise<string[] | null> {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-  const framing = await framingFor(request.nextUrl.pathname);
+  const { pathname } = request.nextUrl;
+  const framing = await framingFor(pathname);
+  const banner = bannerFor(pathname);
   const csp = contentSecurityPolicy(
     nonce,
     process.env.NODE_ENV === 'development',
-    frameAncestors(framing ?? [])
+    frameAncestors(framing ?? []),
+    banner !== null
   );
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
+  // For the root layout, which cannot see the path. Set or removed here, so a
+  // browser cannot send its own.
+  if (banner) requestHeaders.set(BANNER_HEADER, banner);
+  else requestHeaders.delete(BANNER_HEADER);
+  if (isPublicForm(pathname)) requestHeaders.set(PUBLIC_FORM_HEADER, '1');
+  else requestHeaders.delete(PUBLIC_FORM_HEADER);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
