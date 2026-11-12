@@ -33,6 +33,16 @@ const date = (v: FormDataEntryValue | null) => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
+/** The ticked mechanisms, with the EU clauses' module; null where the form did not ask. */
+function mechanismsFrom(formData: FormData) {
+  if (!formData.has('mechanismsAsked')) return null;
+  const sccModule = text(formData.get('sccModule'));
+  return formData.getAll('transferMechanisms').map((m) => ({
+    mechanism: String(m),
+    ...(m === 'eu_scc' && sccModule ? { module: sccModule } : {})
+  }));
+}
+
 export async function addSupplier(formData: FormData) {
   const name = text(formData.get('name'));
   if (!name) return;
@@ -172,6 +182,7 @@ export async function recordDpaAction(supplierId: string, formData: FormData) {
     signedAt: date(formData.get('signedAt')),
     expiresAt: date(formData.get('expiresAt')),
     transferMechanism: text(formData.get('transferMechanism')) || undefined,
+    transferMechanisms: mechanismsFrom(formData) ?? [],
     subProcessors: lines(formData.get('subProcessors')),
     actor: {
       actorKind: 'user',
@@ -203,6 +214,9 @@ export async function updateDpaAction(
       signedAt: date(formData.get('signedAt')),
       expiresAt: date(formData.get('expiresAt')),
       transferMechanism: text(formData.get('transferMechanism')),
+      ...(mechanismsFrom(formData)
+        ? { transferMechanisms: mechanismsFrom(formData)! }
+        : {}),
       subProcessors: lines(formData.get('subProcessors')),
       actor: {
         actorKind: 'user',

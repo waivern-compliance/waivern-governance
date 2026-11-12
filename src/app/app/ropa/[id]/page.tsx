@@ -490,9 +490,15 @@ export default async function ActivityPage({
             defaultValue={(activity.recipients ?? []).join('\n')}
           />
           <Area
-            label="Transfers outside the UK"
+            label={
+              laws === 'eu'
+                ? 'Transfers outside the EEA'
+                : laws === 'uk_eu'
+                  ? 'Transfers outside the UK or the EEA'
+                  : 'Transfers outside the UK'
+            }
             name="transfers"
-            hint="Article 30(1)(e) - one per line, as “US: SCCs”. A country with no mechanism is flagged unless the library says it needs none."
+            hint="Article 30(1)(e) - one per line: country, then the safeguard named plainly so it can be checked under each law, as “IN: IDTA”, “US: SCCs with the UK Addendum”, “US: DPF”. A country with no safeguard is flagged unless the library says it needs none."
             defaultValue={transfersText}
           />
           <Field

@@ -537,7 +537,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Transfers',
         body: [
-          "Each transfer needs a destination and, where that destination is not covered by adequacy, a safeguard. The check reads the country library. If the library is empty it escalates rather than clearing everything - an unanswerable question is never answered 'no'.",
+          "Each transfer needs a destination and, where that destination is not covered by adequacy, a safeguard. The check reads the country library, under each law the record is under: UK approval for the UK GDPR, EU adequacy for the EU GDPR (so Brazil needs a safeguard under UK law and none under EU law). If the library is empty it escalates rather than clearing everything - an unanswerable question is never answered 'no'.",
+          "Name the safeguard plainly - IDTA, UK Addendum, SCCs, DPF, EU adequacy, derogation - and it is checked under each law. The two laws' tools are not interchangeable: the EU standard contractual clauses alone are not a UK safeguard (they need the UK Addendum), and the IDTA is not an EU one. A safeguard under Article 46 needs an assessment of the destination: a UK transfer risk assessment, an EU transfer impact assessment, or both, and each is flagged until an approved one is attached to the record (a draft or withdrawn one decides nothing, and the law enforcement transfer assessment answers a different test). A transfer on the other law's tool alone has no valid safeguard under this one, and is shown red. Text that names nothing plainly is left alone rather than guessed at.",
           "A competent authority's law enforcement transfers are assessed with the 'Transfer assessment (law enforcement, Part 3)' template (Data Protection Act 2018 ss.73–78). It asks the three conditions of s.73 - necessary for a law enforcement purpose; approved by regulations (s.74AA), subject to appropriate safeguards (s.75) or based on special circumstances (s.76); and to a relevant authority, an international organisation, a processor under a s.59 contract, or another recipient on the four s.77 conditions - and whether a member State must authorise it. Then the data protection test where safeguards are relied on, the documentation and what the Information Commission must be told, onward transfers (s.78), and whether the national security exemption (s.78A) is relied on."
         ]
       }
@@ -801,7 +802,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'What counts as covered',
         body: [
           'Article 28(3) requires processing to be governed by a contract. No agreement, an unsigned agreement and an expired agreement are reported as the same failure, because in substance they are.',
-          'Sub-processors and transfer mechanism are reported when missing but not called breaches - an empty sub-processor list may honestly mean none.'
+          'Sub-processors and transfer mechanism are reported when missing but not called breaches - an empty sub-processor list may honestly mean none.',
+          "Tick the transfer mechanisms an agreement relies on, each the UK's or the EU's; the text field stays as the note, and where nothing is ticked, text that names the mechanisms plainly is read instead. An agreement relying on an Article 46 safeguard is flagged until an approved transfer assessment of that law is attached to the supplier or the agreement, whether the other party is a processor or another controller: a UK transfer risk assessment for the IDTA, the UK Addendum or UK BCRs; an EU transfer impact assessment for the standard contractual clauses, EU BCRs or a code or certification."
         ]
       },
       {

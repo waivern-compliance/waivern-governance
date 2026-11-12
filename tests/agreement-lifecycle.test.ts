@@ -316,6 +316,7 @@ describe('which agreement counts', () => {
       documentRef: null,
       terms: {},
       transferMechanism: null,
+      transferMechanisms: [],
       subProcessors: [],
       sourceConnectionId: null,
       externalRef: null,
