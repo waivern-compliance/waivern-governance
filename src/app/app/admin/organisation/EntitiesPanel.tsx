@@ -11,6 +11,7 @@ import {
   type DataProtectionLaw
 } from '@/lib/dpa2018/applies';
 import type { Establishment } from '@/lib/gdpr/establishment';
+import { appliesEu } from '@/lib/gdpr/regimes';
 import { documentPath, type DocumentRef } from '@/lib/legal/shared';
 import { savedKey } from '@/lib/saved-key';
 import { useRefusableAction } from '@/lib/use-refusable-action';
@@ -22,6 +23,7 @@ import {
   setCompetentAuthorityAction,
   setDataProtectionLawAction,
   setFreedomOfInformationAction,
+  setIeEprivacyAction,
   setProviderAction,
   setPublicAuthorityAction,
   type AdminResult
@@ -35,6 +37,10 @@ type Entity = {
   legalEntityRef: string | null;
   isDefault: boolean;
   publicCommsProvider: boolean;
+  /** S.I. 336/2011; null where nobody has answered. */
+  ieEprivacy: boolean | null;
+  /** Established in Ireland or led by the DPC, and not yet answered. */
+  ieEprivacySuggested: boolean;
   publicAuthority: boolean;
   competentAuthority: boolean;
   defaultRegime: string;
@@ -255,6 +261,15 @@ function EntityRow({
     }
   );
   const uk = ukLawApplies(entity.dataProtectionLaw);
+  const eu = appliesEu(entity.dataProtectionLaw);
+  const irishYes = useRefusableAction<AdminResult>(
+    setIeEprivacyAction.bind(null, entity.id, true),
+    { resetOnSuccess: false }
+  );
+  const irishNo = useRefusableAction<AdminResult>(
+    setIeEprivacyAction.bind(null, entity.id, false),
+    { resetOnSuccess: false }
+  );
 
   return (
     <li className="space-y-2 px-4 py-3">
@@ -352,6 +367,53 @@ function EntityRow({
         law={entity.dataProtectionLaw}
         establishment={entity.establishment}
       />
+      {eu ? (
+        <div className="space-y-1 text-xs">
+          {entity.ieEprivacySuggested ? (
+            <p className="rounded border border-amber-700 bg-amber-50 px-2 py-1 text-amber-900">
+              {entity.name} is established in Ireland or led by the Data
+              Protection Commission. Say whether the Irish ePrivacy Regulations
+              apply to it.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-ink-soft">
+              Irish ePrivacy Regulations (S.I. 336/2011):
+            </span>
+            <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
+              {entity.ieEprivacy === true
+                ? 'subject to them'
+                : entity.ieEprivacy === false
+                  ? 'not subject to them'
+                  : 'not answered'}
+            </span>
+            {entity.ieEprivacy === true ? null : (
+              <form {...irishYes.formProps}>
+                <button
+                  type="submit"
+                  disabled={irishYes.pending}
+                  className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+                >
+                  Subject to them
+                </button>
+              </form>
+            )}
+            {entity.ieEprivacy === false ? null : (
+              <form {...irishNo.formProps}>
+                <button
+                  type="submit"
+                  disabled={irishNo.pending}
+                  className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+                >
+                  Not subject to them
+                </button>
+              </form>
+            )}
+          </div>
+          <Outcome result={irishYes.result} />
+          <Outcome result={irishNo.result} />
+        </div>
+      ) : null}
       {uk ? (
         <>
           <form

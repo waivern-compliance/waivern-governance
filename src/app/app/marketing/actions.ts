@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import type {
   MarketingBasis,
   MarketingChannel,
@@ -41,7 +42,7 @@ async function refused(
     await work();
     return { ok: true, message: ok };
   } catch (error) {
-    if (error instanceof MarketingRefused)
+    if (error instanceof MarketingRefused || error instanceof EprivacyRefused)
       return { ok: false, message: error.message };
     throw error;
   }
@@ -88,6 +89,7 @@ export async function createActivityAction(
       description: text(formData.get('description')) || null,
       tool: text(formData.get('tool')) || null,
       processingActivityId: text(formData.get('processingActivityId')) || null,
+      eprivacyScope: text(formData.get('eprivacyScope')) || null,
       ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
       actor: actorOf(active)
     });
@@ -119,6 +121,10 @@ export async function updateActivityAction(
         processingActivityId:
           text(formData.get('processingActivityId')) || null,
         charityNumber: text(formData.get('charityNumber')) || null,
+        // Asked only where the entity is under both ePrivacy laws; absent, unchanged.
+        ...(formData.has('eprivacyScope')
+          ? { eprivacyScope: text(formData.get('eprivacyScope')) }
+          : {}),
         ...(status === 'active' || status === 'paused' || status === 'ended'
           ? { status }
           : {})

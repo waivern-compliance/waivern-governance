@@ -12,7 +12,11 @@ import {
   STAGE_LABEL,
   type LifecycleStage
 } from '@/services/ai-register';
-import { anyEntityUnderFoi, anyEntityUnderUkLaw } from '@/services/entities';
+import {
+  anyEntityUnderEprivacy,
+  anyEntityUnderFoi,
+  anyEntityUnderUkLaw
+} from '@/services/entities';
 import { dashboardMetrics } from '@/services/metrics';
 
 import { aiEstate, myAssessments, myMitigations, myTasks } from './data';
@@ -374,13 +378,16 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
 /* ------------------------------------------------------------------ */
 
 async function QuickLinks({ active }: { active: ActiveSession }) {
-  const [ukLaw, foi] = await Promise.all([
+  const [ukLaw, foi, eprivacy] = await Promise.all([
     anyEntityUnderUkLaw(active.membership.organisationId),
-    anyEntityUnderFoi(active.membership.organisationId)
+    anyEntityUnderFoi(active.membership.organisationId),
+    anyEntityUnderEprivacy(active.membership.organisationId)
   ]);
-  const items = navFor(active.membership.grants, { ukLaw, foi }).filter(
-    (i) => i.href !== '/app/tasks'
-  );
+  const items = navFor(active.membership.grants, {
+    ukLaw,
+    foi,
+    eprivacy
+  }).filter((i) => i.href !== '/app/tasks');
   // Administration is a different kind of thing from a register. Mixed into
   // one list it reads as an afterthought, which is how somebody who knew a
   // screen existed still could not find it.

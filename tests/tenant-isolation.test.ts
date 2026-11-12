@@ -2114,6 +2114,16 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'setIeEprivacy',
+      () =>
+        entitiesSvc.setIeEprivacy({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          applies: true,
+          actor: as()
+        })
+    ],
+    [
       'setCompetentAuthority',
       () =>
         entitiesSvc.setCompetentAuthority({
@@ -3428,6 +3438,10 @@ describe('lists', () => {
           entitiesSvc.anyEntityUnderFoi(o)
         ] as const,
         [
+          'entitiesSvc.anyEntityUnderEprivacy',
+          entitiesSvc.anyEntityUnderEprivacy(o)
+        ] as const,
+        [
           'foi.informationRequestRegister',
           foi.informationRequestRegister(o, null)
         ] as const,
@@ -3550,6 +3564,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside a caller's transaction, with that caller's organisation",
   'data-subject-requests.summaryDefaultJurisdiction':
     "called inside a summary's withOrganisation, and filters the entity by that organisation",
+  'entities.eprivacyScopeFor':
+    "called inside a caller's withOrganisation after assertEntityIn has checked the entity is the caller's",
   'regulator.regulatorOfEntity':
     "called inside a caller's transaction, with that caller's organisation, and filters the entity by it",
   // Read by id alone, and only after the caller loaded the record within its organisation.

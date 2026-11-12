@@ -27,7 +27,7 @@ import {
 import { STEPS, type Stage, type Step } from '@/lib/guidance/steps';
 import { requireSession } from '@/lib/session';
 
-import { anyEntityUnderUkLaw } from './entities';
+import { anyEntityUnderEprivacy, anyEntityUnderUkLaw } from './entities';
 import { EXPIRING_WITHIN_DAYS } from './third-party';
 
 /**
@@ -401,14 +401,16 @@ export async function guidanceFor(input: {
   chosen: Mode | null;
 }): Promise<Guidance> {
   return withOrganisation(input.organisationId, async () => {
-    const [t, ukLaw] = await Promise.all([
+    const [t, ukLaw, eprivacy] = await Promise.all([
       tally(input.organisationId),
-      anyEntityUnderUkLaw(input.organisationId)
+      anyEntityUnderUkLaw(input.organisationId),
+      anyEntityUnderEprivacy(input.organisationId)
     ]);
     const stage =
       input.chosen && input.chosen !== 'off' ? input.chosen : derivedStage(t);
     const steps = STEPS[stage]
       .filter((step) => ukLaw || !step.ukLaw)
+      .filter((step) => eprivacy || !step.eprivacy)
       .map((step) => ({ ...step, ...measure(step, t) }));
 
     return {

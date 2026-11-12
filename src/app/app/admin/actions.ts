@@ -51,6 +51,7 @@ import {
   setDpo,
   setEstablishment,
   setFreedomOfInformation,
+  setIeEprivacy,
   setPublicAuthority,
   setPublicCommsProvider
 } from '@/services/entities';
@@ -509,6 +510,25 @@ export async function setProviderAction(
     return updated.publicCommsProvider
       ? `${updated.name} is marked as a public communications provider. Its breaches now run the PECR reg 5A clock.`
       : `${updated.name} is no longer marked as a public communications provider.`;
+  });
+}
+
+/** Whether an entity is subject to the Irish ePrivacy Regulations (S.I. 336/2011). */
+export async function setIeEprivacyAction(
+  entityId: string,
+  applies: boolean,
+  _prev: AdminResult
+): Promise<AdminResult> {
+  return entityResult(async (active) => {
+    const updated = await setIeEprivacy({
+      organisationId: active.membership.organisationId,
+      entityId,
+      applies,
+      actor: actorOf(active)
+    });
+    return updated.ieEprivacy
+      ? `${updated.name} is recorded as subject to the Irish ePrivacy Regulations. Its websites, apps and marketing can now be recorded under them.`
+      : `${updated.name} is recorded as not subject to the Irish ePrivacy Regulations.`;
   });
 }
 

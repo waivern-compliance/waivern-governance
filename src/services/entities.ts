@@ -4,8 +4,10 @@ import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
   breaches,
+  digitalProperties,
   dsrIntakeLinks,
   entities,
+  marketingActivities,
   organisations,
   processingActivities
 } from '@/db/schema';
@@ -27,7 +29,12 @@ import {
   cleanEstablishment,
   type Establishment
 } from '@/lib/gdpr/establishment';
-import { lawsLabel, narrowedTo } from '@/lib/gdpr/regimes';
+import { appliesEu, lawsLabel, narrowedTo } from '@/lib/gdpr/regimes';
+import {
+  cleanEprivacyScope,
+  entityEprivacy,
+  type EprivacyScope
+} from '@/lib/ie-eprivacy/scope';
 
 import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
 import { forgetFrameOrigins } from './frame-origins';
@@ -170,6 +177,49 @@ export async function addEntity(input: {
       return created;
     })
   );
+}
+
+/** The references of the entity's websites, apps and marketing activities under exactly this scope. */
+async function recordsUnderEprivacyScope(
+  tx: Tx,
+  entityId: string,
+  scope: EprivacyScope
+): Promise<string[]> {
+  const rows = [
+    ...(await tx
+      .select({ reference: digitalProperties.reference })
+      .from(digitalProperties)
+      .where(
+        and(
+          eq(digitalProperties.entityId, entityId),
+          eq(digitalProperties.eprivacyScope, scope)
+        )
+      )),
+    ...(await tx
+      .select({ reference: marketingActivities.reference })
+      .from(marketingActivities)
+      .where(
+        and(
+          eq(marketingActivities.entityId, entityId),
+          eq(marketingActivities.eprivacyScope, scope)
+        )
+      ))
+  ];
+  return rows.map((r) => r.reference);
+}
+
+/**
+ * Hold the entity's row until the transaction ends. Changing which ePrivacy
+ * law it is under takes this lock, and adding a website, app or marketing
+ * activity takes a share of it (`eprivacyScopeFor`), so a record cannot be
+ * added under a law while that law is being removed.
+ */
+async function lockEntity(tx: Tx, entityId: string) {
+  await tx
+    .select({ id: entities.id })
+    .from(entities)
+    .where(eq(entities.id, entityId))
+    .for('update');
 }
 
 async function entityIn(tx: Tx, organisationId: string, entityId: string) {
@@ -318,6 +368,101 @@ export async function setPublicCommsProvider(input: {
   );
 }
 
+/**
+ * Whether the entity is subject to the Irish ePrivacy Regulations, S.I. No. 336
+ * of 2011. A person's answer, recorded either way: an unanswered entity under
+ * EU law is asked on the Organisation page. Allowed only where EU law applies.
+ * Turning it off is refused while a website, app or marketing activity is
+ * recorded under the Irish Regulations alone, because it would then be under no
+ * ePrivacy law at all; one under both keeps PECR.
+ */
+export async function setIeEprivacy(input: {
+  organisationId: string;
+  entityId: string;
+  applies: boolean;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      await lockEntity(tx, input.entityId);
+      const before = await entityIn(tx, input.organisationId, input.entityId);
+      if (before.ieEprivacy === input.applies) return before;
+      if (input.applies && !appliesEu(before.dataProtectionLaw)) {
+        throw new EntityRefused(
+          `${before.name} is recorded as subject to UK law only. The Irish ePrivacy Regulations are recorded beside EU law, so record that it is subject to EU law first.`
+        );
+      }
+      if (!input.applies) {
+        const irishOnly = await recordsUnderEprivacyScope(tx, before.id, 'ie');
+        if (irishOnly.length > 0) {
+          throw new EntityRefused(
+            `${irishOnly.join(', ')} ${irishOnly.length === 1 ? 'is' : 'are'} recorded under the Irish ePrivacy Regulations only. Change ${irishOnly.length === 1 ? 'it' : 'them'} first.`
+          );
+        }
+      }
+      const [after] = await tx
+        .update(entities)
+        .set({ ieEprivacy: input.applies, updatedAt: new Date() })
+        .where(eq(entities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'entity.ie_eprivacy_changed',
+        subjectType: 'entity',
+        subjectId: before.id,
+        entityId: before.id,
+        before: { ieEprivacy: before.ieEprivacy },
+        after: { ieEprivacy: input.applies }
+      });
+      return after;
+    })
+  );
+}
+
+/**
+ * The scope a website, app or marketing activity of this entity will hold:
+ * the one chosen, else the entity's (`cleanEprivacyScope`). Runs inside the
+ * caller's organisation scope.
+ */
+export async function eprivacyScopeFor(
+  entityId: string,
+  chosen: string | null | undefined
+) {
+  const [row] = await db
+    .select({
+      name: entities.name,
+      dataProtectionLaw: entities.dataProtectionLaw,
+      ieEprivacy: entities.ieEprivacy
+    })
+    .from(entities)
+    .where(eq(entities.id, entityId))
+    .for('share');
+  if (!row) throw new Error('No such entity');
+  return cleanEprivacyScope(row, chosen);
+}
+
+/**
+ * Whether any entity is subject to an ePrivacy law, so the cookie and
+ * marketing registers are worth offering. With no entity yet, as when an
+ * organisation is first set up, its default will be UK law, so yes.
+ */
+export async function anyEntityUnderEprivacy(
+  organisationId: string
+): Promise<boolean> {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select({
+        name: entities.name,
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
+      .from(entities)
+      .where(eq(entities.organisationId, organisationId));
+    return rows.length === 0 || rows.some((r) => entityEprivacy(r) !== null);
+  });
+}
+
 /** The UK-law settings are refused on an entity subject to EU law only. */
 function ukLawOnly(
   entity: { name: string; dataProtectionLaw: DataProtectionLaw },
@@ -346,6 +491,7 @@ export async function setDataProtectionLaw(input: {
     throw new EntityRefused('Choose UK law, EU law, or both.');
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
+      await lockEntity(tx, input.entityId);
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.dataProtectionLaw === input.law) return before;
       // The establishment record answers for each law; narrowing away from a
@@ -358,6 +504,23 @@ export async function setDataProtectionLaw(input: {
       if (input.law === 'eu' && hasUkEstablishmentFacts(before)) {
         throw new EntityRefused(
           `${before.name} has a UK representative or exemption recorded. Clear that first.`
+        );
+      }
+      // Websites, apps and marketing under PECR alone would be under no
+      // ePrivacy law at all once UK law goes, as records under the dropped
+      // law alone are below.
+      if (!ukLawApplies(input.law)) {
+        const pecrOnly = await recordsUnderEprivacyScope(tx, before.id, 'uk');
+        if (pecrOnly.length > 0) {
+          throw new EntityRefused(
+            `${pecrOnly.join(', ')} ${pecrOnly.length === 1 ? 'is' : 'are'} recorded under UK PECR only, which ${before.name} would no longer be subject to. Change ${pecrOnly.length === 1 ? 'it' : 'them'} first.`
+          );
+        }
+      }
+      // The Irish ePrivacy Regulations are declared only beside EU law.
+      if (!appliesEu(input.law) && before.ieEprivacy === true) {
+        throw new EntityRefused(
+          `${before.name} is marked as subject to the Irish ePrivacy Regulations, which Govern records only beside EU law. Turn that off first.`
         );
       }
       if (!ukLawApplies(input.law)) {

@@ -163,6 +163,12 @@ export const entities = pgTable(
      * UK's (DPA 2018 s.7).
      */
     euPublicBody: boolean('eu_public_body').notNull().default(false),
+    /**
+     * Subject to the Irish ePrivacy Regulations, S.I. No. 336 of 2011, beside
+     * PECR, which follows UK law. Allowed only where EU law applies. Null means
+     * nobody has answered, which counts as no. See `lib/ie-eprivacy/scope.ts`.
+     */
+    ieEprivacy: boolean('ie_eprivacy'),
     publicCommsProvider: boolean('public_comms_provider')
       .notNull()
       .default(false),

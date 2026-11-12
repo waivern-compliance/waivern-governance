@@ -21,6 +21,8 @@ export type NavItem = {
   ukLaw?: true;
   /** Offered only where some entity answers freedom of information requests. */
   foi?: true;
+  /** Offered only where some entity is under UK PECR or the Irish ePrivacy Regulations. */
+  eprivacy?: true;
   /**
    * Administration is a different kind of thing from a register, and filing
    * it under "everything else" is how the owner of a platform ends up unable
@@ -108,14 +110,16 @@ export const NAV: NavItem[] = [
   {
     href: '/app/cookies',
     label: 'Cookies and similar technologies',
-    hint: 'the inventory, and the PECR Schedule A1 basis for each',
-    capability: 'record.read'
+    hint: 'the inventory, and the ePrivacy basis for each',
+    capability: 'record.read',
+    eprivacy: true
   },
   {
     href: '/app/marketing',
     label: 'Electronic marketing',
-    hint: 'email, text and calls, and the PECR basis for each',
-    capability: 'record.read'
+    hint: 'email, text and calls, and the ePrivacy basis for each',
+    capability: 'record.read',
+    eprivacy: true
   },
   {
     href: '/app/complaints',
@@ -204,12 +208,13 @@ export const NAV: NavItem[] = [
 
 export function navFor(
   grants: readonly Grant[],
-  options: { ukLaw?: boolean; foi?: boolean } = {}
+  options: { ukLaw?: boolean; foi?: boolean; eprivacy?: boolean } = {}
 ): NavItem[] {
   return NAV.filter(
     (item) =>
       (!item.capability || can(grants, item.capability)) &&
       (options.ukLaw !== false || !item.ukLaw) &&
-      (options.foi !== false || !item.foi)
+      (options.foi !== false || !item.foi) &&
+      (options.eprivacy !== false || !item.eprivacy)
   );
 }

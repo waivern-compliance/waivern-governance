@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import type { ConditionKey, StorageBasis } from '@/lib/pecr/statutory';
 import { can, mayConfigureAnalyser } from '@/lib/rbac';
 import { requireCapability, requireSession } from '@/lib/session';
@@ -47,7 +48,7 @@ async function refused(
     await work();
     return { ok: true, message: ok };
   } catch (error) {
-    if (error instanceof InventoryRefused)
+    if (error instanceof InventoryRefused || error instanceof EprivacyRefused)
       return { ok: false, message: error.message };
     throw error;
   }
@@ -96,6 +97,7 @@ export async function createPropertyAction(
       kind: text(formData.get('kind')) === 'app' ? 'app' : 'website',
       informationUrl: text(formData.get('informationUrl')) || null,
       objectionMechanism: text(formData.get('objectionMechanism')) || null,
+      eprivacyScope: text(formData.get('eprivacyScope')) || null,
       ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
       actor: actorOf(active)
     });
@@ -124,7 +126,11 @@ export async function updatePropertyAction(
         objectionMechanism: text(formData.get('objectionMechanism')) || null,
         rescanIntervalMonths: text(formData.get('rescanIntervalMonths'))
           ? Number(text(formData.get('rescanIntervalMonths')))
-          : null
+          : null,
+        // Asked only where the entity is under both ePrivacy laws; absent, unchanged.
+        ...(formData.has('eprivacyScope')
+          ? { eprivacyScope: text(formData.get('eprivacyScope')) }
+          : {})
       },
       actor: actorOf(active)
     });

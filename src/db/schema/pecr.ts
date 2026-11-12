@@ -11,6 +11,8 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { EprivacyScope } from '@/lib/ie-eprivacy/scope';
+
 import {
   consentScanStatus,
   storageBasis,
@@ -43,6 +45,14 @@ export const digitalProperties = pgTable(
     name: text('name').notNull(),
     /** The site's address, or an app's store link or bundle identifier. */
     url: text('url').notNull(),
+    /**
+     * Which of its entity's ePrivacy laws govern it: UK PECR, the Irish
+     * ePrivacy Regulations, or both (`lib/ie-eprivacy/scope.ts`).
+     */
+    eprivacyScope: text('eprivacy_scope')
+      .$type<EprivacyScope>()
+      .notNull()
+      .default('uk'),
     /** website | app. Schedule A1 treats an app as a website. */
     kind: text('kind').notNull().default('website'),
     ownerId: uuid('owner_id').references(() => users.id, {

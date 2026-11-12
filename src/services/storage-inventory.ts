@@ -15,6 +15,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { entityEprivacy, recordEprivacy } from '@/lib/ie-eprivacy/scope';
 import {
   failingChecks,
   itemKey,
@@ -37,6 +38,7 @@ import {
   type StorageBasis
 } from '@/lib/pecr/statutory';
 
+import { eprivacyScopeFor } from './entities';
 import type { Actor } from './templates';
 import {
   assertEntityIn,
@@ -108,6 +110,8 @@ export async function createProperty(input: {
   ownerId?: string | null;
   informationUrl?: string | null;
   objectionMechanism?: string | null;
+  /** UK PECR, the Irish ePrivacy Regulations or both; absent, the entity's. */
+  eprivacyScope?: string | null;
   actor: Actor;
 }) {
   const name = input.name.trim();
@@ -129,6 +133,10 @@ export async function createProperty(input: {
 
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
+    const eprivacyScope = await eprivacyScopeFor(
+      input.entityId,
+      input.eprivacyScope
+    );
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     const reference = await nextReference(
@@ -147,7 +155,8 @@ export async function createProperty(input: {
           kind: input.kind ?? 'website',
           ownerId: input.ownerId ?? null,
           informationUrl,
-          objectionMechanism: trimmed(input.objectionMechanism)
+          objectionMechanism: trimmed(input.objectionMechanism),
+          eprivacyScope
         })
         .returning();
       await appendAuditEvent(tx, {
@@ -157,7 +166,7 @@ export async function createProperty(input: {
         action: 'pecr.property_created',
         subjectType: 'digital_property',
         subjectId: row.id,
-        after: { reference, name, url, kind: row.kind }
+        after: { reference, name, url, kind: row.kind, eprivacyScope }
       });
       return row;
     });
@@ -194,6 +203,7 @@ export async function updateProperty(input: {
     objectionMechanism: string | null;
     cmp: string | null;
     rescanIntervalMonths: number | null;
+    eprivacyScope: string;
   }>;
   actor: Actor;
 }) {
@@ -227,9 +237,18 @@ export async function updateProperty(input: {
         input.propertyId,
         input.organisationId
       );
+      const { eprivacyScope: chosenScope, ...rest } = changes;
+      const eprivacyScope =
+        chosenScope === undefined
+          ? undefined
+          : await eprivacyScopeFor(before.entityId, chosenScope);
       const [after] = await tx
         .update(digitalProperties)
-        .set({ ...changes, updatedAt: new Date() })
+        .set({
+          ...rest,
+          ...(eprivacyScope ? { eprivacyScope } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(digitalProperties.id, input.propertyId))
         .returning();
       await appendAuditEvent(tx, {
@@ -243,12 +262,14 @@ export async function updateProperty(input: {
           informationUrl: before.informationUrl,
           objectionMechanism: before.objectionMechanism,
           rescanIntervalMonths: before.rescanIntervalMonths,
+          eprivacyScope: before.eprivacyScope,
           changed: Object.keys(changes)
         },
         after: {
           informationUrl: after.informationUrl,
           objectionMechanism: after.objectionMechanism,
-          rescanIntervalMonths: after.rescanIntervalMonths
+          rescanIntervalMonths: after.rescanIntervalMonths,
+          eprivacyScope: after.eprivacyScope
         }
       });
       return after;
@@ -873,15 +894,28 @@ export async function propertiesDueForRescan(
 ) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
-      .select()
+      .select({
+        property: digitalProperties,
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
       .from(digitalProperties)
+      .innerJoin(entities, eq(entities.id, digitalProperties.entityId))
       .where(
         and(
           eq(digitalProperties.organisationId, organisationId),
           isNotNull(digitalProperties.rescanIntervalMonths)
         )
       );
-    return rows.flatMap((property) => {
+    // A site whose entity is under neither ePrivacy law is not asked for.
+    return rows.flatMap(({ property, dataProtectionLaw, ieEprivacy }) => {
+      if (
+        !recordEprivacy(
+          { dataProtectionLaw, ieEprivacy },
+          property.eprivacyScope
+        )
+      )
+        return [];
       const dueAt = rescanDueAt(property);
       const state = rescanState(dueAt, now);
       return dueAt && state !== 'not_due' ? [{ property, dueAt, state }] : [];
@@ -1088,6 +1122,8 @@ export async function loadProperty(propertyId: string, organisationId: string) {
       .select({
         property: digitalProperties,
         entityName: entities.name,
+        entityLaw: entities.dataProtectionLaw,
+        entityIeEprivacy: entities.ieEprivacy,
         ownerEmail: users.email
       })
       .from(digitalProperties)
@@ -1145,6 +1181,12 @@ export async function loadProperty(propertyId: string, organisationId: string) {
     );
     return {
       ...row,
+      /** The ePrivacy laws its entity is under, so the page knows whether to ask. */
+      entityEprivacy: entityEprivacy({
+        name: row.entityName,
+        dataProtectionLaw: row.entityLaw,
+        ieEprivacy: row.entityIeEprivacy
+      }),
       items: loaded,
       gapSummary: summariseGaps(loaded.map((i) => i.gapList)),
       rescanDueAt: rescanDueAt(row.property),
@@ -1161,7 +1203,12 @@ export async function propertyRegister(
 ) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
-      .select({ property: digitalProperties, entityName: entities.name })
+      .select({
+        property: digitalProperties,
+        entityName: entities.name,
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
       .from(digitalProperties)
       .innerJoin(entities, eq(entities.id, digitalProperties.entityId))
       .where(
@@ -1193,23 +1240,32 @@ export async function propertyRegister(
         : []
     ]);
     const pendingBy = new Map(pending.map((p) => [p.propertyId, Number(p.n)]));
-    return rows.map(({ property, entityName }) => {
-      const mine = items
-        .filter((i) => i.propertyId === property.id)
-        .map((i) => assembleItem(i, decisions.get(i.id) ?? [], property, null));
-      const active = mine.filter((i) => i.status === 'active');
-      return {
-        property,
-        entityName,
-        active: active.length,
-        noBasis: active.filter((i) => !i.decision).length,
-        withGaps: active.filter((i) => i.gaps.length > 0).length,
-        beforeConsent: active.filter((i) => i.seenBeforeConsent).length,
-        pending: pendingBy.get(property.id) ?? 0,
-        gapSummary: summariseGaps(active.map((i) => i.gapList)),
-        rescanDueAt: rescanDueAt(property)
-      };
-    });
+    return rows.map(
+      ({ property, entityName, dataProtectionLaw, ieEprivacy }) => {
+        const mine = items
+          .filter((i) => i.propertyId === property.id)
+          .map((i) =>
+            assembleItem(i, decisions.get(i.id) ?? [], property, null)
+          );
+        const active = mine.filter((i) => i.status === 'active');
+        return {
+          property,
+          entityName,
+          /** The ePrivacy law it is judged under; null where its entity is under neither. */
+          eprivacy: recordEprivacy(
+            { dataProtectionLaw, ieEprivacy },
+            property.eprivacyScope
+          ),
+          active: active.length,
+          noBasis: active.filter((i) => !i.decision).length,
+          withGaps: active.filter((i) => i.gaps.length > 0).length,
+          beforeConsent: active.filter((i) => i.seenBeforeConsent).length,
+          pending: pendingBy.get(property.id) ?? 0,
+          gapSummary: summariseGaps(active.map((i) => i.gapList)),
+          rescanDueAt: rescanDueAt(property)
+        };
+      }
+    );
   });
 }
 

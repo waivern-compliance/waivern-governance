@@ -7,6 +7,7 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
 import { waivernHosted } from '@/lib/hosting';
+import { ieEprivacySuggested } from '@/lib/ie-eprivacy/scope';
 import { currentDocument, refOf } from '@/lib/legal/documents';
 import { PRODUCT_NAME } from '@/lib/product';
 import { can, mayManageEntities } from '@/lib/rbac';
@@ -104,6 +105,8 @@ export default async function OrganisationPage() {
           legalEntityRef: e.legalEntityRef,
           isDefault: e.isDefault,
           publicCommsProvider: e.publicCommsProvider,
+          ieEprivacy: e.ieEprivacy,
+          ieEprivacySuggested: ieEprivacySuggested(e),
           publicAuthority: e.publicAuthority,
           competentAuthority: e.competentAuthority,
           dataProtectionLaw: e.dataProtectionLaw,

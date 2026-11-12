@@ -750,6 +750,13 @@
       "when": 1794439775617,
       "tag": "0106_eu_transfers",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1794479449232,
+      "tag": "0107_ie_eprivacy_flag_and_scope",
+      "breakpoints": true
     }
   ]
 }

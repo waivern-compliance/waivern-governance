@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { EditForm } from '@/components/EditForm';
+import { EprivacyScopeField } from '@/components/EprivacyScopeField';
+import { EprivacyScopeNote } from '@/components/EprivacyScopeNote';
 import { NotPermitted } from '@/components/NotPermitted';
 import {
   CHANNEL_KEYS,
@@ -48,6 +50,7 @@ export default async function MarketingActivityPage({
   const {
     activity,
     entityName,
+    entityEprivacy,
     ownerEmail,
     processingActivity,
     decision,
@@ -281,6 +284,11 @@ export default async function MarketingActivityPage({
         </p>
       </section>
 
+      <EprivacyScopeNote
+        entity={entityEprivacy}
+        scope={activity.eprivacyScope}
+      />
+
       <EditForm
         key={savedKey(activity)}
         action={updateActivityAction.bind(null, activity.id)}
@@ -399,6 +407,18 @@ export default async function MarketingActivityPage({
             />
           </label>
         </div>
+        {entityEprivacy === 'uk_ie' && mayWrite ? (
+          <EprivacyScopeField
+            label={
+              <Label
+                text="ePrivacy law"
+                hint={`${entityName} is under both: which law this one answers to.`}
+              />
+            }
+            defaultValue={activity.eprivacyScope}
+            inputClass={inputClass}
+          />
+        ) : null}
         <label className="block space-y-1">
           <Label text="What it sends" />
           <textarea

@@ -1437,6 +1437,12 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
     sections: [
       {
+        heading: 'Under PECR or the Irish ePrivacy Regulations',
+        body: [
+          "Each website or app records which ePrivacy law it is under: UK PECR, the Irish ePrivacy Regulations (S.I. 336/2011), or both, within its entity's. The bases and gaps below are PECR's; the Irish rules (regulation 5) allow storage without consent only to carry a communication or where strictly necessary for a service the user asked for, and Govern does not check them yet. See the Irish ePrivacy Regulations topic."
+        ]
+      },
+      {
         heading: 'What the law requires',
         body: [
           "PECR regulation 6 restricts storing information on a person's device, or reading what is stored there. The Data (Use and Access) Act 2025 rewrote the exceptions into Schedule A1, in force from 5 February 2026. Something may be stored or read if one of these applies:"
@@ -1530,6 +1536,12 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
     sections: [
       {
+        heading: 'Under PECR or the Irish ePrivacy Regulations',
+        body: [
+          "Each activity records which ePrivacy law it is under: UK PECR, the Irish ePrivacy Regulations (S.I. 336/2011), or both, within its entity's. The bases and gaps below are PECR's; the Irish rules (regulation 13) differ and Govern does not check them yet. See the Irish ePrivacy Regulations topic."
+        ]
+      },
+      {
         heading: 'What the law requires',
         body: [
           'PECR sets its own rules for direct marketing by electronic means, on top of UK GDPR. Which rule applies depends on the channel:'
@@ -1571,6 +1583,59 @@ export const HELP_TOPICS: HelpTopic[] = [
       }
     ],
     related: ['data-subject-requests', 'ropa', 'cookies']
+  },
+  {
+    id: 'ie-eprivacy',
+    title: 'The Irish ePrivacy Regulations',
+    summary:
+      'Whether an entity is subject to S.I. No. 336 of 2011, the Irish counterpart of PECR, and which websites, apps and marketing answer to it.',
+    path: '/app/admin/organisation',
+    keywords: [
+      'ireland',
+      'irish',
+      'eprivacy',
+      'si 336',
+      's.i. 336',
+      '336 of 2011',
+      'data protection commission',
+      'dpc',
+      'comreg',
+      'cookies',
+      'marketing',
+      'pecr'
+    ],
+    sections: [
+      {
+        heading: 'What they are',
+        body: [
+          'The European Communities (Electronic Communications Networks and Services) (Privacy and Electronic Communications) Regulations 2011, S.I. No. 336 of 2011, are how Ireland gives effect to the ePrivacy Directive. They are the nearest equivalent of PECR: regulation 5 covers storing information on, or reading it from, a device (cookies and similar technologies); regulation 13 covers unsolicited direct marketing by email, text, phone and fax; regulation 4 covers security and breaches for providers of publicly available electronic communications services.',
+          "They have been amended since 2011, mainly on definitions, directories, the National Directory Database and ComReg's procedures. The rules on cookies, marketing and their penalties have not been changed. The Data Protection Commission enforces them, including the cookie and marketing rules, by notice and by prosecution. ComReg monitors regulations 7 to 15 and, since 10 June 2023, can also take a breach of those regulations (which include the marketing rules and the National Directory Database) to an adjudicator for an administrative sanction (S.I. No. 304 of 2023).",
+          "The GDPR's one-stop shop does not apply to them. An entity whose lead authority under the GDPR is in another member State still answers to the Data Protection Commission for the Irish Regulations (EDPB Opinion 5/2019, paragraph 80), because Irish law gives the Commission that role (regulations 17 and 26)."
+        ]
+      },
+      {
+        heading: 'Saying whether an entity is subject to them',
+        body: [
+          "On the Organisation page, an entity under EU law is asked whether it is subject to the Irish ePrivacy Regulations. The answer is a person's: whether they apply depends on facts Govern does not hold, such as whether its websites are used in Ireland or it markets to people there. Govern suggests answering where the entity is established in Ireland or has the Data Protection Commission as its lead authority, but it never answers for you.",
+          'The question is not asked of an entity under UK law only, and an entity marked as subject to them cannot be narrowed to UK law until that is turned off. PECR is unchanged: it follows UK law, so an entity under both UK and EU law can be under PECR, the Irish Regulations, or both.',
+          'Entities that were under UK law only when this arrived are recorded as not subject to them. Entities under EU law start unanswered, which counts as no until somebody answers.'
+        ]
+      },
+      {
+        heading: 'Which law each website, app and campaign answers to',
+        body: [
+          "Each website or app on the cookie register, and each marketing activity, records which ePrivacy law it is under: UK PECR, the Irish Regulations, or both, within its entity's. Where the entity is under both, the forms ask; otherwise the record takes its entity's. Existing records were all made under PECR and are recorded that way.",
+          'Turning the Irish Regulations off for an entity is refused while any of its websites, apps or activities is under them alone. Where neither law applies to any entity, the cookie and marketing registers are not offered.'
+        ]
+      },
+      {
+        heading: 'What Govern checks today',
+        body: [
+          "For now Govern records which law applies; the bases and gaps on the cookie and marketing registers are still PECR's. The Irish rules differ - for example, regulation 5 has no exceptions for statistics or appearance cookies, the soft opt-in for email (regulation 13(11)) is limited to sales in the previous 12 months, and marketing calls to mobile numbers need consent (regulation 13(6)). Checking those is planned for later releases. Until then, judge an Irish record against the Regulations themselves."
+        ]
+      }
+    ],
+    related: ['organisation', 'cookies', 'marketing']
   },
   {
     id: 'ai-register',
@@ -2218,6 +2283,12 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'The Irish ePrivacy Regulations',
+        body: [
+          "An entity under EU law is also asked whether it is subject to the Irish ePrivacy Regulations (S.I. 336/2011), the Irish counterpart of PECR. A suggestion appears where it is established in Ireland or led by the Data Protection Commission; the answer is always a person's. See the Irish ePrivacy Regulations topic."
+        ]
+      },
+      {
         heading: 'Establishment and representation',
         body: [
           "Under each entity, 'Establishment and representation' asks only about the laws it is subject to. Both the UK GDPR and the EU GDPR apply to an entity in two ways (Article 3): because it is established there, or because, established elsewhere, it offers goods or services to people there or monitors them. In the second case it must name a representative there (Article 27), unless its processing is occasional and unlikely to result in a risk, without large-scale special category or criminal offence data, or it is a public authority or body. An EU representative must be in a member State where the people it targets are; a UK representative need only be in the UK.",
@@ -2759,6 +2830,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'information-requests',
       'cookies',
       'marketing',
+      'ie-eprivacy',
       'ai-register',
       'ai-intake',
       'ai-chain',
