@@ -1,3 +1,4 @@
+import { appUrl } from '@/lib/app-url';
 import { platformAdmins } from '@/lib/platform';
 import { PRODUCT_NAME } from '@/lib/product';
 
@@ -15,11 +16,6 @@ import {
  *
  * The builders are pure so the wording can be tested without sending.
  */
-
-/** The deployment's own address, for links back into it. */
-function appUrl(env: Record<string, string | undefined> = process.env): string {
-  return (env.AUTH_URL ?? '').replace(/\/+$/, '');
-}
 
 const footer = (url: string) =>
   `\n\n-\nSent by ${PRODUCT_NAME}${url ? ` (${url})` : ''} to the Waivern platform administrators.`;
