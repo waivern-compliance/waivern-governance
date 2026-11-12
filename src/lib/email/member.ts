@@ -58,7 +58,8 @@ export const EMAILED_KINDS = {
   'task.sla_breached': 'Overdue work',
   mention: 'Mentions',
   'assessment.decided': 'Decisions on your assessments',
-  'organisation.exported': "Exports of all the organisation's data"
+  'organisation.exported': "Exports of all the organisation's data",
+  'entity.deleted': 'Legal entities deleted'
 } as const;
 
 export type EmailedKind = keyof typeof EMAILED_KINDS;
@@ -103,6 +104,7 @@ export function memberEmail(
       case 'assessment.decided':
         return `${notice.subject} ${where}.`;
       case 'organisation.exported':
+      case 'entity.deleted':
         return `${notice.subject} ${where}. If you did not expect this, ask them about it and check the activity log.`;
     }
   })();

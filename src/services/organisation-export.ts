@@ -666,7 +666,8 @@ async function recordCompletion(input: {
   );
 }
 
-function sqlOwners(input: { organisationId: string }) {
+/** The organisation's owners, by email: whom to tell when something big is done. */
+export function sqlOwners(input: { organisationId: string }) {
   return sqlTag`
     select distinct u.email
     from membership m

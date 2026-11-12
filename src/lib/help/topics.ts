@@ -2185,7 +2185,68 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       }
     ],
-    related: ['exports', 'audit']
+    related: ['exports', 'audit', 'delete-entity']
+  },
+  {
+    id: 'delete-entity',
+    title: 'Deleting a legal entity',
+    summary:
+      'Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.',
+    path: '/app/admin/organisation/delete-entity',
+    keywords: [
+      'delete',
+      'erase',
+      'erasure',
+      'remove entity',
+      'offboarding',
+      'termination',
+      'irrevocable',
+      'close'
+    ],
+    sections: [
+      {
+        heading: 'Irrevocable',
+        body: [
+          'Deleting a legal entity is permanent and cannot be undone. Every record held for it is deleted, with its files, and cannot be recovered, by you or by Waivern. Only do it with the full understanding and agreement of the relevant stakeholders and decision-makers in your firm.',
+          'Export first. An owner of the whole organisation can export everything it holds in one archive; anyone else can export the registers they can see.'
+        ]
+      },
+      {
+        heading: 'Who can do it, and how',
+        body: [
+          "An owner whose access reaches the entity, or one of the deployment's own operators. Nobody else, whatever else they manage.",
+          'Choose the entity on the Delete a legal entity page and confirm you understand. Govern emails a link to the address it holds for you, never to an address typed in. The link works once, for 30 minutes. Open it, sign in as yourself, and type "delete everything". Govern checks again that you may still do it, and deletes the entity at once.',
+          'You get written confirmation by email, every other owner of the whole organisation is notified, and the Delete a legal entity page lists deleted entities with who deleted them, when, and how many records went.'
+        ]
+      },
+      {
+        heading: 'What is deleted, and what is kept',
+        body: [
+          'Deleted: every register entry, assessment, risk, request, complaint, breach, document and file held for the entity, with their comments, tasks, links and decisions, anything attached to them, queued notices and integration deliveries about them, and the access people had to that entity alone. All of it in one step: it all goes, or nothing does.',
+          "The audit trail stays whole. Every entry about the entity keeps who did what, when and to which record, but what changed is erased, keeping only its digest, so the organisation's chain still verifies end to end. One entry records the erasure and another the deletion itself, naming who did it and how many records went, and nothing they held.",
+          "Kept: what belongs to the whole organisation, such as suppliers, templates, workflows and people, and the record that the entity accepted the terms and the Data Processing Agreement, which is Waivern's own. An integration connection whose records landed in the entity is switched off until somebody chooses where they go now. Work that tries to write to the entity once it is gone, such as an import, fails rather than half-saving."
+        ]
+      },
+      {
+        heading: 'What cannot be deleted this way',
+        body: [
+          "The organisation's only legal entity: to close the whole organisation, its owner emails info@waivern.com. The default entity: make another the default first. An entity whose AI systems have records in other entities that depend on them, or whose records other entities cite (scan findings on its evidence, extraction findings from its documents, sharing agreements naming its processing activities): move or remove those first."
+        ]
+      },
+      {
+        heading: 'Records you may be required to keep',
+        body: [
+          "Govern does not decide what the law requires your firm to keep. Some records may be ones it must, for example the breach register (Article 33(5)), a communications provider's inventory of breaches under PECR regulation 5A, records of processing (Article 30) and impact assessments, and requests, complaints and their outcomes. Check with your data protection officer or legal adviser, and export them, before you delete."
+        ]
+      },
+      {
+        heading: 'Backups',
+        body: [
+          'The service is backed up daily and each backup is kept for 27 days, so copies of the deleted records stay in backups until they are overwritten, within 27 days. Backups are kept to recover the whole service and are never restored for one organisation. If Waivern ever has to restore the whole service from a backup taken before your deletion, it is told of every deletion when it happens, so it can delete the entity again.'
+        ]
+      }
+    ],
+    related: ['export-everything', 'organisation', 'audit']
   },
   {
     id: 'audit',
@@ -2948,6 +3009,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'integrations',
       'imports',
       'organisation',
+      'delete-entity',
       'terms-and-agreements',
       'managing-people',
       'assistant'

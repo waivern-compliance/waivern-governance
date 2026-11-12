@@ -9,8 +9,9 @@ import { memberships, users } from '@/db/schema';
 import { waivernHosted } from '@/lib/hosting';
 import { ieEprivacySuggested } from '@/lib/ie-eprivacy/scope';
 import { currentDocument, refOf } from '@/lib/legal/documents';
+import { isPlatformAdmin } from '@/lib/platform';
 import { PRODUCT_NAME } from '@/lib/product';
-import { can, mayManageEntities } from '@/lib/rbac';
+import { can, mayDeleteEntity, mayManageEntities } from '@/lib/rbac';
 import { SCALES, type RiskScaleId } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { organisationDetail } from '@/services/access';
@@ -67,7 +68,8 @@ export default async function OrganisationPage() {
   // The latest acceptance for each entity, for the record beside it.
   const latestAgreement = new Map<string, (typeof agreements)[number]>();
   for (const a of agreements)
-    if (!latestAgreement.has(a.entityId)) latestAgreement.set(a.entityId, a);
+    if (a.entityId && !latestAgreement.has(a.entityId))
+      latestAgreement.set(a.entityId, a);
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12">
@@ -130,6 +132,29 @@ export default async function OrganisationPage() {
           })()
         }))}
       />
+
+      {legalEntities.some((e) =>
+        mayDeleteEntity(
+          active.membership.grants,
+          e.id,
+          isPlatformAdmin(active.email)
+        )
+      ) ? (
+        <section className="space-y-2 rounded border border-red-300 bg-surface p-5">
+          <h2 className="text-sm font-semibold">Delete a legal entity</h2>
+          <p className="max-w-prose text-sm text-ink-soft">
+            Permanently deletes a legal entity and every record held for it.
+            Irrevocable: only with the full understanding and agreement of the
+            relevant stakeholders and decision-makers in your firm.
+          </p>
+          <Link
+            href="/app/admin/organisation/delete-entity"
+            className="inline-block text-sm font-medium text-red-800 underline"
+          >
+            Delete a legal entity…
+          </Link>
+        </section>
+      ) : null}
 
       <DpoPanel
         mayManage={mayManageEntities(active.membership.grants)}

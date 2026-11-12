@@ -11,7 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { actorKind, recordType } from './enums';
-import { entities, organisations, users } from './tenancy';
+import { organisations, users } from './tenancy';
 
 /**
  * The append-only record of every state change. Each row carries the hash of
@@ -59,10 +59,12 @@ export const auditEvents = pgTable(
     action: text('action').notNull(),
     subjectType: recordType('subject_type').notNull(),
     subjectId: uuid('subject_id').notNull(),
-    /** Entity the subject belongs to, so audit exports can be scoped. */
-    entityId: uuid('entity_id').references(() => entities.id, {
-      onDelete: 'set null'
-    }),
+    /**
+     * Entity the subject belongs to, so audit exports can be scoped. Not a
+     * foreign key: the hash covers it, so it stays as it was written after
+     * the entity is deleted (`services/entity-erasure.ts`).
+     */
+    entityId: uuid('entity_id'),
 
     before: jsonb('before').$type<Record<string, unknown> | null>(),
     after: jsonb('after').$type<Record<string, unknown> | null>(),

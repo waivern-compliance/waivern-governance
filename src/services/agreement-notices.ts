@@ -98,7 +98,8 @@ async function boundByEarlier(organisationId: string, doc: LegalDocument) {
     .where(eq(entityAgreements.organisationId, organisationId));
   const latest = new Map<string, string>();
   for (const r of rows)
-    if ((latest.get(r.entityId) ?? '') < r.version)
+    // An acceptance for an entity since deleted binds nobody.
+    if (r.entityId && (latest.get(r.entityId) ?? '') < r.version)
       latest.set(r.entityId, r.version);
   return [...latest.values()].some((v) => v < doc.version);
 }
