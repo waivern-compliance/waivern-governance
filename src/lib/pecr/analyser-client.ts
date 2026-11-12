@@ -120,13 +120,15 @@ export type Started = {
 
 /**
  * Start a scan of `url`, in UK-law terms where the analyser can probe from the
- * UK, otherwise from the EU. Returns the analyser's run id.
+ * UK, otherwise from the EU. A website under the Irish Regulations alone is
+ * scanned from the EU from the start (`region`). Returns the analyser's run id.
  */
 export async function startScan(
   base: string,
   token: string,
   url: string,
-  transport: Transport = {}
+  transport: Transport = {},
+  region: 'uk' | 'eu' = 'uk'
 ): Promise<Started> {
   const attempt = async (region: 'uk' | 'eu') =>
     call(transport, endpoint(base, '/analyse/url'), {
@@ -141,10 +143,9 @@ export async function startScan(
       }).toString()
     });
 
-  let region: 'uk' | 'eu' = 'uk';
   let note: string | null = null;
   let response = await attempt(region);
-  if (response.status === 400) {
+  if (response.status === 400 && region === 'uk') {
     const said = await detail(response.clone());
     if (said && /region/i.test(said)) {
       // The analyser checks the region before charging, so trying again costs nothing.

@@ -6,6 +6,7 @@ import {
   digitalProperties,
   entities,
   evidence,
+  organisations,
   referenceCounters,
   scanFindings,
   storageDecisions,
@@ -15,7 +16,20 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { entityEprivacy, recordEprivacy } from '@/lib/ie-eprivacy/scope';
+import {
+  entityEprivacy,
+  recordEprivacy,
+  type EprivacyScope
+} from '@/lib/ie-eprivacy/scope';
+import {
+  cleanBannerChecks,
+  DEFAULT_LIFESPAN_THRESHOLD_MONTHS,
+  IE_BASES,
+  irishGapsOf,
+  irishPropertyGaps,
+  isIrishBasis,
+  type IrishBasis
+} from '@/lib/ie-eprivacy/storage';
 import {
   failingChecks,
   itemKey,
@@ -204,10 +218,34 @@ export async function updateProperty(input: {
     cmp: string | null;
     rescanIntervalMonths: number | null;
     eprivacyScope: string;
+    /** Under the Irish Regulations: months before consent is asked again, and why where over six. */
+    consentRenewalMonths: number | null;
+    consentRenewalJustification: string | null;
+    /** The banner checks confirmed, by key (`BANNER_CHECKS`). */
+    bannerChecks: string[];
   }>;
   actor: Actor;
 }) {
-  const changes = { ...input.changes };
+  const { bannerChecks: ticked, ...given } = input.changes;
+  const changes: Omit<typeof given, never> & {
+    bannerChecks?: Record<string, boolean>;
+  } = {
+    ...given,
+    ...(ticked !== undefined ? { bannerChecks: cleanBannerChecks(ticked) } : {})
+  };
+  if (
+    changes.consentRenewalMonths != null &&
+    (!Number.isInteger(changes.consentRenewalMonths) ||
+      changes.consentRenewalMonths < 1 ||
+      changes.consentRenewalMonths > 60)
+  )
+    throw new InventoryRefused(
+      'Give how many whole months consent lasts, from 1 to 60.'
+    );
+  if (changes.consentRenewalJustification !== undefined)
+    changes.consentRenewalJustification = trimmed(
+      changes.consentRenewalJustification
+    );
   if (
     changes.rescanIntervalMonths != null &&
     !(RESCAN_INTERVALS as readonly number[]).includes(
@@ -263,13 +301,17 @@ export async function updateProperty(input: {
           objectionMechanism: before.objectionMechanism,
           rescanIntervalMonths: before.rescanIntervalMonths,
           eprivacyScope: before.eprivacyScope,
+          consentRenewalMonths: before.consentRenewalMonths,
+          bannerChecks: before.bannerChecks,
           changed: Object.keys(changes)
         },
         after: {
           informationUrl: after.informationUrl,
           objectionMechanism: after.objectionMechanism,
           rescanIntervalMonths: after.rescanIntervalMonths,
-          eprivacyScope: after.eprivacyScope
+          eprivacyScope: after.eprivacyScope,
+          consentRenewalMonths: after.consentRenewalMonths,
+          bannerChecks: after.bannerChecks
         }
       });
       return after;
@@ -438,15 +480,27 @@ export async function recordStorageDecision(input: {
   basis: StorageBasis;
   conditions?: Partial<Record<ConditionKey, boolean>>;
   rationale: string;
+  /** The law it is recorded under: UK PECR (the default) or the Irish Regulations. */
+  law?: 'uk' | 'ie';
   actor: Actor;
 }) {
-  if (!BASIS_KEYS.includes(input.basis))
+  const law = input.law ?? 'uk';
+  if (law !== 'uk' && law !== 'ie')
+    throw new InventoryRefused('Choose UK PECR or the Irish Regulations.');
+  if (
+    law === 'uk'
+      ? !BASIS_KEYS.includes(input.basis)
+      : !isIrishBasis(input.basis)
+  )
     throw new InventoryRefused(
-      'Choose the basis it relies on, or record that there is none.'
+      law === 'ie' && BASIS_KEYS.includes(input.basis)
+        ? `The Irish Regulations have no ${BASES[input.basis].label.toLowerCase()} exception: only consent, or storage solely to carry a communication or strictly necessary for a service the person asked for (reg 5(5)).`
+        : 'Choose the basis it relies on, or record that there is none.'
     );
   const rationale = input.rationale.trim();
   if (!rationale) throw new InventoryRefused('Say why this basis applies.');
-  const basis = BASES[input.basis];
+  const basis =
+    law === 'ie' ? IE_BASES[input.basis as IrishBasis] : BASES[input.basis];
   const conditions = Object.fromEntries(
     basis.conditions.map((c) => [c.key, Boolean(input.conditions?.[c.key])])
   );
@@ -458,11 +512,31 @@ export async function recordStorageDecision(input: {
         input.itemId,
         input.organisationId
       );
+      // Recorded only under a law the website or app answers to.
+      const [entity] = await tx
+        .select({
+          dataProtectionLaw: entities.dataProtectionLaw,
+          ieEprivacy: entities.ieEprivacy
+        })
+        .from(entities)
+        .where(eq(entities.id, property.entityId));
+      const scope = entity
+        ? recordEprivacy(entity, property.eprivacyScope)
+        : null;
+      const answers =
+        law === 'uk' ? scope !== 'ie' : scope === 'ie' || scope === 'uk_ie';
+      if (!answers)
+        throw new InventoryRefused(
+          law === 'ie'
+            ? 'This website or app is not recorded as under the Irish Regulations.'
+            : 'This website or app is not recorded as under UK PECR.'
+        );
       const [row] = await tx
         .insert(storageDecisions)
         .values({
           organisationId: input.organisationId,
           itemId: item.id,
+          law,
           basis: input.basis,
           conditions,
           statutoryBasis: basis.citation,
@@ -482,6 +556,7 @@ export async function recordStorageDecision(input: {
           property: property.reference,
           name: item.name,
           basis: input.basis,
+          law,
           conditions,
           decisionId: row.id
         }
@@ -1041,7 +1116,10 @@ export async function decideProposal(input: {
 }
 
 export type LoadedItem = StorageItem & {
+  /** The current basis under UK PECR. */
   decision: (StorageDecision & { decidedByEmail: string | null }) | null;
+  /** The current basis under the Irish ePrivacy Regulations. */
+  irishDecision: (StorageDecision & { decidedByEmail: string | null }) | null;
   history: Array<StorageDecision & { decidedByEmail: string | null }>;
   supplierName: string | null;
   gaps: string[];
@@ -1089,31 +1167,146 @@ async function itemsWithDecisions(propertyIds: string[]) {
   return { items, decisions };
 }
 
+/** What an item is judged under: the laws its property answers to, and the organisation's lifespan threshold. */
+type Judged = {
+  /** Null where no ePrivacy law reaches the property; it is then read as PECR, as before. */
+  scope: EprivacyScope | null;
+  lifespanThresholdMonths: number;
+};
+
 function assembleItem(
   item: StorageItem,
   history: Array<StorageDecision & { decidedByEmail: string | null }>,
   property: DigitalProperty,
-  supplierName: string | null
+  supplierName: string | null,
+  judged: Judged
 ): LoadedItem {
-  const decision = history[0] ?? null;
+  const decision = history.find((d) => d.law === 'uk') ?? null;
+  const irishDecision = history.find((d) => d.law === 'ie') ?? null;
+  const scope = judged.scope ?? 'uk';
+  const both = scope === 'uk_ie';
+  const labelled = (law: string, gaps: Gap[]) =>
+    both ? gaps.map((g) => ({ ...g, text: `${law}: ${g.text}` })) : gaps;
   const gapList =
     item.status === 'active'
-      ? gapsOf({
-          item,
-          decision: decision
-            ? { basis: decision.basis, conditions: decision.conditions }
-            : null,
-          property
-        })
+      ? [
+          ...(scope === 'ie'
+            ? []
+            : labelled(
+                'PECR',
+                gapsOf({
+                  item,
+                  decision: decision
+                    ? { basis: decision.basis, conditions: decision.conditions }
+                    : null,
+                  property
+                })
+              )),
+          ...(scope === 'uk'
+            ? []
+            : labelled(
+                'Irish Regulations',
+                irishGapsOf({
+                  item,
+                  decision: irishDecision
+                    ? {
+                        basis: irishDecision.basis,
+                        conditions: irishDecision.conditions
+                      }
+                    : null,
+                  property,
+                  lifespanThresholdMonths: judged.lifespanThresholdMonths
+                })
+              ))
+        ]
       : [];
   return {
     ...item,
     decision,
+    irishDecision,
     history,
     supplierName,
     gaps: gapList.map((g) => g.text),
     gapList
   };
+}
+
+/**
+ * Set how long a strictly necessary item may last under the Irish Regulations
+ * before it is flagged (decision 11). Anything other than the default needs a
+ * specific justification, kept and audited with the change.
+ */
+export async function setCookieLifespanThreshold(input: {
+  organisationId: string;
+  months: number;
+  justification: string | null;
+  actor: Actor;
+}) {
+  if (!Number.isInteger(input.months) || input.months < 1 || input.months > 120)
+    throw new InventoryRefused('Give a whole number of months, from 1 to 120.');
+  const justification = trimmed(input.justification);
+  if (input.months !== DEFAULT_LIFESPAN_THRESHOLD_MONTHS && !justification)
+    throw new InventoryRefused(
+      `Say specifically why ${input.months} months suits this organisation's cookies better than the default of ${DEFAULT_LIFESPAN_THRESHOLD_MONTHS}.`
+    );
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const [before] = await tx
+        .select({
+          months: organisations.cookieLifespanThresholdMonths,
+          justification: organisations.cookieLifespanJustification
+        })
+        .from(organisations)
+        .where(eq(organisations.id, input.organisationId))
+        .for('update');
+      const kept =
+        input.months === DEFAULT_LIFESPAN_THRESHOLD_MONTHS
+          ? null
+          : justification;
+      await tx
+        .update(organisations)
+        .set({
+          cookieLifespanThresholdMonths: input.months,
+          cookieLifespanJustification: kept,
+          updatedAt: new Date()
+        })
+        .where(eq(organisations.id, input.organisationId));
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'pecr.lifespan_threshold_changed',
+        subjectType: 'organisation',
+        subjectId: input.organisationId,
+        before,
+        after: { months: input.months, justification: kept }
+      });
+    })
+  );
+}
+
+/** The threshold and its justification, for the settings form. */
+export async function cookieLifespanSetting(organisationId: string) {
+  return withOrganisation(organisationId, async () => {
+    const [org] = await db
+      .select({
+        months: organisations.cookieLifespanThresholdMonths,
+        justification: organisations.cookieLifespanJustification
+      })
+      .from(organisations)
+      .where(eq(organisations.id, organisationId));
+    return (
+      org ?? { months: DEFAULT_LIFESPAN_THRESHOLD_MONTHS, justification: null }
+    );
+  });
+}
+
+/** The organisation's threshold for a strictly necessary item's lifespan under the Irish Regulations. */
+async function lifespanThreshold(organisationId: string): Promise<number> {
+  const [org] = await db
+    .select({ months: organisations.cookieLifespanThresholdMonths })
+    .from(organisations)
+    .where(eq(organisations.id, organisationId));
+  return org?.months ?? DEFAULT_LIFESPAN_THRESHOLD_MONTHS;
 }
 
 export async function loadProperty(propertyId: string, organisationId: string) {
@@ -1171,14 +1364,24 @@ export async function loadProperty(propertyId: string, organisationId: string) {
         latest.summary = { ...latest.summary, ...reportSummary(valid.report) };
     }
     const supplierName = new Map(supplierNames.map((s) => [s.id, s.name]));
+    const scope = recordEprivacy(
+      { dataProtectionLaw: row.entityLaw, ieEprivacy: row.entityIeEprivacy },
+      row.property.eprivacyScope
+    );
+    const judged = {
+      scope,
+      lifespanThresholdMonths: await lifespanThreshold(organisationId)
+    };
     const loaded = items.map((i) =>
       assembleItem(
         i,
         decisions.get(i.id) ?? [],
         row.property,
-        i.supplierId ? (supplierName.get(i.supplierId) ?? null) : null
+        i.supplierId ? (supplierName.get(i.supplierId) ?? null) : null,
+        judged
       )
     );
+    const irish = scope === 'ie' || scope === 'uk_ie';
     return {
       ...row,
       /** The ePrivacy laws its entity is under, so the page knows whether to ask. */
@@ -1187,6 +1390,22 @@ export async function loadProperty(propertyId: string, organisationId: string) {
         dataProtectionLaw: row.entityLaw,
         ieEprivacy: row.entityIeEprivacy
       }),
+      /** The laws this website or app is judged under. */
+      scope,
+      lifespanThresholdMonths: judged.lifespanThresholdMonths,
+      /** What the website or app as a whole does not yet show under the Irish Regulations. */
+      irishPropertyGaps: irish
+        ? irishPropertyGaps({
+            consentRenewalMonths: row.property.consentRenewalMonths,
+            consentRenewalJustification:
+              row.property.consentRenewalJustification,
+            bannerChecks: row.property.bannerChecks,
+            usesConsent: loaded.some(
+              (i) =>
+                i.status === 'active' && i.irishDecision?.basis === 'consent'
+            )
+          })
+        : [],
       items: loaded,
       gapSummary: summariseGaps(loaded.map((i) => i.gapList)),
       rescanDueAt: rescanDueAt(row.property),
@@ -1240,24 +1459,46 @@ export async function propertyRegister(
         : []
     ]);
     const pendingBy = new Map(pending.map((p) => [p.propertyId, Number(p.n)]));
+    const lifespanThresholdMonths = await lifespanThreshold(organisationId);
     return rows.map(
       ({ property, entityName, dataProtectionLaw, ieEprivacy }) => {
+        const eprivacy = recordEprivacy(
+          { dataProtectionLaw, ieEprivacy },
+          property.eprivacyScope
+        );
         const mine = items
           .filter((i) => i.propertyId === property.id)
           .map((i) =>
-            assembleItem(i, decisions.get(i.id) ?? [], property, null)
+            assembleItem(i, decisions.get(i.id) ?? [], property, null, {
+              scope: eprivacy,
+              lifespanThresholdMonths
+            })
           );
         const active = mine.filter((i) => i.status === 'active');
+        const irish = eprivacy === 'ie' || eprivacy === 'uk_ie';
         return {
           property,
           entityName,
+          /** What the website as a whole does not yet show under the Irish Regulations. */
+          siteGaps: irish
+            ? irishPropertyGaps({
+                consentRenewalMonths: property.consentRenewalMonths,
+                consentRenewalJustification:
+                  property.consentRenewalJustification,
+                bannerChecks: property.bannerChecks,
+                usesConsent: active.some(
+                  (i) => i.irishDecision?.basis === 'consent'
+                )
+              })
+            : [],
           /** The ePrivacy law it is judged under; null where its entity is under neither. */
-          eprivacy: recordEprivacy(
-            { dataProtectionLaw, ieEprivacy },
-            property.eprivacyScope
-          ),
+          eprivacy,
           active: active.length,
-          noBasis: active.filter((i) => !i.decision).length,
+          // An item with no basis under any law it answers to.
+          noBasis: active.filter(
+            (i) =>
+              (eprivacy !== 'ie' && !i.decision) || (irish && !i.irishDecision)
+          ).length,
           withGaps: active.filter((i) => i.gaps.length > 0).length,
           beforeConsent: active.filter((i) => i.seenBeforeConsent).length,
           pending: pendingBy.get(property.id) ?? 0,

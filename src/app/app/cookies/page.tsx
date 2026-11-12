@@ -8,15 +8,23 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
+import { DEFAULT_LIFESPAN_THRESHOLD_MONTHS } from '@/lib/ie-eprivacy/storage';
 import { rescanState } from '@/lib/pecr/rescan';
 import { can, mayConfigureAnalyser } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { analyserSettings } from '@/services/consent-analyser';
-import { propertyRegister } from '@/services/storage-inventory';
+import {
+  cookieLifespanSetting,
+  propertyRegister
+} from '@/services/storage-inventory';
 
 import { ActionForm } from '../requests/ActionForm';
 import { inputClass, Label } from '../requests/fields';
-import { analyserSettingsAction, createPropertyAction } from './actions';
+import {
+  analyserSettingsAction,
+  createPropertyAction,
+  lifespanThresholdAction
+} from './actions';
 
 export default async function CookiesPage() {
   const active = await getActiveSession();
@@ -31,13 +39,17 @@ export default async function CookiesPage() {
   }
 
   const org = active.membership.organisationId;
-  const [register, orgEntities, analyser] = await Promise.all([
+  const [register, orgEntities, analyser, lifespan] = await Promise.all([
     propertyRegister(org, visibleEntityIds(active)),
     scoped(org, () =>
       db.select().from(entities).where(eq(entities.organisationId, org))
     ),
-    analyserSettings(org)
+    analyserSettings(org),
+    cookieLifespanSetting(org)
   ]);
+  const anyIrish = register.some(
+    (r) => r.eprivacy === 'ie' || r.eprivacy === 'uk_ie'
+  );
   const mayConfigure = mayConfigureAnalyser(active.membership.grants);
   // Only entities under an ePrivacy law can hold one; the choice of law is
   // offered where some entity is under both.
@@ -52,9 +64,10 @@ export default async function CookiesPage() {
       active: t.active + r.active,
       noBasis: t.noBasis + r.noBasis,
       gaps: t.gaps + r.withGaps,
+      siteGaps: t.siteGaps + r.siteGaps.length,
       pending: t.pending + r.pending
     }),
-    { active: 0, noBasis: 0, gaps: 0, pending: 0 }
+    { active: 0, noBasis: 0, gaps: 0, siteGaps: 0, pending: 0 }
   );
 
   return (
@@ -96,8 +109,12 @@ export default async function CookiesPage() {
         <Stat
           label="With gaps"
           value={totals.gaps}
-          note="Schedule A1 not yet shown"
-          tone={totals.gaps > 0 ? 'warn' : 'plain'}
+          note={
+            totals.siteGaps > 0
+              ? `the basis not yet shown, and ${totals.siteGaps} website-wide Irish check${totals.siteGaps === 1 ? '' : 's'}`
+              : 'the basis not yet shown'
+          }
+          tone={totals.gaps + totals.siteGaps > 0 ? 'warn' : 'plain'}
         />
         <Stat
           label="Waiting for review"
@@ -223,6 +240,7 @@ export default async function CookiesPage() {
             active: inUse,
             noBasis,
             withGaps,
+            siteGaps,
             beforeConsent,
             pending,
             gapSummary,
@@ -253,6 +271,9 @@ export default async function CookiesPage() {
                   <p className="text-xs">
                     {inUse} in use · {noBasis} with no basis · {withGaps} with
                     gaps · {beforeConsent} seen before consent
+                    {siteGaps.length > 0
+                      ? ` · ${siteGaps.length} website-wide check${siteGaps.length === 1 ? '' : 's'} missing under the Irish Regulations`
+                      : ''}
                     {pending > 0 ? ` · ${pending} to review` : ''}
                     {property.lastScannedAt
                       ? ` · last scanned ${property.lastScannedAt.toISOString().slice(0, 10)}`
@@ -345,6 +366,57 @@ export default async function CookiesPage() {
           </ActionForm>
         ) : null}
       </section>
+
+      {anyIrish || lifespan.months !== DEFAULT_LIFESPAN_THRESHOLD_MONTHS ? (
+        <section className="space-y-3 rounded border border-line bg-surface p-5">
+          <h2 className="text-sm font-semibold">
+            Cookie lifespans under the Irish Regulations
+          </h2>
+          <p className="max-w-prose text-xs text-ink-soft">
+            The Data Protection Commission asks that a cookie&apos;s lifespan be
+            proportionate to its purpose, without setting a figure. A strictly
+            necessary item lasting longer than this is flagged for a check, not
+            treated as a breach. It is {lifespan.months} months
+            {lifespan.justification
+              ? `, because: ${lifespan.justification}`
+              : ', the default'}
+            .
+          </p>
+          {mayConfigure ? (
+            <ActionForm
+              action={lifespanThresholdAction}
+              submit="Save"
+              className="space-y-3"
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block space-y-1">
+                  <Label text="Months beyond the session" />
+                  <input
+                    name="months"
+                    type="number"
+                    min={1}
+                    max={120}
+                    required
+                    defaultValue={lifespan.months}
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block space-y-1 sm:col-span-2">
+                  <Label
+                    text="Why this figure"
+                    hint={`Needed for anything other than ${DEFAULT_LIFESPAN_THRESHOLD_MONTHS}: say specifically why it suits this organisation's cookies.`}
+                  />
+                  <input
+                    name="justification"
+                    defaultValue={lifespan.justification ?? ''}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+            </ActionForm>
+          ) : null}
+        </section>
+      ) : null}
     </main>
   );
 }

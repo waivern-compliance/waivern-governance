@@ -23,6 +23,7 @@ import {
   InventoryRefused,
   ITEM_KINDS,
   recordStorageDecision,
+  setCookieLifespanThreshold,
   updateItem,
   updateProperty
 } from '@/services/storage-inventory';
@@ -130,6 +131,17 @@ export async function updatePropertyAction(
         // Asked only where the entity is under both ePrivacy laws; absent, unchanged.
         ...(formData.has('eprivacyScope')
           ? { eprivacyScope: text(formData.get('eprivacyScope')) }
+          : {}),
+        // Asked only under the Irish Regulations; absent, unchanged.
+        ...(formData.has('irishAsked')
+          ? {
+              consentRenewalMonths: text(formData.get('consentRenewalMonths'))
+                ? Number(text(formData.get('consentRenewalMonths')))
+                : null,
+              consentRenewalJustification:
+                text(formData.get('consentRenewalJustification')) || null,
+              bannerChecks: formData.getAll('bannerChecks').map(String)
+            }
           : {})
       },
       actor: actorOf(active)
@@ -276,10 +288,35 @@ export async function decideBasisAction(
       basis: text(formData.get('basis')) as StorageBasis,
       conditions,
       rationale: text(formData.get('rationale')),
+      law: text(formData.get('law')) === 'ie' ? 'ie' : 'uk',
       actor: actorOf(active)
     });
   }, 'Recorded.');
   refresh(propertyId);
+  return result;
+}
+
+/** How long a strictly necessary cookie may last under the Irish Regulations before it is flagged. */
+export async function lifespanThresholdAction(
+  _prev: RequestResult,
+  formData: FormData
+): Promise<RequestResult> {
+  const active = await requireSession();
+  if (!mayConfigureAnalyser(active.membership.grants)) {
+    return {
+      ok: false,
+      message: 'Only an owner or privacy administrator can change this.'
+    };
+  }
+  const result = await refused(async () => {
+    await setCookieLifespanThreshold({
+      organisationId: active.membership.organisationId,
+      months: Number(text(formData.get('months'))),
+      justification: text(formData.get('justification')) || null,
+      actor: actorOf(active)
+    });
+  }, 'Saved.');
+  revalidatePath('/app/cookies');
   return result;
 }
 
@@ -317,8 +354,11 @@ export async function analyserSettingsAction(
 }
 
 export async function startScanAction(
-  propertyId: string
+  propertyId: string,
+  _prev?: RequestResult,
+  formData?: FormData
 ): Promise<RequestResult> {
+  const asked = formData ? text(formData.get('region')) : '';
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
   let note: string | null = null;
@@ -326,6 +366,7 @@ export async function startScanAction(
     const scan = await startPropertyScan({
       propertyId,
       organisationId: active.membership.organisationId,
+      region: asked === 'eu' || asked === 'uk' ? asked : undefined,
       actor: actorOf(active)
     });
     note = scan.note;

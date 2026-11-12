@@ -1,8 +1,14 @@
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
-import { consentScans, digitalProperties, organisations } from '@/db/schema';
+import {
+  consentScans,
+  digitalProperties,
+  entities,
+  organisations
+} from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { recordEprivacy } from '@/lib/ie-eprivacy/scope';
 import { openSecret, sealSecret } from '@/lib/integration/crypto';
 import { FetchRefused, vetted } from '@/lib/net/fetch-page';
 import {
@@ -198,7 +204,13 @@ export async function setAnalyserSettings(
  * the token owner's credits on the same answer.
  */
 export async function startPropertyScan(
-  input: { propertyId: string; organisationId: string; actor: Actor },
+  input: {
+    propertyId: string;
+    organisationId: string;
+    /** For a website under both laws: where to scan from. Otherwise its laws decide. */
+    region?: 'uk' | 'eu';
+    actor: Actor;
+  },
   options: ScanOptions = {}
 ) {
   return withOrganisation(input.organisationId, async () => {
@@ -212,6 +224,25 @@ export async function startPropertyScan(
         )
       );
     if (!property) throw new Error('No such website or app');
+    const [entity] = await db
+      .select({
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
+      .from(entities)
+      .where(eq(entities.id, property.entityId));
+    // Under the Irish Regulations alone, the EU is where its visitors are; a
+    // website under both may be scanned from either, as a banner can differ
+    // by country and each law is judged on what its visitors see.
+    const scope = entity
+      ? recordEprivacy(entity, property.eprivacyScope)
+      : null;
+    const region =
+      scope === 'ie'
+        ? 'eu'
+        : scope === 'uk_ie' && input.region
+          ? input.region
+          : 'uk';
     if (property.kind !== 'website')
       throw new InventoryRefused(
         "The Consent Analyser scans websites. Record an app's items by hand."
@@ -252,7 +283,8 @@ export async function startPropertyScan(
         creds.url,
         creds.token,
         property.url,
-        options
+        options,
+        region
       );
     } catch (error) {
       if (error instanceof AnalyserError)

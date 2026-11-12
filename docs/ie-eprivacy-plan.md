@@ -433,13 +433,13 @@ What follows in Govern:
 
 One PR per phase, each from `main`.
 
-| Phase | Scope                                                                                                                                                                                                                             | Size           |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| 0     | **Law, flag and scope.** (Built: PR #43.) `entity.ie_eprivacy`, its guard, suggestion and audit; `eprivacy_scope` on properties and activities; the registers hidden where neither law applies; the help topic and guidance.      | about 1.5 days |
-| 1     | **Cookies.** The Irish basis set, decisions per law, gaps, the analyser's EU region for Irish properties, the points from the Commission's guidance below, help and export.                                                       | about 2 days   |
-| 2     | **Marketing.** Irish bases and conditions, the 12-month rule, number type, NDD screening and the sweep reminder, the service-SMS question, the regulator named on each gap, the prosecution time limits in help, help and export. | about 2.5 days |
-| 3     | **Provider breaches.** The Irish provider flag, the Irish obligations and 24-hour clock, the Commission's form, the inventory filter.                                                                                             | about 1.5 days |
-| 4     | **Exports, Integration API and copy.** The context export, the public form line, the provider checklist template if decision 7 asks for it.                                                                                       | about 1 day    |
+| Phase | Scope                                                                                                                                                                                                                                                                         | Size           |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 0     | **Law, flag and scope.** (Built: PR #43.) `entity.ie_eprivacy`, its guard, suggestion and audit; `eprivacy_scope` on properties and activities; the registers hidden where neither law applies; the help topic and guidance.                                                  | about 1.5 days |
+| 1     | **Cookies.** (Built, except the record-of-consent gap below, which waits for the marketing phase's ROPA work.) The Irish basis set, decisions per law, gaps, the analyser's EU region for Irish properties, the points from the Commission's guidance below, help and export. | about 2 days   |
+| 2     | **Marketing.** Irish bases and conditions, the 12-month rule, number type, NDD screening and the sweep reminder, the service-SMS question, the regulator named on each gap, the prosecution time limits in help, help and export.                                             | about 2.5 days |
+| 3     | **Provider breaches.** The Irish provider flag, the Irish obligations and 24-hour clock, the Commission's form, the inventory filter.                                                                                                                                         | about 1.5 days |
+| 4     | **Exports, Integration API and copy.** The context export, the public form line, the provider checklist template if decision 7 asks for it.                                                                                                                                   | about 1 day    |
 
 ### Phase 1: what the cookie guidance adds
 
