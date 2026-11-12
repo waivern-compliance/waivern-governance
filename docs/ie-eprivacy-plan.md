@@ -229,23 +229,37 @@ The marketing rules (Reg 13) and the National Directory Database (Reg 14) now ha
   as every Reg 13 breach is, ComReg may serve a notice of suspected non-compliance only
   where the offence is one ComReg may prosecute summarily and it has elected not to, or
   the matter was referred to the Director of Public Prosecutions and no proceedings
-  were commenced (2023 Act, s.63(3)). Once an adjudicator finds the breach, the person
+  were commenced (2023 Act, s.63(3)). ComReg cannot prosecute summarily (answer 1
+  below), so for these offences it is always the second. Once an adjudicator finds the breach, the person
   may not be prosecuted for the offence it constitutes (s.90(3)).
 - **Cookies, security and breach notification (Regs 4 to 6)** have only the
   Commission's route.
 
-### Still open, for the user
+### Answered by the user, 12 November 2026
 
-1. **Can ComReg prosecute S.I. 336/2011 offences summarily?** S.I. 336/2011 gives that
-   power expressly only to the Commission (Reg 26(1)), while preserving "any other power
-   conferred by law" (Reg 26(2)). Which limb of s.63(3) ComReg uses for a Reg 13 breach
-   depends on the answer. Govern does not need it to record anything, only to word the
-   help precisely.
-2. **How the Commission and ComReg divide Reg 13 and Reg 14 cases in practice.** Reg 33
-   requires them to cooperate; no published arrangement has been read.
-3. **The time limit for the Commission's summary prosecutions.** S.I. 336/2011 sets
-   none and s.115 does not reach them. The general limit for summary offences has not
-   been checked. Until it is, Govern's help says nothing about a limit for prosecutions.
+1. **ComReg cannot prosecute S.I. 336/2011 offences summarily.** For a breach that is
+   also an offence it must refer the matter to the Director of Public Prosecutions, so
+   only s.63(3)(b) of the 2023 Act opens its Part 7 route for a Reg 13 breach.
+2. **There is no published memorandum of understanding between the Commission and
+   ComReg** for S.I. 336/2011. Under Reg 33 they divide the work functionally,
+   coordinated through Ireland's Digital Regulators Group:
+   - **marketing (Reg 13)** is the Commission's, except where it meets telecoms
+     infrastructure or numbering rules, such as nuisance-call mitigation, spoofing and
+     line identification under Reg 8, or a regulated provider's systemic breach of a
+     ComReg direction, which is ComReg's;
+   - **the National Directory Database (Reg 14)**: recording preferences and running
+     the database is ComReg's; failing to screen a marketing list against it is the
+     Commission's.
+3. **Time limits for prosecution.** The Commission must apply to the District Court for
+   a summons within six months of the offence, under s.10(4) of the Petty Sessions
+   (Ireland) Act 1851, which applies by default. There is no time limit for a
+   prosecution on indictment by the Director of Public Prosecutions.
+
+What follows in Govern: an Irish marketing gap names the Commission as its regulator,
+and ComReg only for the telecoms cases above; a gap about National Directory Database
+screening names the Commission. The help gives the six-month limit for the Commission's
+summary prosecutions, and says ComReg's Part 7 steps (s.115) and prosecutions on
+indictment have none.
 
 ## The entity flag
 
@@ -364,17 +378,19 @@ What follows in Govern:
 
 ## Data model
 
-| Change                                                                  | Detail                                                                                                          |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `entity.ie_eprivacy`                                                    | nullable boolean; null is unanswered (built in Phase 0)                                                         |
-| `entity.public_comms_provider`                                          | unchanged column; the guard widens (above)                                                                      |
-| `digital_property.eprivacy_scope`, `marketing_activity.eprivacy_scope`  | text not null, `uk / ie / uk_ie`, backfilled to `uk` for existing rows (every existing row was made under PECR) |
-| `storage_decision.law`, `marketing_decision.law`                        | text not null `uk / ie`, backfilled `uk`; the "current decision" uniqueness gains the law                       |
-| `marketing_activity.ndd_screened_at`, `marketing_activity.call_numbers` | timestamp; text `landline / mobile / both`, nullable                                                            |
-| `marketing_channel` enum                                                | `fax` added (decision 5)                                                                                        |
-| `breach.pecr_service_breach`                                            | renamed `comms_service_breach`; it asks the same question under either law                                      |
-| `breach_decision_kind` enum                                             | `ie_eprivacy_commission`, `ie_eprivacy_subscribers`                                                             |
-| `lib/gdpr/authorities.ts`                                               | `eprivacyBreachUrl` on the `ie-dpc` entry (code, no migration)                                                  |
+| Change                                                                           | Detail                                                                                                                                      |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entity.ie_eprivacy`                                                             | nullable boolean; null is unanswered (built in Phase 0)                                                                                     |
+| `entity.public_comms_provider`                                                   | unchanged column; the guard widens (above)                                                                                                  |
+| `digital_property.eprivacy_scope`, `marketing_activity.eprivacy_scope`           | text not null, `uk / ie / uk_ie`, backfilled to `uk` for existing rows (every existing row was made under PECR)                             |
+| `storage_decision.law`, `marketing_decision.law`                                 | text not null `uk / ie`, backfilled `uk`; the "current decision" uniqueness gains the law                                                   |
+| `marketing_activity.ndd_screened_at`, `marketing_activity.call_numbers`          | timestamp; text `landline / mobile / both`, nullable                                                                                        |
+| `marketing_channel` enum                                                         | `fax` added (decision 5)                                                                                                                    |
+| `breach.pecr_service_breach`                                                     | renamed `comms_service_breach`; it asks the same question under either law                                                                  |
+| `breach_decision_kind` enum                                                      | `ie_eprivacy_commission`, `ie_eprivacy_subscribers`                                                                                         |
+| `lib/gdpr/authorities.ts`                                                        | `eprivacyBreachUrl` on the `ie-dpc` entry (code, no migration)                                                                              |
+| `digital_property.consent_renewal_months`, `consent_renewal_justification`       | Phase 1: how long stored consent lasts; over six months needs the justification (cookie guidance pages 8 and 11)                            |
+| `organisation.cookie_lifespan_threshold_months`, `cookie_lifespan_justification` | Phase 1: default 12 months beyond the session (decision 11); a change needs the justification, audited as `pecr.lifespan_threshold_changed` |
 
 - **Pure modules.** `lib/ie-eprivacy/storage.ts` (the Reg 5 basis set and gaps),
   `lib/ie-eprivacy/marketing.ts` (Reg 13 bases, conditions, the 12-month rule, mobile
@@ -456,7 +472,8 @@ technologies (April 2020). Page numbers are the note's own.
 
 ## Decisions
 
-Decisions 1 to 4 were confirmed by the user on 12 November 2026, as recommended.
+Decisions 1 to 4, 10 and 11 were confirmed by the user on 12 November 2026. Decisions
+5 to 9 are still open.
 
 1. **Build it as a second ePrivacy law beside PECR, one record with a decision per law.**
    _Decided:_ as recommended. _Recommendation:_ yes, following EU decision 1. The alternative, separate Irish
@@ -485,9 +502,10 @@ Decisions 1 to 4 were confirmed by the user on 12 November 2026, as recommended.
    are what most entities need; Phase 3 only once a provider client needs it.
 10. **First-party analytics under Irish scope.** The Commission says they need consent
     but are unlikely to be an enforcement priority (guidance pages 7 and 8).
-    _Recommendation:_ flag them as a gap like any other analytics item, with the
-    Commission's own words beside it, rather than lowering the gap.
+    _Decided:_ flag them as a gap like any other analytics item, with the Commission's
+    own words beside it, rather than lowering the gap.
 11. **How long is too long for a strictly necessary cookie.** The guidance asks for
-    proportionate lifespans but sets no figure. _Recommendation:_ flag a strictly
-    necessary item that outlives the session by more than a year, as a prompt to check
-    rather than a breach, and let the organisation change the threshold.
+    proportionate lifespans but sets no figure. _Decided:_ flag a strictly necessary
+    item that outlives the session by more than a year, as a prompt to check rather
+    than a breach. The organisation can change the threshold, but only with a specific
+    justification recorded in Govern, which is kept and audited with the change.
