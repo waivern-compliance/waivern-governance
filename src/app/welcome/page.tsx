@@ -27,7 +27,7 @@ export default async function Welcome() {
   const [latest] = requestsOpen() ? await requestsBy(session.user.id) : [];
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-6 py-12">
+    <main className="mx-auto flex min-h-full max-w-md flex-col justify-center gap-6 px-6 py-12">
       <header className="space-y-3">
         <Mark className="h-12 w-12 text-navy" />
         <h1 className="text-2xl font-semibold tracking-tight">

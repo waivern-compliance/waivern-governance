@@ -1,3 +1,5 @@
+import { VENDOR_EMAIL } from './product';
+
 /**
  * What Waivern does as the operator of its hosted service, as opposed to what
  * the code does wherever it runs.
@@ -22,5 +24,5 @@ export const HOSTED = {
   region: 'EU West (Amsterdam)',
   backups: 'daily',
   /** Who to write to about security, a dedicated instance, or anything else. */
-  contact: 'info@waivern.com'
+  contact: VENDOR_EMAIL
 } as const;
