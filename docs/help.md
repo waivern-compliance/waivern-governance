@@ -1661,7 +1661,17 @@ Keep the archive as carefully as you kept the records. Exporting does not delete
 
 Every decision writes an entry carrying a hash of the one before. Changing an old entry would require recomputing every entry since, and the verification tool checks exactly that.
 
-Entries are never edited or deleted. A withdrawn comment or a superseded assessment leaves its history intact.
+Entries are never deleted, and never edited, with one exception below. A withdrawn comment or a superseded assessment leaves its history intact.
+
+### Checking it yourself
+
+The complete audit log export comes with instructions for checking it without trusting Waivern. Each entry's hash covers who did what, when, to which record, a digest (SHA-256) of what changed, and the hash of the entry before. The digest is checked against the contents, so changing either shows.
+
+Entries written before digests were introduced are hashed over their contents directly, and keep the hashes they always had. Where an organisation has older entries, one entry records the move to digests: it names the last older entry, and commits to a digest of every older entry, so those can still be checked if their contents are erased later.
+
+### Erased contents
+
+When records are deleted for good, as when a legal entity is deleted, the entries about them can have their contents erased: what changed is cleared, and its digest is kept. Who did what, when and to which record stays, and the entry and the whole chain still check. The erasure is itself an entry, naming every entry it erased, and an erased entry with no such entry fails the check. Nothing else ever changes an entry.
 
 ### What it is for
 

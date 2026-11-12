@@ -40,6 +40,13 @@ table by trigger. Appends serialise behind a row lock on the chain head, so
 concurrent writers cannot fork the chain or skip a sequence number.
 `verifyAuditChain` recomputes the whole chain — the same routine an auditor runs
 against an export, so a recipient does not have to take our word for it.
+Each hash covers a SHA-256 digest of the event's contents (before, after,
+metadata) rather than the contents, so `eraseAuditContents` can clear the
+contents of events about records deleted for good while keeping the digest:
+the event and the chain still verify. That erasure is the only update the
+database allows, and it must name a declared `audit.contents_erased` event.
+Chains begun before digests (scheme 1) keep their original hashes; one
+declared `audit.scheme_changed` event commits to a digest of every older event.
 
 **AI is advisory only.** Model output never writes to a decision field. It lands
 in a suggestion record that a named human accepts or rejects, and the acceptance
