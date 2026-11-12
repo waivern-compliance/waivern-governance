@@ -122,6 +122,10 @@ describe('exporting the audit log', () => {
     // columns alone. This is the whole point of a tamper-evident log: if only
     // we can check it, it is a claim rather than evidence.
     const index = Object.fromEntries(result.columns.map((c, i) => [c, i]));
+    // Each event's own id, so an 'Erased by' can be followed to its event.
+    assert.ok('Id' in index && 'Erased by' in index);
+    const ids = result.rows.map((r) => r[index['Id']]);
+    assert.equal(new Set(ids).size, ids.length);
     let expectedPrev = GENESIS_HASH;
     let expectedSeq = 1;
 
@@ -138,26 +142,34 @@ describe('exporting the audit log', () => {
         'chain must join up'
       );
 
-      const recomputed = createHash('sha256')
-        .update(
-          canonicalise([
-            w.org.id,
-            row[index['Sequence']],
-            at.toISOString(),
-            row[index['Actor kind']],
-            null,
-            row[index['Actor']],
-            row[index['Action']],
-            row[index['Subject type']],
-            row[index['Subject']],
-            row[index['Entity']] ?? null,
-            row[index['Before']] ?? null,
-            row[index['After']] ?? null,
-            row[index['Metadata']],
-            row[index['Previous hash']]
-          ])
-        )
-        .digest('hex');
+      const sha = (text: string) =>
+        createHash('sha256').update(text).digest('hex');
+      assert.equal(row[index['Scheme']], 2);
+      const digest = sha(
+        canonicalise([
+          row[index['Before']] ?? null,
+          row[index['After']] ?? null,
+          row[index['Metadata']]
+        ])
+      );
+      assert.equal(digest, row[index['Content digest']], 'contents match');
+      const recomputed = sha(
+        canonicalise([
+          'govern-audit-2',
+          w.org.id,
+          row[index['Sequence']],
+          at.toISOString(),
+          row[index['Actor kind']],
+          row[index['Actor user']] ?? null,
+          row[index['Actor']],
+          row[index['Action']],
+          row[index['Subject type']],
+          row[index['Subject']],
+          row[index['Entity']] ?? null,
+          row[index['Content digest']],
+          row[index['Previous hash']]
+        ])
+      );
 
       assert.equal(
         recomputed,

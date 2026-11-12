@@ -44,6 +44,33 @@ async function main() {
   await migrate(drizzle(client), { migrationsFolder: 'drizzle' });
   console.log(`Migrations applied in ${Date.now() - started}ms.`);
   await client.end();
+  await upgradeAudit();
+}
+
+/**
+ * Move audit chains begun before content digests to the current scheme now,
+ * so no request pays for digesting an organisation's whole history. Never
+ * stops the deploy: a chain left behind moves on its next append instead.
+ */
+async function upgradeAudit() {
+  const started = Date.now();
+  const { upgradeAuditChains } = await import('@/lib/audit');
+  const { sql: pool } = await import('@/db/client');
+  try {
+    const { upgraded, failed } = await upgradeAuditChains();
+    console.log(
+      `Audit chains moved to the current scheme: ${upgraded} in ${Date.now() - started}ms.` +
+        (failed.length
+          ? ` ${failed.length} failed and will move on their next event: ${failed.join(', ')}.`
+          : '')
+    );
+  } catch (error) {
+    console.warn(
+      `Audit chains not upgraded; each moves on its next event instead.\n  ${explain(error)}`
+    );
+  } finally {
+    await pool.end();
+  }
 }
 
 /**
