@@ -28,7 +28,8 @@ export const DEFAULT_WORKFLOWS: Array<{
     | 'ai_risk'
     | 'screening'
     | 'supplier_record'
-    | 'eia';
+    | 'eia'
+    | 'custom';
   name: string;
   stages: StageSpec[];
 }> = [
@@ -247,6 +248,21 @@ export const DEFAULT_WORKFLOWS: Array<{
         position: 1,
         name: 'Accountable approver',
         requiredRole: 'approver',
+        condition: { op: 'always' }
+      }
+    ]
+  },
+  {
+    // The organisation's own templates, and the Irish provider duties
+    // checklist: without a route, a finished one could never be approved and
+    // its review date would never come round.
+    templateKind: 'custom',
+    name: 'Review',
+    stages: [
+      {
+        position: 1,
+        name: 'Privacy review',
+        requiredRole: 'privacy_analyst',
         condition: { op: 'always' }
       }
     ]

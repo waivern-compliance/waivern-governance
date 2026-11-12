@@ -1455,6 +1455,87 @@ const REFERENCES = [
     title: 'Processor',
     url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
     jurisdiction: 'EU'
+  },
+  {
+    code: 'ie.si336.reg3',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 3',
+    title: 'Services to which these Regulations apply',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg4',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 4',
+    title: 'Security of processing, and personal data breaches',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg6',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 6',
+    title: 'Traffic data',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg7',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 7',
+    title: 'Itemised billing',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg8',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 8',
+    title:
+      'Presentation and restriction of calling and connected line identification',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg9',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 9',
+    title: 'Location data other than traffic data',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg11',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 11',
+    title: 'Automatic call forwarding',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg12',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 12',
+    title: 'Directories of subscribers',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg14',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 14',
+    title: 'National Directory Database',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
+  },
+  {
+    code: 'ie.si336.reg16',
+    regime: 'S.I. 336/2011',
+    citation: 'Regulation 16',
+    title: 'Internal procedures for access requests, and damages',
+    url: 'https://www.irishstatutebook.ie/eli/2011/si/336/made/en/print',
+    jurisdiction: 'IE'
   }
 ] as const;
 

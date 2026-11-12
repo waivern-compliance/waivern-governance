@@ -10,6 +10,7 @@ import { DPIA } from './dpia';
 import { DPIA_PART3 } from './dpia-part3';
 import { DSIT_AI_RISK } from './dsit-ai-risk';
 import { EIA } from './eia';
+import { IE_PROVIDER_DUTIES } from './ie-provider';
 import { LIA } from './lia';
 import { NIST_AI_RISK } from './nist-ai-risk';
 import { SCREENING } from './screening';
@@ -35,6 +36,8 @@ export const SYSTEM_TEMPLATES: Array<{
   aiFramework?: AiFrameworkId;
   /** Installed only for an organisation with an entity that is a competent authority (Part 3). */
   competentAuthority?: boolean;
+  /** Installed only where some entity is a provider of electronic communications services in Ireland. */
+  irishProvider?: true;
   /**
    * A UK data protection template — built on the UK GDPR and the Data
    * Protection Act 2018 — installed only where some entity is subject to UK law.
@@ -111,6 +114,15 @@ export const SYSTEM_TEMPLATES: Array<{
     definition: TIA_EU
   },
   {
+    kind: 'custom',
+    name: 'Electronic communications provider duties (Ireland)',
+    description:
+      'A checklist of what the Irish ePrivacy Regulations (S.I. 336/2011) ask of a provider of a publicly available network or service: security, traffic and location data, billing, line identification, forwarding, directories, the National Directory Database and access-request procedures.',
+    jurisdiction: 'IE',
+    irishProvider: true,
+    definition: IE_PROVIDER_DUTIES
+  },
+  {
     kind: 'breach',
     name: 'Breach severity assessment',
     description:
@@ -160,3 +172,34 @@ export const SYSTEM_TEMPLATES: Array<{
     definition: EIA
   }
 ];
+
+/** What an organisation is, as far as which shipped templates it is offered. */
+export type TemplateAudience = {
+  aiFramework: AiFrameworkId;
+  /** Some entity is a competent authority (Part 3). */
+  competentAuthority: boolean;
+  /** Some entity is subject to UK law, or there is no entity yet. */
+  ukLaw: boolean;
+  /** Some entity provides electronic communications services in Ireland. */
+  irishProvider: boolean;
+};
+
+/**
+ * Whether an organisation is offered a shipped template. The one place each
+ * template's audience is decided: the install, the update offer and the tests
+ * all ask here, so a new kind of audience is one change.
+ */
+export function offeredTo(
+  t: (typeof SYSTEM_TEMPLATES)[number],
+  o: TemplateAudience
+): boolean {
+  return (
+    (t.aiFramework === undefined || t.aiFramework === o.aiFramework) &&
+    // The Part 3 templates, once an entity is a competent authority.
+    (!t.competentAuthority || o.competentAuthority) &&
+    // The Irish provider checklist, once an entity is a provider in Ireland.
+    (!t.irishProvider || o.irishProvider) &&
+    // UK data protection templates, once an entity is subject to UK law.
+    (!t.ukLaw || o.ukLaw)
+  );
+}

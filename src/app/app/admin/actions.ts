@@ -51,6 +51,7 @@ import {
   setDpo,
   setEstablishment,
   setFreedomOfInformation,
+  setIeCommsProvider,
   setIeEprivacy,
   setPublicAuthority,
   setPublicCommsProvider
@@ -529,6 +530,25 @@ export async function setIeEprivacyAction(
     return updated.ieEprivacy
       ? `${updated.name} is recorded as subject to the Irish ePrivacy Regulations. Its websites, apps and marketing can now be recorded under them.`
       : `${updated.name} is recorded as not subject to the Irish ePrivacy Regulations.`;
+  });
+}
+
+/** Whether an entity provides electronic communications services in Ireland (S.I. 336/2011). */
+export async function setIeProviderAction(
+  entityId: string,
+  provider: boolean,
+  _prev: AdminResult
+): Promise<AdminResult> {
+  return entityResult(async (active) => {
+    const updated = await setIeCommsProvider({
+      organisationId: active.membership.organisationId,
+      entityId,
+      provider,
+      actor: actorOf(active)
+    });
+    return updated.ieCommsProvider
+      ? `${updated.name} is marked as a provider of electronic communications services in Ireland. The provider duties checklist is offered on the templates page.`
+      : `${updated.name} is no longer marked as a provider in Ireland.`;
   });
 }
 

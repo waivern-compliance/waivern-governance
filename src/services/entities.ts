@@ -392,6 +392,10 @@ export async function setIeEprivacy(input: {
           `${before.name} is recorded as subject to UK law only. The Irish ePrivacy Regulations are recorded beside EU law, so record that it is subject to EU law first.`
         );
       }
+      if (!input.applies && before.ieCommsProvider)
+        throw new EntityRefused(
+          `${before.name} is marked as a provider of electronic communications services in Ireland, which Govern records only under the Irish Regulations. Turn that off first.`
+        );
       if (!input.applies) {
         const irishOnly = await recordsUnderEprivacyScope(tx, before.id, 'ie');
         if (irishOnly.length > 0) {
@@ -440,6 +444,48 @@ export async function eprivacyScopeFor(
     .for('share');
   if (!row) throw new Error('No such entity');
   return cleanEprivacyScope(row, chosen);
+}
+
+/**
+ * Mark an entity as a provider of a publicly available electronic
+ * communications network or service in Ireland, or not (S.I. 336/2011,
+ * regulation 4). Separate from the UK flag: a company can be a provider in one
+ * country and not the other (decision 8). Allowed only where the entity is
+ * recorded as subject to the Irish Regulations.
+ */
+export async function setIeCommsProvider(input: {
+  organisationId: string;
+  entityId: string;
+  provider: boolean;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      await lockEntity(tx, input.entityId);
+      const before = await entityIn(tx, input.organisationId, input.entityId);
+      if (before.ieCommsProvider === input.provider) return before;
+      if (input.provider && before.ieEprivacy !== true)
+        throw new EntityRefused(
+          `${before.name} is not recorded as subject to the Irish ePrivacy Regulations. Record that first.`
+        );
+      const [after] = await tx
+        .update(entities)
+        .set({ ieCommsProvider: input.provider, updatedAt: new Date() })
+        .where(eq(entities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'entity.ie_provider_flag_changed',
+        subjectType: 'entity',
+        subjectId: before.id,
+        entityId: before.id,
+        before: { ieCommsProvider: before.ieCommsProvider },
+        after: { ieCommsProvider: input.provider }
+      });
+      return after;
+    })
+  );
 }
 
 /**

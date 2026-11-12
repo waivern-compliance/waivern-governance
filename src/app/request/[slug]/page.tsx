@@ -116,6 +116,11 @@ export default async function RequestPage({
               {timeLimit(form.foiAct, form.foiTimeProfile)}: by sending the
               information, or by explaining why it cannot.
             </p>
+            {form.irishComplaintNote ? (
+              <p className="max-w-prose text-sm text-ink-soft">
+                {form.irishComplaintNote}
+              </p>
+            ) : null}
             <p className="max-w-prose text-xs text-ink-soft">
               You do not have to use this form. A request by email or by post
               counts just the same, and one for information about the

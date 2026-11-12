@@ -13,7 +13,7 @@ import { NIST_AI_RMF } from '@/lib/ai-frameworks/nist-pack';
 import { UK_DSIT } from '@/lib/ai-frameworks/uk-dsit';
 import { APPETITE_LEVELS } from '@/lib/risk/appetite';
 import { suggestionsFor } from '@/lib/risk/treatment-library';
-import { SYSTEM_TEMPLATES } from '@/lib/templates/library';
+import { offeredTo, SYSTEM_TEMPLATES } from '@/lib/templates/library';
 import { DSIT_AI_RISK } from '@/lib/templates/library/dsit-ai-risk';
 import { NIST_AI_RISK } from '@/lib/templates/library/nist-ai-risk';
 import {
@@ -156,8 +156,15 @@ describe('installing shipped templates', () => {
     assert.ok(nist.includes('AI risk identification (NIST AI RMF)'));
     assert.ok(!nist.includes('AI risk identification (DSIT toolkit)'));
     // Everything not tied to a framework goes to both (the Part 3 DPIA waits for a competent authority).
+    const plain = {
+      competentAuthority: false,
+      ukLaw: true,
+      irishProvider: false
+    };
     const shared = SYSTEM_TEMPLATES.filter(
-      (t) => !t.aiFramework && !t.competentAuthority
+      (t) =>
+        offeredTo(t, { ...plain, aiFramework: 'uk_dsit' }) &&
+        offeredTo(t, { ...plain, aiFramework: 'nist_ai_rmf' })
     ).map((t) => t.name);
     for (const name of shared)
       assert.ok(uk.includes(name) && nist.includes(name), name);

@@ -1,0 +1,1 @@
+ALTER TABLE "entity" ADD COLUMN "ie_comms_provider" boolean DEFAULT false NOT NULL;

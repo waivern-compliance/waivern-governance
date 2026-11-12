@@ -787,6 +787,8 @@ describe('default workflows', () => {
     const kinds = DEFAULT_WORKFLOWS.map((w) => w.templateKind).sort();
     assert.deepEqual(kinds, [
       'ai_risk',
+      // The organisation's own templates and the Irish provider checklist.
+      'custom',
       'dpia',
       'eia',
       'screening',

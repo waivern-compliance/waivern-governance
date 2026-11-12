@@ -12,7 +12,11 @@ import type { AiFrameworkId } from '@/lib/ai-frameworks';
 import { appendAuditEvent, type AuditInput } from '@/lib/audit';
 import { canonicalise } from '@/lib/canonical';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
-import { LEGAL_REFERENCES, SYSTEM_TEMPLATES } from '@/lib/templates/library';
+import {
+  LEGAL_REFERENCES,
+  offeredTo,
+  SYSTEM_TEMPLATES
+} from '@/lib/templates/library';
 import {
   templateDefinition,
   type TemplateDefinition
@@ -371,6 +375,7 @@ export async function shippedTemplatesMissing(organisationId: string) {
       db
         .select({
           competentAuthority: entities.competentAuthority,
+          irishProvider: entities.ieCommsProvider,
           law: entities.dataProtectionLaw
         })
         .from(entities)
@@ -378,16 +383,18 @@ export async function shippedTemplatesMissing(organisationId: string) {
     ]);
     const names = new Set(held.map((h) => h.name));
     const competent = owned.some((e) => e.competentAuthority);
+    const irishProvider = owned.some((e) => e.irishProvider);
     // With no entity yet, as when an organisation is first set up, its default will be UK law.
     const ukLaw = owned.length === 0 || owned.some((e) => ukLawApplies(e.law));
     return SYSTEM_TEMPLATES.filter(
       (t) =>
         !names.has(t.name) &&
-        (t.aiFramework === undefined || t.aiFramework === framework) &&
-        // The Part 3 templates are offered once an entity is a competent authority.
-        (!t.competentAuthority || competent) &&
-        // UK data protection templates, once an entity is subject to UK law.
-        (!t.ukLaw || ukLaw)
+        offeredTo(t, {
+          aiFramework: framework,
+          competentAuthority: competent,
+          ukLaw,
+          irishProvider
+        })
     );
   });
 }
