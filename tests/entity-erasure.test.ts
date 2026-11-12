@@ -108,7 +108,7 @@ function outbox() {
       return { sent: true as const, messageId: `m${sent.length}` };
     },
     lastToken: () =>
-      /delete-entity\/(\S+)/.exec(sent.at(-1)?.text ?? '')?.[1] ?? ''
+      /delete-entity\/confirm#(\S+)/.exec(sent.at(-1)?.text ?? '')?.[1] ?? ''
   };
 }
 
@@ -375,6 +375,8 @@ async function populate(orgId: string, entityId: string) {
     actor: SYSTEM
   });
   return {
+    activity,
+    sharing,
     risk,
     breach,
     request,
@@ -561,6 +563,67 @@ describe('asking to delete', () => {
     assert.ok(still);
   });
 
+  it('keeps the earlier link when the new one cannot be sent', async () => {
+    const mail = outbox();
+    await requestEntityErasure({
+      organisationId: w.org.id,
+      entityId: w.gone.id,
+      userId: w.owner.user.id,
+      actor: w.owner.actor,
+      origin: 'https://govern.example',
+      send: mail.send
+    });
+    const earlier = mail.lastToken();
+    await assert.rejects(
+      requestEntityErasure({
+        organisationId: w.org.id,
+        entityId: w.gone.id,
+        userId: w.owner.user.id,
+        actor: w.owner.actor,
+        origin: 'https://govern.example',
+        send: async () => ({ sent: false as const, reason: 'down' })
+      }),
+      /could not be sent/
+    );
+    assert.equal((await erasureForToken(earlier)).state, 'open');
+    const live = await db
+      .select()
+      .from(entityErasures)
+      .where(
+        and(
+          eq(entityErasures.entityId, w.gone.id),
+          eq(entityErasures.status, 'requested')
+        )
+      );
+    assert.equal(live.length, 1);
+  });
+
+  it('leaves one live link when two are asked for at once', async () => {
+    const mail = outbox();
+    await Promise.all(
+      [0, 1].map(() =>
+        requestEntityErasure({
+          organisationId: w.org.id,
+          entityId: w.gone.id,
+          userId: w.owner.user.id,
+          actor: w.owner.actor,
+          origin: 'https://govern.example',
+          send: mail.send
+        })
+      )
+    );
+    const live = await db
+      .select()
+      .from(entityErasures)
+      .where(
+        and(
+          eq(entityErasures.entityId, w.gone.id),
+          eq(entityErasures.status, 'requested')
+        )
+      );
+    assert.equal(live.length, 1);
+  });
+
   it('refuses a link that is not theirs, has expired, or is not confirmed exactly', async () => {
     const mail = outbox();
     await requestEntityErasure({
@@ -621,6 +684,22 @@ describe('asking to delete', () => {
       .from(entities)
       .where(eq(entities.id, w.gone.id));
     assert.ok(still, 'nothing was deleted');
+  });
+});
+
+describe("another entity's records citing this one's", () => {
+  it('refuses, rather than deleting them too', async () => {
+    const w = await world();
+    const made = await populate(w.org.id, w.gone.id);
+    const kept = await populate(w.org.id, w.main.id);
+    assert.deepEqual(await erasureBlockers(w.org.id, w.gone.id), []);
+    await db.execute(sql`
+      insert into sharing_agreement_activity (organisation_id, agreement_id, activity_id)
+      values (${w.org.id}, ${kept.sharing.id}, ${made.activity.id})`);
+    assert.match(
+      (await erasureBlockers(w.org.id, w.gone.id)).join(),
+      /1 records in other legal entities cite/
+    );
   });
 });
 

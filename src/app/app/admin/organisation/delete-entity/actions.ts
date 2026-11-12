@@ -5,16 +5,19 @@ import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { isPlatformAdmin } from '@/lib/platform';
+import { mayDeleteEntity } from '@/lib/rbac';
 import { requestOrigin } from '@/lib/request-origin';
 import {
+  getActiveSession,
   requireCapability,
   requireSession,
   type ActiveSession
 } from '@/lib/session';
 import {
   confirmEntityErasure,
-  erasureForToken,
-  requestEntityErasure
+  openEntityErasure,
+  requestEntityErasure,
+  type ErasureView
 } from '@/services/entity-erasure';
 
 /**
@@ -74,32 +77,51 @@ export async function requestErasureAction(
   };
 }
 
+/**
+ * What the confirmation page shows for the token in its address. The token
+ * comes here in the body of a POST, never in a URL a server would log.
+ */
+export async function openErasureAction(token: string): Promise<ErasureView> {
+  return openEntityErasure(token, async (erasure) => {
+    const active = await getActiveSession(erasure.organisationId);
+    if (!active)
+      return 'Sign in as the person who asked for this deletion, then open the link from your email again. Nothing has been deleted.';
+    if (active.userId !== erasure.requestedBy)
+      return 'This link was sent to somebody else. Only the person who asked can confirm it. Nothing has been deleted.';
+    if (
+      !mayDeleteEntity(
+        active.membership.grants,
+        erasure.entityId,
+        isPlatformAdmin(active.email)
+      )
+    )
+      return 'You are no longer allowed to delete this legal entity. Nothing has been deleted.';
+    return null;
+  });
+}
+
 export async function confirmErasureAction(
   token: string,
   _prev: EditResult,
   formData: FormData
 ): Promise<EditResult> {
-  const link = await erasureForToken(token);
-  if (link.state === 'not_found')
-    return { ok: false, message: 'This link is not valid.' };
-  const active = await requireDeleter(
-    link.erasure.entityId,
-    link.erasure.organisationId
-  );
+  const me = await requireSession();
 
-  let entityName = '';
+  let erasureId = '';
   let confirmationSent = false;
   const result = await refusable(async () => {
-    ({ entityName, confirmationSent } = await confirmEntityErasure({
+    ({ erasureId, confirmationSent } = await confirmEntityErasure({
       token,
-      userId: active.userId,
+      userId: me.userId,
       typed: String(formData.get('confirm') ?? ''),
-      actor: actorOf(active)
+      actor: actorOf(me),
+      authorise: ({ organisationId, entityId }) =>
+        requireDeleter(entityId, organisationId)
     }));
   });
   if (!result?.ok) return result;
   revalidatePath('/app', 'layout');
   redirect(
-    `/app/admin/organisation/delete-entity?${new URLSearchParams({ deleted: entityName, ...(confirmationSent ? { emailed: '1' } : {}) })}`
+    `/app/admin/organisation/delete-entity?${new URLSearchParams({ deleted: erasureId, ...(confirmationSent ? { emailed: '1' } : {}) })}`
   );
 }

@@ -9,6 +9,7 @@ import { getActiveSession } from '@/lib/session';
 import { entitiesOf } from '@/services/entities';
 import {
   deletedEntities,
+  deletionBy,
   erasureBlockers,
   LINK_MINUTES
 } from '@/services/entity-erasure';
@@ -30,7 +31,12 @@ export default async function DeleteEntityPage({
   const mine = (await entitiesOf(organisationId)).filter((e) =>
     mayDeleteEntity(active.membership.grants, e.id, platformAdmin)
   );
-  if (mine.length === 0 && !deleted) {
+  // Only the person who did it is told it is done, from their own record of
+  // it: the name shown is never taken from the address.
+  const done = deleted
+    ? await deletionBy(organisationId, deleted, active.userId)
+    : null;
+  if (mine.length === 0 && !done) {
     return (
       <NotPermitted
         what="Deleting a legal entity"
@@ -47,7 +53,7 @@ export default async function DeleteEntityPage({
           (await erasureBlockers(organisationId, e.id)).join(' ') || null
       }))
     ),
-    deletedEntities(organisationId)
+    mine.length > 0 ? deletedEntities(organisationId) : []
   ]);
 
   return (
@@ -68,12 +74,12 @@ export default async function DeleteEntityPage({
         </p>
       </header>
 
-      {deleted ? (
+      {done ? (
         <p
           role="status"
           className="rounded border border-line bg-surface px-4 py-3 text-sm"
         >
-          {deleted} and every record held for it have been deleted.{' '}
+          {done.entityName} and every record held for it have been deleted.{' '}
           {emailed
             ? 'We have emailed you written confirmation.'
             : 'This deployment could not email you written confirmation; the list of deleted entities below is the record.'}

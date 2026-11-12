@@ -26,6 +26,7 @@ import {
   aiConversations,
   auditEvents,
   entities,
+  entityErasures,
   memberships,
   organisations,
   roleAssignments,
@@ -3791,7 +3792,9 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
   'feedback.deleteFeedback':
     'platform operators only; feedback belongs to no organisation',
   'entity-erasure.erasureForToken':
-    "looked up by the token's hash, as a contributor link is; the link is then acted on only in its own organisation, by the person it was sent to"
+    "looked up by the token's hash, as a contributor link is; the link is then acted on only in its own organisation, by the person it was sent to",
+  'entity-erasure.openEntityErasure':
+    "looked up by the token's hash; shows nothing of the entity until the caller's check has found the person signed in to the link's own organisation as its requester"
 };
 
 describe('deleting a legal entity', () => {
@@ -3834,7 +3837,7 @@ describe('deleting a legal entity', () => {
       actor: B.owner.actor,
       origin: 'http://localhost',
       send: async (email) => {
-        link = /delete-entity\/(\S+)/.exec(email.text)?.[1] ?? '';
+        link = /delete-entity\/confirm#(\S+)/.exec(email.text)?.[1] ?? '';
         return { sent: true, messageId: 'test' };
       }
     });
@@ -3852,6 +3855,27 @@ describe('deleting a legal entity', () => {
     );
     assert.deepEqual(changed(before, await bSnapshot()), []);
     assert.deepEqual((await entityErasure.deletedEntities(A.org.id)).length, 0);
+  });
+
+  it("never reports another organisation's deletion as done", async () => {
+    const [theirs] = await db
+      .insert(entityErasures)
+      .values({
+        organisationId: B.org.id,
+        entityId: B.foiEntity.id,
+        entityName: 'Theirs',
+        tokenHash: `isolation-${crypto.randomUUID()}`,
+        expiresAt: new Date(),
+        requestedBy: A.owner.user.id,
+        requestedByEmail: 'a@example.test',
+        status: 'completed',
+        completedAt: new Date()
+      })
+      .returning();
+    assert.equal(
+      await entityErasure.deletionBy(A.org.id, theirs.id, A.owner.user.id),
+      null
+    );
   });
 });
 

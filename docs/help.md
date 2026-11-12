@@ -1990,7 +1990,7 @@ Kept: what belongs to the whole organisation, such as suppliers, templates, work
 
 ### What cannot be deleted this way
 
-The organisation's only legal entity: to close the whole organisation, its owner emails info@waivern.com. The default entity: make another the default first. An entity whose AI systems have records in other entities that depend on them: move or remove those first.
+The organisation's only legal entity: to close the whole organisation, its owner emails info@waivern.com. The default entity: make another the default first. An entity whose AI systems have records in other entities that depend on them, or whose records other entities cite (scan findings on its evidence, extraction findings from its documents, sharing agreements naming its processing activities): move or remove those first.
 
 ### Records you may be required to keep
 

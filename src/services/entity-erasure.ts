@@ -25,6 +25,7 @@ import {
 } from '@/lib/email/resend';
 import { log } from '@/lib/log';
 
+import { sqlOwners } from './organisation-export';
 import type { Actor } from './templates';
 import { queueNotification } from './workflow';
 
@@ -127,6 +128,27 @@ async function blockers(
     reasons.push(
       `${dependants.n} records in other legal entities depend on this entity's AI systems. Those records belong to the other entities and are not deleted with this one; move or remove them first.`
     );
+  // Records of other entities that the database would delete with this
+  // entity's, because they cite them: a scan finding on this entity's
+  // evidence, an extraction finding quoting its document, a sharing agreement
+  // naming its processing activity.
+  const [cited] = await tx.execute<{ n: number }>(sql`
+    select (
+      (select count(*) from scan_finding f join evidence e on e.id = f.evidence_id
+        where e.entity_id = ${entityId} and f.entity_id <> ${entityId})
+      + (select count(*) from extraction_finding f
+          join document d on d.id = f.source_document_id
+          join extraction x on x.id = f.extraction_id
+        where d.entity_id = ${entityId} and x.entity_id <> ${entityId})
+      + (select count(*) from sharing_agreement_activity l
+          join processing_activity p on p.id = l.activity_id
+          join sharing_agreement g on g.id = l.agreement_id
+        where p.entity_id = ${entityId} and g.entity_id <> ${entityId})
+    )::int as n`);
+  if (Number(cited?.n ?? 0) > 0)
+    reasons.push(
+      `${cited.n} records in other legal entities cite this entity's records (scan findings on its evidence, extraction findings from its documents, or sharing agreements naming its processing activities), and would be deleted with them. Remove those citations from the other entities first.`
+    );
   return reasons;
 }
 
@@ -135,16 +157,23 @@ function linkBase(origin: string): string {
   return (process.env.AUTH_URL?.trim() || origin).replace(/\/+$/, '');
 }
 
+/**
+ * The token goes after `#`, which browsers never send to the server, so it
+ * stays out of request logs and Referer headers. The page reads it and hands
+ * it to a server action in the body of a POST.
+ */
 export function erasurePath(token: string): string {
-  return `/app/admin/organisation/delete-entity/${token}`;
+  return `/app/admin/organisation/delete-entity/confirm#${token}`;
 }
 
 /**
  * Ask to delete an entity: record the request and email its link to the
  * requester's address of record, never to an address given with the request.
  *
- * Asking again for the same entity replaces any earlier link. Nothing is
- * deleted here.
+ * Asking again for the same entity replaces any earlier link, once the new
+ * one has been sent: if it cannot be, the earlier link still works. Requests
+ * for one entity take turns on its row, so two at once cannot both leave a
+ * live link. Nothing is deleted here.
  */
 export async function requestEntityErasure(input: {
   organisationId: string;
@@ -165,9 +194,8 @@ export async function requestEntityErasure(input: {
   const tokenHash = await sha256Hex(token);
   const expiresAt = new Date(Date.now() + LINK_MINUTES * 60_000);
 
-  const { entity, email, organisationName } = await withOrganisation(
-    input.organisationId,
-    () =>
+  const { entity, email, organisationName, erasureId, replaced } =
+    await withOrganisation(input.organisationId, () =>
       db.transaction(async (tx) => {
         const [entity] = await tx
           .select()
@@ -177,7 +205,8 @@ export async function requestEntityErasure(input: {
               eq(entities.id, input.entityId),
               eq(entities.organisationId, input.organisationId)
             )
-          );
+          )
+          .for('update');
         if (!entity)
           throw new ErasureRefused(
             'No such legal entity in this organisation.'
@@ -205,7 +234,7 @@ export async function requestEntityErasure(input: {
           .from(organisations)
           .where(eq(organisations.id, input.organisationId));
 
-        await tx
+        const replaced = await tx
           .update(entityErasures)
           .set({ status: 'superseded' })
           .where(
@@ -214,7 +243,8 @@ export async function requestEntityErasure(input: {
               eq(entityErasures.entityId, input.entityId),
               eq(entityErasures.status, 'requested')
             )
-          );
+          )
+          .returning({ id: entityErasures.id });
         const [erasure] = await tx
           .insert(entityErasures)
           .values({
@@ -237,9 +267,15 @@ export async function requestEntityErasure(input: {
           entityId: entity.id,
           after: { erasureId: erasure.id, expiresAt: expiresAt.toISOString() }
         });
-        return { entity, email: user.email, organisationName: org.name };
+        return {
+          entity,
+          email: user.email,
+          organisationName: org.name,
+          erasureId: erasure.id,
+          replaced: replaced.map((r) => r.id)
+        };
       })
-  );
+    );
 
   const url = `${linkBase(input.origin)}${erasurePath(token)}`;
   const message = erasureLinkEmail({
@@ -253,12 +289,45 @@ export async function requestEntityErasure(input: {
     console.info(`[entity-erasure] confirmation link for ${email}: ${url}`);
   } else {
     const outcome = await send({ ...message, to: [email] });
-    if (!outcome.sent)
+    if (!outcome.sent) {
+      await withdrawRequest(input.organisationId, erasureId, replaced);
       throw new ErasureRefused(
         'The confirmation email could not be sent, so nothing will be deleted. Try again in a few minutes.'
       );
+    }
   }
   return { sentTo: email, expiresAt };
+}
+
+/**
+ * The new link never reached anyone: retire it, and give back the links it
+ * replaced, unless a later request has replaced them since.
+ */
+async function withdrawRequest(
+  organisationId: string,
+  erasureId: string,
+  replaced: string[]
+) {
+  await withOrganisation(organisationId, () =>
+    db.transaction(async (tx) => {
+      const [mine] = await tx
+        .update(entityErasures)
+        .set({ status: 'superseded' })
+        .where(
+          and(
+            eq(entityErasures.id, erasureId),
+            eq(entityErasures.status, 'requested')
+          )
+        )
+        .returning({ entityId: entityErasures.entityId });
+      if (!mine || replaced.length === 0) return;
+      await tx.execute(sql`
+        update entity_erasure set status = 'requested'
+        where id = any(${uuids(replaced)}) and status = 'superseded'
+          and not exists (select 1 from entity_erasure o
+            where o.entity_id = ${mine.entityId} and o.status = 'requested')`);
+    })
+  );
 }
 
 /** Local development with sign-in by email alone: links are printed, not sent. */
@@ -293,6 +362,67 @@ export async function erasureForToken(token: string): Promise<ErasureLink> {
   if (erasure.expiresAt.getTime() <= Date.now())
     return { state: 'expired', erasure };
   return { state: 'open', erasure };
+}
+
+export type ErasureView =
+  | { state: 'not_found' | 'expired' | 'used' }
+  | { state: 'refused'; message: string }
+  | {
+      state: 'open';
+      entityName: string;
+      legalEntityRef: string | null;
+      records: number;
+    };
+
+/**
+ * What the confirmation page shows for a link: whether it can be used, and,
+ * only once `check` has let this person see it, what deleting would take.
+ * `check` answers with the reason they may not, or null.
+ */
+export async function openEntityErasure(
+  token: string,
+  check: (erasure: typeof entityErasures.$inferSelect) => Promise<string | null>
+): Promise<ErasureView> {
+  const link = await erasureForToken(token);
+  if (link.state !== 'open') return { state: link.state };
+  const refused = await check(link.erasure);
+  if (refused) return { state: 'refused', message: refused };
+  const { records } = await previewErasure(
+    link.erasure.organisationId,
+    link.erasure.entityId
+  );
+  return {
+    state: 'open',
+    entityName: link.erasure.entityName,
+    legalEntityRef: link.erasure.legalEntityRef,
+    records
+  };
+}
+
+/**
+ * A completed deletion, if this person asked for it: what the page tells them
+ * once it is done, whether or not they may still delete anything.
+ */
+export async function deletionBy(
+  organisationId: string,
+  erasureId: string,
+  userId: string
+): Promise<{ entityName: string } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(erasureId)) return null;
+  const [row] = await withOrganisation(organisationId, () =>
+    db
+      .select({ entityName: entityErasures.entityName })
+      .from(entityErasures)
+      .where(
+        and(
+          eq(entityErasures.id, erasureId),
+          eq(entityErasures.organisationId, organisationId),
+          eq(entityErasures.requestedBy, userId),
+          eq(entityErasures.status, 'completed' satisfies EntityErasureStatus)
+        )
+      )
+  );
+  return row ?? null;
 }
 
 /** Entities this organisation has deleted, newest first. */
@@ -330,8 +460,17 @@ export async function confirmEntityErasure(input: {
   userId: string;
   typed: string;
   actor: Actor;
+  /**
+   * Checks, once the link says which entity it is for, that this person may
+   * still delete it; throws if not.
+   */
+  authorise?: (target: {
+    organisationId: string;
+    entityId: string;
+  }) => Promise<unknown>;
   send?: Send;
 }): Promise<{
+  erasureId: string;
   entityName: string;
   records: number;
   auditErased: number;
@@ -357,6 +496,10 @@ export async function confirmEntityErasure(input: {
     throw new ErasureRefused(
       'This link was sent to somebody else. Only the person who asked can confirm it.'
     );
+  await input.authorise?.({
+    organisationId: link.erasure.organisationId,
+    entityId: link.erasure.entityId
+  });
 
   const result = await eraseEntity(
     link.erasure.id,
@@ -391,6 +534,7 @@ export async function confirmEntityErasure(input: {
     auditErased: result.auditErased
   });
   return {
+    erasureId: link.erasure.id,
     entityName: result.entityName,
     records: result.records,
     auditErased: result.auditErased,
@@ -457,6 +601,9 @@ const ATTACHED_BY_SUBJECT = [
   'extraction',
   'ai_conversation'
 ] as const;
+
+const UUID_PATTERN =
+  '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 
 /** A list of ids as one parameter, however many there are. */
 function uuids(ids: readonly string[]): SQL {
@@ -532,23 +679,30 @@ async function gather(tx: Tx, entityId: string) {
     where c.contype = 'f' and c.confdeltype = 'c' and array_length(c.conkey, 1) = 1
       and exists (select 1 from pg_attribute i where i.attrelid = c.conrelid
                   and i.attname = 'id' and not i.attisdropped)`);
-  for (let changed = true; changed;) {
-    changed = false;
+  // Each round asks only about the rows the last round found, so it stops
+  // as soon as a round finds nothing new.
+  let fresh = new Map(
+    [...byTable].map(([table, set]) => [table, [...set]] as const)
+  );
+  while (fresh.size > 0) {
+    const next = new Map<string, string[]>();
     for (const fk of fks) {
       if (fk.parent === 'entity' || fk.parent === 'organisation') continue;
-      const parents = byTable.get(fk.parent);
-      if (!parents?.size) continue;
-      const before = byTable.get(fk.child)?.size ?? 0;
-      add(
-        fk.child,
+      const parents = fresh.get(fk.parent);
+      if (!parents?.length) continue;
+      const known = byTable.get(fk.child) ?? new Set<string>();
+      const found = (
         await ids(
           tx,
           sql`select id from ${sql.identifier(fk.child)}
-              where ${sql.identifier(fk.col)} = any(${uuids([...parents])})`
+              where ${sql.identifier(fk.col)} = any(${uuids(parents)})`
         )
-      );
-      if ((byTable.get(fk.child)?.size ?? 0) > before) changed = true;
+      ).filter((id) => !known.has(id));
+      if (found.length === 0) continue;
+      add(fk.child, found);
+      next.set(fk.child, [...(next.get(fk.child) ?? []), ...found]);
     }
+    fresh = next;
   }
   return { byTable, all: all() };
 }
@@ -658,18 +812,33 @@ async function eraseEntity(
       for (const table of ATTACHED_BY_SUBJECT)
         await remove(table, sql`id = any(${uuids(list(table))})`);
 
-      // Links, queued email and webhook deliveries that name what has gone.
+      // Every id that has gone, indexed, for the matches below: each row is
+      // looked up in it, rather than compared with every id in turn.
+      await tx.execute(sql`
+        create temporary table erased_id (id uuid primary key) on commit drop`);
+      await tx.execute(sql`
+        insert into erased_id select distinct unnest(${uuids(all)})`);
+      const gone = (column: SQL) =>
+        sql`${column} in (select id from erased_id)`;
+
+      // Links, queued email and webhook deliveries that name what has gone:
+      // any id written in the key or the payload.
       await remove(
         'record_link',
-        sql`from_id = any(${uuids(all)}) or to_id = any(${uuids(all)})`
+        sql`organisation_id = ${organisationId}
+            and (${gone(sql`from_id`)} or ${gone(sql`to_id`)})`
       );
       const named = (column: SQL) => sql`exists (
-        select 1 from unnest(${uuids(all)}) as gone(id)
-        where ${column} like '%' || gone.id::text || '%')`;
-      await remove('notification', named(sql`idempotency_key`));
+        select 1 from regexp_matches(${column}, ${UUID_PATTERN}, 'g') as m
+        where ${gone(sql`m[1]::uuid`)})`;
+      await remove(
+        'notification',
+        sql`organisation_id = ${organisationId} and ${named(sql`idempotency_key`)}`
+      );
       await remove(
         'webhook_delivery',
-        sql`${named(sql`idempotency_key`)} or ${named(sql`payload::text`)}`
+        sql`organisation_id = ${organisationId}
+            and (${named(sql`idempotency_key`)} or ${named(sql`payload::text`)})`
       );
 
       // A connection whose records landed here stops until somebody chooses
@@ -691,7 +860,7 @@ async function eraseEntity(
         tx,
         sql`select id from audit_event
             where organisation_id = ${organisationId}
-              and (entity_id = ${entityId} or subject_id = any(${uuids(all)}))`
+              and (entity_id = ${entityId} or ${gone(sql`subject_id`)})`
       );
       const { erased: auditErased } = await eraseAuditContents(tx, {
         organisationId,
@@ -735,13 +904,9 @@ async function eraseEntity(
         }
       });
 
-      const owners = await tx.execute<{ email: string }>(sql`
-        select distinct u.email
-        from membership m
-        join role_assignment r on r.membership_id = m.id
-        join app_user u on u.id = m.user_id
-        where m.organisation_id = ${organisationId}
-          and m.is_active and r.role = 'owner' and r.scope = 'organisation'`);
+      const owners = await tx.execute<{ email: string }>(
+        sqlOwners({ organisationId })
+      );
       for (const owner of owners) {
         if (owner.email.toLowerCase() === actor.actorLabel.toLowerCase())
           continue;

@@ -20,7 +20,11 @@ and this takes an entity's records away.
    understand and that it has been agreed. Govern records an `entity_erasure`
    row and emails a single-use link, valid for 30 minutes, to the requester's
    address of record, read from `app_user`. Nothing in the form says where it
-   goes. Asking again replaces the earlier link.
+   goes. Asking again replaces the earlier link once the new one is sent; if
+   it cannot be sent, the earlier link still works. Requests for one entity
+   take turns on its row, so only one link is ever live. The token sits after
+   `#` in the link, which browsers never send to a server, so it stays out of
+   request logs; the page hands it to a server action in a POST body.
 4. **The confirmation.** The link opens a page that deletes nothing by being
    opened. The person must be signed in as the requester, in that organisation,
    and still allowed to delete the entity (checked again). They type exactly
@@ -115,7 +119,10 @@ These are defaults, chosen and listed for the user to confirm.
    - the default entity, until another is made the default.
 
    It also refuses when records in another entity depend on this entity's AI
-   systems.
+   systems, or cite its records in a way the database would delete with them:
+   scan findings on its evidence, extraction findings from its documents, and
+   sharing agreements naming its processing activities. Those belong to the
+   other entity, so they are moved or removed there first.
 
 7. **Running jobs.** The deletion locks the entity row. Anything writing to it,
    such as an import commit or an extraction saving its results, waits, then
