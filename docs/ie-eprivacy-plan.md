@@ -8,9 +8,24 @@ Regulations 2011, S.I. No. 336 of 2011, as amended. It is the Irish transpositio
 the ePrivacy Directive 2002/58/EC, and the nearest equivalent of PECR. When an entity is
 declared, it should also say whether it is subject to this Irish law.
 
-This plan builds on the EU GDPR plan (`docs/eu-gdpr-plan.md`), which is now built. It
-reuses that plan's model and decisions and cross-references them rather than repeating
-them. Decisions are numbered here; "EU decision N" means decision N of that plan.
+EU GDPR support is built and deployed (PRs #32 to #40, migrations `0101` to `0106`).
+This plan is based on the code that shipped, listed below with its files, and refers to
+the EU GDPR plan (`docs/eu-gdpr-plan.md`) only for the reasoning behind its decisions.
+Decisions are numbered here; "EU decision N" means decision N of that plan.
+
+### What shipped, and what this plan reuses
+
+| What                                    | Where                                                                                                                                                                                                                                | Reused for                                                                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| The entity's law, `uk / eu / uk_eu`     | `entity.data_protection_law` (`drizzle/0086_entity_data_protection_law.sql`); `lib/dpa2018/applies.ts`; `setDataProtectionLaw` in `services/entities.ts`                                                                             | The Irish flag is allowed only where EU law applies, and narrowing to UK law is refused while it is on, in the same function |
+| Establishment and lead authority        | `entity.eu_establishments`, `eu_lead_authority` and the rest (`drizzle/0101_entity_establishment.sql`, `0102_establishment_followups.sql`); `lib/gdpr/establishment.ts`; `EstablishmentForm.tsx` under `app/app/admin/organisation`  | Suggesting the Irish flag from an Irish establishment or `ie-dpc`                                                            |
+| The authority library                   | `lib/gdpr/authorities.ts` (a code module updated by release, with `ie-dpc`)                                                                                                                                                          | Naming the Commission and its ePrivacy breach form                                                                           |
+| A record's own laws within its entity's | `processing_activity.laws` (`drizzle/0103_records_under_both_laws.sql`); `withinEntity`, `effectiveLaws` in `lib/gdpr/regimes.ts`; `cleanRecordLaws` in `services/ropa.ts`                                                           | The same pattern for `eprivacy_scope` on cookie properties and marketing activities                                          |
+| Breach obligations per authority        | `breach.laws`, `affected_states`, `authority_code` and `authoritiesToNotify` (`drizzle/0104_eu_requests_complaints_breaches.sql`, `lib/breach/statutory.ts`, `lib/gdpr/establishment.ts`)                                            | The Irish provider obligation sits beside them as its own clock                                                              |
+| The UK-only settings guard              | `ukLawOnly` and the provider check in `services/entities.ts`                                                                                                                                                                         | Widened for `public_comms_provider`                                                                                          |
+| The PECR registers                      | `drizzle/0067_pecr_inventory.sql`, `0068_pecr_keeping_current.sql`, `0070_pecr_marketing.sql`, `0071_pecr_breach_5a.sql`; `lib/pecr/statutory.ts`, `lib/pecr/marketing.ts`; `services/storage-inventory.ts`, `services/marketing.ts` | Irish variants beside them                                                                                                   |
+| Law-gated guidance and nav              | the `ukLaw` flag on steps in `lib/guidance/steps.ts` and on items in `lib/nav.ts`                                                                                                                                                    | An `eprivacy` gate for the cookie and marketing steps and pages                                                              |
+| The context export                      | `services/export.ts`, contract in `docs/integration-api.md` (context version 1.3)                                                                                                                                                    | `entities[].ieEprivacy` in 1.4                                                                                               |
 
 ## Where Govern already stands
 
@@ -244,8 +259,8 @@ and marketing pages still appear for an EU-only organisation.
 What follows in Govern:
 
 - **Breach.** An Irish provider obligation names the Data Protection Commission and its
-  telecoms form. The `ie-dpc` row in the authority library gains an
-  `eprivacy_breach_url`. Article 33 still runs beside it under the entity's lead
+  telecoms form. The `ie-dpc` entry in `lib/gdpr/authorities.ts` gains an
+  `eprivacyBreachUrl`. Article 33 still runs beside it under the entity's lead
   authority, which may not be the Commission; the ePrivacy notice goes to the
   Commission regardless (Phase 0, item 6).
 - **Complaints and objections.** There is no Irish duty like s.164A, so no new
@@ -280,7 +295,7 @@ What follows in Govern:
 | `marketing_channel` enum                                                | `fax` added (decision 5)                                                                                        |
 | `breach.pecr_service_breach`                                            | renamed `comms_service_breach`; it asks the same question under either law                                      |
 | `breach_decision_kind` enum                                             | `ie_eprivacy_commission`, `ie_eprivacy_subscribers`                                                             |
-| `supervisory_authority.eprivacy_breach_url`                             | nullable; set for `ie-dpc`                                                                                      |
+| `lib/gdpr/authorities.ts`                                               | `eprivacyBreachUrl` on the `ie-dpc` entry (code, no migration)                                                  |
 
 - **Pure modules.** `lib/ie-eprivacy/storage.ts` (the Reg 5 basis set and gaps),
   `lib/ie-eprivacy/marketing.ts` (Reg 13 bases, conditions, the 12-month rule, mobile
@@ -288,8 +303,8 @@ What follows in Govern:
   `lib/breach/statutory.ts`. The PECR modules are untouched; the services pick the set
   by law, so each rule is in one place.
 - **RLS.** No new tables. Every changed table already carries `organisation_id` and its
-  `tenant_isolation` policy; the migration adds columns only. `supervisory_authority` is
-  shared and read-only to organisations, as now.
+  `tenant_isolation` policy; the migration adds columns only. The authority library is
+  code, not a table, so it needs no policy.
 - **Audit.** `entity.ie_eprivacy_changed`; `pecr.basis_decided` and
   `marketing.basis_decided` gain `law` in their payloads (actions unchanged, so filters
   and exports keep working); `marketing.ndd_screened`; breach decisions as today with
