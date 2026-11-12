@@ -33,6 +33,8 @@ export type Step = {
   href: string;
   /** Shown only where some entity is subject to UK law. */
   ukLaw?: true;
+  /** Shown only where some entity is under UK PECR or the Irish ePrivacy Regulations. */
+  eprivacy?: true;
   /**
    * Said when somebody is likely to get this wrong in a way that costs them
    * later. Omitted where there is nothing worth warning about — a caution on
@@ -62,7 +64,8 @@ export const SETUP: Step[] = [
     what:
       'Add each legal entity you are recording for. One company is one entity. If you ' +
       'have a group, a subsidiary that signs its own contracts is its own entity. For each, ' +
-      'say which data protection law it is subject to: UK law, EU law, or both.',
+      'say which data protection law it is subject to: UK law, EU law, or both. Where EU law ' +
+      'applies, say too whether the Irish ePrivacy Regulations do.',
     why:
       'Everything else hangs off an entity: an assessment belongs to one, a contract is ' +
       'signed by one, and a regulator asks a named company for its records. Getting this ' +
@@ -343,7 +346,7 @@ export const MAINTAIN: Step[] = [
   },
   {
     id: 'cookies',
-    ukLaw: true,
+    eprivacy: true,
     title: 'Know what your websites store, and why',
     what:
       'Add each website and app, upload a Waivern Consent Analyser report for it, and record the basis ' +
@@ -352,7 +355,9 @@ export const MAINTAIN: Step[] = [
       "UK PECR regulation 6 restricts storing anything on a person's device. Since 5 February 2026, " +
       'Schedule A1 lets statistics and appearance cookies go without consent - but only where people ' +
       'are told about them and can object simply and for free. Everything else needs consent or must ' +
-      'be strictly necessary.',
+      'be strictly necessary. The Irish ePrivacy Regulations (S.I. 336/2011, regulation 5) have no ' +
+      'such exceptions; Govern records which law each site is under, but checks the Irish rules only ' +
+      'in a later release.',
     finishedWhen: 'Every item in use on every site has a basis with no gaps.',
     href: '/app/cookies',
     watchOut:
@@ -361,7 +366,7 @@ export const MAINTAIN: Step[] = [
   },
   {
     id: 'marketing',
-    ukLaw: true,
+    eprivacy: true,
     title: 'Know what your marketing relies on',
     what:
       'Add each newsletter, promotional email or text campaign and call programme, link it to its ROPA entry, and ' +
@@ -369,7 +374,9 @@ export const MAINTAIN: Step[] = [
     why:
       'PECR regulations 21 and 22 decide who may be emailed, texted or called for marketing, on top of the UK GDPR. ' +
       'The soft opt-in and, since February 2026, the charity soft opt-in each come with conditions you must be able ' +
-      'to show; call lists must be screened against the TPS.',
+      'to show; call lists must be screened against the TPS. The Irish ePrivacy Regulations (S.I. 336/2011, ' +
+      'regulation 13) differ; Govern records which law each activity is under, but checks the Irish rules ' +
+      'only in a later release.',
     finishedWhen: 'Every running activity has a basis with no gaps.',
     href: '/app/marketing',
     watchOut:

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { EditForm } from '@/components/EditForm';
+import { EprivacyScopeField } from '@/components/EprivacyScopeField';
+import { EprivacyScopeNote } from '@/components/EprivacyScopeNote';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RESCAN_INTERVALS, rescanState } from '@/lib/pecr/rescan';
 import { BASES, suggestedBasis } from '@/lib/pecr/statutory';
@@ -98,6 +100,7 @@ export default async function PropertyPage({
   const {
     property,
     entityName,
+    entityEprivacy,
     ownerEmail,
     items,
     gapSummary,
@@ -603,6 +606,11 @@ export default async function PropertyPage({
         </section>
       ) : null}
 
+      <EprivacyScopeNote
+        entity={entityEprivacy}
+        scope={property.eprivacyScope}
+      />
+
       <EditForm
         key={savedKey(property)}
         action={updatePropertyAction.bind(null, property.id)}
@@ -663,6 +671,18 @@ export default async function PropertyPage({
             className={inputClass}
           />
         </label>
+        {entityEprivacy === 'uk_ie' && mayWrite ? (
+          <EprivacyScopeField
+            label={
+              <Label
+                text="ePrivacy law"
+                hint={`${entityName} is under both: which law this one answers to.`}
+              />
+            }
+            defaultValue={property.eprivacyScope}
+            inputClass={inputClass}
+          />
+        ) : null}
         <label className="block space-y-1">
           <Label
             text="Scan it again"

@@ -88,6 +88,7 @@ export async function createActivityAction(
       description: text(formData.get('description')) || null,
       tool: text(formData.get('tool')) || null,
       processingActivityId: text(formData.get('processingActivityId')) || null,
+      eprivacyScope: text(formData.get('eprivacyScope')) || null,
       ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
       actor: actorOf(active)
     });
@@ -119,6 +120,10 @@ export async function updateActivityAction(
         processingActivityId:
           text(formData.get('processingActivityId')) || null,
         charityNumber: text(formData.get('charityNumber')) || null,
+        // Asked only where the entity is under both ePrivacy laws; absent, unchanged.
+        ...(formData.has('eprivacyScope')
+          ? { eprivacyScope: text(formData.get('eprivacyScope')) }
+          : {}),
         ...(status === 'active' || status === 'paused' || status === 'ended'
           ? { status }
           : {})

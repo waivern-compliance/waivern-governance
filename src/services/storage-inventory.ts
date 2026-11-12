@@ -15,6 +15,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { entityEprivacy, EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import {
   failingChecks,
   itemKey,
@@ -37,6 +38,7 @@ import {
   type StorageBasis
 } from '@/lib/pecr/statutory';
 
+import { eprivacyScopeFor } from './entities';
 import type { Actor } from './templates';
 import {
   assertEntityIn,
@@ -108,6 +110,8 @@ export async function createProperty(input: {
   ownerId?: string | null;
   informationUrl?: string | null;
   objectionMechanism?: string | null;
+  /** UK PECR, the Irish ePrivacy Regulations or both; absent, the entity's. */
+  eprivacyScope?: string | null;
   actor: Actor;
 }) {
   const name = input.name.trim();
@@ -129,6 +133,10 @@ export async function createProperty(input: {
 
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
+    const eprivacyScope = await scopeOrRefuse(
+      input.entityId,
+      input.eprivacyScope
+    );
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     const reference = await nextReference(
@@ -147,7 +155,8 @@ export async function createProperty(input: {
           kind: input.kind ?? 'website',
           ownerId: input.ownerId ?? null,
           informationUrl,
-          objectionMechanism: trimmed(input.objectionMechanism)
+          objectionMechanism: trimmed(input.objectionMechanism),
+          eprivacyScope
         })
         .returning();
       await appendAuditEvent(tx, {
@@ -157,11 +166,25 @@ export async function createProperty(input: {
         action: 'pecr.property_created',
         subjectType: 'digital_property',
         subjectId: row.id,
-        after: { reference, name, url, kind: row.kind }
+        after: { reference, name, url, kind: row.kind, eprivacyScope }
       });
       return row;
     });
   });
+}
+
+/** The scope a property will hold, refused as an inventory refusal so the form keeps what was typed. */
+async function scopeOrRefuse(
+  entityId: string,
+  chosen: string | null | undefined
+) {
+  try {
+    return await eprivacyScopeFor(entityId, chosen);
+  } catch (error) {
+    if (error instanceof EprivacyRefused)
+      throw new InventoryRefused(error.message);
+    throw error;
+  }
 }
 
 async function lockedProperty(
@@ -194,6 +217,7 @@ export async function updateProperty(input: {
     objectionMechanism: string | null;
     cmp: string | null;
     rescanIntervalMonths: number | null;
+    eprivacyScope: string;
   }>;
   actor: Actor;
 }) {
@@ -227,9 +251,18 @@ export async function updateProperty(input: {
         input.propertyId,
         input.organisationId
       );
+      const { eprivacyScope: chosenScope, ...rest } = changes;
+      const eprivacyScope =
+        chosenScope === undefined
+          ? undefined
+          : await scopeOrRefuse(before.entityId, chosenScope);
       const [after] = await tx
         .update(digitalProperties)
-        .set({ ...changes, updatedAt: new Date() })
+        .set({
+          ...rest,
+          ...(eprivacyScope ? { eprivacyScope } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(digitalProperties.id, input.propertyId))
         .returning();
       await appendAuditEvent(tx, {
@@ -243,12 +276,14 @@ export async function updateProperty(input: {
           informationUrl: before.informationUrl,
           objectionMechanism: before.objectionMechanism,
           rescanIntervalMonths: before.rescanIntervalMonths,
+          eprivacyScope: before.eprivacyScope,
           changed: Object.keys(changes)
         },
         after: {
           informationUrl: after.informationUrl,
           objectionMechanism: after.objectionMechanism,
-          rescanIntervalMonths: after.rescanIntervalMonths
+          rescanIntervalMonths: after.rescanIntervalMonths,
+          eprivacyScope: after.eprivacyScope
         }
       });
       return after;
@@ -1088,6 +1123,8 @@ export async function loadProperty(propertyId: string, organisationId: string) {
       .select({
         property: digitalProperties,
         entityName: entities.name,
+        entityLaw: entities.dataProtectionLaw,
+        entityIeEprivacy: entities.ieEprivacy,
         ownerEmail: users.email
       })
       .from(digitalProperties)
@@ -1145,6 +1182,12 @@ export async function loadProperty(propertyId: string, organisationId: string) {
     );
     return {
       ...row,
+      /** The ePrivacy laws its entity is under, so the page knows whether to ask. */
+      entityEprivacy: entityEprivacy({
+        name: row.entityName,
+        dataProtectionLaw: row.entityLaw,
+        ieEprivacy: row.entityIeEprivacy
+      }),
       items: loaded,
       gapSummary: summariseGaps(loaded.map((i) => i.gapList)),
       rescanDueAt: rescanDueAt(row.property),

@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
+import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
+import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
 import { rescanState } from '@/lib/pecr/rescan';
 import { can, mayConfigureAnalyser } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
@@ -37,9 +39,14 @@ export default async function CookiesPage() {
     analyserSettings(org)
   ]);
   const mayConfigure = mayConfigureAnalyser(active.membership.grants);
-  const mayAddIn = orgEntities.filter((e) =>
-    can(active.membership.grants, 'record.write', e.id)
+  // Only entities under an ePrivacy law can hold one; the choice of law is
+  // offered where some entity is under both.
+  const mayAddIn = orgEntities.filter(
+    (e) =>
+      can(active.membership.grants, 'record.write', e.id) &&
+      entityEprivacy(e) !== null
   );
+  const askScope = mayAddIn.some((e) => entityEprivacy(e) === 'uk_ie');
   const totals = register.reduce(
     (t, r) => ({
       active: t.active + r.active,
@@ -163,6 +170,17 @@ export default async function CookiesPage() {
                 </select>
               </label>
             </div>
+            {askScope ? (
+              <EprivacyScopeField
+                label={
+                  <Label
+                    text="ePrivacy law"
+                    hint="For an entity under both: which law this one answers to."
+                  />
+                }
+                inputClass={inputClass}
+              />
+            ) : null}
             <label className="block space-y-1">
               <Label
                 text="Where people are told about cookies"

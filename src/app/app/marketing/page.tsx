@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
+import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
+import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
 import {
   CHANNEL_KEYS,
   CHANNELS,
@@ -49,9 +51,14 @@ export default async function MarketingPage() {
     ),
     marketingProcessingActivities(org)
   ]);
-  const mayAddIn = orgEntities.filter((e) =>
-    can(active.membership.grants, 'record.write', e.id)
+  // Only entities under an ePrivacy law can hold one; the choice of law is
+  // offered where some entity is under both.
+  const mayAddIn = orgEntities.filter(
+    (e) =>
+      can(active.membership.grants, 'record.write', e.id) &&
+      entityEprivacy(e) !== null
   );
+  const askScope = mayAddIn.some((e) => entityEprivacy(e) === 'uk_ie');
   const running = rows.filter((r) => r.activity.status !== 'ended');
   const totals = {
     running: running.length,
@@ -204,6 +211,17 @@ export default async function MarketingPage() {
                 </select>
               </label>
             </div>
+            {askScope ? (
+              <EprivacyScopeField
+                label={
+                  <Label
+                    text="ePrivacy law"
+                    hint="For an entity under both: which law this one answers to."
+                  />
+                }
+                inputClass={inputClass}
+              />
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1">
                 <Label

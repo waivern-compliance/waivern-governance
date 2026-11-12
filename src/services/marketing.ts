@@ -11,6 +11,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { entityEprivacy, EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import {
   basesFor,
   CHANNEL_KEYS,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/pecr/marketing';
 
 import { objectionCounts } from './data-subject-requests';
+import { eprivacyScopeFor } from './entities';
 import type { Actor } from './templates';
 import {
   assertEntityIn,
@@ -113,6 +115,8 @@ export async function createMarketingActivity(input: {
   tool?: string | null;
   processingActivityId?: string | null;
   ownerId?: string | null;
+  /** UK PECR, the Irish ePrivacy Regulations or both; absent, the entity's. */
+  eprivacyScope?: string | null;
   actor: Actor;
 }) {
   const name = input.name.trim();
@@ -122,6 +126,10 @@ export async function createMarketingActivity(input: {
 
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
+    const eprivacyScope = await scopeOrRefuse(
+      input.entityId,
+      input.eprivacyScope
+    );
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     if (input.processingActivityId)
@@ -147,7 +155,8 @@ export async function createMarketingActivity(input: {
           description: trimmed(input.description),
           tool: trimmed(input.tool),
           processingActivityId: input.processingActivityId ?? null,
-          ownerId: input.ownerId ?? null
+          ownerId: input.ownerId ?? null,
+          eprivacyScope
         })
         .returning();
       await appendAuditEvent(tx, {
@@ -161,12 +170,27 @@ export async function createMarketingActivity(input: {
           reference,
           name,
           channel: row.channel,
-          recipients: row.recipients
+          recipients: row.recipients,
+          eprivacyScope
         }
       });
       return row;
     });
   });
+}
+
+/** The scope an activity will hold, refused as a marketing refusal so the form keeps what was typed. */
+async function scopeOrRefuse(
+  entityId: string,
+  chosen: string | null | undefined
+) {
+  try {
+    return await eprivacyScopeFor(entityId, chosen);
+  } catch (error) {
+    if (error instanceof EprivacyRefused)
+      throw new MarketingRefused(error.message);
+    throw error;
+  }
 }
 
 async function lockedActivity(
@@ -201,6 +225,7 @@ export async function updateMarketingActivity(input: {
     ownerId: string | null;
     status: (typeof STATUSES)[number];
     charityNumber: string | null;
+    eprivacyScope: string;
   }>;
   actor: Actor;
 }) {
@@ -230,9 +255,18 @@ export async function updateMarketingActivity(input: {
         input.activityId,
         input.organisationId
       );
+      const { eprivacyScope: chosenScope, ...rest } = changes;
+      const eprivacyScope =
+        chosenScope === undefined
+          ? undefined
+          : await scopeOrRefuse(before.entityId, chosenScope);
       const [after] = await tx
         .update(marketingActivities)
-        .set({ ...changes, updatedAt: new Date() })
+        .set({
+          ...rest,
+          ...(eprivacyScope ? { eprivacyScope } : {}),
+          updatedAt: new Date()
+        })
         .where(eq(marketingActivities.id, input.activityId))
         .returning();
       const changed = (
@@ -451,6 +485,8 @@ export async function loadMarketingActivity(
       .select({
         activity: marketingActivities,
         entityName: entities.name,
+        entityLaw: entities.dataProtectionLaw,
+        entityIeEprivacy: entities.ieEprivacy,
         ownerEmail: users.email,
         processingActivity: {
           id: processingActivities.id,
@@ -488,6 +524,12 @@ export async function loadMarketingActivity(
         now
       ),
       entityName: row.entityName,
+      /** The ePrivacy laws its entity is under, so the page knows whether to ask. */
+      entityEprivacy: entityEprivacy({
+        name: row.entityName,
+        dataProtectionLaw: row.entityLaw,
+        ieEprivacy: row.entityIeEprivacy
+      }),
       ownerEmail: row.ownerEmail,
       processingActivity: row.processingActivity?.id
         ? row.processingActivity

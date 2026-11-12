@@ -9,6 +9,8 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { EprivacyScope } from '@/lib/ie-eprivacy/scope';
+
 import {
   marketingActivityStatus,
   marketingBasis,
@@ -44,6 +46,14 @@ export const marketingActivities = pgTable(
     recipients: marketingRecipients('recipients')
       .notNull()
       .default('individuals'),
+    /**
+     * Which of its entity's ePrivacy laws govern it: UK PECR, the Irish
+     * ePrivacy Regulations, or both (`lib/ie-eprivacy/scope.ts`).
+     */
+    eprivacyScope: text('eprivacy_scope')
+      .$type<EprivacyScope>()
+      .notNull()
+      .default('uk'),
     /** Where it is sent from: the email platform, the dialler. */
     tool: text('tool'),
     processingActivityId: uuid('processing_activity_id').references(

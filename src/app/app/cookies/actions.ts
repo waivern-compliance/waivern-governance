@@ -96,6 +96,7 @@ export async function createPropertyAction(
       kind: text(formData.get('kind')) === 'app' ? 'app' : 'website',
       informationUrl: text(formData.get('informationUrl')) || null,
       objectionMechanism: text(formData.get('objectionMechanism')) || null,
+      eprivacyScope: text(formData.get('eprivacyScope')) || null,
       ownerId: formData.get('ownMe') === 'on' ? active.userId : null,
       actor: actorOf(active)
     });
@@ -124,7 +125,11 @@ export async function updatePropertyAction(
         objectionMechanism: text(formData.get('objectionMechanism')) || null,
         rescanIntervalMonths: text(formData.get('rescanIntervalMonths'))
           ? Number(text(formData.get('rescanIntervalMonths')))
-          : null
+          : null,
+        // Asked only where the entity is under both ePrivacy laws; absent, unchanged.
+        ...(formData.has('eprivacyScope')
+          ? { eprivacyScope: text(formData.get('eprivacyScope')) }
+          : {})
       },
       actor: actorOf(active)
     });
