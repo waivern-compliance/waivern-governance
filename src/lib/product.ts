@@ -36,12 +36,6 @@ export const VENDOR_BOOKING_URL =
   'https://calendly.com/vincent-nunan-waivern/waivern-consultancy-session';
 /** Where to write to Waivern about anything. */
 export const VENDOR_EMAIL = 'info@waivern.com';
-/** WhatsApp Business, written for people and as a wa.me link. */
-export const VENDOR_WHATSAPP = {
-  display: '+44 7448 175379',
-  url: 'https://wa.me/447448175379'
-} as const;
-export const VENDOR_LINKEDIN_URL = 'https://www.linkedin.com/company/waivern/';
 
 /** Waivern's own policies, linked at the foot of every page of the hosted service. */
 export const VENDOR_PRIVACY_POLICY_URL = `${VENDOR_URL}/privacy-policy`;

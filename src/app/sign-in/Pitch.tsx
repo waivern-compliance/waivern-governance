@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { CheckList } from '@/components/site/CheckList';
+import { PageTag } from '@/components/site/PageTag';
 import { EXPANSION_SURVEY_URL, SOURCE_CODE_URL } from '@/lib/product';
 
 /**
@@ -39,7 +40,7 @@ const COVERS = [
 ] as const;
 
 const primaryCta =
-  'inline-flex items-center gap-2 rounded-md bg-brand px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
+  'inline-flex items-center gap-3 rounded-lg bg-brand px-8 py-4 text-lg font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:opacity-95 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
 export function Hero({
   providers,
@@ -51,9 +52,7 @@ export function Hero({
 }) {
   return (
     <section className="space-y-6">
-      <p className="inline-block rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand">
-        Free and open source
-      </p>
+      <PageTag>Free and open source</PageTag>
       <h2 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-navy sm:text-5xl">
         Tech compliance, made easy.
       </h2>
@@ -70,12 +69,6 @@ export function Hero({
         >
           Get started free <span aria-hidden>→</span>
         </a>
-        <Link
-          href="/services"
-          className="inline-flex items-center gap-2 rounded-md border border-brand/30 bg-surface px-5 py-3 text-sm font-semibold text-brand hover:border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-        >
-          What we charge for
-        </Link>
       </div>
       <p className="text-sm text-ink-soft">
         No card needed.

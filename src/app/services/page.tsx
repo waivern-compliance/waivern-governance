@@ -3,15 +3,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { CheckList } from '@/components/site/CheckList';
+import { PageTag } from '@/components/site/PageTag';
 import { headerAction, PublicHeader } from '@/components/site/PublicHeader';
 import { HOSTED, waivernHosted } from '@/lib/hosting';
 import {
   PRODUCT_NAME,
   VENDOR_BOOKING_URL,
-  VENDOR_CONTACT_URL,
-  VENDOR_EMAIL,
-  VENDOR_LINKEDIN_URL,
-  VENDOR_WHATSAPP
+  VENDOR_CONTACT_URL
 } from '@/lib/product';
 
 export const metadata: Metadata = {
@@ -78,7 +76,7 @@ const SERVICES = [
     points: [
       'Data protection, ePrivacy and AI governance advice from people who do the work',
       'DPIAs, AI risk assessments, records of processing and policies, prepared or reviewed',
-      'Readiness for ISO 27001 and ISO 42001, and help when a breach or a regulator writes'
+      'Readiness for ISO 27001, and help when a breach or a regulator writes'
     ]
   }
 ] as const;
@@ -92,83 +90,45 @@ const FREE = [
 ] as const;
 
 const cta =
-  'inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2';
+  'inline-flex items-center justify-center gap-3 rounded-lg px-8 py-4 text-lg font-semibold shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2';
 
+/** The two ways to start a conversation with us, as the page's calls to action. */
 function ContactButtons({ tone }: { tone: 'light' | 'dark' }) {
   return (
-    <div className="flex flex-wrap gap-3">
-      <a
-        href={VENDOR_BOOKING_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`${cta} ${
-          tone === 'dark'
-            ? 'bg-white text-navy hover:bg-white/90 focus-visible:outline-white'
-            : 'bg-brand text-white shadow-sm hover:opacity-90 focus-visible:outline-brand'
-        }`}
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-4">
+        <a
+          href={VENDOR_BOOKING_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${cta} ${
+            tone === 'dark'
+              ? 'bg-white text-navy hover:bg-white/90 focus-visible:outline-white'
+              : 'bg-brand text-white shadow-sm hover:opacity-90 focus-visible:outline-brand'
+          }`}
+        >
+          Book a call <span aria-hidden>→</span>
+        </a>
+        <a
+          href={VENDOR_CONTACT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${cta} border ${
+            tone === 'dark'
+              ? 'border-white/40 text-white hover:bg-white/10 focus-visible:outline-white'
+              : 'border-brand/30 bg-surface text-brand hover:border-brand focus-visible:outline-brand'
+          }`}
+        >
+          Talk to us <span aria-hidden>→</span>
+        </a>
+      </div>
+      <p
+        className={`text-sm ${tone === 'dark' ? 'text-white/70' : 'text-ink-soft'}`}
       >
-        Book a call <span aria-hidden>↗</span>
-      </a>
-      <a
-        href={VENDOR_CONTACT_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`${cta} border ${
-          tone === 'dark'
-            ? 'border-white/40 text-white hover:bg-white/10 focus-visible:outline-white'
-            : 'border-line bg-surface text-navy hover:border-brand focus-visible:outline-brand'
-        }`}
-      >
-        Talk to us <span aria-hidden>↗</span>
-      </a>
+        No obligation. Pick a time that suits you, or send us a message and we
+        will come back to you.
+      </p>
     </div>
-  );
-}
-
-const CHANNELS = [
-  {
-    label: 'Email',
-    value: VENDOR_EMAIL,
-    href: `mailto:${VENDOR_EMAIL}`,
-    external: false
-  },
-  {
-    label: 'WhatsApp',
-    value: VENDOR_WHATSAPP.display,
-    href: VENDOR_WHATSAPP.url,
-    external: true
-  },
-  {
-    label: 'LinkedIn',
-    value: 'Follow Waivern',
-    href: VENDOR_LINKEDIN_URL,
-    external: true
-  }
-] as const;
-
-/** The direct ways to reach us, beside the buttons. */
-function Channels({ tone }: { tone: 'light' | 'dark' }) {
-  return (
-    <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-      {CHANNELS.map((c) => (
-        <li key={c.label}>
-          <span className={tone === 'dark' ? 'text-white/60' : 'text-ink-soft'}>
-            {c.label}:{' '}
-          </span>
-          <a
-            href={c.href}
-            {...(c.external
-              ? { target: '_blank', rel: 'noopener noreferrer' }
-              : {})}
-            className={`font-medium underline underline-offset-4 hover:no-underline ${
-              tone === 'dark' ? 'text-white' : 'text-brand'
-            }`}
-          >
-            {c.value}
-          </a>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -190,9 +150,7 @@ export default function Services() {
 
       <main className="mx-auto max-w-6xl space-y-16 px-4 py-10 sm:px-6 lg:py-16">
         <section className="max-w-3xl space-y-6">
-          <p className="inline-block rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand">
-            Services from Waivern
-          </p>
+          <PageTag>Services from Waivern</PageTag>
           <h1 className="text-4xl font-semibold leading-tight tracking-tight text-navy sm:text-5xl">
             The software is free. The expertise is here when you need it.
           </h1>
@@ -204,7 +162,6 @@ export default function Services() {
             working alongside their team.
           </p>
           <ContactButtons tone="light" />
-          <Channels tone="light" />
         </section>
 
         <section
@@ -294,12 +251,10 @@ export default function Services() {
             Want to know more?
           </h2>
           <p className="max-w-2xl text-white/80">
-            Book a call with our team, or message us by email, WhatsApp or
-            LinkedIn. Tell us about your organisation and what you need, and we
-            will tell you honestly whether we can help.
+            Tell us about your organisation and what you need. We will tell you
+            honestly whether we can help, and how.
           </p>
           <ContactButtons tone="dark" />
-          <Channels tone="dark" />
         </section>
       </main>
     </div>
