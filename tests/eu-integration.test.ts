@@ -94,7 +94,7 @@ describe('pushing records under EU law', () => {
       activity({ externalRef: 'eu-leads', name: 'EU leads', laws: 'eu' })
     ]);
     assert.equal(refused.skipped.length, 1);
-    assert.match(refused.skipped[0].reason, /outside the entity/);
+    assert.match(refused.skipped[0].reason, /subject to the .* only/);
   });
 
   it('skips recognised legitimate interests on an EU-only record and accepts it on a dual one', async () => {
@@ -119,6 +119,64 @@ describe('pushing records under EU law', () => {
       out.skipped.map((s) => s.externalRef),
       ['eu-only']
     );
+  });
+
+  it('checks the recorded bases again when a push narrows the laws', async () => {
+    const w = await world('narrow', 'uk_eu');
+    await ingestProcessingActivities(w.portal, [
+      activity({
+        externalRef: 'fraud',
+        name: 'Fraud',
+        lawfulBases: ['recognised_legitimate_interests'],
+        recognisedCondition: 'crime'
+      })
+    ]);
+    const out = await ingestProcessingActivities(w.portal, [
+      activity({ externalRef: 'fraud', name: 'Fraud', laws: 'eu' })
+    ]);
+    assert.equal(out.skipped.length, 1);
+    const row = (await byRef(w.org.id, 'fraud'))!;
+    assert.equal(row.laws, 'uk_eu');
+    assert.deepEqual(row.lawfulBases, ['recognised_legitimate_interests']);
+  });
+
+  it("judges an existing record's laws against its own entity, not the push's default", async () => {
+    const w = await world('owner', 'uk');
+    const [eu] = await db
+      .insert(entities)
+      .values({
+        organisationId: w.org.id,
+        name: 'Europe BV',
+        dataProtectionLaw: 'eu'
+      })
+      .returning();
+    await ingestProcessingActivities(w.portal, [
+      activity({ externalRef: 'leads', name: 'Leads', entity: 'Europe BV' })
+    ]);
+    // No entity named: the connection's default (UK) would refuse EU law.
+    const out = await ingestProcessingActivities(w.portal, [
+      activity({ externalRef: 'leads', name: 'Leads', laws: 'eu' })
+    ]);
+    assert.equal(out.skipped.length, 0);
+    const row = (await byRef(w.org.id, 'leads'))!;
+    assert.equal(row.entityId, eu.id);
+    assert.equal(row.laws, 'eu');
+  });
+
+  it('keeps a Part 3 record under UK law', async () => {
+    const w = await world('part3', 'uk_eu');
+    await ingestProcessingActivities(w.portal, [
+      activity({ externalRef: 'cases', name: 'Cases' })
+    ]);
+    await db
+      .update(processingActivities)
+      .set({ regime: 'dpa_part3' })
+      .where(eq(processingActivities.id, (await byRef(w.org.id, 'cases'))!.id));
+    const out = await ingestProcessingActivities(w.portal, [
+      activity({ externalRef: 'cases', name: 'Cases', laws: 'eu' })
+    ]);
+    assert.equal(out.skipped.length, 1);
+    assert.match(out.skipped[0].reason, /Part 3/);
   });
 
   it('records the EU answers, keeps them when a push leaves them out, and reads them back', async () => {

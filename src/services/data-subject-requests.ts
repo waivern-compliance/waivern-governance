@@ -13,7 +13,10 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { jurisdictionRefusal } from '@/lib/dpa2018/applies';
+import {
+  DATA_PROTECTION_LAW_KEYS,
+  jurisdictionRefusal
+} from '@/lib/dpa2018/applies';
 import {
   cleanExemption,
   cleanHealthOpinion,
@@ -1885,7 +1888,7 @@ export async function requestMetrics(
   const objections = inWindow.flatMap((r) =>
     r.decisions.filter((d) => d.kind === 'objection')
   );
-  const timed = (rows: typeof inWindow) =>
+  const timed = (rows: typeof inWindow, over = periods) =>
     requestTimeliness(
       rows.map((r) => ({
         rights: r.request.rights,
@@ -1896,17 +1899,22 @@ export async function requestMetrics(
         status: r.request.status,
         closedAt: r.request.closedAt
       })),
-      periods
+      over
     );
   return {
     months,
     from,
     to: now,
     ...timed(inWindow),
+    // Totals only: no periods, so no month-by-month table is built to be
+    // thrown away.
     byLaw: Object.fromEntries(
-      (['uk', 'eu', 'uk_eu'] as const).map((law) => [
+      DATA_PROTECTION_LAW_KEYS.map((law) => [
         law,
-        timed(inWindow.filter((r) => r.request.jurisdiction === law)).totals
+        timed(
+          inWindow.filter((r) => r.request.jurisdiction === law),
+          []
+        ).totals
       ])
     ) as Record<Jurisdiction, Timeliness['totals']>,
     objections: {

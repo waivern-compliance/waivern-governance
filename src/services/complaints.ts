@@ -22,7 +22,10 @@ import {
   type ComplaintClock,
   type ComplaintOutcome
 } from '@/lib/complaints/statutory';
-import { jurisdictionRefusal } from '@/lib/dpa2018/applies';
+import {
+  DATA_PROTECTION_LAW_KEYS,
+  jurisdictionRefusal
+} from '@/lib/dpa2018/applies';
 import type { Jurisdiction } from '@/lib/dsr/statutory';
 import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
@@ -1074,7 +1077,7 @@ export async function complaintMetrics(
   const inWindow = register.rows.filter(
     (r) => r.complaint.receivedAt >= from && r.complaint.receivedAt <= now
   );
-  const counted = (rows: typeof inWindow) =>
+  const counted = (rows: typeof inWindow, over = periods) =>
     complaintCounts(
       rows.map((r) => ({
         subject: r.complaint.subject,
@@ -1086,17 +1089,22 @@ export async function complaintMetrics(
         outcomeState: r.clock.outcome.state,
         status: r.complaint.status
       })),
-      periods
+      over
     );
   return {
     months,
     from,
     to: now,
     ...counted(inWindow),
+    // Totals only: no periods, so no month-by-month table is built to be
+    // thrown away.
     byLaw: Object.fromEntries(
-      (['uk', 'eu', 'uk_eu'] as const).map((law) => [
+      DATA_PROTECTION_LAW_KEYS.map((law) => [
         law,
-        counted(inWindow.filter((r) => r.complaint.jurisdiction === law)).totals
+        counted(
+          inWindow.filter((r) => r.complaint.jurisdiction === law),
+          []
+        ).totals
       ])
     ) as Record<Jurisdiction, ComplaintCounts['totals']>
   };

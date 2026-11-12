@@ -136,7 +136,11 @@ three fields, with `lawfulBasis` as the note.
 `uk`, `eu` or `uk_eu`. Left out, a new record takes its entity's law and an existing
 one keeps what is recorded here. A value outside the entity's laws (`eu` for an entity
 under UK law only) is **skipped with the reason**, not narrowed, for the same reason an
-unknown entity is. Every rule is checked under each law the record is under.
+unknown entity is. An existing record is judged against the entity it belongs to,
+whatever `entity` the push names (a push does not move a record). A record a person
+has put under Part 3 of the Data Protection Act 2018 stays under UK law: `eu` for it is
+skipped with the reason. A push that changes the laws checks the bases already recorded
+again, even when it sends none. Every rule is checked under each law the record is under.
 
 Recognised legitimate interests exists in UK law only. For a record under EU law only,
 `lawfulBases` including it is **skipped with the reason**, as an unknown entity is;

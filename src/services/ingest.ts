@@ -29,12 +29,7 @@ import {
   FurtherProcessingRefused
 } from '@/lib/gdpr/further-processing';
 import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
-import {
-  appliesUk,
-  effectiveLaws,
-  lawsLabel,
-  withinEntity
-} from '@/lib/gdpr/regimes';
+import { appliesUk, effectiveLaws } from '@/lib/gdpr/regimes';
 import {
   cleanMechanisms,
   TransferMechanismRefused
@@ -56,7 +51,12 @@ import {
 } from '@/lib/integration/duaa';
 
 import { createUseCase } from './ai-register';
-import { cleanLawfulBases, LawfulBasisRefused } from './ropa';
+import {
+  cleanLawfulBases,
+  cleanRecordLaws,
+  LawfulBasisRefused,
+  RecordLawsRefused
+} from './ropa';
 import type { Actor } from './templates';
 import { canonicalise as canonicaliseByHand } from './third-party';
 
@@ -68,6 +68,7 @@ function refusedBy(error: unknown): string | null {
     error instanceof AutomatedDecisionRefused ||
     error instanceof FurtherProcessingRefused ||
     error instanceof LawfulBasisRefused ||
+    error instanceof RecordLawsRefused ||
     error instanceof ChildrenStatesRefused ||
     error instanceof TransferMechanismRefused ||
     error instanceof RecordRefused
@@ -299,27 +300,32 @@ export async function ingestProcessingActivities(
             );
             recorded.push('childrenMemberStates');
           }
-          // The record's laws: as sent, else as recorded, else the entity's.
-          // One outside the entity's is skipped, not narrowed, as an unknown
-          // entity is.
-          if (r.laws && !withinEntity(entity.law, r.laws)) {
-            throw new RecordRefused(
-              `${r.laws === 'uk_eu' ? 'Both laws are' : `${r.laws === 'uk' ? 'UK' : 'EU'} law is`} outside the entity's: it is subject to the ${lawsLabel(entity.law)} only.`
-            );
-          }
-          const laws = r.laws ?? existing?.laws ?? entity.law;
+          // The record's laws, judged against the entity it belongs to: its
+          // own once it exists (a push does not move a record), else the one
+          // the push names. As sent, else as recorded, else the entity's; one
+          // outside the entity's, or Part 3 off UK law, skips the record.
+          const [owner] = await tx
+            .select({ name: entities.name, law: entities.dataProtectionLaw })
+            .from(entities)
+            .where(eq(entities.id, existing?.entityId ?? entity.entityId));
+          const laws = r.laws
+            ? cleanRecordLaws(owner, r.laws, existing?.regime ?? 'gdpr')
+            : (existing?.laws ?? owner.law);
           if (r.laws) recorded.push('laws');
 
           // Structured bases win; otherwise read them from the text where it is
           // unambiguous. Where neither says anything, a basis somebody chose in
-          // Govern is left alone rather than wiped by a push that had no view.
-          // Judged under the record's own laws where it exists; a new record
-          // takes its entity's.
-          const ukLaw = appliesUk(effectiveLaws(entity.law, laws));
+          // Govern is left alone rather than wiped by a push that had no view,
+          // unless the push changed the record's laws: then the bases recorded
+          // are checked again, so recognised legitimate interests cannot
+          // outlive the UK law that has it.
+          const ukLaw = appliesUk(effectiveLaws(owner.law, laws));
           const bases =
             r.lawfulBases ??
             basesFromTextFor(r.lawfulBasis, ukLaw) ??
-            undefined;
+            (existing && laws !== existing.laws
+              ? existing.lawfulBases
+              : undefined);
           const condition =
             r.recognisedCondition ??
             (bases?.includes('recognised_legitimate_interests')
