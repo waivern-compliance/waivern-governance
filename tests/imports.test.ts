@@ -13,6 +13,7 @@ import {
   entities,
   evidence,
   extractions,
+  importFiles,
   organisations,
   processingActivities,
   recordLinks,
@@ -1140,5 +1141,137 @@ describe('importing again', () => {
     assert.deepEqual(await agreementsToRead(org.id, batch.id), [dpa.id]);
     await db.insert(extractions).values(run);
     assert.deepEqual(await agreementsToRead(org.id, batch.id), []);
+  });
+});
+
+describe('keeping what is recorded', () => {
+  const commit = (organisationId: string, batchId: string) =>
+    commitImport({ organisationId, batchId, actor: SYSTEM });
+
+  it('keeps dates a re-import leaves out, and clears its files once made', async () => {
+    const { org } = await anOrg('keep-dpa');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const first = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,Signed,Expires\nD-1,Acme Hosting,Acme DPA,01/02/2025,31/12/2027\n'
+    );
+    await commit(org.id, first.batch.id);
+    const again = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,File\nD-1,Acme Hosting,Acme DPA,acme.pdf\n',
+      [{ filename: 'acme.pdf', bytes: PDF('acme') }]
+    );
+    assert.deepEqual(again.preview, { update: 1 });
+    await commit(org.id, again.batch.id);
+    const [dpa] = await db
+      .select()
+      .from(dpas)
+      .where(eq(dpas.organisationId, org.id));
+    assert.equal(dpa.expiresAt?.toISOString().slice(0, 10), '2027-12-31');
+    assert.equal(dpa.signedAt?.toISOString().slice(0, 10), '2025-02-01');
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(importFiles)
+          .where(eq(importFiles.batchId, again.batch.id))
+      ).length,
+      0
+    );
+  });
+
+  it('refuses a row that describes ticked transfer mechanisms differently', async () => {
+    const { org } = await anOrg('keep-mechanisms');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const first = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,Transfer mechanism\nD-1,Acme Hosting,Acme DPA,SCCs\n'
+    );
+    await commit(org.id, first.batch.id);
+    await db
+      .update(dpas)
+      .set({ transferMechanisms: [{ mechanism: 'eu_scc', module: 2 }] })
+      .where(eq(dpas.organisationId, org.id));
+    const again = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,Transfer mechanism\nD-1,Acme Hosting,Acme DPA,IDTA\n'
+    );
+    assert.deepEqual(again.preview, { refuse: 1 });
+    assert.match(
+      (await loadImport(again.batch.id, org.id))!.rows[0].reason ?? '',
+      /chosen on Acme Hosting's page/
+    );
+  });
+
+  it("keeps an AI system's vendor recorded here", async () => {
+    const { org } = await anOrg('keep-vendor');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme AI',
+      categories: [],
+      actor: SYSTEM
+    });
+    const rows =
+      'ID,Name,Purpose,Type,Provenance,Supplier\nAI-1,Chatbot,Answer customers,LLM,Third party API,Acme AI\n';
+    await commit(org.id, (await staged(org.id, 'ai_use_case', rows)).batch.id);
+    await db
+      .update(aiUseCases)
+      .set({ vendor: 'OpenAI' })
+      .where(eq(aiUseCases.organisationId, org.id));
+    await commit(org.id, (await staged(org.id, 'ai_use_case', rows)).batch.id);
+    const [system] = await db
+      .select()
+      .from(aiUseCases)
+      .where(eq(aiUseCases.organisationId, org.id));
+    assert.equal(system.vendor, 'OpenAI');
+  });
+
+  it('does not name what evidence supports in an entity the reader cannot see', async () => {
+    const { org, entity } = await anOrg('evidence-scope');
+    const [other] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Other Ltd' })
+      .returning();
+    const [hidden] = await db
+      .insert(processingActivities)
+      .values({
+        organisationId: org.id,
+        entityId: other.id,
+        reference: 'ROPA-2026-9001',
+        name: 'Hidden'
+      })
+      .returning();
+    const made = await staged(org.id, 'evidence', 'Title\nPen test\n');
+    await commit(org.id, made.batch.id);
+    const [item] = await db
+      .select()
+      .from(evidence)
+      .where(eq(evidence.organisationId, org.id));
+    await db.insert(recordLinks).values({
+      organisationId: org.id,
+      fromType: 'evidence',
+      fromId: item.id,
+      toType: 'processing_activity',
+      toId: hidden.id,
+      relation: 'supports'
+    });
+    const [mine] = await evidenceRegister(org.id, [entity.id]);
+    assert.deepEqual(mine.supports, []);
+    const [all] = await evidenceRegister(org.id, null);
+    assert.equal(all.supports[0]?.reference, 'ROPA-2026-9001');
   });
 });

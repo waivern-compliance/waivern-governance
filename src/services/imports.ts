@@ -696,7 +696,9 @@ async function matcher(
               ref: dpas.externalRef,
               supplierId: dpas.supplierId,
               supplierName: suppliers.name,
-              archivedAt: dpas.archivedAt
+              archivedAt: dpas.archivedAt,
+              transferMechanism: dpas.transferMechanism,
+              transferMechanisms: dpas.transferMechanisms
             })
             .from(dpas)
             .innerJoin(suppliers, eq(suppliers.id, dpas.supplierId))
@@ -734,6 +736,18 @@ async function matcher(
           return {
             action: 'refuse',
             reason: `Imported before and since archived on ${found.supplierName}'s page. Give it a new identifier to record it again.`
+          };
+        // The mechanisms ticked here are a person's decision, and the text is
+        // their note; an import saying something else is for that person.
+        if (
+          data.transferMechanism &&
+          found.transferMechanisms.length > 0 &&
+          data.transferMechanism.trim() !==
+            (found.transferMechanism ?? '').trim()
+        )
+          return {
+            action: 'refuse',
+            reason: `Its transfer mechanisms were chosen on ${found.supplierName}'s page, and this row describes them differently. Change them there, or leave the column empty.`
           };
         return { action: 'update', recordId: found.id, supplierId };
       };
@@ -966,6 +980,18 @@ const aiSystemValues = (data: Of<'ai_use_case'>['data']) => ({
   processesPersonalData: data.processesPersonalData ?? null,
   dataCategories: data.dataCategories
 });
+
+/**
+ * The fields a row actually says, for updating a record: a column the file
+ * left out, or a cell left empty, keeps what is recorded rather than erasing
+ * it. A re-import of a short list to add files must not wipe expiry dates.
+ */
+const said = <T extends Record<string, unknown>>(values: T): Partial<T> =>
+  Object.fromEntries(
+    Object.entries(values).filter(
+      ([, v]) => v != null && !(Array.isArray(v) && v.length === 0)
+    )
+  ) as Partial<T>;
 
 /** The fields of a row as JSON, to put back on undo. */
 const snapshot = (row: Record<string, unknown>, keys: string[]) =>
@@ -1334,7 +1360,10 @@ async function writeDpa(c: WriteContext, record: Of<'dpa'>): Promise<Written> {
   let was: Record<string, unknown> | null = null;
   if (c.decision.recordId) {
     was = await rowBefore(c, 'dpa', c.decision.recordId);
-    await c.tx.update(dpas).set(values).where(eq(dpas.id, c.decision.recordId));
+    await c.tx
+      .update(dpas)
+      .set({ ...said(dpaValues(record.data)), ...provenance(c, record) })
+      .where(eq(dpas.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
     const [created] = await c.tx
@@ -1384,7 +1413,7 @@ async function writeEvidence(
     was = await rowBefore(c, 'evidence', c.decision.recordId);
     await c.tx
       .update(evidence)
-      .set(values)
+      .set({ ...said(evidenceValues(record.data)), ...provenance(c, record) })
       .where(eq(evidence.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
@@ -1489,9 +1518,10 @@ async function writeUseCase(
     await c.tx
       .update(aiUseCases)
       .set({
-        ...described,
-        vendor,
-        // A link somebody made here is kept; the import only fills an empty one.
+        ...said(described),
+        // A vendor or link somebody recorded here is kept; the import only
+        // fills an empty one.
+        vendor: (was.vendor as string | null) ?? vendor,
         supplierId:
           (was.supplierId as string | null) ?? c.decision.supplierId ?? null,
         ...provenance(c, record)
@@ -1641,6 +1671,11 @@ export async function commitImport(input: {
           })
           .where(eq(importRows.id, row.id));
       }
+
+      // Each file now lives on the record it was attached to. The copy kept
+      // for the import goes, so nothing is stored twice or left behind once a
+      // record's file is removed; undo removes the attached copies.
+      await tx.delete(importFiles).where(eq(importFiles.batchId, batch.id));
 
       const counts = tally(actions);
       await tx

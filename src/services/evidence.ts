@@ -107,7 +107,16 @@ export async function evidenceRegister(
           ? db
               .select({ id: table.id, reference: table.reference })
               .from(table)
-              .where(inArray(table.id, wanted))
+              .where(
+                and(
+                  inArray(table.id, wanted),
+                  // Only records the reader may see: a link to another
+                  // entity's record is not shown, nor its reference.
+                  entityIds
+                    ? inArray(table.entityId, [...entityIds])
+                    : undefined
+                )
+              )
           : Promise.resolve([] as Array<{ id: string; reference: string }>)
       )
     );
@@ -119,7 +128,7 @@ export async function evidenceRegister(
       ...row,
       files: files.filter((f) => f.subjectId === row.id),
       supports: links
-        .filter((l) => l.fromId === row.id)
+        .filter((l) => l.fromId === row.id && reference.has(l.toId))
         .map((l) => ({
           type: l.toType,
           id: l.toId,
