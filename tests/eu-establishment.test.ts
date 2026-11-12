@@ -314,10 +314,11 @@ describe('recording an establishment', () => {
       actor: SYSTEM
     });
     const form = (await openIntakeLink(link.slug))!;
-    assert.match(form.euRegulator, /CNIL/);
     // The complaint confirmation names the entity's regulator, not the UK's.
     assert.match(form.regulator, /CNIL/);
     assert.doesNotMatch(form.regulator, /Information Commission/);
+    // Addressed to the person reading it.
+    assert.match(form.regulator, /where you live/);
   });
 });
 

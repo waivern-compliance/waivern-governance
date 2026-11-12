@@ -82,7 +82,7 @@ describe('the Data Protection Act 2018 in the library', () => {
 describe("the regulator's name", () => {
   it('is the Information Commission wherever its statutory role is described', () => {
     const templates = JSON.stringify(
-      SYSTEM_TEMPLATES.filter((t) => t.jurisdiction === 'UK').map(
+      SYSTEM_TEMPLATES.filter((t) => t.jurisdiction?.startsWith('UK')).map(
         (t) => t.definition
       )
     );

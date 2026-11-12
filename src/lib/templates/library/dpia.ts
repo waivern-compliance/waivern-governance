@@ -458,7 +458,8 @@ export const DPIA: TemplateDefinition = {
           },
           {
             key: 'tra_reference',
-            label: 'Reference of the transfer risk assessment',
+            label:
+              'Reference of the transfer assessment: the UK transfer risk assessment, the EU transfer impact assessment, or both',
             type: 'short_text',
             required: false,
             showWhen: {

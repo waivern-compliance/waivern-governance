@@ -540,6 +540,15 @@ export async function updateShippedTemplates(input: {
       if (t.blockedByDraft) continue;
       if (input.kinds && !input.kinds.includes(t.kind)) continue;
       const shipped = SYSTEM_TEMPLATES.find((s) => s.name === t.name)!;
+      // What the template says it is for moves with its questions: a template
+      // that now serves both laws should not stay labelled as the UK's.
+      await db
+        .update(templates)
+        .set({
+          description: shipped.description,
+          jurisdiction: shipped.jurisdiction ?? null
+        })
+        .where(eq(templates.id, t.templateId));
       const draft = await createDraftFrom({
         organisationId: input.organisationId,
         templateId: t.templateId,

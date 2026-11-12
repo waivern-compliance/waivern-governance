@@ -10,6 +10,7 @@ import {
   templateVersions
 } from '@/db/schema';
 import { unmetConditions } from '@/lib/ai/lifecycle';
+import { SYSTEM_TEMPLATES } from '@/lib/templates/library';
 import { DPIA } from '@/lib/templates/library/dpia';
 import { EIA } from '@/lib/templates/library/eia';
 import { evaluate, questionsOf } from '@/lib/templates/logic';
@@ -245,10 +246,24 @@ describe('shipped templates, kept current', () => {
       actor: SYSTEM
     });
 
+    // A label installed with an older release.
+    await db
+      .update(templates)
+      .set({ jurisdiction: 'Old', description: 'Old words' })
+      .where(eq(templates.id, dpia.version.templateId));
     assert.deepEqual(
       await updateShippedTemplates({ organisationId: w.org.id, actor: SYSTEM }),
       ['Data protection impact assessment']
     );
+    const [row] = await db
+      .select()
+      .from(templates)
+      .where(eq(templates.id, dpia.version.templateId));
+    const shipped = SYSTEM_TEMPLATES.find(
+      (t) => t.name === 'Data protection impact assessment'
+    )!;
+    assert.equal(row.jurisdiction, shipped.jurisdiction);
+    assert.equal(row.description, shipped.description);
     assert.deepEqual(await shippedTemplatesOutdated(w.org.id), []);
     assert.deepEqual(
       await updateShippedTemplates({ organisationId: w.org.id, actor: SYSTEM }),
