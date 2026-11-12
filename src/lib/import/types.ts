@@ -1,4 +1,5 @@
 import type {
+  AiUseCaseIn,
   ProcessingActivityIn,
   VendorIn
 } from '@/lib/integration/contracts';
@@ -11,15 +12,51 @@ export type ImportMapping = {
   keepUnmapped: boolean;
 };
 
+type Legacy = Record<string, string>;
+
 /** One row, converted and checked, ready to write. */
 export type ImportRecord =
   | {
       kind: 'processing_activity';
       data: Omit<ProcessingActivityIn, 'entity'>;
-      legacy: Record<string, string>;
+      legacy: Legacy;
     }
   | {
       kind: 'supplier';
       data: VendorIn & { externalRef: string };
-      legacy: Record<string, string>;
+      legacy: Legacy;
+    }
+  | {
+      kind: 'dpa';
+      data: {
+        externalRef: string;
+        supplier: string;
+        title: string;
+        documentRef?: string;
+        signedAt?: string;
+        expiresAt?: string;
+        transferMechanism?: string;
+        subProcessors: string[];
+        file?: string;
+      };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'evidence';
+      data: {
+        externalRef: string;
+        kind: 'document' | 'scan' | 'attestation' | 'link';
+        title: string;
+        description?: string;
+        uri?: string;
+        collectedAt?: string;
+        attachTo?: string;
+        file?: string;
+      };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'ai_use_case';
+      data: Omit<AiUseCaseIn, 'entity' | 'automatedDecisions'>;
+      legacy: Legacy;
     };

@@ -96,6 +96,12 @@ export const NAV: NavItem[] = [
     capability: 'record.read'
   },
   {
+    href: '/app/evidence',
+    label: 'Evidence',
+    hint: 'what supports your records, and what nobody has confirmed',
+    capability: 'record.read'
+  },
+  {
     href: '/app/breaches',
     label: 'Breaches',
     hint: 'the Article 33(5) register, and the seventy-two hours',

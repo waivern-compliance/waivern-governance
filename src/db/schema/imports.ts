@@ -25,7 +25,10 @@ import { entities, organisations, users } from './tenancy';
 
 export const importRecordType = pgEnum('import_record_type', [
   'supplier',
-  'processing_activity'
+  'processing_activity',
+  'dpa',
+  'evidence',
+  'ai_use_case'
 ]);
 
 export const importBatchStatus = pgEnum('import_batch_status', [
@@ -135,7 +138,11 @@ export const importRows = pgTable(
     /** The record it created or changed. */
     recordId: uuid('record_id'),
     /** The fields it changed, as they were, so an undo can put them back. */
-    before: jsonb('before').$type<Record<string, unknown>>()
+    before: jsonb('before').$type<Record<string, unknown>>(),
+    /** The file the import attached to the record, removed again on undo. */
+    documentId: uuid('document_id'),
+    /** The link to the record it supports, made by the import (evidence). */
+    linkId: uuid('link_id')
   },
   (t) => [index('import_row_batch_idx').on(t.batchId, t.rowNumber)]
 );
@@ -163,5 +170,37 @@ export const importMappings = pgTable(
       t.sourceId,
       t.recordType
     )
+  ]
+);
+
+/**
+ * A file added to a batch, for its rows to name: a signed agreement, a piece
+ * of evidence. Checked as any attachment is when added; copied onto the record
+ * it belongs to when the batch is imported.
+ */
+export const importFiles = pgTable(
+  'import_file',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    batchId: uuid('batch_id')
+      .notNull()
+      .references(() => importBatches.id, { onDelete: 'cascade' }),
+    filename: text('filename').notNull(),
+    contentType: text('content_type').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    sha256: text('sha256').notNull(),
+    content: bytea('content').notNull(),
+    scannedAt: timestamp('scanned_at', { withTimezone: true }),
+    scannerVersion: text('scanner_version'),
+    addedByLabel: text('added_by_label').notNull(),
+    addedAt: timestamp('added_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [
+    uniqueIndex('import_file_name_key').on(t.batchId, sql`lower(${t.filename})`)
   ]
 );

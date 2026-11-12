@@ -483,6 +483,20 @@ export const dpas = pgTable(
     ),
     externalRef: text('external_ref'),
     /**
+     * Brought in from another platform (docs/migration-plan.md): the source,
+     * the batch, and the source's fields with no home here, kept to read.
+     */
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
+    /**
      * When this agreement stopped being part of the live register.
      *
      * Distinct from expiry, which is what the contract says. An agreement can
@@ -507,6 +521,11 @@ export const dpas = pgTable(
   },
   (t) => [
     index('dpa_supplier_idx').on(t.supplierId),
+    uniqueIndex('dpa_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     index('dpa_expiry_idx').on(t.organisationId, t.expiresAt)
   ]
 );
@@ -538,11 +557,33 @@ export const evidence = pgTable(
       { onDelete: 'set null' }
     ),
     externalRef: text('external_ref'),
+    /**
+     * Brought in from another platform (docs/migration-plan.md): the source,
+     * the batch, and the source's fields with no home here, kept to read.
+     */
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
   },
   (t) => [
+    uniqueIndex('evidence_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     uniqueIndex('evidence_external')
       .on(t.organisationId, t.sourceConnectionId, t.externalRef)
       .where(sql`${t.externalRef} is not null`),

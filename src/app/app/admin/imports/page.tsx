@@ -62,10 +62,10 @@ export default async function ImportsPage() {
         <p className="max-w-prose text-sm text-ink-soft">
           Bring your records in from another platform, such as OneTrust or
           Vanta, or from a spreadsheet. Upload its export, match its columns to
-          Govern&rsquo;s fields, and see what every row would become before
-          anything is written. Importing the same file again updates what it
-          brought in; it never duplicates. An import can be undone until anybody
-          works on its records.
+          Govern&rsquo;s fields, add the files its rows name, and see what every
+          row would become before anything is written. Importing the same file
+          again updates what it brought in; it never duplicates. An import can
+          be undone until anybody works on its records.
         </p>
       </header>
 
@@ -130,7 +130,7 @@ export default async function ImportsPage() {
               <span className="font-medium">
                 Legal entity{' '}
                 <span className="font-normal text-ink-soft">
-                  (for processing activities)
+                  (for processing activities, evidence and AI systems)
                 </span>
               </span>
               <select

@@ -3,20 +3,25 @@ import { notFound, redirect } from 'next/navigation';
 
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { inputClass } from '@/components/form-classes';
-import { FIELDS } from '@/lib/import/fields';
+import { CARRIES_FILES, FIELDS } from '@/lib/import/fields';
 import { mayImport } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
-import { loadImport } from '@/services/imports';
+import { extractionAvailable } from '@/services/extraction';
+import { agreementsToRead, loadImport } from '@/services/imports';
 
 import {
+  addImportFilesAction,
   commitImportAction,
   previewImportAction,
+  readImportedAgreementsAction,
+  removeImportFileAction,
   undoImportAction
 } from '../actions';
 import {
   ACTION_LABEL,
   countsWords,
   RECORD_TYPE_LABEL,
+  recordHref,
   STATUS_LABEL
 } from '../words';
 
@@ -42,16 +47,22 @@ export default async function ImportBatchPage({
   const { id } = await params;
   const loaded = await loadImport(id, active.membership.organisationId);
   if (!loaded) notFound();
-  const { batch, rows, mapping } = loaded;
+  const { batch, rows, mapping, files } = loaded;
+  const org = active.membership.organisationId;
+  const carriesFiles = CARRIES_FILES.has(batch.recordType);
+  const [unread, mayRead] =
+    batch.recordType === 'dpa' && batch.status === 'committed'
+      ? await Promise.all([
+          agreementsToRead(org, batch.id),
+          extractionAvailable(org)
+        ])
+      : [[], false];
+
   const defs = FIELDS[batch.recordType];
   const open = batch.status === 'uploaded' || batch.status === 'previewed';
   const written = rows.filter((r) =>
     ['create', 'update', 'merge'].includes(r.action)
   ).length;
-  const recordHref = (recordId: string) =>
-    batch.recordType === 'supplier'
-      ? `/app/third-parties/${recordId}`
-      : `/app/ropa/${recordId}`;
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
@@ -81,6 +92,75 @@ export default async function ImportBatchPage({
           .
         </p>
       </header>
+
+      {carriesFiles && (open || files.length > 0) ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">The files</h2>
+          <p className="max-w-prose text-sm text-ink-soft">
+            Add the signed agreements or evidence the rows name, in as many
+            rounds as you need. Match the file column below to the column
+            holding each row&rsquo;s file name. Each file is checked as any
+            attachment is when added; importing attaches it to its record.
+            {batch.recordType === 'dpa'
+              ? ' If all you have are the agreements themselves, a list of two columns, the supplier and the file, is enough: Govern can read their terms afterwards.'
+              : ''}
+          </p>
+          {files.length > 0 ? (
+            <ul className="divide-y divide-line rounded border border-line bg-surface text-sm">
+              {files.map((f) => (
+                <li
+                  key={f.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5"
+                >
+                  <span className="font-mono text-xs">{f.filename}</span>
+                  <span className="flex items-center gap-3 text-xs text-ink-soft">
+                    {Math.max(1, Math.round(f.byteSize / 1024))} KB
+                    {open ? (
+                      <RefusableForm
+                        action={removeImportFileAction.bind(
+                          null,
+                          batch.id,
+                          f.id
+                        )}
+                        submit="Remove"
+                        pendingLabel="Removing…"
+                        className="inline"
+                      >
+                        <span className="sr-only">Remove {f.filename}</span>
+                      </RefusableForm>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-soft">No files added yet.</p>
+          )}
+          {open ? (
+            <RefusableForm
+              action={addImportFilesAction.bind(null, batch.id)}
+              submit="Add these files"
+              pendingLabel="Checking the files…"
+            >
+              <label className="block space-y-1 text-sm">
+                <span className="font-medium">Files</span>
+                <span className="block text-xs text-ink-soft">
+                  PDF, Word (.docx), Excel (.xlsx), text or images, up to 10 MB
+                  each and about 12 MB a round.
+                </span>
+                <input
+                  type="file"
+                  name="files"
+                  multiple
+                  required
+                  accept=".pdf,.docx,.xlsx,.txt,.csv,.png,.jpg,.jpeg"
+                  className="block text-sm"
+                />
+              </label>
+            </RefusableForm>
+          ) : null}
+        </section>
+      ) : null}
 
       {open ? (
         <section className="space-y-3">
@@ -176,8 +256,11 @@ export default async function ImportBatchPage({
                 {written === 1 ? '' : 's'} below as one step: all of them, or
                 none. Rows marked not imported are left out; fix them in the
                 file and import it again later. Imported records show where they
-                came from, and each processing activity shows as not yet
-                confirmed until a person checks it.
+                came from, and each shows as not yet confirmed until a person
+                checks it.
+                {batch.recordType === 'ai_use_case'
+                  ? ' AI systems it registers stay on the register with their history: undoing cannot take them back out, so check the preview first.'
+                  : ''}
               </p>
               <RefusableForm
                 action={commitImportAction.bind(null, batch.id)}
@@ -193,10 +276,10 @@ export default async function ImportBatchPage({
           {batch.status === 'committed' ? (
             <div className="space-y-2 rounded border border-line bg-surface p-4">
               <p className="max-w-prose text-sm text-ink-soft">
-                Undoing removes the records this import created and puts back
-                what it changed. It is possible only while nobody has worked on
-                any of them since, and none is linked to an assessment, an
-                agreement or another record.
+                Undoing removes the records this import created, with the files
+                and links it made, and puts back what it changed. It is possible
+                only while nobody has worked on any of them since, and none is
+                linked to an assessment, an agreement or another record.
               </p>
               <RefusableForm
                 action={undoImportAction.bind(null, batch.id)}
@@ -206,6 +289,38 @@ export default async function ImportBatchPage({
               >
                 <span className="sr-only">Undo this import</span>
               </RefusableForm>
+            </div>
+          ) : null}
+
+          {batch.status === 'committed' && unread.length > 0 ? (
+            <div className="space-y-2 rounded border border-line bg-surface p-4">
+              <h3 className="text-sm font-semibold">
+                Read the agreements ({unread.length} not yet read)
+              </h3>
+              {mayRead ? (
+                <>
+                  <p className="max-w-prose text-sm text-ink-soft">
+                    Your organisation&rsquo;s model reads each file for its
+                    Article 28 terms, a few at a time, and proposes them for
+                    review on the supplier&rsquo;s page. Nothing it reads is
+                    written to an agreement until a person accepts it.
+                  </p>
+                  <RefusableForm
+                    action={readImportedAgreementsAction.bind(null, batch.id)}
+                    submit={`Read the next ${Math.min(3, unread.length)}`}
+                    pendingLabel="Reading…"
+                    className="space-y-2"
+                  >
+                    <span className="sr-only">Read the agreements</span>
+                  </RefusableForm>
+                </>
+              ) : (
+                <p className="max-w-prose text-sm text-ink-soft">
+                  Reading agreements needs a model set up for it, under Admin
+                  then Assistant. Until then, record their terms on each
+                  supplier&rsquo;s page.
+                </p>
+              )}
             </div>
           ) : null}
 
@@ -234,7 +349,11 @@ export default async function ImportBatchPage({
                         <>
                           {' '}
                           <Link
-                            href={recordHref(r.recordId)}
+                            href={recordHref(
+                              batch.recordType,
+                              r.recordId,
+                              r.supplierId
+                            )}
                             className="text-brand underline"
                           >
                             Open

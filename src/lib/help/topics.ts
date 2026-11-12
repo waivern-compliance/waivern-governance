@@ -1983,7 +1983,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring processing activities and suppliers in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
+      'Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2000,15 +2000,30 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'How an import works',
         body: [
-          "Under Settings, an owner or privacy administrator uploads an export: a CSV file or an Excel workbook, with column names in the first row, up to 5,000 rows. Say what it holds (processing activities, or suppliers and vendors) and which platform it comes from. Then match each of Govern's fields to the column that holds it; columns are matched by their names to start with, so check them.",
+          "Under Settings, an owner or privacy administrator uploads an export: a CSV file or an Excel workbook, with column names in the first row, up to 5,000 rows. Say what it holds (processing activities, suppliers and vendors, processor agreements, evidence, or AI systems) and which platform it comes from. Then match each of Govern's fields to the column that holds it; columns are matched by their names to start with, so check them.",
           'Preview shows what every row would become: new, an update to a record imported before, added to a supplier already recorded, or not imported, with the reason. Nothing is written until you import, and then every previewed record is written in one step, or none is.',
           'Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.'
         ]
       },
       {
+        heading: 'Agreements and evidence, with their files',
+        body: [
+          "A list of processor agreements or of evidence can name a file for each row. Add the files on the import's page, in as many rounds as you need; each is checked as any attachment is, for its type, its contents and viruses, when added. Match the file column to the column holding each row's file name, and importing attaches each file to its record.",
+          'An agreement is with a supplier already recorded, matched by name: import the supplier list first. A row naming a supplier Govern does not know is not imported, with the reason, rather than inventing one.',
+          "If all you have are the signed agreements themselves, a list of two columns, the supplier and the file, is enough. Once imported, Govern can read the agreements for their Article 28 terms, a few at a time, where a model is set up for reading agreements. What it reads is proposed for review on each supplier's page, as for any agreement, and nothing is written until a person accepts it.",
+          "A piece of evidence can say which record it supports, by that record's reference, such as ROPA-2026-0004 or DPIA-2026-0001, among the records of the entity it is imported into. Importing it again with another file or another record replaces what the earlier import attached; files and links added here by a person are kept."
+        ]
+      },
+      {
+        heading: 'AI systems',
+        body: [
+          'Each AI system needs a name, a purpose, its type (predictive, generative, agentic or hybrid) and where it comes from (built in house, fine-tuned, a third-party API, or inside a product bought for something else). Common words for these, such as "LLM" or "in house", are understood; anything else stops that row. A stage, such as live or pilot, is used when a system is first recorded; importing again never moves its stage, which is a decision with its own checks here. A system an import registers stays on the register for good, as every registered system does, so an import that registered AI systems cannot be undone: retire one registered in error from its page.'
+        ]
+      },
+      {
         heading: 'Importing again',
         body: [
-          "Give a column with each record's ID in the other platform. Importing the same platform's file again then updates the records it brought in before; it never duplicates them. Without an ID column, the name is used instead. A supplier whose name is already recorded is added to, not duplicated: what the file says about it joins what is known.",
+          "Give a column with each record's ID in the other platform. Importing the same platform's file again then updates the records it brought in before; it never duplicates them. Without an ID column, the name is used instead: for an agreement, its supplier and title; for evidence, its title, date and file, so a new year's report of the same name is a new record. IDs are compared without regard to capitals. An agreement imported before against another supplier, or archived since, is not changed by importing it again; the row says why. A supplier whose name is already recorded is added to, not duplicated: what the file says about it joins what is known.",
           'The matching of columns is remembered for each platform and kind of record, and offered again next time.'
         ]
       },
@@ -2016,17 +2031,41 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity shows the gap "not yet confirmed" on the register until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence or AI system shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {
         heading: 'Undoing an import',
         body: [
-          'An import can be undone as a whole while nobody has worked on its records since: undoing removes the records it created and puts back what it changed. Once any of them has been edited or confirmed, or is linked to an assessment, an agreement or another record, it can no longer be undone as a whole; change or remove them one by one.'
+          'An import can be undone as a whole while nobody has worked on its records since: undoing removes the records it created, with the files and links it made, and puts back what it changed. Once any of them has been edited or confirmed, or is linked to an assessment, an agreement or another record, it can no longer be undone as a whole; change or remove them one by one.'
         ]
       }
     ],
-    related: ['third-parties', 'ropa', 'exports']
+    related: ['third-parties', 'ropa', 'evidence', 'exports']
+  },
+  {
+    id: 'evidence',
+    title: 'Evidence',
+    summary:
+      'What supports your records: documents, scans, attestations and links, sent by connected tools or imported, with the records they support.',
+    path: '/app/evidence',
+    keywords: [
+      'evidence',
+      'proof',
+      'attestation',
+      'scan',
+      'supporting documents'
+    ],
+    sections: [
+      {
+        heading: 'What is here',
+        body: [
+          'Each piece of evidence says what it is, when it was gathered, where it came from, and the records it supports, such as a processing activity, an assessment or a risk. A file kept with it can be downloaded here, and its fingerprint is checked when it is.',
+          'Evidence arrives from connected tools through the Integration API, or is imported from another platform under Settings. Imported evidence shows as not yet confirmed until a person who may change its records checks it and confirms it.'
+        ]
+      }
+    ],
+    related: ['imports', 'integrations', 'findings']
   },
   {
     id: 'exports',
@@ -2839,7 +2878,8 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'transparency-records',
       'transfers',
       'authorities',
-      'findings'
+      'findings',
+      'evidence'
     ]
   },
   {

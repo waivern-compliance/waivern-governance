@@ -238,6 +238,13 @@ export const TABLES: readonly TableRule[] = [
   }),
   own('import_row'),
   own('import_mapping'),
+  own('import_file', {
+    file: {
+      column: 'content',
+      path: (row) =>
+        `files/import_file/${String(row.id)}/${safeFileName(row.filename, 'file')}`
+    }
+  }),
   own('extraction'),
   own('extraction_finding'),
   own('extraction_link'),

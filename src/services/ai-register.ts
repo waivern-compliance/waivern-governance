@@ -159,6 +159,7 @@ export type Gap =
   | 'supplier_not_assessed'
   | 'supplier_advised_against'
   | 'owner_not_trained'
+  | 'import_unconfirmed'
   | AdmGap;
 
 export const GAP_WORDS: Record<Gap, string> = {
@@ -180,6 +181,8 @@ export const GAP_WORDS: Record<Gap, string> = {
   supplier_advised_against:
     "Supplier's AI assessment recommends not proceeding",
   owner_not_trained: "Owner's AI learning not current",
+  import_unconfirmed:
+    'Imported from another platform and not yet confirmed by a person',
   ...ADM_GAP_WORDS
 };
 
@@ -598,6 +601,10 @@ export function gapsFor(
   // A retired system needs nothing. Reporting gaps against it is noise that
   // trains people to ignore the list.
   if (retired) return gaps;
+
+  // Brought in from another platform: nobody here has checked it yet.
+  if (useCase.importBatchId && !useCase.importConfirmedAt)
+    gaps.push('import_unconfirmed');
 
   if (!assessed) gaps.push('never_assessed');
   else if (!assessed.approvedAt) gaps.push('assessment_not_approved');

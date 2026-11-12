@@ -757,6 +757,13 @@
       "when": 1794479449232,
       "tag": "0107_ie_eprivacy_flag_and_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1794484052717,
+      "tag": "0108_import_agreements_evidence",
+      "breakpoints": true
     }
   ]
 }

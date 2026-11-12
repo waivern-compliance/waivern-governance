@@ -6,6 +6,7 @@ import { Discussion } from '@/components/Discussion';
 import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
 import { GapChips } from '@/components/GapChips';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { StartAssessment } from '@/components/StartAssessment';
@@ -140,6 +141,22 @@ export default async function SupplierPage({
   const needsConfirming = Boolean(
     (supplier.sourceConnectionId || supplier.importSourceId) &&
     !supplier.reviewedAt
+  );
+  // The platforms its agreements were imported from, by id.
+  const importedNames = new Map(
+    await Promise.all(
+      [
+        ...new Set(
+          dpas.flatMap((d) => (d.importSourceId ? [d.importSourceId] : []))
+        )
+      ].map(
+        async (id) =>
+          [
+            id,
+            await importSourceName(active.membership.organisationId, id)
+          ] as const
+      )
+    )
   );
   const importedFrom = supplier.importSourceId
     ? ((await importSourceName(
@@ -480,6 +497,26 @@ export default async function SupplierPage({
                   ? `sub-processors: ${(d.subProcessors ?? []).join(', ')}`
                   : 'sub-processors not recorded'}
               </p>
+              {d.importSourceId ? (
+                <ImportedFrom
+                  sourceName={
+                    importedNames.get(d.importSourceId) ?? 'another platform'
+                  }
+                  batchId={d.importBatchId}
+                  confirmed={d.importConfirmedAt !== null}
+                  legacy={d.legacy}
+                  confirm={
+                    mayEdit ? (
+                      <ConfirmImported
+                        type="dpa"
+                        id={d.id}
+                        revalidate={here}
+                        what="this agreement"
+                      />
+                    ) : null
+                  }
+                />
+              ) : null}
               <Attachments
                 subjectType="dpa"
                 subjectId={d.id}
