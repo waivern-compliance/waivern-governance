@@ -1618,7 +1618,10 @@ export const HELP_TOPICS: HelpTopic[] = [
       'comreg',
       'cookies',
       'marketing',
-      'pecr'
+      'pecr',
+      'provider',
+      'telecoms',
+      'checklist'
     ],
     sections: [
       {
@@ -1642,6 +1645,19 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           "Each website or app on the cookie register, and each marketing activity, records which ePrivacy law it is under: UK PECR, the Irish Regulations, or both, within its entity's. Where the entity is under both, the forms ask; otherwise the record takes its entity's. Existing records were all made under PECR and are recorded that way.",
           'Turning the Irish Regulations off for an entity is refused while any of its websites, apps or activities is under them alone. Where neither law applies to any entity, the cookie and marketing registers are not offered.'
+        ]
+      },
+      {
+        heading: 'Providers of communications services in Ireland',
+        body: [
+          'An entity under the Irish Regulations can also be marked, on the Organisation page, as a provider of a publicly available electronic communications network or service in Ireland. It is a separate mark from the UK one, as a company can be a provider in one country and not the other. The Irish Regulations cannot be turned off for an entity while it is marked as a provider.',
+          "A provider is offered the 'Electronic communications provider duties (Ireland)' template on the templates page: a checklist of security (regulation 4), traffic and location data (6 and 9), billing, line identification, call forwarding and directories (7, 8, 11 and 12), the National Directory Database (14) and procedures for requests for access to users' data (16(1)). Breach notification for providers is not yet built."
+        ]
+      },
+      {
+        heading: 'What other people see',
+        body: [
+          "The public request form of an entity under the Irish Regulations tells people that a complaint about the entity's marketing or cookies can also be made to the Data Protection Commission. The context export through the Integration API gives each entity's answer and the ePrivacy laws it is under, so the Portal can cite the right law in a cookie notice or a marketing message."
         ]
       },
       {

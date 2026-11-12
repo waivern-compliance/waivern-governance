@@ -27,6 +27,7 @@ import { ukLawApplies } from '@/lib/dpa2018/applies';
 import { requestClock } from '@/lib/dsr/statutory';
 import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
 import { regulatorFor } from '@/lib/gdpr/establishment';
+import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
 import { formIsOpen } from '@/lib/intake-forms';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
@@ -250,6 +251,7 @@ export async function openIntakeLink(slug: string) {
       foiAct: entities.foiAct,
       foiTimeProfile: entities.foiTimeProfile,
       dataProtectionLaw: entities.dataProtectionLaw,
+      ieEprivacy: entities.ieEprivacy,
       euLeadAuthority: entities.euLeadAuthority,
       euEstablishments: entities.euEstablishments,
       euMainEstablishment: entities.euMainEstablishment,
@@ -300,6 +302,16 @@ export async function openIntakeLink(slug: string) {
     // addressed to them. Named in the header where only EU law applies
     // (Article 77), and on the complaint confirmation.
     regulator: regulatorFor(row.dataProtectionLaw, row, 'you').complainTo,
+    // Under the Irish ePrivacy Regulations, complaints about marketing and
+    // cookies go to the Data Protection Commission whatever the entity's GDPR
+    // lead authority: the one-stop shop does not reach them.
+    irishEprivacy: ['ie', 'uk_ie'].includes(
+      entityEprivacy({
+        name: row.entityName,
+        dataProtectionLaw: row.dataProtectionLaw,
+        ieEprivacy: row.ieEprivacy
+      }) ?? ''
+    ),
     otherFormSlug: other?.slug ?? null,
     appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.

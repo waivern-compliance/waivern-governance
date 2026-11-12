@@ -277,15 +277,25 @@ EU GDPR facts:
   and `euNote`;
 - each supplier agreement carries `transferMechanisms` beside `transferMechanism`.
 
+Version 1.4 added the ePrivacy laws:
+
+- each entity carries `ieEprivacy`, whether it is subject to the Irish ePrivacy
+  Regulations (S.I. No. 336 of 2011): `true`, `false`, or `null` where nobody has
+  answered, which counts as no;
+- each entity carries `eprivacyLaws`, the ePrivacy laws it is under: `uk` (UK PECR),
+  `ie` (the Irish Regulations), `uk_ie` (both) or `null` (neither), so a cookie notice
+  or a marketing message can cite the right law and name the right regulator.
+
 Each change is additive: a reader written for 1.0 that ignores keys it does not know
-reads 1.3 unchanged.
+reads 1.4 unchanged.
 
 ```json
 { "name": "Europe SAS", "legalEntityRef": "FR-123", "dataProtectionLaw": "uk_eu",
   "euEstablishments": ["FR"], "euMainEstablishment": "FR",
   "euLeadAuthority": { "code": "fr-cnil", "name": "Commission Nationale de l'Informatique et des Libertés (CNIL)" },
   "euRepresentative": null,
-  "ukRepresentative": { "name": "UK Rep Ltd", "contact": "rep@example.co.uk", "country": null } }
+  "ukRepresentative": { "name": "UK Rep Ltd", "contact": "rep@example.co.uk", "country": null },
+  "ieEprivacy": false, "eprivacyLaws": "uk" }
 ```
 
 **Only settled facts are exported.** An assessment appears once it is approved,

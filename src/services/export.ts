@@ -25,6 +25,7 @@ import { authorityByCode } from '@/lib/gdpr/authorities';
 import type { Representative } from '@/lib/gdpr/establishment';
 import { effectiveLaws } from '@/lib/gdpr/regimes';
 import type { RecordedMechanism } from '@/lib/gdpr/transfers';
+import { entityEprivacy, type EprivacyScope } from '@/lib/ie-eprivacy/scope';
 import {
   admToWire,
   furtherToWire,
@@ -53,10 +54,10 @@ import { listRegister } from './ai-register';
  * 1.1 adds `aiSystems`; 1.2 the Data (Use and Access) Act records; 1.3 the EU
  * GDPR facts (each entity's law, establishment, lead authority and
  * representatives; each activity's laws and EU answers; agreements'
- * mechanisms). Additive: a reader of 1.0 that ignores unknown keys reads 1.3
- * unchanged.
+ * mechanisms); 1.4 each entity's ePrivacy laws (PECR, the Irish Regulations).
+ * Additive: a reader of 1.0 that ignores unknown keys reads 1.4 unchanged.
  */
-export const CONTEXT_VERSION = '1.3';
+export const CONTEXT_VERSION = '1.4';
 
 export type ExportScope = {
   organisationId: string;
@@ -141,6 +142,10 @@ export type ContextEntity = {
   euLeadAuthority: { code: string; name: string } | null;
   euRepresentative: Representative | null;
   ukRepresentative: Representative | null;
+  /** Subject to the Irish ePrivacy Regulations; null where nobody has answered (1.4). */
+  ieEprivacy: boolean | null;
+  /** The ePrivacy laws it is under: UK PECR, the Irish Regulations, both, or neither (1.4). */
+  eprivacyLaws: EprivacyScope | null;
 };
 
 export type ContextActivity = {
@@ -589,7 +594,9 @@ export async function governanceContext(
           euMainEstablishment: e.euMainEstablishment,
           euLeadAuthority: lead ? { code: lead.code, name: lead.name } : null,
           euRepresentative: e.euRepresentative,
-          ukRepresentative: e.ukRepresentative
+          ukRepresentative: e.ukRepresentative,
+          ieEprivacy: e.ieEprivacy,
+          eprivacyLaws: entityEprivacy(e)
         };
       }),
       scope: {

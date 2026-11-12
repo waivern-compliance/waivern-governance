@@ -180,6 +180,14 @@ export const entities = pgTable(
      * nobody has answered, which counts as no. See `lib/ie-eprivacy/scope.ts`.
      */
     ieEprivacy: boolean('ie_eprivacy'),
+    /**
+     * Provides a publicly available electronic communications network or
+     * service in the State, under S.I. 336/2011 (regulation 4 and the duties
+     * on providers in regulations 6 to 12). Separate from the UK flag
+     * (`public_comms_provider`): a company can be a provider in one country
+     * and not the other. Allowed only where `ie_eprivacy` is on.
+     */
+    ieCommsProvider: boolean('ie_comms_provider').notNull().default(false),
     publicCommsProvider: boolean('public_comms_provider')
       .notNull()
       .default(false),

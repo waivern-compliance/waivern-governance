@@ -10,6 +10,7 @@ import { DPIA } from './dpia';
 import { DPIA_PART3 } from './dpia-part3';
 import { DSIT_AI_RISK } from './dsit-ai-risk';
 import { EIA } from './eia';
+import { IE_PROVIDER_DUTIES } from './ie-provider';
 import { LIA } from './lia';
 import { NIST_AI_RISK } from './nist-ai-risk';
 import { SCREENING } from './screening';
@@ -35,6 +36,8 @@ export const SYSTEM_TEMPLATES: Array<{
   aiFramework?: AiFrameworkId;
   /** Installed only for an organisation with an entity that is a competent authority (Part 3). */
   competentAuthority?: boolean;
+  /** Installed only where some entity is a provider of electronic communications services in Ireland. */
+  irishProvider?: true;
   /**
    * A UK data protection template — built on the UK GDPR and the Data
    * Protection Act 2018 — installed only where some entity is subject to UK law.
@@ -109,6 +112,15 @@ export const SYSTEM_TEMPLATES: Array<{
     description: "EU transfer assessment following the EDPB's six-step method.",
     jurisdiction: 'EU',
     definition: TIA_EU
+  },
+  {
+    kind: 'custom',
+    name: 'Electronic communications provider duties (Ireland)',
+    description:
+      'A checklist of what the Irish ePrivacy Regulations (S.I. 336/2011) ask of a provider of a publicly available network or service: security, traffic and location data, billing, line identification, forwarding, directories, the National Directory Database and access-request procedures.',
+    jurisdiction: 'IE',
+    irishProvider: true,
+    definition: IE_PROVIDER_DUTIES
   },
   {
     kind: 'breach',

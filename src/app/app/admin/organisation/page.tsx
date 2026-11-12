@@ -106,6 +106,7 @@ export default async function OrganisationPage() {
           isDefault: e.isDefault,
           publicCommsProvider: e.publicCommsProvider,
           ieEprivacy: e.ieEprivacy,
+          ieCommsProvider: e.ieCommsProvider,
           ieEprivacySuggested: ieEprivacySuggested(e),
           publicAuthority: e.publicAuthority,
           competentAuthority: e.competentAuthority,

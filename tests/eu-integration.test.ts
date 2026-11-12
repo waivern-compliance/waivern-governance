@@ -224,7 +224,7 @@ describe('pushing records under EU law', () => {
 
     const context = await governanceContext({ organisationId: w.org.id });
     assert.equal(context.contextVersion, CONTEXT_VERSION);
-    assert.equal(CONTEXT_VERSION, '1.3');
+    assert.equal(CONTEXT_VERSION, '1.4');
     const [entity] = context.entities;
     assert.equal(entity.dataProtectionLaw, 'eu');
     assert.deepEqual(entity.euLeadAuthority?.code, 'fr-cnil');

@@ -371,6 +371,7 @@ export async function shippedTemplatesMissing(organisationId: string) {
       db
         .select({
           competentAuthority: entities.competentAuthority,
+          irishProvider: entities.ieCommsProvider,
           law: entities.dataProtectionLaw
         })
         .from(entities)
@@ -378,6 +379,7 @@ export async function shippedTemplatesMissing(organisationId: string) {
     ]);
     const names = new Set(held.map((h) => h.name));
     const competent = owned.some((e) => e.competentAuthority);
+    const irishProvider = owned.some((e) => e.irishProvider);
     // With no entity yet, as when an organisation is first set up, its default will be UK law.
     const ukLaw = owned.length === 0 || owned.some((e) => ukLawApplies(e.law));
     return SYSTEM_TEMPLATES.filter(
@@ -386,6 +388,8 @@ export async function shippedTemplatesMissing(organisationId: string) {
         (t.aiFramework === undefined || t.aiFramework === framework) &&
         // The Part 3 templates are offered once an entity is a competent authority.
         (!t.competentAuthority || competent) &&
+        // The Irish provider checklist, once an entity is a provider in Ireland.
+        (!t.irishProvider || irishProvider) &&
         // UK data protection templates, once an entity is subject to UK law.
         (!t.ukLaw || ukLaw)
     );

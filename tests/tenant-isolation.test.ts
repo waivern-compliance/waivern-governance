@@ -2165,6 +2165,16 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'setIeCommsProvider',
+      () =>
+        entitiesSvc.setIeCommsProvider({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          provider: true,
+          actor: as()
+        })
+    ],
+    [
       'setIeEprivacy',
       () =>
         entitiesSvc.setIeEprivacy({

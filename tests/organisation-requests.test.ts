@@ -160,9 +160,10 @@ describe('approving', () => {
       SYSTEM_TEMPLATES.filter(
         (t) =>
           (!t.aiFramework || t.aiFramework === 'uk_dsit') &&
-          !t.competentAuthority
+          !t.competentAuthority &&
+          !t.irishProvider
       ).length,
-      'everything for the UK framework, which it starts on, bar the Part 3 DPIA'
+      'everything for the UK framework, which it starts on, bar the Part 3 DPIA and the Irish provider checklist'
     );
     assert.equal(
       (

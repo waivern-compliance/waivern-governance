@@ -157,7 +157,7 @@ describe('installing shipped templates', () => {
     assert.ok(!nist.includes('AI risk identification (DSIT toolkit)'));
     // Everything not tied to a framework goes to both (the Part 3 DPIA waits for a competent authority).
     const shared = SYSTEM_TEMPLATES.filter(
-      (t) => !t.aiFramework && !t.competentAuthority
+      (t) => !t.aiFramework && !t.competentAuthority && !t.irishProvider
     ).map((t) => t.name);
     for (const name of shared)
       assert.ok(uk.includes(name) && nist.includes(name), name);

@@ -70,6 +70,9 @@ describe('shipped template library', () => {
     assert.deepEqual(kinds, [
       'ai_risk',
       'breach',
+      // The Irish provider duties checklist, which is neither an assessment
+      // nor a DPIA.
+      'custom',
       'dpia',
       'eia',
       'lia',

@@ -24,6 +24,7 @@ import {
   setDataProtectionLawAction,
   setFreedomOfInformationAction,
   setIeEprivacyAction,
+  setIeProviderAction,
   setProviderAction,
   setPublicAuthorityAction,
   type AdminResult
@@ -39,6 +40,8 @@ type Entity = {
   publicCommsProvider: boolean;
   /** S.I. 336/2011; null where nobody has answered. */
   ieEprivacy: boolean | null;
+  /** A provider of electronic communications services in Ireland. */
+  ieCommsProvider: boolean;
   /** Established in Ireland or led by the DPC, and not yet answered. */
   ieEprivacySuggested: boolean;
   publicAuthority: boolean;
@@ -270,6 +273,10 @@ function EntityRow({
     setIeEprivacyAction.bind(null, entity.id, false),
     { resetOnSuccess: false }
   );
+  const irishProvider = useRefusableAction<AdminResult>(
+    setIeProviderAction.bind(null, entity.id, !entity.ieCommsProvider),
+    { resetOnSuccess: false }
+  );
 
   return (
     <li className="space-y-2 px-4 py-3">
@@ -410,8 +417,30 @@ function EntityRow({
               </form>
             )}
           </div>
+          {entity.ieEprivacy === true ? (
+            <form
+              {...irishProvider.formProps}
+              className="flex flex-wrap items-baseline gap-2"
+            >
+              {entity.ieCommsProvider ? (
+                <span className="rounded border border-line px-2 py-0.5 font-mono text-[11px]">
+                  provider in Ireland
+                </span>
+              ) : null}
+              <button
+                type="submit"
+                disabled={irishProvider.pending}
+                className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
+              >
+                {entity.ieCommsProvider
+                  ? 'Not a provider of electronic communications services in Ireland'
+                  : 'Mark as a provider of electronic communications services in Ireland (reg 4)'}
+              </button>
+            </form>
+          ) : null}
           <Outcome result={irishYes.result} />
           <Outcome result={irishNo.result} />
+          <Outcome result={irishProvider.result} />
         </div>
       ) : null}
       {uk ? (
