@@ -144,8 +144,12 @@ would rewrite the cookie rule; it is not law and is out of scope until adopted.
   approves. ComReg's consumer page says the database has been run by PXS since 1 July
   2024 (Decision D19/24), that landlines opt out on request and mobiles are opted out
   by default.
-- **Reg 16**: access-request procedures for providers (16(1)); a civil right to
-  damages for any breach (16(2)), with a reasonable-care defence (16(3)).
+- **Reg 16**: where a law restricts these rights under Article 15(1) of the
+  Directive, providers keep procedures for answering requests for access to users'
+  personal data, such as those from the authorities, and report on them to the
+  Commission within 28 days of being asked (16(1)). It is not about subject access
+  requests. Also a civil right to damages for any breach (16(2)), with a
+  reasonable-care defence (16(3)).
 - **Regs 17 to 28**: the Data Protection Commission investigates, serves enforcement
   notices on Regs 4, 5, 6, 9, 12, 13, 14 and 16(1), serves information notices, and
   prosecutes summary offences itself (Reg 26). Appeals go to the Circuit Court within 21
