@@ -1,6 +1,6 @@
 import {
   effectiveEprivacy,
-  EPRIVACY_SCOPES,
+  EPRIVACY_SCOPE_PHRASES,
   type EprivacyScope
 } from '@/lib/ie-eprivacy/scope';
 
@@ -26,8 +26,7 @@ export function EprivacyScopeNote({
     );
   return (
     <p className="max-w-prose text-sm text-ink-soft">
-      Under {EPRIVACY_SCOPES[effective].charAt(0).toLowerCase()}
-      {EPRIVACY_SCOPES[effective].slice(1)}.
+      Under {EPRIVACY_SCOPE_PHRASES[effective]}.
       {effective === 'uk'
         ? null
         : " Govern does not check the Irish rules yet: the bases and gaps shown are PECR's, so judge it against S.I. 336/2011 itself."}

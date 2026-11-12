@@ -3,7 +3,12 @@ import { after, describe, it } from 'node:test';
 import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
-import { auditEvents, entities, organisations } from '@/db/schema';
+import {
+  auditEvents,
+  digitalProperties,
+  entities,
+  organisations
+} from '@/db/schema';
 import {
   cleanEprivacyScope,
   effectiveEprivacy,
@@ -21,13 +26,14 @@ import {
 } from '@/services/entities';
 import { guidanceFor } from '@/services/guidance';
 import {
+  activitiesDueTpsScreening,
   createMarketingActivity,
-  MarketingRefused,
+  recordMarketingDecision,
   updateMarketingActivity
 } from '@/services/marketing';
 import {
   createProperty,
-  InventoryRefused,
+  propertiesDueForRescan,
   updateProperty
 } from '@/services/storage-inventory';
 
@@ -236,7 +242,7 @@ describe('scope on websites, apps and marketing', () => {
     assert.equal((await property(w.org.id, w.entity.id)).eprivacyScope, 'uk');
     await assert.rejects(
       property(w.org.id, w.entity.id, 'ie'),
-      InventoryRefused
+      EprivacyRefused
     );
 
     await lawOf(w.org.id, w.entity.id, 'uk_eu');
@@ -278,7 +284,7 @@ describe('scope on websites, apps and marketing', () => {
         changes: { eprivacyScope: 'fr' },
         actor: SYSTEM
       }),
-      MarketingRefused
+      EprivacyRefused
     );
   });
 
@@ -294,7 +300,7 @@ describe('scope on websites, apps and marketing', () => {
         channel: 'live_call',
         actor: SYSTEM
       }),
-      MarketingRefused
+      EprivacyRefused
     );
   });
 });
@@ -327,5 +333,102 @@ describe('hiding the registers', () => {
     assert.ok(hrefs(true).includes('/app/cookies'));
     assert.ok(!hrefs(false).includes('/app/cookies'));
     assert.ok(!hrefs(false).includes('/app/marketing'));
+  });
+});
+
+describe('the words people read', () => {
+  it('names each law in full, with acronyms intact', () => {
+    const e = {
+      name: 'Group Ltd',
+      dataProtectionLaw: 'uk' as const,
+      ieEprivacy: null
+    };
+    assert.throws(() => cleanEprivacyScope(e, 'ie'), {
+      message:
+        'Group Ltd is subject to UK PECR only, so this cannot be under the Irish ePrivacy Regulations (S.I. 336/2011).'
+    });
+    assert.throws(
+      () => cleanEprivacyScope({ ...e, dataProtectionLaw: 'eu' }, null),
+      {
+        message:
+          'Neither UK PECR nor the Irish ePrivacy Regulations apply to Group Ltd. Record which applies on the Organisation page first.'
+      }
+    );
+  });
+});
+
+describe('keeping records under a law', () => {
+  it('refuses dropping UK law while a website is under PECR alone', async () => {
+    const w = await world('drop-uk');
+    await lawOf(w.org.id, w.entity.id, 'uk_eu');
+    const site = await property(w.org.id, w.entity.id);
+    await assert.rejects(
+      lawOf(w.org.id, w.entity.id, 'eu'),
+      new RegExp(`${site.reference} is recorded under UK PECR only`)
+    );
+  });
+
+  it('stops reminders for records no ePrivacy law reaches, and TPS reminders outside PECR', async () => {
+    const w = await world('reminders');
+    await lawOf(w.org.id, w.entity.id, 'uk_eu');
+    await setIeEprivacy({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      applies: true,
+      actor: SYSTEM
+    });
+    const uk = await property(w.org.id, w.entity.id, 'uk');
+    const ie = await property(w.org.id, w.entity.id, 'ie');
+    // A site made under PECR before its entity was recorded as under EU law only,
+    // as an existing row can be: no ePrivacy law reaches it now.
+    const [eu] = await db
+      .insert(entities)
+      .values({
+        organisationId: w.org.id,
+        name: 'Europe BV',
+        dataProtectionLaw: 'eu'
+      })
+      .returning();
+    await db.insert(digitalProperties).values({
+      organisationId: w.org.id,
+      entityId: eu.id,
+      reference: `WEB-OLD-${crypto.randomUUID().slice(0, 6)}`,
+      name: 'Old site',
+      url: 'https://old.example.eu'
+    });
+    const old = new Date('2020-01-01T00:00:00Z');
+    await db
+      .update(digitalProperties)
+      .set({ createdAt: old, lastScannedAt: old })
+      .where(eq(digitalProperties.organisationId, w.org.id));
+    const due = async () =>
+      (await propertiesDueForRescan(w.org.id)).map((r) => r.property.id).sort();
+    assert.deepEqual(await due(), [uk.id, ie.id].sort());
+
+    const calls = async (scope: 'uk' | 'ie') => {
+      const a = await createMarketingActivity({
+        organisationId: w.org.id,
+        entityId: w.entity.id,
+        name: `Calls ${scope}`,
+        channel: 'live_call',
+        eprivacyScope: scope,
+        actor: SYSTEM
+      });
+      await recordMarketingDecision({
+        organisationId: w.org.id,
+        activityId: a.id,
+        basis: 'screened_calls',
+        conditions: [],
+        rationale: 'Screened against the TPS.',
+        actor: SYSTEM
+      });
+      return a;
+    };
+    const ukCalls = await calls('uk');
+    await calls('ie');
+    assert.deepEqual(
+      (await activitiesDueTpsScreening(w.org.id)).map((r) => r.activity.id),
+      [ukCalls.id]
+    );
   });
 });

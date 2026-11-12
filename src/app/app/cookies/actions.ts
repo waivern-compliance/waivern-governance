@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import type { ConditionKey, StorageBasis } from '@/lib/pecr/statutory';
 import { can, mayConfigureAnalyser } from '@/lib/rbac';
 import { requireCapability, requireSession } from '@/lib/session';
@@ -47,7 +48,7 @@ async function refused(
     await work();
     return { ok: true, message: ok };
   } catch (error) {
-    if (error instanceof InventoryRefused)
+    if (error instanceof InventoryRefused || error instanceof EprivacyRefused)
       return { ok: false, message: error.message };
     throw error;
   }

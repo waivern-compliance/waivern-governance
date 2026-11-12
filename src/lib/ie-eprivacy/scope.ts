@@ -23,6 +23,13 @@ export const EPRIVACY_SCOPES: Record<EprivacyScope, string> = {
   uk_ie: 'Both UK PECR and the Irish ePrivacy Regulations'
 };
 
+/** The same, to read inside a sentence: "subject to UK PECR only". */
+export const EPRIVACY_SCOPE_PHRASES: Record<EprivacyScope, string> = {
+  uk: 'UK PECR',
+  ie: 'the Irish ePrivacy Regulations (S.I. 336/2011)',
+  uk_ie: 'both UK PECR and the Irish ePrivacy Regulations'
+};
+
 export const EPRIVACY_SCOPE_KEYS = Object.keys(
   EPRIVACY_SCOPES
 ) as EprivacyScope[];
@@ -65,6 +72,14 @@ export function effectiveEprivacy(
   return scopeOf(e.uk && r.uk, e.ie && r.ie);
 }
 
+/** What a record of this entity is judged under, from the entity's columns; null where neither law reaches it. */
+export function recordEprivacy(
+  entity: Pick<EprivacyEntity, 'dataProtectionLaw' | 'ieEprivacy'>,
+  scope: EprivacyScope
+): EprivacyScope | null {
+  return effectiveEprivacy(entityEprivacy({ name: '', ...entity }), scope);
+}
+
 export class EprivacyRefused extends Error {}
 
 /**
@@ -87,7 +102,7 @@ export function cleanEprivacyScope(
     );
   if (effectiveEprivacy(own, scope) !== scope)
     throw new EprivacyRefused(
-      `${entity.name} is subject to ${EPRIVACY_SCOPES[own].charAt(0).toLowerCase()}${EPRIVACY_SCOPES[own].slice(1)} only, so this cannot be under ${EPRIVACY_SCOPES[scope].charAt(0).toLowerCase()}${EPRIVACY_SCOPES[scope].slice(1)}.`
+      `${entity.name} is subject to ${EPRIVACY_SCOPE_PHRASES[own]} only, so this cannot be under ${EPRIVACY_SCOPE_PHRASES[scope]}.`
     );
   return scope;
 }

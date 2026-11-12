@@ -30,7 +30,11 @@ import {
   type Establishment
 } from '@/lib/gdpr/establishment';
 import { appliesEu, lawsLabel, narrowedTo } from '@/lib/gdpr/regimes';
-import { cleanEprivacyScope, entityEprivacy } from '@/lib/ie-eprivacy/scope';
+import {
+  cleanEprivacyScope,
+  entityEprivacy,
+  type EprivacyScope
+} from '@/lib/ie-eprivacy/scope';
 
 import { recordEntityAgreement, type EntityAgreementInput } from './agreements';
 import { forgetFrameOrigins } from './frame-origins';
@@ -173,6 +177,49 @@ export async function addEntity(input: {
       return created;
     })
   );
+}
+
+/** The references of the entity's websites, apps and marketing activities under exactly this scope. */
+async function recordsUnderEprivacyScope(
+  tx: Tx,
+  entityId: string,
+  scope: EprivacyScope
+): Promise<string[]> {
+  const rows = [
+    ...(await tx
+      .select({ reference: digitalProperties.reference })
+      .from(digitalProperties)
+      .where(
+        and(
+          eq(digitalProperties.entityId, entityId),
+          eq(digitalProperties.eprivacyScope, scope)
+        )
+      )),
+    ...(await tx
+      .select({ reference: marketingActivities.reference })
+      .from(marketingActivities)
+      .where(
+        and(
+          eq(marketingActivities.entityId, entityId),
+          eq(marketingActivities.eprivacyScope, scope)
+        )
+      ))
+  ];
+  return rows.map((r) => r.reference);
+}
+
+/**
+ * Hold the entity's row until the transaction ends. Changing which ePrivacy
+ * law it is under takes this lock, and adding a website, app or marketing
+ * activity takes a share of it (`eprivacyScopeFor`), so a record cannot be
+ * added under a law while that law is being removed.
+ */
+async function lockEntity(tx: Tx, entityId: string) {
+  await tx
+    .select({ id: entities.id })
+    .from(entities)
+    .where(eq(entities.id, entityId))
+    .for('update');
 }
 
 async function entityIn(tx: Tx, organisationId: string, entityId: string) {
@@ -337,6 +384,7 @@ export async function setIeEprivacy(input: {
 }) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
+      await lockEntity(tx, input.entityId);
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.ieEprivacy === input.applies) return before;
       if (input.applies && !appliesEu(before.dataProtectionLaw)) {
@@ -345,29 +393,10 @@ export async function setIeEprivacy(input: {
         );
       }
       if (!input.applies) {
-        const irishOnly = [
-          ...(await tx
-            .select({ reference: digitalProperties.reference })
-            .from(digitalProperties)
-            .where(
-              and(
-                eq(digitalProperties.entityId, before.id),
-                eq(digitalProperties.eprivacyScope, 'ie')
-              )
-            )),
-          ...(await tx
-            .select({ reference: marketingActivities.reference })
-            .from(marketingActivities)
-            .where(
-              and(
-                eq(marketingActivities.entityId, before.id),
-                eq(marketingActivities.eprivacyScope, 'ie')
-              )
-            ))
-        ];
+        const irishOnly = await recordsUnderEprivacyScope(tx, before.id, 'ie');
         if (irishOnly.length > 0) {
           throw new EntityRefused(
-            `${irishOnly.map((r) => r.reference).join(', ')} ${irishOnly.length === 1 ? 'is' : 'are'} recorded under the Irish ePrivacy Regulations only. Change ${irishOnly.length === 1 ? 'it' : 'them'} first.`
+            `${irishOnly.join(', ')} ${irishOnly.length === 1 ? 'is' : 'are'} recorded under the Irish ePrivacy Regulations only. Change ${irishOnly.length === 1 ? 'it' : 'them'} first.`
           );
         }
       }
@@ -407,7 +436,8 @@ export async function eprivacyScopeFor(
       ieEprivacy: entities.ieEprivacy
     })
     .from(entities)
-    .where(eq(entities.id, entityId));
+    .where(eq(entities.id, entityId))
+    .for('share');
   if (!row) throw new Error('No such entity');
   return cleanEprivacyScope(row, chosen);
 }
@@ -461,6 +491,7 @@ export async function setDataProtectionLaw(input: {
     throw new EntityRefused('Choose UK law, EU law, or both.');
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
+      await lockEntity(tx, input.entityId);
       const before = await entityIn(tx, input.organisationId, input.entityId);
       if (before.dataProtectionLaw === input.law) return before;
       // The establishment record answers for each law; narrowing away from a
@@ -474,6 +505,17 @@ export async function setDataProtectionLaw(input: {
         throw new EntityRefused(
           `${before.name} has a UK representative or exemption recorded. Clear that first.`
         );
+      }
+      // Websites, apps and marketing under PECR alone would be under no
+      // ePrivacy law at all once UK law goes, as records under the dropped
+      // law alone are below.
+      if (!ukLawApplies(input.law)) {
+        const pecrOnly = await recordsUnderEprivacyScope(tx, before.id, 'uk');
+        if (pecrOnly.length > 0) {
+          throw new EntityRefused(
+            `${pecrOnly.join(', ')} ${pecrOnly.length === 1 ? 'is' : 'are'} recorded under UK PECR only, which ${before.name} would no longer be subject to. Change ${pecrOnly.length === 1 ? 'it' : 'them'} first.`
+          );
+        }
       }
       // The Irish ePrivacy Regulations are declared only beside EU law.
       if (!appliesEu(input.law) && before.ieEprivacy === true) {

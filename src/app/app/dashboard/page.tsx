@@ -37,7 +37,7 @@ export default async function Dashboard() {
   // 30 days are the Data Protection Act 2018's (s.164A), so only where some
   // entity is subject to UK law; FOI tiles only where an FOI Act applies.
   // Cookies hold nobody's personal data, so anyone who may read records sees them.
-  const [m, requests, complaints, foi, properties] = await Promise.all([
+  const [m, requests, complaints, foi, allProperties] = await Promise.all([
     dashboardMetrics(org, visibleEntityIds(active)),
     can(grants, 'dsr.handle')
       ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
@@ -52,6 +52,8 @@ export default async function Dashboard() {
         : null)(),
     propertyRegister(org, visibleEntityIds(active))
   ]);
+  // Only sites some ePrivacy law reaches, as the register's navigation is.
+  const properties = allProperties.filter((p) => p.eprivacy !== null);
   const cookieGaps = mergeGapSummaries(properties.map((p) => p.gapSummary));
   const cookiesWithGaps = properties.reduce((n, p) => n + p.withGaps, 0);
   const scansDue = properties.filter(
@@ -225,7 +227,7 @@ export default async function Dashboard() {
                       .slice(0, 2)
                       .map((g) => g.text)
                       .join(', ')
-                  : 'every item has its Schedule A1 basis shown'
+                  : 'every item has its basis recorded'
               }
             />
             <Tile

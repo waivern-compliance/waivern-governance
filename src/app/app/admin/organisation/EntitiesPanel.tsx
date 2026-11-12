@@ -11,6 +11,7 @@ import {
   type DataProtectionLaw
 } from '@/lib/dpa2018/applies';
 import type { Establishment } from '@/lib/gdpr/establishment';
+import { appliesEu } from '@/lib/gdpr/regimes';
 import { documentPath, type DocumentRef } from '@/lib/legal/shared';
 import { savedKey } from '@/lib/saved-key';
 import { useRefusableAction } from '@/lib/use-refusable-action';
@@ -260,7 +261,7 @@ function EntityRow({
     }
   );
   const uk = ukLawApplies(entity.dataProtectionLaw);
-  const eu = entity.dataProtectionLaw !== 'uk';
+  const eu = appliesEu(entity.dataProtectionLaw);
   const irishYes = useRefusableAction<AdminResult>(
     setIeEprivacyAction.bind(null, entity.id, true),
     { resetOnSuccess: false }

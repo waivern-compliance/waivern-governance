@@ -11,7 +11,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { entityEprivacy, EprivacyRefused } from '@/lib/ie-eprivacy/scope';
+import { entityEprivacy, recordEprivacy } from '@/lib/ie-eprivacy/scope';
 import {
   basesFor,
   CHANNEL_KEYS,
@@ -126,7 +126,7 @@ export async function createMarketingActivity(input: {
 
   return withOrganisation(input.organisationId, async () => {
     await assertEntityIn(input.organisationId, input.entityId);
-    const eprivacyScope = await scopeOrRefuse(
+    const eprivacyScope = await eprivacyScopeFor(
       input.entityId,
       input.eprivacyScope
     );
@@ -177,20 +177,6 @@ export async function createMarketingActivity(input: {
       return row;
     });
   });
-}
-
-/** The scope an activity will hold, refused as a marketing refusal so the form keeps what was typed. */
-async function scopeOrRefuse(
-  entityId: string,
-  chosen: string | null | undefined
-) {
-  try {
-    return await eprivacyScopeFor(entityId, chosen);
-  } catch (error) {
-    if (error instanceof EprivacyRefused)
-      throw new MarketingRefused(error.message);
-    throw error;
-  }
 }
 
 async function lockedActivity(
@@ -259,7 +245,7 @@ export async function updateMarketingActivity(input: {
       const eprivacyScope =
         chosenScope === undefined
           ? undefined
-          : await scopeOrRefuse(before.entityId, chosenScope);
+          : await eprivacyScopeFor(before.entityId, chosenScope);
       const [after] = await tx
         .update(marketingActivities)
         .set({
@@ -623,9 +609,14 @@ export async function activitiesDueTpsScreening(
   now = new Date()
 ) {
   return withOrganisation(organisationId, async () => {
-    const calls = await db
-      .select()
+    const rows = await db
+      .select({
+        activity: marketingActivities,
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
       .from(marketingActivities)
+      .innerJoin(entities, eq(entities.id, marketingActivities.entityId))
       .where(
         and(
           eq(marketingActivities.organisationId, organisationId),
@@ -633,6 +624,17 @@ export async function activitiesDueTpsScreening(
           eq(marketingActivities.status, 'active')
         )
       );
+    // The TPS is PECR's: only calls judged under UK PECR are screened against it.
+    const calls = rows
+      .filter(({ activity, dataProtectionLaw, ieEprivacy }) =>
+        ['uk', 'uk_ie'].includes(
+          recordEprivacy(
+            { dataProtectionLaw, ieEprivacy },
+            activity.eprivacyScope
+          ) ?? ''
+        )
+      )
+      .map((r) => r.activity);
     const decisions = await decisionsOf(calls.map((c) => c.id));
     return calls.flatMap((activity) => {
       if (decisions.get(activity.id)?.[0]?.basis !== 'screened_calls')

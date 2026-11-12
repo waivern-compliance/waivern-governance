@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import { EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import type {
   MarketingBasis,
   MarketingChannel,
@@ -41,7 +42,7 @@ async function refused(
     await work();
     return { ok: true, message: ok };
   } catch (error) {
-    if (error instanceof MarketingRefused)
+    if (error instanceof MarketingRefused || error instanceof EprivacyRefused)
       return { ok: false, message: error.message };
     throw error;
   }
