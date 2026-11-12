@@ -63,12 +63,21 @@ and Phase 0 has it read again by a person before any rule is coded.
 
 ### Amending instruments
 
-| Instrument                                                                                         | In force                                         | What it changed                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Data Protection Act 2018 (No. 7 of 2018), ss. 9, 14(2) and (4), 165, 166                           | On the Commission's establishment day            | No textual change. References to the Data Protection Commissioner are read as the Data Protection Commission (s.14(2)), and references to personal data and processing reach the GDPR (ss.165, 166).                                                                                                                                                                                                                                                   |
-| S.I. No. 347 of 2019, ePrivacy (Amendment) Regulations 2019                                        | Notice published 19 July 2019                    | Reg 2: substituted the definition of "operator" (who keeps the National Directory Database). Itself revoked by S.I. 444/2022, reg 112(6).                                                                                                                                                                                                                                                                                                              |
-| S.I. No. 444 of 2022, European Union (Electronic Communications Code) Regulations 2022, reg 112(1) | 9 June 2023 (date fixed by S.I. No. 300 of 2023) | Reg 2: definitions now come from the Electronic Communications Code Regulations, not the revoked Framework Regulations; "National Directory Database" and "operator" substituted. Reg 10(b): any other emergency number ComReg specifies. Reg 12 (directories) substituted, now on providers of number-based interpersonal communications services. Reg 14 (the National Directory Database): the same providers. Regs 29 and 30: "or provider" added. |
-| S.I. No. 305 of 2023, ePrivacy (Amendment) Regulations 2023                                        | 9 June 2023                                      | Reg 20: deemed residence of companies for service of notices (new 20(2)). Reg 30(5) substituted and 30(5A) inserted (ComReg directions). Reg 30(6) and Reg 31 deleted (ComReg's High Court route to compliance orders and financial penalties). Reg 32 substituted: ComReg decisions are appealed to the High Court within 28 days.                                                                                                                    |
+| Instrument                                                                                         | In force                                                                  | What it changed                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Data Protection Act 2018 (No. 7 of 2018), ss. 9, 14(2) and (4), 165, 166                           | 25 May 2018, the establishment day (S.I. No. 175 of 2018, made under s.9) | No textual change. References to the Data Protection Commissioner are read as the Data Protection Commission (s.14(2)), and references to personal data and processing reach the GDPR (ss.165, 166).                                                                                                                                                                                                                                                   |
+| S.I. No. 347 of 2019, ePrivacy (Amendment) Regulations 2019                                        | Notice published 19 July 2019                                             | Reg 2: substituted the definition of "operator" (who keeps the National Directory Database). Itself revoked by S.I. 444/2022, reg 112(6).                                                                                                                                                                                                                                                                                                              |
+| S.I. No. 444 of 2022, European Union (Electronic Communications Code) Regulations 2022, reg 112(1) | 9 June 2023 (date fixed by S.I. No. 300 of 2023)                          | Reg 2: definitions now come from the Electronic Communications Code Regulations, not the revoked Framework Regulations; "National Directory Database" and "operator" substituted. Reg 10(b): any other emergency number ComReg specifies. Reg 12 (directories) substituted, now on providers of number-based interpersonal communications services. Reg 14 (the National Directory Database): the same providers. Regs 29 and 30: "or provider" added. |
+| S.I. No. 305 of 2023, ePrivacy (Amendment) Regulations 2023                                        | 9 June 2023                                                               | Reg 20: deemed residence of companies for service of notices (new 20(2)). Reg 30(5) substituted and 30(5A) inserted (ComReg directions). Reg 30(6) and Reg 31 deleted (ComReg's High Court route to compliance orders and financial penalties). Reg 32 substituted: ComReg decisions are appealed to the High Court within 28 days.                                                                                                                    |
+
+One instrument acts on S.I. 336/2011 without amending its text, so the statute book
+does not list it as an amendment: **S.I. No. 304 of 2023**, the Communications
+Regulation and Digital Hub Development Agency (Amendment) Act 2023 (Regulatory
+Provisions) Regulations 2023, in operation from 10 June 2023. Made under s.60(1)(d) of
+the 2023 Act (No. 4 of 2023), its reg 2(a) makes Regs 7 to 15, 29 and 30 of S.I.
+336/2011 "regulatory provisions" for Part 7 of that Act, so ComReg's administrative
+sanctions reach them (see "Enforcement, as settled" below). Regs 4, 5 and 6 are not
+among them.
 
 **The substantive rules this plan builds on (Regs 4, 5 and 13, the offences and the
 penalties) have not been amended since 2011.** The amendments touch definitions,
@@ -153,37 +162,96 @@ would rewrite the cookie rule; it is not law and is out of scope until adopted.
 - **Regs 17 to 28**: the Data Protection Commission investigates, serves enforcement
   notices on Regs 4, 5, 6, 9, 12, 13, 14 and 16(1), serves information notices, and
   prosecutes summary offences itself (Reg 26). Appeals go to the Circuit Court within 21
-  days. Officers are liable where an offence was committed with their consent,
+  days. Irish law gives the Commission this competence expressly: Reg 17(1) and (11)
+  and Reg 26, read with the Data Protection Act 2018, s.14(2). Officers are liable where an offence was committed with their consent,
   connivance or neglect (Reg 25).
 - **Penalties**: a class A fine (up to €5,000, Fines Act 2010 s.3) on summary
   conviction; on indictment up to €250,000 for a body corporate and €50,000 for a
   natural person, for Reg 13 offences (13(15)) and for Reg 4(1) and 4(6) (4(14)). Reg 5
   is not itself an offence: it is enforced by notice, and breaching a notice is. Courts
   may order data forfeited or destroyed.
-- **Regs 29 to 33**: ComReg monitors Regs 7 to 15 and issues directions; it may
-  specify, with the Commission, the form of obtaining, recording and rescinding consent
-  (Reg 30). The two cooperate (Reg 33).
+- **Regs 29 to 33**: ComReg monitors Regs 7 to 15 and issues directions, subject to
+  the Commission's functions under Reg 17 (Reg 30(1)); it may specify, with the
+  Commission, the form of obtaining, recording and rescinding consent (Reg 30(1)), and
+  has issued no such rules. The two cooperate (Reg 33). Since 10 June 2023, Regs 7 to
+  15, 29 and 30 are also enforced through Part 7 of the 2023 Act (S.I. 304/2023).
 
-### Not verified, carried into Phase 0
+### Settled on 12 November 2026
 
-1. Whether ComReg's administrative sanctions under the Communications Regulation and
-   Digital Hub Development Agency (Amendment) Act 2023 reach S.I. 336/2011. No order
-   applying them was found, and the Act is not listed against the S.I.
-2. The prosecution time limit. The S.I. sets none; the general six-month limit for
-   summary proceedings was not checked.
-3. The content of the Commission's cookie guidance (April 2020) beyond its title and
-   date; the PDF could not be read. Its points (analytics needs consent, reject as
-   prominent as accept) are to be read before they appear in Govern's words.
-4. Whether ComReg has specified consent-record requirements under Reg 30.
-5. The establishment day of the Data Protection Act 2018.
-6. That the GDPR one-stop shop does not extend to the ePrivacy rules, so the Commission
-   is competent for S.I. 336/2011 whatever an entity's lead authority (EDPB Opinion
-   5/2019 on the interplay between the ePrivacy Directive and the GDPR). Section
-   "Which body regulates what" depends on it.
+The six points the first draft could not confirm were answered by the user and checked
+against the sources below.
+
+1. **ComReg's administrative sanctions reach part of S.I. 336/2011.** S.I. No. 304 of
+   2023, reg 2(a), prescribes Regs 7 to 15, 29 and 30 as regulatory provisions for Part
+   7 of the 2023 Act. Under Part 7 ComReg can agree a resolution (s.62), serve a notice
+   of suspected non-compliance (s.63), accept commitments (s.67) and refer a case to an
+   adjudicator, who decides on the balance of probabilities (s.90(2)) and may impose
+   administrative sanctions (s.91), confirmed by the High Court (s.109). S.I. No. 305 of
+   2023 removed ComReg's older High Court route (Reg 31) and rewrote appeals (Reg 32).
+   Regs 4, 5 and 6 are not prescribed, so security, breach notification, cookies and
+   traffic data stay with the Data Protection Commission.
+2. **Time limits.** For ComReg's Part 7 steps there is none: s.115 of the 2023 Act lets
+   a notice of suspected non-compliance, a supplementary notice or an urgent interim
+   measures notice be served, and a referral under s.68(3)(c) or s.71 be made, "at any
+   time", notwithstanding the Statute of Limitations 1957 (other than s.11A) and the
+   Statute of Limitations (Amendment) Act 1991. Section 115 does not cover the
+   Commission's own summary prosecutions under Reg 26; see the open items below.
+3. **The Commission's cookie guidance** (Guidance note on cookies and other tracking
+   technologies, April 2020) has been read; the points Govern will use are in
+   "Phase 1: what the cookie guidance adds".
+4. **Consent records.** ComReg has issued no general rules under Reg 30(1) on obtaining,
+   recording and rescinding consent. The Commission's guidance is what applies.
+5. **The establishment day** of the Data Protection Act 2018 is 25 May 2018: the Data
+   Protection Act 2018 (Establishment Day) Order 2018, S.I. No. 175 of 2018, art. 2,
+   made under s.9 of the Act.
+6. **No one-stop shop for the Irish Regulations.** EDPB Opinion 5/2019 on the interplay
+   between the ePrivacy Directive and the GDPR (adopted 12 March 2019), paragraph 80:
+   the GDPR's cooperation and consistency mechanisms concern the GDPR, and "do not apply
+   to the enforcement of the provisions contained in the ePrivacy Directive as such". A
+   data protection authority enforces national ePrivacy rules only where national law
+   gives it that competence (paragraphs 66 to 69). Irish law does: Reg 17(1) and (11)
+   and Reg 26 of S.I. 336/2011, with the Data Protection Act 2018, s.14(2). The
+   Commission's own guidance note says the same (page 2). So the Commission is
+   competent for S.I. 336/2011 whatever an entity's GDPR lead authority, and
+   Article 95 GDPR keeps a provider's breach duty from being duplicated.
+
+### Enforcement, as settled
+
+The marketing rules (Reg 13) and the National Directory Database (Reg 14) now have
+**two routes, side by side**; neither replaces the other.
+
+- **The Commission's route survives unchanged.** Neither S.I. 304/2023 nor S.I. 305/2023
+  touches Regs 17 to 28, so the Commission still serves enforcement notices on Regs 13
+  and 14 and prosecutes their offences summarily (Reg 26), with the per-message offence
+  (13(13)(b)) and the penalties in 13(15). ComReg's monitoring is "subject to" the
+  Commission's Reg 17 functions (Reg 30(1)).
+- **ComReg's Part 7 route sits beside it.** Where the breach is also a criminal offence,
+  as every Reg 13 breach is, ComReg may serve a notice of suspected non-compliance only
+  where the offence is one ComReg may prosecute summarily and it has elected not to, or
+  the matter was referred to the Director of Public Prosecutions and no proceedings
+  were commenced (2023 Act, s.63(3)). Once an adjudicator finds the breach, the person
+  may not be prosecuted for the offence it constitutes (s.90(3)).
+- **Cookies, security and breach notification (Regs 4 to 6)** have only the
+  Commission's route.
+
+### Still open, for the user
+
+1. **Can ComReg prosecute S.I. 336/2011 offences summarily?** S.I. 336/2011 gives that
+   power expressly only to the Commission (Reg 26(1)), while preserving "any other power
+   conferred by law" (Reg 26(2)). Which limb of s.63(3) ComReg uses for a Reg 13 breach
+   depends on the answer. Govern does not need it to record anything, only to word the
+   help precisely.
+2. **How the Commission and ComReg divide Reg 13 and Reg 14 cases in practice.** Reg 33
+   requires them to cooperate; no published arrangement has been read.
+3. **The time limit for the Commission's summary prosecutions.** S.I. 336/2011 sets
+   none and s.115 does not reach them. The general limit for summary offences has not
+   been checked. Until it is, Govern's help says nothing about a limit for prosecutions.
 
 ## The entity flag
 
-`entity.ie_eprivacy`, boolean, default false: **the entity is subject to S.I. 336/2011.**
+`entity.ie_eprivacy`, nullable boolean: **the entity is subject to S.I. 336/2011.** Null
+means nobody has answered, which counts as no, so the suggestion below can go away once
+someone answers either way (built in Phase 0 that way, rather than default false).
 Declared beside the data protection law when an entity is created, and on the
 Organisation page.
 
@@ -201,9 +269,10 @@ Organisation page.
   than a value to accept, where the entity is established in Ireland
   (`eu_establishments` includes `IE`) or its lead authority is `ie-dpc`. A person
   records the answer (decision 3).
-- **Backfill.** Existing entities get false. No entity is subject to it by migration:
-  the suggestion above shows on the Organisation page for those it fits, and the
-  setup guidance asks the question for every entity under EU law.
+- **Backfill.** Entities under UK law only get false, since the Regulations cannot apply
+  to them; entities under EU law stay unanswered. No entity is subject to them by
+  migration: the suggestion above shows on the Organisation page for those it fits, and
+  the setup guidance asks the question for every entity under EU law.
 - **Audit.** `entity.ie_eprivacy_changed`, with before and after.
 - **PECR is unchanged.** PECR still follows UK law. A dual entity can be under PECR,
   S.I. 336/2011, both or neither: the two flags are independent, because a UK group
@@ -247,18 +316,24 @@ and marketing pages still appear for an EU-only organisation.
 | Reg 13(10), (12) identity and opt-out address                                                            | PECR reg 23 condition                                              | **Reused**, with the Irish citations; calls add the caller's name, automated calls and faxes the address and number.                                                                                                                                                                                                                                                            |
 | Reg 13(14) burden of proving consent                                                                     | Consent condition "when and how each person consented is recorded" | **Reused**, and its gap is raised to serious under Irish scope, because without the record there is no defence to a per-message offence.                                                                                                                                                                                                                                        |
 | Reg 14 National Directory Database                                                                       | TPS screening, 28 days                                             | **Irish variant.** `marketing_activity.ndd_screened_at` with the same 28-day staleness, because an opt-out binds after 28 days (13(9)). Audit `marketing.ndd_screened`.                                                                                                                                                                                                         |
-| Regs 17-28, 13(15), 4(14) enforcement and penalties                                                      | Help text only                                                     | **Help and gap words**, not a calculator. Each Irish marketing gap says the act is an offence for each message.                                                                                                                                                                                                                                                                 |
+| Regs 17-28, 13(15), 4(14) enforcement and penalties; 2023 Act Part 7 for Regs 7-15                       | Help text only                                                     | **Help and gap words**, not a calculator. Each Irish marketing gap says the act is an offence for each message, and that ComReg may also take it to an adjudicator for an administrative sanction.                                                                                                                                                                              |
 
 ## Which body regulates what
 
-- **The Data Protection Commission**: enforces Regs 4, 5, 6, 9, 12, 13, 14 and 16(1),
-  receives provider breach notifications (on its telecoms and ISP form, separate from
-  the GDPR form), receives marketing and cookie complaints, and prosecutes.
-- **ComReg**: monitors Regs 7 to 15, issues directions, approves National Directory
-  Database fees and requires someone to keep it. Not a complaints route for marketing.
+- **The Data Protection Commission**: enforces Regs 4, 5, 6, 9, 12, 13, 14 and 16(1)
+  by notice (Reg 17), receives provider breach notifications (on its telecoms and ISP
+  form, separate from the GDPR form), receives marketing and cookie complaints, and
+  prosecutes summarily (Reg 26). Competent whatever an entity's GDPR lead authority
+  (EDPB Opinion 5/2019, paragraph 80).
+- **ComReg**: monitors Regs 7 to 15, issues directions (Regs 29, 30), approves National
+  Directory Database fees and requires someone to keep it. Since 10 June 2023 it can
+  also take a breach of Regs 7 to 15, 29 or 30 through Part 7 of the 2023 Act, to an
+  adjudicator who may impose administrative sanctions (S.I. 304/2023). Not a complaints
+  route for marketing.
 - **The courts**: the District Court hears the Commission's summary prosecutions; the
   Circuit Court hears appeals against its notices; the High Court hears appeals against
-  ComReg; any court may award damages under Reg 16(2).
+  ComReg (Reg 32) and confirms adjudications (2023 Act, s.109); any court may award
+  damages under Reg 16(2).
 
 What follows in Govern:
 
@@ -266,7 +341,7 @@ What follows in Govern:
   telecoms form. The `ie-dpc` entry in `lib/gdpr/authorities.ts` gains an
   `eprivacyBreachUrl`. Article 33 still runs beside it under the entity's lead
   authority, which may not be the Commission; the ePrivacy notice goes to the
-  Commission regardless (Phase 0, item 6).
+  Commission regardless (settled point 6).
 - **Complaints and objections.** There is no Irish duty like s.164A, so no new
   complaints register. A marketing objection is recorded in the request register as
   today and counts against the activity; under Irish scope the help says it must be
@@ -277,21 +352,21 @@ What follows in Govern:
 
 ## Where Irish law and PECR differ
 
-| Difference          | PECR                                                                                           | S.I. 336/2011                                                                                                            | UI                                                                                                                                | Help                                 | Exports                     |
-| ------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------- |
-| Cookie exceptions   | Statistics, appearance and function, emergency without consent (Sch A1)                        | Consent, or transmission or strictly necessary only                                                                      | Irish basis list has three options; a `uk_ie` property shows a decision per law, and an item on statistics is flagged for Ireland | Cookies topic gains an Irish section | One row per item and law    |
-| Soft opt-in         | No time limit; charity soft opt-in since February 2026                                         | 12 months from the sale; no charity version                                                                              | 12-month condition with the sale date; the charity basis is not offered                                                           | Marketing topic, Irish section       | Basis and condition per law |
-| Business recipients | "Corporate subscribers" are outside reg 22; sole traders and some partnerships are individuals | Non-natural persons may be emailed unless they object; a natural person's business address too, about that business only | Irish bases name both cases; recipients gain "business email address of a person" under Irish scope                               | Explains the natural person line     | Basis per law               |
-| Calls               | TPS and CTPS screening, mobiles included                                                       | National Directory Database; mobiles need consent                                                                        | Number type asked; NDD screening date; mobile calls without consent flagged                                                       | Explains the opt-in for mobiles      | NDD date beside TPS date    |
-| Fax                 | Reg 20 (not modelled)                                                                          | 13(1), (3)                                                                                                               | Fax channel (decision 5)                                                                                                          | Short note                           | Channel column              |
-| Provider breach     | Information Commission, 72 hours where feasible                                                | Data Protection Commission, 24 hours where feasible, second notice in three days                                         | A second clock on the breach page, its own decision kinds                                                                         | Breaches topic, provider section     | Obligation per law          |
-| Enforcement         | Monetary penalty notices from the Information Commission                                       | Prosecution, per message, by the Commission; officer liability; civil damages                                            | Gap words say "an offence for each message"                                                                                       | Enforcement paragraph                | Citation on each gap        |
+| Difference          | PECR                                                                                           | S.I. 336/2011                                                                                                                                                                                                                                                                                             | UI                                                                                                                                | Help                                     | Exports                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
+| Cookie exceptions   | Statistics, appearance and function, emergency without consent (Sch A1)                        | Consent, or transmission or strictly necessary only                                                                                                                                                                                                                                                       | Irish basis list has three options; a `uk_ie` property shows a decision per law, and an item on statistics is flagged for Ireland | Cookies topic gains an Irish section     | One row per item and law                               |
+| Soft opt-in         | No time limit; charity soft opt-in since February 2026                                         | 12 months from the sale; no charity version                                                                                                                                                                                                                                                               | 12-month condition with the sale date; the charity basis is not offered                                                           | Marketing topic, Irish section           | Basis and condition per law                            |
+| Business recipients | "Corporate subscribers" are outside reg 22; sole traders and some partnerships are individuals | Non-natural persons may be emailed unless they object; a natural person's business address too, about that business only                                                                                                                                                                                  | Irish bases name both cases; recipients gain "business email address of a person" under Irish scope                               | Explains the natural person line         | Basis per law                                          |
+| Calls               | TPS and CTPS screening, mobiles included                                                       | National Directory Database; mobiles need consent                                                                                                                                                                                                                                                         | Number type asked; NDD screening date; mobile calls without consent flagged                                                       | Explains the opt-in for mobiles          | NDD date beside TPS date                               |
+| Fax                 | Reg 20 (not modelled)                                                                          | 13(1), (3)                                                                                                                                                                                                                                                                                                | Fax channel (decision 5)                                                                                                          | Short note                               | Channel column                                         |
+| Provider breach     | Information Commission, 72 hours where feasible                                                | Data Protection Commission, 24 hours where feasible, second notice in three days                                                                                                                                                                                                                          | A second clock on the breach page, its own decision kinds                                                                         | Breaches topic, provider section         | Obligation per law                                     |
+| Enforcement         | Monetary penalty notices from the Information Commission                                       | Cookies, security and breaches: the Commission's notices and prosecution only. Marketing and the NDD: prosecution per message by the Commission, and ComReg's administrative sanctions through an adjudicator (2023 Act Part 7), not both for the same breach (s.90(3)). Officer liability; civil damages | Gap words say "an offence for each message", and for marketing that ComReg may also seek an administrative sanction               | Enforcement paragraph naming both routes | Citation on each gap, and the regulator for each route |
 
 ## Data model
 
 | Change                                                                  | Detail                                                                                                          |
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `entity.ie_eprivacy`                                                    | boolean not null default false                                                                                  |
+| `entity.ie_eprivacy`                                                    | nullable boolean; null is unanswered (built in Phase 0)                                                         |
 | `entity.public_comms_provider`                                          | unchanged column; the guard widens (above)                                                                      |
 | `digital_property.eprivacy_scope`, `marketing_activity.eprivacy_scope`  | text not null, `uk / ie / uk_ie`, backfilled to `uk` for existing rows (every existing row was made under PECR) |
 | `storage_decision.law`, `marketing_decision.law`                        | text not null `uk / ie`, backfilled `uk`; the "current decision" uniqueness gains the law                       |
@@ -338,13 +413,36 @@ What follows in Govern:
 
 One PR per phase, each from `main`.
 
-| Phase | Scope                                                                                                                                                                                                                                                                       | Size           |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| 0     | **Law, flag and scope.** A person reads the consolidation and the six unverified points. `entity.ie_eprivacy`, its guard, suggestion and audit; `eprivacy_scope` on properties and activities; the registers hidden where neither law applies; the help topic and guidance. | about 1.5 days |
-| 1     | **Cookies.** The Irish basis set, decisions per law, gaps, the analyser's EU region for Irish properties, help and export.                                                                                                                                                  | about 1.5 days |
-| 2     | **Marketing.** Irish bases and conditions, the 12-month rule, number type, NDD screening and the sweep reminder, fax, the service-SMS question, help and export.                                                                                                            | about 2.5 days |
-| 3     | **Provider breaches.** The law-neutral provider flag, the Irish obligations and 24-hour clock, the Commission's form, the inventory filter.                                                                                                                                 | about 1.5 days |
-| 4     | **Exports, Integration API and copy.** The context export, the public form line, the provider checklist template if decision 7 asks for it.                                                                                                                                 | about 1 day    |
+| Phase | Scope                                                                                                                                                                                                                        | Size           |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 0     | **Law, flag and scope.** (Built: PR #43.) `entity.ie_eprivacy`, its guard, suggestion and audit; `eprivacy_scope` on properties and activities; the registers hidden where neither law applies; the help topic and guidance. | about 1.5 days |
+| 1     | **Cookies.** The Irish basis set, decisions per law, gaps, the analyser's EU region for Irish properties, the points from the Commission's guidance below, help and export.                                                  | about 2 days   |
+| 2     | **Marketing.** Irish bases and conditions, the 12-month rule, number type, NDD screening and the sweep reminder, fax, the service-SMS question, help and export.                                                             | about 2.5 days |
+| 3     | **Provider breaches.** The law-neutral provider flag, the Irish obligations and 24-hour clock, the Commission's form, the inventory filter.                                                                                  | about 1.5 days |
+| 4     | **Exports, Integration API and copy.** The context export, the public form line, the provider checklist template if decision 7 asks for it.                                                                                  | about 1 day    |
+
+### Phase 1: what the cookie guidance adds
+
+From the Data Protection Commission's Guidance note on cookies and other tracking
+technologies (April 2020). Page numbers are the note's own.
+
+| Point                                                                                                                                                                                          | Where                                                                                      | In Govern                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Consent is needed for anything outside the two Reg 5(5) exemptions, whatever the cookie is called and whether or not it holds personal data                                                    | pages 5, 6 and 11 ("Consent"; "Which cookies are exempt"; "Pre-checked boxes and sliders") | The Irish basis set has three options; a category label from the analyser never sets the basis                                                       |
+| The communications exemption is narrow: speeding up or regulating transmission is not enough (load balancing qualifies)                                                                        | page 6                                                                                     | Help on the transmission basis; its condition asks for the sole purpose                                                                              |
+| Strictly necessary needs a service the user explicitly asked for; advertising never qualifies; a chatbot's cookies wait until the chat is opened; a long-lived preference cookie needs consent | pages 6 and 7                                                                              | Conditions on the strictly necessary basis, with these examples in help                                                                              |
+| Analytics cookies need consent; first-party analytics are "unlikely" to be an enforcement priority                                                                                             | pages 7 and 8                                                                              | An analytics item on strictly necessary is a gap under Irish scope (decision 10 on how it is worded)                                                 |
+| Device fingerprinting, pixels, SDKs and local storage are covered as cookies are                                                                                                               | pages 4 and 7                                                                              | Every analyser item kind is in scope, as now                                                                                                         |
+| No bundled consent, one consent per purpose, no pre-ticked boxes or sliders set to on                                                                                                          | pages 8 and 10                                                                             | Property questions, as gaps where answered no                                                                                                        |
+| Withdrawing consent must be as easy as giving it                                                                                                                                               | pages 8 and 11                                                                             | Property question                                                                                                                                    |
+| **Consent must be asked for again at most six months after it was stored**, unless a longer period is justified case by case                                                                   | page 8 (footnote 2) and page 11 (footnote 3)                                               | **Missed by the first draft.** New `digital_property.consent_renewal_months`; a gap where it is over six months with no justification recorded       |
+| An accept button needs a reject (or manage) option of equal prominence; an accept-only banner is not compliant                                                                                 | pages 9 and 12                                                                             | Property questions from the analyser report where it says, else asked                                                                                |
+| Scrolling or carrying on is not consent; a banner that disappears on scroll is not compliant                                                                                                   | pages 9 and 10                                                                             | Property question                                                                                                                                    |
+| The cookie and privacy policies must be readable with no non-exempt cookie set, and the banner must not obscure them                                                                           | page 12                                                                                    | Property question                                                                                                                                    |
+| Browser settings are generally not consent                                                                                                                                                     | pages 12 and 13                                                                            | Help; not offered as a basis                                                                                                                         |
+| A cookie's lifespan must be proportionate to its purpose                                                                                                                                       | pages 3 and 13                                                                             | **Missed by the first draft.** A gap where an item's expiry (from the analyser) is long for a strictly necessary basis; the threshold is decision 11 |
+| Keep a record of consent, as part of the Article 30 record, backed by measures that act on it                                                                                                  | pages 9, 11 and 14                                                                         | The property links to its processing activity; a gap where it has none                                                                               |
+| Location tracking needs consent; special category data from cookies in practice needs explicit consent; the DPC's mandatory DPIA list covers tracking and large-scale profiling                | pages 15 and 16                                                                            | Help, with links to the ROPA and DPIA screening                                                                                                      |
 
 ## Out of scope
 
@@ -358,16 +456,19 @@ One PR per phase, each from `main`.
 
 ## Decisions
 
+Decisions 1 to 4 were confirmed by the user on 12 November 2026, as recommended.
+
 1. **Build it as a second ePrivacy law beside PECR, one record with a decision per law.**
-   _Recommendation:_ yes, following EU decision 1. The alternative, separate Irish
+   _Decided:_ as recommended. _Recommendation:_ yes, following EU decision 1. The alternative, separate Irish
    registers, would duplicate the inventory and scans that both laws read.
-2. **Allow the flag only where EU law applies to the entity.** _Recommendation:_ yes.
+2. **Allow the flag only where EU law applies to the entity.** _Decided:_ as
+   recommended. _Recommendation:_ yes.
    The alternative is to allow it on a UK-only entity, which is possible in law but
    almost never true in fact, and would let consent be judged without the EU GDPR.
 3. **Suggest the flag from an Irish establishment or the DPC as lead authority, never
-   set it.** _Recommendation:_ suggest only, as with the lead authority (EU decision 4).
+   set it.** _Decided:_ as recommended. _Recommendation:_ suggest only, as with the lead authority (EU decision 4).
 4. **Hide the cookie and marketing registers where neither ePrivacy law applies.**
-   _Recommendation:_ yes. This also hides PECR registers from EU-only organisations,
+   _Decided:_ as recommended. _Recommendation:_ yes. This also hides PECR registers from EU-only organisations,
    which the EU plan intended but did not build.
 5. **Add fax as a marketing channel for both laws.** _Recommendation:_ yes, as both
    PECR (reg 20) and the S.I. (13(1), (3)) regulate it; or leave fax out and say so in
@@ -382,3 +483,11 @@ One PR per phase, each from `main`.
    flag.** _Recommendation:_ yes: it is the same fact about the entity under either law.
 9. **Scope and order.** _Recommendation:_ Phases 0 to 2 first, as cookies and marketing
    are what most entities need; Phase 3 only once a provider client needs it.
+10. **First-party analytics under Irish scope.** The Commission says they need consent
+    but are unlikely to be an enforcement priority (guidance pages 7 and 8).
+    _Recommendation:_ flag them as a gap like any other analytics item, with the
+    Commission's own words beside it, rather than lowering the gap.
+11. **How long is too long for a strictly necessary cookie.** The guidance asks for
+    proportionate lifespans but sets no figure. _Recommendation:_ flag a strictly
+    necessary item that outlives the session by more than a year, as a prompt to check
+    rather than a breach, and let the organisation change the threshold.
