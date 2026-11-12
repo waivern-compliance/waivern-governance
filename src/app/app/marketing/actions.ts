@@ -126,8 +126,11 @@ export async function updateActivityAction(
         // Asked only under the Irish Regulations; absent, unchanged.
         ...(formData.has('irishAsked')
           ? {
-              callNumbers: (text(formData.get('callNumbers')) ||
-                null) as CallNumbers | null,
+              // Read only where the form asked it: a call activity.
+              callNumbers: formData.has('callNumbers')
+                ? ((text(formData.get('callNumbers')) ||
+                    null) as CallNumbers | null)
+                : undefined,
               inServiceTexts: formData.has('inServiceTextsAsked')
                 ? formData.get('inServiceTexts') === 'on'
                 : undefined

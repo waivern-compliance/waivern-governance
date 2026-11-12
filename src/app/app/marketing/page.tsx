@@ -58,7 +58,12 @@ export default async function MarketingPage() {
   const running = rows.filter((r) => r.activity.status !== 'ended');
   const totals = {
     running: running.length,
-    noBasis: running.filter((r) => !r.decision).length,
+    // No basis under some law the activity answers to.
+    noBasis: running.filter(
+      (r) =>
+        (r.scope !== 'ie' && !r.decision) ||
+        (r.scope !== 'uk' && !r.irishDecision)
+    ).length,
     gaps: running.filter((r) => r.gapList.length > 0).length,
     objections: running.reduce((n, r) => n + r.objections.upheld, 0)
   };

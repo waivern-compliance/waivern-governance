@@ -362,7 +362,7 @@ export default async function MarketingActivityPage({
       <EprivacyScopeNote
         entity={entityEprivacy}
         scope={activity.eprivacyScope}
-        irishChecked
+        irishRules="regulation 13, with who enforces it"
       />
 
       <EditForm

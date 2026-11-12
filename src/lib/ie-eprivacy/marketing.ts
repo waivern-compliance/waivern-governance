@@ -26,6 +26,7 @@
  */
 
 import {
+  conditionsOf,
   isPecrMarketingBasis,
   MARKETING_BASES,
   type MarketingBasis,
@@ -384,4 +385,17 @@ export function marketingBasisSpec(
   if (law === 'ie')
     return isIrishMarketingBasis(basis) ? IE_MARKETING_BASES[basis] : null;
   return isPecrMarketingBasis(basis) ? MARKETING_BASES[basis] : null;
+}
+
+/** What a basis needs on a channel under a law. Empty for a key that law does not have. */
+export function marketingConditionsOf(
+  basis: MarketingBasis,
+  channel: MarketingChannel,
+  law: 'uk' | 'ie'
+): MarketingCondition[] {
+  if (law === 'ie')
+    return isIrishMarketingBasis(basis)
+      ? irishConditionsOf(basis, channel)
+      : [];
+  return isPecrMarketingBasis(basis) ? conditionsOf(basis, channel) : [];
 }

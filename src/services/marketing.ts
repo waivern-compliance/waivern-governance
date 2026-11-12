@@ -384,6 +384,20 @@ export async function recordNddScreening(input: {
         throw new MarketingRefused(
           'Only calls are screened against the National Directory Database.'
         );
+      const [entity] = await tx
+        .select({
+          dataProtectionLaw: entities.dataProtectionLaw,
+          ieEprivacy: entities.ieEprivacy
+        })
+        .from(entities)
+        .where(eq(entities.id, before.entityId));
+      const scope = entity
+        ? recordEprivacy(entity, before.eprivacyScope)
+        : null;
+      if (scope !== 'ie' && scope !== 'uk_ie')
+        throw new MarketingRefused(
+          'This activity is not recorded as under the Irish Regulations, so the National Directory Database does not apply to it.'
+        );
       const [after] = await tx
         .update(marketingActivities)
         .set({ nddScreenedAt: input.screenedAt, updatedAt: new Date() })

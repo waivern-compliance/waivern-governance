@@ -3,18 +3,15 @@
 import { useActionState, useState } from 'react';
 
 import {
-  IE_MARKETING_BASES,
   irishBasesFor,
-  irishConditionsOf
+  marketingBasisSpec,
+  marketingConditionsOf
 } from '@/lib/ie-eprivacy/marketing';
 import {
   basesFor,
-  conditionsOf,
-  MARKETING_BASES,
   type MarketingBasis,
   type MarketingBasisSpec,
   type MarketingChannel,
-  type MarketingCondition,
   type MarketingRecipients
 } from '@/lib/pecr/marketing';
 
@@ -47,17 +44,7 @@ export function MarketingBasisForm({
       ? irishBasesFor(channel, recipients)
       : basesFor(channel, recipients);
   const specOf = (b: MarketingBasis): MarketingBasisSpec =>
-    (law === 'ie'
-      ? (IE_MARKETING_BASES as Partial<
-          Record<MarketingBasis, MarketingBasisSpec>
-        >)
-      : (MARKETING_BASES as Partial<
-          Record<MarketingBasis, MarketingBasisSpec>
-        >))[b]!;
-  const conditionsFor = (b: MarketingBasis): MarketingCondition[] =>
-    law === 'ie'
-      ? irishConditionsOf(b as Parameters<typeof irishConditionsOf>[0], channel)
-      : conditionsOf(b as Parameters<typeof conditionsOf>[0], channel);
+    marketingBasisSpec(b, law)!;
   const [result, run, pending] = useActionState<RequestResult, FormData>(
     action,
     null
@@ -66,7 +53,7 @@ export function MarketingBasisForm({
     current && offered.includes(current) ? current : offered[0]
   );
   const spec = specOf(basis);
-  const conditions = conditionsFor(basis);
+  const conditions = marketingConditionsOf(basis, channel, law);
 
   return (
     <form

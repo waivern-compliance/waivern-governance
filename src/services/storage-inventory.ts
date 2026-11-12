@@ -7,6 +7,7 @@ import {
   entities,
   evidence,
   organisations,
+  processingActivities,
   referenceCounters,
   scanFindings,
   storageDecisions,
@@ -283,6 +284,18 @@ export async function updateProperty(input: {
         input.propertyId,
         input.organisationId
       );
+      // The record of its consent is the entity's own: another entity is
+      // another controller.
+      if (changes.processingActivityId) {
+        const [record] = await tx
+          .select({ entityId: processingActivities.entityId })
+          .from(processingActivities)
+          .where(eq(processingActivities.id, changes.processingActivityId));
+        if (record?.entityId !== before.entityId)
+          throw new InventoryRefused(
+            "Choose one of this website's own entity's processing activities."
+          );
+      }
       const { eprivacyScope: chosenScope, ...rest } = changes;
       const eprivacyScope =
         chosenScope === undefined

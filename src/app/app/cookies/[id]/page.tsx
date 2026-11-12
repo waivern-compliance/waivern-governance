@@ -709,7 +709,7 @@ export default async function PropertyPage({
       <EprivacyScopeNote
         entity={entityEprivacy}
         scope={property.eprivacyScope}
-        irishChecked
+        irishRules="regulation 5 and the Data Protection Commission's cookie guidance"
       />
 
       {irishPropertyGaps.length > 0 ? (

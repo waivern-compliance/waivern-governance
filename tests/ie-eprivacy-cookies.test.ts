@@ -363,6 +363,29 @@ describe('the Irish rules on the register', () => {
         name: 'Website analytics and advertising'
       })
       .returning();
+    // Another entity's record is another controller's.
+    const [other] = await db
+      .insert(entities)
+      .values({ organisationId: w.org.id, name: 'Other Ltd' })
+      .returning();
+    const [theirs] = await db
+      .insert(processingActivities)
+      .values({
+        organisationId: w.org.id,
+        entityId: other.id,
+        reference: 'ROPA-2026-7002',
+        name: 'Their website'
+      })
+      .returning();
+    await assert.rejects(
+      updateProperty({
+        propertyId: w.property.id,
+        organisationId: w.org.id,
+        changes: { processingActivityId: theirs.id },
+        actor: SYSTEM
+      }),
+      /own entity's processing activities/
+    );
     await updateProperty({
       propertyId: w.property.id,
       organisationId: w.org.id,

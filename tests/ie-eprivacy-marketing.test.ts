@@ -232,6 +232,16 @@ describe('the Irish rules on the marketing register', () => {
       decide(w, email.id, 'consent', 'ie'),
       /not recorded as under the Irish Regulations/
     );
+    const calls = await activity(w, 'live_call', 'uk');
+    await assert.rejects(
+      recordNddScreening({
+        activityId: calls.id,
+        organisationId: w.org.id,
+        screenedAt: new Date(),
+        actor: SYSTEM
+      }),
+      /National Directory Database does not apply/
+    );
     await assert.rejects(
       updateMarketingActivity({
         activityId: email.id,
