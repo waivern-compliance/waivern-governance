@@ -491,7 +491,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Special category and criminal offence data',
         body: [
           'Tick the categories of data subject and of personal data that apply, and add any others in your own words. The lists include the categories public services hold: patients, people receiving social care, pupils, parents and carers, social care and education records, and safeguarding concerns. Suspects, convicted people, victims and witnesses are the categories a competent authority must distinguish under Part 3 of the Data Protection Act 2018.',
-          'Then say whether the processing involves special category data (UK GDPR Article 9) or criminal offence data (Article 10), and choose the condition. For special category data that is the Article 9(2) point and, where that point needs one, the Data Protection Act 2018 Schedule 1 condition: employment, health or social care, public health and research add the Part 1 condition for you, and substantial public interest asks which Part 2 condition - statutory and government purposes, preventing or investigating unlawful acts, safeguarding, and the rest. Criminal offence data asks for its own condition: official authority, or a condition in Part 1, 2 or 3 of Schedule 1.',
+          'Then say whether the processing involves special category data (Article 9) or criminal offence data (Article 10), and choose the condition. For special category data that is the Article 9(2) point and, under UK law where that point needs one, the Data Protection Act 2018 Schedule 1 condition: employment, health or social care, public health and research add the Part 1 condition for you, and substantial public interest asks which Part 2 condition - statutory and government purposes, preventing or investigating unlawful acts, safeguarding, and the rest. Criminal offence data asks for its own condition: official authority, or a condition in Part 1, 2 or 3 of Schedule 1.',
           'A record with special category or criminal offence data and no condition is red, because Articles 9 and 10 forbid the processing without one. So is one relying on a Schedule 1 condition that needs an appropriate policy document when no current document covers it; for paragraphs 10, 13 and 27, which have exceptions, it is amber. Where a document is needed, the record also asks whether retention and erasure followed its policy, and why not if they did not, because Schedule 1 paragraph 41 says the record must.'
         ]
       },
@@ -742,7 +742,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'What it is for',
         body: [
-          "A processor is governed by an Article 28 contract. Another controller is not: a council sharing with a health trust, a school with children's services, a safeguarding partnership. The UK GDPR does not require an agreement for that sharing, but the Information Commission's data sharing code of practice expects one for routine sharing, and it is where each party's basis is written down.",
+          "A processor is governed by an Article 28 contract. Another controller is not: a council sharing with a health trust, a school with children's services, a safeguarding partnership. Neither the UK GDPR nor the EU GDPR requires an agreement for that sharing, but the Information Commission's data sharing code of practice expects one for routine sharing, and it is where each party's basis is written down.",
           "Each agreement names our party (one of your entities) and the other controllers, which come from the third-party register recorded as another controller. It records the purpose, which way the data goes, what is shared, each controller's own Article 6 basis - and where special category or criminal offence data is shared, its Schedule 1 or Article 10 condition - and the processing activities it covers."
         ]
       },
@@ -933,7 +933,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Assessing severity: template or free text',
         body: [
           'Either works. A breach settled in an afternoon can be judged in the decision itself, in your own words - requiring a structured assessment would push people to record breaches later, and the seventy-two hours runs from when you became aware whatever anybody is doing about it.',
-          "The structured option works through the ICO's factors: the type of breach, the nature and sensitivity and volume of the data, how easily people can be identified, the severity of the consequences, whether any of them are children or otherwise vulnerable, and how many are affected. It proposes an answer to both statutory questions.",
+          "The structured option works through the factors in WP29's WP250, which the ICO and the EDPB both follow: the type of breach, the nature and sensitivity and volume of the data, how easily people can be identified, the severity of the consequences, whether any of them are children or otherwise vulnerable, and how many are affected. It proposes an answer to both statutory questions, and serves a breach under either law or both, because Articles 33 and 34 read the same in each.",
           'It proposes. The decisions remain acts a named person records with their reasoning, and the band appears beside them rather than in place of them.'
         ]
       },
@@ -1546,7 +1546,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Recording an activity',
         body: [
           'Add each campaign or channel: the monthly newsletter, a promotional text campaign, an outbound call programme. Say how it reaches people and who - individuals, or only companies and public bodies - because that decides which bases are open to it.',
-          'Link it to its processing activity in the ROPA. Objections to direct marketing upheld in the request register are then counted against it; an objection overridden shows in red, because UK GDPR article 21(3) makes it absolute.',
+          'Link it to its processing activity in the ROPA. Objections to direct marketing upheld in the request register are then counted against it; an objection overridden shows in red, because Article 21(3) makes it absolute.',
           'Who is on each list, and who has opted out, stays in your marketing tool. This records what the sending relies on.'
         ]
       },
@@ -1614,7 +1614,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Moving it through its lifecycle',
         body: [
           'A system can be added at whatever stage it is really at. Moving it live afterwards - into pilot, or from pilot to production - is checked: it needs a named owner and an approved AI assessment that is not past its review and was approved after the last change to the model, data or use.',
-          "If the system's approved DPIA says high risk remains after mitigation, it also needs the Information Commission's advice recorded on that DPIA: Article 36 requires prior consultation before the processing starts.",
+          "If the system's approved DPIA says high risk remains after mitigation, it also needs the supervisory authority's advice recorded on that DPIA: Article 36 requires prior consultation before the processing starts. That is the Information Commission under UK law, and the lead or competent authority under EU law.",
           'Where those are missing, somebody who decides approvals can let it go ahead with a reason. The move is recorded with what was missing and why, so the history shows a system that went live without an assessment did.',
           "Record any change to the model, its data or its use. A model change needs how it was validated and how it would be rolled back. Every change brings the system's review forward, and it shows as changed since assessed until it is assessed again."
         ]
@@ -1738,7 +1738,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           'Since 5 February 2026, sending personal data outside the UK needs one of three things (UK GDPR Article 44A): a transfer approved by UK regulations under Article 45A - what used to be called adequacy regulations - a safeguard under Article 46 such as the IDTA or the UK Addendum, or an Article 49 derogation. This library is where the first question is answered from, for every assessment and every processing record.',
           'It holds whether the UK approves each destination, whether the EU finds it adequate, transfer risk, and when each entry was last reviewed. Some entries are conditional - a destination approved only for organisations certified under a particular framework is not approved for everybody, and the library says so rather than rounding it up. The stored statuses did not change with the law; only the words did, so older records still read correctly.',
-          'Relying on an Article 46 safeguard now means applying the data protection test: acting reasonably and proportionately, you must consider that protection after the transfer would be not materially lower than in the UK, judged on everything about the transfer, including the nature and volume of the data. The UK transfer risk assessment asks for that judgement, the steps behind it, and what you will do if the test is not met.'
+          'Relying on an Article 46 safeguard now means applying the data protection test: acting reasonably and proportionately, you must consider that protection after the transfer would be not materially lower than in the UK, judged on everything about the transfer, including the nature and volume of the data. The UK transfer risk assessment asks for that judgement, the steps behind it, and what you will do if the test is not met.',
+          "Under the EU GDPR the questions are the same in shape, with different tools (Articles 44 to 49): an EU adequacy decision (Article 45), a safeguard under Article 46 such as the EU standard contractual clauses (Implementing Decision (EU) 2021/914) or binding corporate rules, or an Article 49 derogation. An Article 46 safeguard needs a transfer impact assessment: whether the law and practice of the destination give protection essentially equivalent to the EU's, following the Schrems II judgment and the EDPB's Recommendations 01/2020. The 'Transfer impact assessment (EU)' template asks for it. The two laws' tools are not interchangeable: the EU clauses need the UK Addendum to serve a UK transfer."
         ]
       },
       {
@@ -2397,6 +2398,13 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Which templates, under which law',
+        body: [
+          'The DPIA screening and the breach severity assessment serve the UK GDPR, the EU GDPR or both, because Articles 33 to 35 read the same in each; their questions cite both laws, and EU sources (the EDPB, WP29, the CNIL) beside the ICO. The full DPIA, the legitimate interests assessment and the UK transfer risk assessment are built on UK law and offered where some entity is subject to it. The CNIL method and the EU transfer impact assessment are offered to every organisation.',
+          "Under EU law, check also the list of processing that needs a DPIA published by your lead or competent authority under Article 35(4): the CNIL's, for France."
+        ]
+      },
+      {
         heading: 'Equality impact assessments',
         body: [
           "The equality impact assessment follows the public sector equality duty: impact on each of the nine protected characteristics in turn, then the duty's three aims, then a decision. An impact nobody has looked into scores almost as badly as an adverse one. Where AI is involved it asks whether performance was measured across groups, as the AI Playbook suggests. Start one from an AI system's page to tie it to the system."
@@ -2434,7 +2442,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Handling',
         body: [
           "A report goes to the system's AI governance officer, else its owner, else to AI governance, with a task due within two days. They triage it - how serious, whether harm is actual, who handles it, and the risk it belongs to - then take it through investigation to resolution. Every step needs a note, and the timeline cannot be edited.",
-          'Resolving needs an outcome. For a challenge, that is the decision a person reached and what was put right - the human review UK GDPR Article 22C and the AI Playbook ask for. A system with actual harm reported and not yet resolved shows as a serious gap on the register.'
+          'Resolving needs an outcome. For a challenge, that is the decision a person reached and what was put right - the human review UK GDPR Article 22C, EU GDPR Article 22(3) and the AI Playbook ask for. A system with actual harm reported and not yet resolved shows as a serious gap on the register.'
         ]
       }
     ],

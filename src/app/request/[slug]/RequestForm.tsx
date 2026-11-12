@@ -31,12 +31,15 @@ export function RequestForm({
   slug,
   started,
   controllerName,
+  regulator,
   limits,
   complaintSubjects
 }: {
   slug: string;
   started: string;
   controllerName: string;
+  /** Whom the person may complain to, read after "complain to". */
+  regulator: string;
   limits: {
     name: number;
     contact: number;
@@ -67,7 +70,7 @@ export function RequestForm({
         <p className="text-sm">
           This page does not show the progress of your complaint; they will
           reply to the address you gave. If you are not satisfied with how they
-          deal with it, you can complain to the Information Commission.
+          deal with it, you can complain to {regulator}.
         </p>
       </Confirmation>
     );

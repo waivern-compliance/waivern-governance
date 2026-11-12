@@ -38,7 +38,7 @@ export type GateContext = {
   /** The most recent change to the model, its data or its use. */
   lastMaterialChangeAt: Date | null;
   /**
-   * The system's approved DPIA leaves high risk and does not record the Information Commission's
+   * The system's approved DPIA leaves high risk and does not record the supervisory authority's
    * advice. Optional so a caller that never looked does not claim it is clear.
    */
   icoConsultationOutstanding?: boolean;
@@ -59,7 +59,7 @@ export const GATE_WORDS: Record<GateCondition, string> = {
   assessed_since_change:
     'An assessment approved since the last change to the model, data or use',
   ico_consulted:
-    "The Information Commission's advice on the high risk its DPIA leaves (Article 36)"
+    "The supervisory authority's advice on the high risk its DPIA leaves (Article 36)"
 };
 
 /**

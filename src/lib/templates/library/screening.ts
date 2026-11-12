@@ -5,9 +5,10 @@ import type { TemplateDefinition } from '../schema';
  * deliberately short — a screening questionnaire people abandon halfway is
  * worse than no screening at all.
  *
- * The weights follow the ICO's screening criteria: any single high-weight
+ * The weights follow the criteria in WP248, which the ICO's screening list
+ * and each EU authority's Article 35(4) list build on: any single high-weight
  * trigger is enough to require a DPIA on its own, which the band boundaries
- * reflect.
+ * reflect. Under the UK GDPR, the EU GDPR or both: Article 35 reads the same.
  */
 export const SCREENING: TemplateDefinition = {
   schema: {
@@ -47,14 +48,20 @@ export const SCREENING: TemplateDefinition = {
         key: 'triggers',
         title: 'Screening criteria',
         description:
-          'Tick everything that applies. If you are unsure, tick it - an unnecessary DPIA costs an hour, a missing one costs rather more.',
+          "Tick everything that applies. If you are unsure, tick it - an unnecessary DPIA costs an hour, a missing one costs rather more. Under EU law, also check the list your lead or competent authority published under Article 35(4): the CNIL's, for France.",
         questions: [
           {
             key: 'criteria',
             label: 'Which of these apply to the processing?',
             type: 'multi_select',
             required: true,
-            legalRefs: ['ukgdpr.art35', 'ico.dpia'],
+            legalRefs: [
+              'ukgdpr.art35',
+              'eugdpr.art35',
+              'ico.dpia',
+              'wp29.wp248',
+              'cnil.pia.list'
+            ],
             evidence: 'none',
             options: [
               {
@@ -125,7 +132,7 @@ export const SCREENING: TemplateDefinition = {
             type: 'boolean',
             required: true,
             help: 'Includes predictive models, generative tools and agentic systems, whether built here or bought in.',
-            legalRefs: ['ukgdpr.art35'],
+            legalRefs: ['ukgdpr.art35', 'eugdpr.art35'],
             evidence: 'none'
           },
           {

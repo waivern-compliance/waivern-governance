@@ -278,7 +278,9 @@ export function regulatorFor(
   e: Pick<
     Establishment,
     'euLeadAuthority' | 'euEstablishments' | 'euMainEstablishment'
-  >
+  >,
+  /** Who the words are about: the person ("they"), or the person reading them ("you"). */
+  person: 'they' | 'you' = 'they'
 ): {
   complainTo: string;
   short: string;
@@ -287,7 +289,7 @@ export function regulatorFor(
   // Under both laws the person may go to either: the Information Commission,
   // or an EU authority on the Article 77(1) terms.
   if (jurisdiction === 'uk_eu') {
-    const eu = regulatorFor('eu', e);
+    const eu = regulatorFor('eu', e, person);
     return {
       complainTo: `the Information Commission, or ${eu.complainTo}`,
       short: `the Information Commission or ${eu.short}`,
@@ -307,8 +309,7 @@ export function regulatorFor(
   const authority =
     authorityByCode(e.euLeadAuthority) ??
     (there.length === 1 ? there[0] : null);
-  const anywhere =
-    'a data protection supervisory authority, in particular in the member State where they live or work or where the alleged infringement took place';
+  const anywhere = `a data protection supervisory authority, in particular in the member State where ${person} live or work or where the alleged infringement took place`;
   return authority
     ? {
         complainTo: `${anywhere} (the lead authority for this organisation is ${authority.name})`,

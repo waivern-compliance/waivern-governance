@@ -296,8 +296,10 @@ export async function openIntakeLink(slug: string) {
     // The 30-day acknowledgement is DPA 2018 s.164A: promised only where UK
     // law applies. The EU GDPR puts no such duty on the controller.
     ukLaw: ukLawApplies(row.dataProtectionLaw),
-    // Named on the form where only EU law applies (Article 77).
-    euRegulator: regulatorFor('eu', row).complainTo,
+    // Whom the person may complain to, under the entity's law or laws,
+    // addressed to them. Named in the header where only EU law applies
+    // (Article 77), and on the complaint confirmation.
+    regulator: regulatorFor(row.dataProtectionLaw, row, 'you').complainTo,
     otherFormSlug: other?.slug ?? null,
     appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.

@@ -82,7 +82,7 @@ describe('the Data Protection Act 2018 in the library', () => {
 describe("the regulator's name", () => {
   it('is the Information Commission wherever its statutory role is described', () => {
     const templates = JSON.stringify(
-      SYSTEM_TEMPLATES.filter((t) => t.jurisdiction === 'UK').map(
+      SYSTEM_TEMPLATES.filter((t) => t.jurisdiction?.startsWith('UK')).map(
         (t) => t.definition
       )
     );
@@ -90,11 +90,13 @@ describe("the regulator's name", () => {
       templates,
       /Information Commissioner|consultation with the ICO|the ICO's advice|ICO's advice has/
     );
+    // Prior consultation is with the supervisory authority under either law;
+    // in the UK that is the Commission, named as such.
     assert.match(
       templates,
-      /prior consultation with the Information Commission/
+      /prior consultation with the supervisory authority[^"]*the Information Commission in the UK/
     );
-    assert.match(GATE_WORDS.ico_consulted, /Information Commission's advice/);
+    assert.match(GATE_WORDS.ico_consulted, /supervisory authority's advice/);
     assert.match(
       pecrObligationsFor({ discoveredAt: new Date() })[0].what,
       /Information Commission\b/

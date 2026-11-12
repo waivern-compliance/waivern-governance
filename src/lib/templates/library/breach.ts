@@ -1,18 +1,19 @@
 import type { TemplateDefinition } from '../schema';
 
 /**
- * A breach severity assessment, following the ICO's guidance.
+ * A breach severity assessment, under the UK GDPR, the EU GDPR or both:
+ * Articles 33 and 34 read the same in each, so one assessment serves both.
  *
- * The ICO asks the same question the Regulation does — is the breach likely to
+ * The ICO and the EDPB ask the same question the Regulation does — is the breach likely to
  * result in a risk to people's rights and freedoms, and is that risk high —
  * and sets out the factors to weigh in answering it: the type of breach, the
  * nature, sensitivity and volume of the data, how easily individuals can be
  * identified, the severity of the consequences, any special characteristics of
  * the individuals or of the controller, and how many people are affected.
  *
- * Those factors are the ICO's restatement of the WP29 list in WP250, which is
- * cited alongside so a reviewer can see where they come from rather than
- * taking the arrangement on trust.
+ * Those factors are the WP29 list in WP250, which the EDPB endorsed and the
+ * ICO restates. It is cited alongside both so a reviewer can see where they
+ * come from rather than taking the arrangement on trust.
  *
  * Scored as a weighted sum, because this is a multi-factor triage rather than
  * a likelihood-and-impact judgement. The bands are written to answer the two
@@ -32,7 +33,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'What happened?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art33'],
+            legalRefs: ['ukgdpr.art33', 'eugdpr.art33'],
             evidence: 'none'
           },
           {
@@ -41,7 +42,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'multi_select',
             required: true,
             help: 'More than one can apply. Ransomware that exfiltrated before encrypting is both a confidentiality and an availability breach.',
-            legalRefs: ['ico.breach', 'wp29.wp250'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022', 'wp29.wp250'],
             evidence: 'none',
             options: [
               {
@@ -67,7 +68,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'Has the data been recovered or the access closed off?',
             type: 'single_select',
             required: true,
-            legalRefs: ['ico.breach'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022'],
             evidence: 'none',
             options: [
               {
@@ -94,7 +95,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'single_select',
             required: true,
             help: 'Encryption or effective pseudonymisation, with keys held separately. This is the Article 34(3)(a) exemption and a question of fact.',
-            legalRefs: ['ukgdpr.art34'],
+            legalRefs: ['ukgdpr.art34', 'eugdpr.art34'],
             evidence: 'optional',
             options: [
               {
@@ -117,14 +118,14 @@ export const BREACH_SEVERITY: TemplateDefinition = {
         key: 'data',
         title: 'The data',
         description:
-          "Its nature, sensitivity and volume - the ICO's first three factors.",
+          "Its nature, sensitivity and volume - the first three factors in WP250 and the ICO's guide.",
         questions: [
           {
             key: 'data_categories',
             label: 'What categories of personal data are involved?',
             type: 'data_category',
             required: true,
-            legalRefs: ['ico.breach'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022'],
             evidence: 'none'
           },
           {
@@ -132,7 +133,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'How sensitive is it?',
             type: 'single_select',
             required: true,
-            legalRefs: ['ico.breach', 'wp29.wp250'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022', 'wp29.wp250'],
             evidence: 'none',
             options: [
               {
@@ -163,7 +164,12 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'Does it include special category or criminal offence data?',
             type: 'boolean',
             required: true,
-            legalRefs: ['ukgdpr.art9', 'ukgdpr.art10'],
+            legalRefs: [
+              'ukgdpr.art9',
+              'eugdpr.art9',
+              'ukgdpr.art10',
+              'eugdpr.art10'
+            ],
             evidence: 'none'
           },
           {
@@ -181,7 +187,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
               question: 'special_category',
               value: true
             },
-            legalRefs: ['ukgdpr.art9'],
+            legalRefs: ['ukgdpr.art9', 'eugdpr.art9'],
             evidence: 'none'
           },
           {
@@ -189,8 +195,8 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'How easily can individuals be identified from it?',
             type: 'single_select',
             required: true,
-            help: 'The ICO treats ease of identification as a factor in its own right: the same data is more serious when it names people.',
-            legalRefs: ['ico.breach', 'wp29.wp250'],
+            help: 'Ease of identification is a factor in its own right (WP250, and the ICO): the same data is more serious when it names people.',
+            legalRefs: ['ico.breach', 'edpb.gl09-2022', 'wp29.wp250'],
             evidence: 'none',
             options: [
               {
@@ -216,7 +222,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'How much data per person?',
             type: 'single_select',
             required: true,
-            legalRefs: ['ico.breach'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022'],
             evidence: 'none',
             options: [
               {
@@ -246,7 +252,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'number',
             required: true,
             help: 'An estimate recorded beats a blank field. Article 33(3)(a) asks for approximate numbers.',
-            legalRefs: ['ukgdpr.art33'],
+            legalRefs: ['ukgdpr.art33', 'eugdpr.art33'],
             evidence: 'none'
           },
           {
@@ -254,7 +260,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'How would you characterise that number?',
             type: 'single_select',
             required: true,
-            legalRefs: ['ico.breach'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022'],
             evidence: 'none',
             options: [
               {
@@ -271,8 +277,8 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'Are any of them children or otherwise vulnerable?',
             type: 'single_select',
             required: true,
-            help: 'The ICO treats special characteristics of the individual as raising severity in its own right.',
-            legalRefs: ['ico.breach', 'wp29.wp250'],
+            help: 'Special characteristics of the individual raise severity in their own right (WP250, and the ICO).',
+            legalRefs: ['ico.breach', 'edpb.gl09-2022', 'wp29.wp250'],
             evidence: 'none',
             options: [
               { value: 'no', label: 'No', weight: 0 },
@@ -291,8 +297,8 @@ export const BREACH_SEVERITY: TemplateDefinition = {
               'Does the nature of your organisation make the data more revealing?',
             type: 'single_select',
             required: true,
-            help: "The ICO's factor on special characteristics of the controller: being a patient of a clinic, or a client of a debt service, is itself sensitive information.",
-            legalRefs: ['ico.breach', 'wp29.wp250'],
+            help: 'The factor on special characteristics of the controller (WP250, and the ICO): being a patient of a clinic, or a client of a debt service, is itself sensitive information.',
+            legalRefs: ['ico.breach', 'edpb.gl09-2022', 'wp29.wp250'],
             evidence: 'none',
             options: [
               {
@@ -313,7 +319,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
         key: 'consequences',
         title: 'Consequences',
         description:
-          "What could happen to the people affected - the ICO's severity factor.",
+          "What could happen to the people affected - the severity factor in WP250 and the ICO's guide.",
         questions: [
           {
             key: 'consequences',
@@ -321,7 +327,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'long_text',
             required: true,
             help: "Article 33(3)(c). Written from their position rather than the organisation's.",
-            legalRefs: ['ukgdpr.art33'],
+            legalRefs: ['ukgdpr.art33', 'eugdpr.art33'],
             evidence: 'none'
           },
           {
@@ -329,7 +335,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'Which kinds of harm are realistic?',
             type: 'multi_select',
             required: true,
-            legalRefs: ['ico.breach', 'wp29.wp250'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022', 'wp29.wp250'],
             evidence: 'none',
             options: [
               {
@@ -367,7 +373,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'single_select',
             required: true,
             help: 'This is the Article 34(3)(b) question: whether the high risk is no longer likely to materialise.',
-            legalRefs: ['ukgdpr.art34'],
+            legalRefs: ['ukgdpr.art34', 'eugdpr.art34'],
             evidence: 'optional',
             options: [
               {
@@ -385,7 +391,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'long_text',
             required: true,
             help: 'Article 33(3)(d), including anything to mitigate possible adverse effects.',
-            legalRefs: ['ukgdpr.art33'],
+            legalRefs: ['ukgdpr.art33', 'eugdpr.art33'],
             evidence: 'optional'
           }
         ]
@@ -403,7 +409,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'single_select',
             required: true,
             help: 'If yes, Article 33 requires the supervisory authority to be told within seventy-two hours of becoming aware.',
-            legalRefs: ['ukgdpr.art33'],
+            legalRefs: ['ukgdpr.art33', 'eugdpr.art33'],
             evidence: 'none',
             options: [
               { value: 'yes', label: 'Yes - notify the supervisory authority' },
@@ -421,7 +427,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'single_select',
             required: true,
             help: 'If yes, Article 34 requires the people affected to be told without undue delay, unless an Article 34(3) exemption applies.',
-            legalRefs: ['ukgdpr.art34'],
+            legalRefs: ['ukgdpr.art34', 'eugdpr.art34'],
             evidence: 'none',
             options: [
               { value: 'yes', label: 'Yes - tell the people affected' },
@@ -449,7 +455,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
               value: 'exempt'
             },
             help: '34(3)(a) unintelligible data; 34(3)(b) subsequent measures; 34(3)(c) disproportionate effort, which substitutes a public communication rather than removing the obligation.',
-            legalRefs: ['ukgdpr.art34'],
+            legalRefs: ['ukgdpr.art34', 'eugdpr.art34'],
             evidence: 'none'
           },
           {
@@ -458,7 +464,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             type: 'long_text',
             required: true,
             help: 'The reasoning is the assessment. This is the sentence a regulator would ask about, and it is recorded against the breach as well.',
-            legalRefs: ['ukgdpr.art33'],
+            legalRefs: ['ukgdpr.art33', 'eugdpr.art33'],
             evidence: 'none'
           },
           {
@@ -466,7 +472,7 @@ export const BREACH_SEVERITY: TemplateDefinition = {
             label: 'Who reached this view?',
             type: 'short_text',
             required: true,
-            legalRefs: ['ico.breach'],
+            legalRefs: ['ico.breach', 'edpb.gl09-2022'],
             evidence: 'none'
           }
         ]
