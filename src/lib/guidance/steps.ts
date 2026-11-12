@@ -84,7 +84,7 @@ export const SETUP: Step[] = [
     why:
       'The tool routes work to named people. Until somebody is named, nothing is assigned ' +
       'and nothing moves. Accountability for a decision is also the point of recording it ' +
-      'at all - UK GDPR Article 5(2) makes you responsible for demonstrating compliance, ' +
+      'at all - Article 5(2) makes you responsible for demonstrating compliance, ' +
       "and a decision nobody's name is on demonstrates nothing.",
     finishedWhen:
       'Everyone who needs to approve or answer something can sign in and has a role.',
@@ -99,12 +99,12 @@ export const SETUP: Step[] = [
     title: 'Publish the assessment templates you will use',
     what:
       'The tool ships templates for the common assessments: a short screening, a full ' +
-      'DPIA, a legitimate interests assessment, a transfer risk assessment. Publish the ' +
-      'ones you need. You can read every question before you do.',
+      'DPIA, a legitimate interests assessment, a transfer assessment for each law. Publish ' +
+      'the ones you need. You can read every question before you do.',
     why:
       'A template is how the same questions get asked every time, which is what makes ' +
       'twenty assessments comparable instead of twenty essays. The DPIA template follows ' +
-      'the minimum content set out in UK GDPR Article 35(7).',
+      'the minimum content set out in Article 35(7).',
     finishedWhen: 'At least the screening and DPIA templates are published.',
     href: '/app/templates',
     watchOut:
@@ -118,7 +118,7 @@ export const SETUP: Step[] = [
       'One entry per thing you do: running a newsletter, taking bookings, recording ' +
       'support calls. Say what data, whose, why, who else sees it, and how long you keep it.',
     why:
-      'This is the record UK GDPR Article 30 requires, and a regulator can ask for it ' +
+      'This is the record Article 30 requires, and a regulator can ask for it ' +
       'without warning. It is also the spine of everything else here - you cannot assess ' +
       'a risk in an activity you have not written down.',
     finishedWhen:
@@ -137,7 +137,7 @@ export const SETUP: Step[] = [
       'payroll, a freelancer with a login. Record the agreement you have with each, and ' +
       'attach the signed copy.',
     why:
-      'UK GDPR Article 28 requires a written contract with every processor, covering ' +
+      'Article 28 requires a written contract with every processor, covering ' +
       'specific terms. No contract, an unsigned one and an expired one are the same ' +
       'failure. Article 28(2) also requires you to know who they subcontract to.',
     finishedWhen:
@@ -155,7 +155,8 @@ export const SETUP: Step[] = [
       'model: a chatbot, a scoring tool, a transcription service, a recommendation engine.',
     why:
       'Automated decisions with legal or similarly significant effects carry specific ' +
-      'obligations under UK GDPR Articles 22A–22D. You cannot assess what you have not listed.',
+      'obligations: UK GDPR Articles 22A–22D, and EU GDPR Article 22. You cannot assess what ' +
+      'you have not listed.',
     finishedWhen:
       'Every AI system in use appears, including ones bought as a feature of something else.',
     href: '/app/ai',
@@ -170,7 +171,7 @@ export const SETUP: Step[] = [
       'Run the short screening against each processing activity. Where it says a full ' +
       'DPIA is needed, run one. Get each approved by whoever is accountable.',
     why:
-      'UK GDPR Article 35(1) requires a DPIA where processing is likely to result in a ' +
+      'Article 35(1) requires a DPIA where processing is likely to result in a ' +
       'high risk to people. Screening first is what tells you which those are, and ' +
       'records your reasoning for the ones you decided did not need one - which is the ' +
       'half people forget and a regulator asks about.',
@@ -188,8 +189,8 @@ export const SETUP: Step[] = [
       'Give each approved assessment a review date. Annually is a common choice; ' +
       'something high-risk or fast-changing deserves sooner.',
     why:
-      'An assessment describes what you did on the day it was written. UK GDPR Article ' +
-      '35(11) expects a review where the risk changes. Without a date, nothing brings it ' +
+      'An assessment describes what you did on the day it was written. Article 35(11) ' +
+      'expects a review where the risk changes. Without a date, nothing brings it ' +
       'back to you and it quietly becomes fiction.',
     finishedWhen:
       'Every approved assessment has a review date, and the people responsible know.',
@@ -219,7 +220,7 @@ export const MAINTAIN: Step[] = [
       'now, change what has changed, and have it re-approved.',
     why:
       'Reviewing is not a formality: the point is to catch the change nobody told you ' +
-      'about. UK GDPR Article 35(11) expects it where risk may have changed, and in ' +
+      'about. Article 35(11) expects it where risk may have changed, and in ' +
       'practice something always has.',
     finishedWhen: 'No approved assessment is past its review date.',
     href: '/app/reviews',
@@ -291,10 +292,11 @@ export const MAINTAIN: Step[] = [
       'Read this before you need it. A personal data breach is recorded here, and the ' +
       'tool runs the statutory clock from the moment you became aware.',
     why:
-      'UK GDPR Article 33 gives you 72 hours from awareness to notify the regulator where ' +
+      'Article 33 gives you 72 hours from awareness to notify the supervisory authority where ' +
       'the breach is likely to result in a risk to people. Article 34 is a separate ' +
       'question about telling the people affected. Seventy-two hours is not long to be ' +
-      'learning where the button is.',
+      'learning where the button is. Where both laws apply, each authority is told: the ' +
+      'Information Commission, and the EU authority or authorities concerned.',
     finishedWhen:
       'You know where the breach page is, and who would be told first.',
     href: '/app/breaches',
@@ -310,7 +312,7 @@ export const MAINTAIN: Step[] = [
       'asks you to delete it or objects to how you use it, it is recorded here and the tool ' +
       'counts the month you have to answer.',
     why:
-      'UK GDPR Article 12(3) gives you one calendar month from receipt to respond to a request ' +
+      'Article 12(3) gives you one calendar month from receipt to respond to a request ' +
       'under Articles 15 to 22, extendable by two more only if you say why within the first ' +
       'month. A request can arrive by any route, to anybody, without naming the law.',
     finishedWhen:
@@ -341,6 +343,7 @@ export const MAINTAIN: Step[] = [
   },
   {
     id: 'cookies',
+    ukLaw: true,
     title: 'Know what your websites store, and why',
     what:
       'Add each website and app, upload a Waivern Consent Analyser report for it, and record the basis ' +
@@ -358,12 +361,13 @@ export const MAINTAIN: Step[] = [
   },
   {
     id: 'marketing',
+    ukLaw: true,
     title: 'Know what your marketing relies on',
     what:
       'Add each newsletter, promotional email or text campaign and call programme, link it to its ROPA entry, and ' +
       'record the PECR basis it relies on.',
     why:
-      'PECR regulations 21 and 22 decide who may be emailed, texted or called for marketing, on top of UK GDPR. ' +
+      'PECR regulations 21 and 22 decide who may be emailed, texted or called for marketing, on top of the UK GDPR. ' +
       'The soft opt-in and, since February 2026, the charity soft opt-in each come with conditions you must be able ' +
       'to show; call lists must be screened against the TPS.',
     finishedWhen: 'Every running activity has a basis with no gaps.',

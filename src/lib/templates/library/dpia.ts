@@ -34,8 +34,8 @@ import type { TemplateDefinition } from '../schema';
  *
  * `residual_accepted` and `ico_consultation` are read by the AI register's
  * lifecycle gate: a system whose DPIA leaves high risk cannot go live until
- * the Information Commission has been consulted, because Article 36 requires consultation before
- * processing starts.
+ * the supervisory authority has been consulted, because Article 36 requires
+ * consultation before processing starts.
  */
 export const DPIA: TemplateDefinition = {
   schema: {
@@ -50,7 +50,7 @@ export const DPIA: TemplateDefinition = {
             label: 'Name of the processing activity',
             type: 'short_text',
             required: true,
-            legalRefs: ['ukgdpr.art30'],
+            legalRefs: ['ukgdpr.art30', 'eugdpr.art30'],
             evidence: 'none'
           },
           {
@@ -59,7 +59,7 @@ export const DPIA: TemplateDefinition = {
             type: 'long_text',
             required: true,
             help: 'How it is collected, used, stored, shared and deleted.',
-            legalRefs: ['ukgdpr.art35.7'],
+            legalRefs: ['ukgdpr.art35.7', 'eugdpr.art35.7'],
             evidence: 'none'
           },
           {
@@ -67,7 +67,7 @@ export const DPIA: TemplateDefinition = {
             label: 'What are you trying to achieve?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art5'],
+            legalRefs: ['ukgdpr.art5', 'eugdpr.art5'],
             evidence: 'none'
           },
           {
@@ -75,7 +75,7 @@ export const DPIA: TemplateDefinition = {
             label: 'What is our role in this processing?',
             type: 'single_select',
             required: true,
-            legalRefs: ['ukgdpr.art28'],
+            legalRefs: ['ukgdpr.art28', 'eugdpr.art28'],
             evidence: 'none',
             options: [
               { value: 'controller', label: 'Controller' },
@@ -96,7 +96,7 @@ export const DPIA: TemplateDefinition = {
             type: 'long_text',
             required: false,
             help: 'Name them as they appear on the third-party register, so the agreements can be checked.',
-            legalRefs: ['ukgdpr.art28'],
+            legalRefs: ['ukgdpr.art28', 'eugdpr.art28'],
             evidence: 'none'
           },
           {
@@ -104,7 +104,7 @@ export const DPIA: TemplateDefinition = {
             label: 'Lawful basis',
             type: 'single_select',
             required: true,
-            legalRefs: ['ukgdpr.art6', 'uk.dpa2018.s8'],
+            legalRefs: ['ukgdpr.art6', 'eugdpr.art6', 'uk.dpa2018.s8'],
             evidence: 'none',
             options: [
               { value: 'consent', label: 'Consent' },
@@ -175,7 +175,7 @@ export const DPIA: TemplateDefinition = {
               question: 'lawful_basis',
               value: 'legitimate_interests'
             },
-            legalRefs: ['ukgdpr.art6'],
+            legalRefs: ['ukgdpr.art6', 'eugdpr.art6'],
             evidence: 'required'
           }
         ]
@@ -190,7 +190,7 @@ export const DPIA: TemplateDefinition = {
             type: 'data_category',
             required: true,
             help: "Categories only. This platform does not hold or correlate individuals' data.",
-            legalRefs: ['ukgdpr.art30'],
+            legalRefs: ['ukgdpr.art30', 'eugdpr.art30'],
             evidence: 'none'
           },
           {
@@ -199,7 +199,7 @@ export const DPIA: TemplateDefinition = {
             type: 'boolean',
             required: true,
             help: 'Racial or ethnic origin, political opinions, religious or philosophical beliefs, trade union membership, genetic or biometric data used to identify someone, health, sex life or sexual orientation.',
-            legalRefs: ['ukgdpr.art9'],
+            legalRefs: ['ukgdpr.art9', 'eugdpr.art9'],
             evidence: 'none'
           },
           {
@@ -218,7 +218,7 @@ export const DPIA: TemplateDefinition = {
               question: 'special_category',
               value: true
             },
-            legalRefs: ['ukgdpr.art9', 'uk.dpa2018.sch1'],
+            legalRefs: ['ukgdpr.art9', 'eugdpr.art9', 'uk.dpa2018.sch1'],
             evidence: 'none',
             options: ART9_CONDITION_KEYS.map((k) => ({
               value: k,
@@ -252,7 +252,7 @@ export const DPIA: TemplateDefinition = {
             type: 'boolean',
             required: true,
             help: 'Criminal convictions and offences or related security measures, including allegations.',
-            legalRefs: ['ukgdpr.art10'],
+            legalRefs: ['ukgdpr.art10', 'eugdpr.art10'],
             evidence: 'none'
           },
           {
@@ -271,7 +271,7 @@ export const DPIA: TemplateDefinition = {
               question: 'criminal_offence',
               value: true
             },
-            legalRefs: ['ukgdpr.art10', 'uk.dpa2018.sch1'],
+            legalRefs: ['ukgdpr.art10', 'eugdpr.art10', 'uk.dpa2018.sch1'],
             evidence: 'none',
             options: [
               {
@@ -309,7 +309,7 @@ export const DPIA: TemplateDefinition = {
             type: 'long_text',
             required: true,
             help: 'Map it through each stage - collection, preparation, training, testing, use, monitoring. Processing outside the UK may need a transfer assessment.',
-            legalRefs: ['ukgdpr.art35.7', 'gds.aiplaybook'],
+            legalRefs: ['ukgdpr.art35.7', 'eugdpr.art35.7', 'gds.aiplaybook'],
             evidence: 'optional'
           },
           {
@@ -364,7 +364,7 @@ export const DPIA: TemplateDefinition = {
             label: 'How long will the data be kept, and why?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art5'],
+            legalRefs: ['ukgdpr.art5', 'eugdpr.art5'],
             evidence: 'none'
           }
         ]
@@ -378,7 +378,7 @@ export const DPIA: TemplateDefinition = {
             label: 'Why is this processing necessary to achieve the purpose?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art35.7'],
+            legalRefs: ['ukgdpr.art35.7', 'eugdpr.art35.7'],
             evidence: 'none'
           },
           {
@@ -387,7 +387,7 @@ export const DPIA: TemplateDefinition = {
               'What less intrusive options did you consider, and why were they rejected?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art25'],
+            legalRefs: ['ukgdpr.art25', 'eugdpr.art25'],
             evidence: 'none'
           },
           {
@@ -395,7 +395,7 @@ export const DPIA: TemplateDefinition = {
             label: 'How will people be told about this?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art5'],
+            legalRefs: ['ukgdpr.art5', 'eugdpr.art5'],
             evidence: 'none'
           },
           {
@@ -406,6 +406,7 @@ export const DPIA: TemplateDefinition = {
             required: true,
             legalRefs: [
               'ukgdpr.art15',
+              'eugdpr.art15',
               'uk.duaa2025',
               'uk.dpa2018.sch2',
               'uk.dpa2018.sch3'
@@ -419,7 +420,7 @@ export const DPIA: TemplateDefinition = {
             type: 'long_text',
             required: true,
             help: 'Including whether the people concerned know it is happening. Where seeking views was not appropriate, say why.',
-            legalRefs: ['ukgdpr.art35', 'gds.aiplaybook'],
+            legalRefs: ['ukgdpr.art35', 'eugdpr.art35', 'gds.aiplaybook'],
             evidence: 'optional'
           }
         ]
@@ -430,10 +431,11 @@ export const DPIA: TemplateDefinition = {
         questions: [
           {
             key: 'transfers_abroad',
-            label: 'Will personal data be transferred outside the UK?',
+            label:
+              'Will personal data be transferred outside the UK, or, under EU law, outside the EEA?',
             type: 'boolean',
             required: true,
-            legalRefs: ['ukgdpr.art44'],
+            legalRefs: ['ukgdpr.art44', 'eugdpr.art44'],
             evidence: 'none'
           },
           {
@@ -464,8 +466,8 @@ export const DPIA: TemplateDefinition = {
               question: 'transfers_abroad',
               value: true
             },
-            help: 'A separate TRA is required unless the transfer is approved by UK regulations under Article 45A.',
-            legalRefs: ['ico.tra'],
+            help: 'Under UK law a separate TRA is required unless the transfer is approved by UK regulations under Article 45A. Under EU law a transfer impact assessment is required unless an adequacy decision covers it (Article 45).',
+            legalRefs: ['ico.tra', 'edpb.rec01-2020'],
             evidence: 'none'
           }
         ]
@@ -806,7 +808,7 @@ export const DPIA: TemplateDefinition = {
             label: 'What could go wrong for the people involved?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art35.7'],
+            legalRefs: ['ukgdpr.art35.7', 'eugdpr.art35.7'],
             evidence: 'none'
           },
           {
@@ -866,7 +868,12 @@ export const DPIA: TemplateDefinition = {
             label: 'What measures will reduce this risk?',
             type: 'long_text',
             required: true,
-            legalRefs: ['ukgdpr.art32', 'ukgdpr.art25'],
+            legalRefs: [
+              'ukgdpr.art32',
+              'eugdpr.art32',
+              'ukgdpr.art25',
+              'eugdpr.art25'
+            ],
             evidence: 'optional'
           },
           {
@@ -874,8 +881,8 @@ export const DPIA: TemplateDefinition = {
             label: 'Is residual risk still high after those measures?',
             type: 'boolean',
             required: true,
-            help: 'If yes, prior consultation with the Information Commission may be required before proceeding.',
-            legalRefs: ['ukgdpr.art36'],
+            help: 'If yes, prior consultation with the supervisory authority may be required before proceeding: the Information Commission in the UK, and the lead or competent authority under EU law.',
+            legalRefs: ['ukgdpr.art36', 'eugdpr.art36'],
             evidence: 'none'
           },
           {
@@ -893,16 +900,16 @@ export const DPIA: TemplateDefinition = {
               question: 'residual_accepted',
               value: true
             },
-            legalRefs: ['ukgdpr.art36'],
+            legalRefs: ['ukgdpr.art36', 'eugdpr.art36'],
             evidence: 'none'
           },
           {
             key: 'ico_consultation',
             label:
-              'Where has prior consultation with the Information Commission got to?',
+              'Where has prior consultation with the supervisory authority got to?',
             type: 'single_select',
             required: false,
-            help: 'Article 36 requires consultation before the processing starts. The Information Commission has eight weeks to give written advice, which it can extend by six.',
+            help: 'Article 36 requires consultation before the processing starts. The authority has eight weeks to give written advice, which it can extend by six; this is the same under both laws.',
             showWhen: {
               op: 'equals',
               question: 'residual_accepted',
@@ -913,17 +920,17 @@ export const DPIA: TemplateDefinition = {
               question: 'residual_accepted',
               value: true
             },
-            legalRefs: ['ukgdpr.art36'],
+            legalRefs: ['ukgdpr.art36', 'eugdpr.art36'],
             evidence: 'optional',
             options: [
               { value: 'not_started', label: 'Not yet consulted' },
               {
                 value: 'submitted',
-                label: "Submitted, awaiting the Information Commission's advice"
+                label: "Submitted, awaiting the authority's advice"
               },
               {
                 value: 'advice_received',
-                label: "The Information Commission's advice has been received"
+                label: "The authority's advice has been received"
               }
             ]
           },
@@ -933,7 +940,12 @@ export const DPIA: TemplateDefinition = {
             type: 'single_select',
             required: true,
             help: 'Where a DPO is designated, Article 35(2) requires the controller to seek their advice when carrying out a DPIA. A public authority must have one (Article 37(1)(a)).',
-            legalRefs: ['ukgdpr.art35', 'ukgdpr.art37'],
+            legalRefs: [
+              'ukgdpr.art35',
+              'eugdpr.art35',
+              'ukgdpr.art37',
+              'eugdpr.art37'
+            ],
             evidence: 'none',
             options: [
               { value: 'advice', label: "Yes - the DPO's advice was sought" },
@@ -956,7 +968,12 @@ export const DPIA: TemplateDefinition = {
               question: 'dpo_consulted',
               value: 'advice'
             },
-            legalRefs: ['ukgdpr.art35', 'ico.dpia'],
+            legalRefs: [
+              'ukgdpr.art35',
+              'eugdpr.art35',
+              'ico.dpia',
+              'wp29.wp248'
+            ],
             evidence: 'optional'
           }
         ]

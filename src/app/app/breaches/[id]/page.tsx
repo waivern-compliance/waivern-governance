@@ -188,8 +188,8 @@ export default async function BreachPage({
               Severity has not been assessed with a template. You can record the
               judgement in the decisions below as free text, which is enough for
               a breach settled quickly - or run the structured assessment, which
-              works through the ICO&rsquo;s factors and proposes an answer to
-              both statutory questions.
+              works through the WP250 factors the ICO and the EDPB follow, and
+              proposes an answer to both statutory questions.
             </p>
             {mayAssess ? (
               <form
@@ -199,7 +199,7 @@ export default async function BreachPage({
                   type="submit"
                   className="rounded border border-line px-3.5 py-1.5 text-sm font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
                 >
-                  Assess severity with the ICO template
+                  Assess severity with the template
                 </button>
               </form>
             ) : null}

@@ -1438,6 +1438,23 @@ const REFERENCES = [
     title: 'Data subject rights: the right of access',
     url: 'https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-012022-data-subject-rights-right-access_en',
     jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art10',
+    regime: 'EU GDPR',
+    citation: 'Article 10',
+    title:
+      'Processing of personal data relating to criminal convictions and offences',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
+  },
+  {
+    code: 'eugdpr.art28',
+    regime: 'EU GDPR',
+    citation: 'Article 28',
+    title: 'Processor',
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32016R0679',
+    jurisdiction: 'EU'
   }
 ] as const;
 

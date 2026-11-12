@@ -298,6 +298,8 @@ export async function openIntakeLink(slug: string) {
     ukLaw: ukLawApplies(row.dataProtectionLaw),
     // Named on the form where only EU law applies (Article 77).
     euRegulator: regulatorFor('eu', row).complainTo,
+    // Whom the person may complain to, under the entity's law or laws.
+    regulator: regulatorFor(row.dataProtectionLaw, row).complainTo,
     otherFormSlug: other?.slug ?? null,
     appearance: await appearanceForLink(row.link.organisationId, row.link.id),
     // Who the person is writing to: the entity, which is the controller.

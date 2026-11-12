@@ -276,6 +276,9 @@ describe('the entity setting', () => {
     assert.ok(
       after.includes('Data protection impact assessment (CNIL method)')
     );
+    // Articles 33-35 read the same under both laws, so these serve either.
+    assert.ok(after.includes('DPIA screening questionnaire'));
+    assert.ok(after.includes('Breach severity assessment'));
     assert.ok(
       !(
         await guidanceFor({ organisationId: org.id, chosen: 'maintain' })

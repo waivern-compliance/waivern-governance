@@ -45,9 +45,9 @@ export const SYSTEM_TEMPLATES: Array<{
   {
     kind: 'screening',
     name: 'DPIA screening questionnaire',
-    description: 'Short triage deciding whether a full DPIA is required.',
-    jurisdiction: 'UK',
-    ukLaw: true,
+    description:
+      'Short triage deciding whether a full DPIA is required, under the UK GDPR, the EU GDPR or both.',
+    jurisdiction: 'UK and EU',
     definition: SCREENING
   },
   {
@@ -114,9 +114,8 @@ export const SYSTEM_TEMPLATES: Array<{
     kind: 'breach',
     name: 'Breach severity assessment',
     description:
-      "The ICO's factors for judging whether a breach must be reported, and whether the people affected must be told.",
-    jurisdiction: 'UK',
-    ukLaw: true,
+      'The factors in WP250, which the ICO and the EDPB both follow, for judging whether a breach must be reported, and whether the people affected must be told. Under the UK GDPR, the EU GDPR or both.',
+    jurisdiction: 'UK and EU',
     definition: BREACH_SEVERITY
   },
   {

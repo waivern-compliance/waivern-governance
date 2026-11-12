@@ -198,6 +198,7 @@ export default async function RequestPage({
             slug={slug}
             started={startedToken(slug)}
             controllerName={form.controllerName}
+            regulator={form.regulator}
             limits={FIELD_LIMITS}
             complaintSubjects={form.takesComplaints ? COMPLAINT_ASKS : null}
           />
