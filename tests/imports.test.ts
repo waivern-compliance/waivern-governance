@@ -5,10 +5,18 @@ import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import {
+  aiChanges,
+  aiUseCases,
   auditEvents,
+  documents,
+  dpas,
   entities,
+  evidence,
+  extractions,
+  importFiles,
   organisations,
   processingActivities,
+  recordLinks,
   suppliers
 } from '@/db/schema';
 import {
@@ -20,9 +28,13 @@ import {
 } from '@/lib/import/fields';
 import { parseCsv, toTable } from '@/lib/import/parse';
 import { mayImport } from '@/lib/rbac';
+import { gapsFor } from '@/services/ai-register';
+import { evidenceRegister } from '@/services/evidence';
 import {
+  addImportFiles,
+  agreementsToRead,
   commitImport,
-  confirmImportedActivity,
+  confirmImportedRecord,
   ImportRefused,
   loadImport,
   previewImport,
@@ -111,7 +123,10 @@ describe('reading a row', () => {
     });
     assert.equal(ok.action, 'ok');
     if (ok.action === 'ok') {
-      assert.equal(ok.record.data.name, 'Payroll');
+      assert.equal(
+        ok.record.kind === 'processing_activity' && ok.record.data.name,
+        'Payroll'
+      );
       assert.deepEqual(ok.record.legacy, { Owner: 'Ana' });
     }
     const bad = convertRow('processing_activity', mapping, {
@@ -281,9 +296,10 @@ describe('importing processing activities', () => {
     assert.equal(restored.updatedAt.getTime(), payroll.updatedAt.getTime());
 
     // Once a person has worked on a record, the first import stays.
-    await confirmImportedActivity({
+    await confirmImportedRecord({
       organisationId: org.id,
-      activityId: payroll.id,
+      type: 'processing_activity',
+      id: payroll.id,
       actor: SYSTEM
     });
     await assert.rejects(
@@ -539,13 +555,16 @@ describe('what an import leaves behind', () => {
     assert.ok(
       article30Gaps(activity, new Set()).includes('import_unconfirmed')
     );
-    const confirmed = await confirmImportedActivity({
+    const confirmed = await confirmImportedRecord({
       organisationId: org.id,
-      activityId: activity.id,
+      type: 'processing_activity',
+      id: activity.id,
       actor: SYSTEM
     });
     assert.ok(
-      !article30Gaps(confirmed, new Set()).includes('import_unconfirmed')
+      !article30Gaps(confirmed as typeof activity, new Set()).includes(
+        'import_unconfirmed'
+      )
     );
 
     await importFile(org.id, 'supplier', 'Vendor Name\nMailer Co\n');
@@ -660,5 +679,599 @@ describe('what an import leaves behind', () => {
       loadImport(b.id, org.id)
     ]);
     assert.equal(la!.batch.sourceId, lb!.batch.sourceId);
+  });
+});
+
+const PDF = (text: string) =>
+  new TextEncoder().encode(`%PDF-1.4\n% ${text}\n%%EOF\n`);
+
+/** Upload a file of one kind; add files; preview with the offered matching. */
+async function staged(
+  organisationId: string,
+  recordType: 'dpa' | 'evidence' | 'ai_use_case',
+  text: string,
+  files: Array<{ filename: string; bytes: Uint8Array }> = []
+) {
+  const batch = await uploadImport({
+    organisationId,
+    recordType,
+    sourceName: 'OneTrust',
+    filename: 'file.csv',
+    contentType: 'text/csv',
+    bytes: csv(text),
+    actor: SYSTEM
+  });
+  const added = files.length
+    ? await addImportFiles({
+        organisationId,
+        batchId: batch.id,
+        files: files.map((f) => ({ ...f, contentType: '' })),
+        actor: SYSTEM
+      })
+    : null;
+  const preview = await previewImport({
+    organisationId,
+    batchId: batch.id,
+    mapping: (await loadImport(batch.id, organisationId))!.mapping,
+    actor: SYSTEM
+  });
+  return { batch, added, preview };
+}
+
+describe('importing agreements, evidence and AI systems', () => {
+  it('imports agreements with their files, for suppliers already recorded, and undoes them', async () => {
+    const { org } = await anOrg('import-dpas');
+    const acme = await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const { batch, added, preview } = await staged(
+      org.id,
+      'dpa',
+      'Supplier,Title,Signed,File\nAcme Hosting,Acme DPA,01/02/2025,acme.pdf\nUnknown Co,X DPA,,\nAcme Hosting,Schedule,,missing.pdf\n',
+      [
+        { filename: 'acme.pdf', bytes: PDF('acme') },
+        { filename: 'run.exe', bytes: new TextEncoder().encode('MZ') }
+      ]
+    );
+    assert.deepEqual(added?.added, ['acme.pdf']);
+    assert.equal(added?.refused[0]?.filename, 'run.exe');
+    assert.deepEqual(preview, { create: 1, refuse: 2 });
+    const reasons = (await loadImport(batch.id, org.id))!.rows.map(
+      (r) => r.reason ?? ''
+    );
+    assert.ok(reasons.some((r) => /No supplier called "Unknown Co"/.test(r)));
+    assert.ok(reasons.some((r) => /"missing.pdf" has not been added/.test(r)));
+
+    await commitImport({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: SYSTEM
+    });
+    const [dpa] = await db
+      .select()
+      .from(dpas)
+      .where(eq(dpas.supplierId, acme.id));
+    assert.equal(dpa.title, 'Acme DPA');
+    assert.equal(dpa.importConfirmedAt, null);
+    assert.equal(dpa.signedAt?.toISOString().slice(0, 10), '2025-02-01');
+    const files = await db
+      .select()
+      .from(documents)
+      .where(
+        and(eq(documents.subjectType, 'dpa'), eq(documents.subjectId, dpa.id))
+      );
+    assert.equal(files.length, 1);
+    assert.equal(files[0].filename, 'acme.pdf');
+    assert.deepEqual(await agreementsToRead(org.id, batch.id), [dpa.id]);
+
+    await undoImport({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: SYSTEM
+    });
+    assert.equal(
+      (await db.select().from(dpas).where(eq(dpas.supplierId, acme.id))).length,
+      0
+    );
+    assert.equal(
+      (await db.select().from(documents).where(eq(documents.id, files[0].id)))
+        .length,
+      0
+    );
+  });
+
+  it('imports evidence with its file and the record it supports, shown on the register', async () => {
+    const { org } = await anOrg('import-evidence');
+    await importFile(org.id, 'processing_activity', 'ID,Name\nP-1,Payroll\n');
+    const [activity] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.organisationId, org.id));
+    const { batch, preview } = await staged(
+      org.id,
+      'evidence',
+      `Title,Supports,File,Collected,Link\nPen test,${activity.reference},report.pdf,2026-01-10,\nPolicy page,,,,https://example.com/policy\nOrphan,ROPA-1999-0001,,,\n`,
+      [{ filename: 'report.pdf', bytes: PDF('report') }]
+    );
+    assert.deepEqual(preview, { create: 2, refuse: 1 });
+    await commitImport({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: SYSTEM
+    });
+
+    const register = await evidenceRegister(org.id, null);
+    const pen = register.find((e) => e.title === 'Pen test')!;
+    assert.equal(pen.kind, 'document');
+    assert.equal(pen.files[0]?.filename, 'report.pdf');
+    assert.deepEqual(
+      pen.supports.map((s) => s.reference),
+      [activity.reference]
+    );
+    assert.equal(pen.importSourceName, 'OneTrust');
+    assert.equal(register.find((e) => e.title === 'Policy page')?.kind, 'link');
+
+    await undoImport({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: SYSTEM
+    });
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(evidence)
+          .where(eq(evidence.organisationId, org.id))
+      ).length,
+      0
+    );
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(recordLinks)
+          .where(eq(recordLinks.organisationId, org.id))
+      ).length,
+      0
+    );
+  });
+
+  it('imports AI systems, reading usual words, and never moves a stage on re-import', async () => {
+    const { org } = await anOrg('import-ai');
+    const acme = await createSupplier({
+      organisationId: org.id,
+      name: 'Acme AI',
+      categories: [],
+      actor: SYSTEM
+    });
+    const first = await staged(
+      org.id,
+      'ai_use_case',
+      'ID,Name,Purpose,Type,Provenance,Stage,Supplier\nAI-1,Chatbot,Answer customers,LLM,Third party API,Live,Acme AI\nAI-2,Odd,X,Quantum,In house,,\n'
+    );
+    assert.deepEqual(first.preview, { create: 1, refuse: 1 });
+    assert.match(
+      (await loadImport(first.batch.id, org.id))!.rows[1].reason ?? '',
+      /"Quantum" is not a type of system/
+    );
+    await commitImport({
+      organisationId: org.id,
+      batchId: first.batch.id,
+      actor: SYSTEM
+    });
+    const [system] = await db
+      .select()
+      .from(aiUseCases)
+      .where(eq(aiUseCases.organisationId, org.id));
+    assert.equal(system.systemType, 'generative');
+    assert.equal(system.provenance, 'third_party_api');
+    assert.equal(system.lifecycleStage, 'production');
+    assert.equal(system.supplierId, acme.id);
+    assert.ok(gapsFor(system, null).includes('import_unconfirmed'));
+
+    const again = await staged(
+      org.id,
+      'ai_use_case',
+      'ID,Name,Purpose,Type,Provenance,Stage\nAI-1,Chatbot,Answer customers and staff,LLM,API,Retired\n'
+    );
+    assert.deepEqual(again.preview, { update: 1 });
+    await commitImport({
+      organisationId: org.id,
+      batchId: again.batch.id,
+      actor: SYSTEM
+    });
+    const [after] = await db
+      .select()
+      .from(aiUseCases)
+      .where(eq(aiUseCases.id, system.id));
+    assert.equal(after.purpose, 'Answer customers and staff');
+    assert.equal(after.lifecycleStage, 'production');
+
+    await undoImport({
+      organisationId: org.id,
+      batchId: again.batch.id,
+      actor: SYSTEM
+    });
+    const [back] = await db
+      .select()
+      .from(aiUseCases)
+      .where(eq(aiUseCases.id, system.id));
+    assert.equal(back.purpose, 'Answer customers');
+    // A registered system keeps its history: it is retired, never removed.
+    await assert.rejects(
+      undoImport({
+        organisationId: org.id,
+        batchId: first.batch.id,
+        actor: SYSTEM
+      }),
+      refused(/cannot be taken back out/)
+    );
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(aiChanges)
+          .where(eq(aiChanges.aiUseCaseId, system.id))
+      ).length,
+      1
+    );
+  });
+
+  it('confirms an imported agreement, which then stops showing as unconfirmed', async () => {
+    const { org } = await anOrg('import-dpa-confirm');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const { batch } = await staged(
+      org.id,
+      'dpa',
+      'Supplier,Title\nAcme Hosting,Acme DPA\n'
+    );
+    await commitImport({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: SYSTEM
+    });
+    const [dpa] = await db
+      .select()
+      .from(dpas)
+      .where(eq(dpas.organisationId, org.id));
+    const confirmed = await confirmImportedRecord({
+      organisationId: org.id,
+      type: 'dpa',
+      id: dpa.id,
+      actor: SYSTEM
+    });
+    assert.ok(confirmed.importConfirmedAt);
+    await assert.rejects(
+      confirmImportedRecord({
+        organisationId: org.id,
+        type: 'dpa',
+        id: dpa.id,
+        actor: SYSTEM
+      }),
+      refused(/not waiting/)
+    );
+  });
+});
+
+describe('importing again', () => {
+  const commit = (organisationId: string, batchId: string) =>
+    commitImport({ organisationId, batchId, actor: SYSTEM });
+
+  it("keeps a new year's evidence of the same title as a new record", async () => {
+    const { org } = await anOrg('import-evidence-years');
+    const first = await staged(
+      org.id,
+      'evidence',
+      'Title,Collected\nAnnual penetration test,2025-03-01\n'
+    );
+    await commit(org.id, first.batch.id);
+    const second = await staged(
+      org.id,
+      'evidence',
+      'Title,Collected\nAnnual penetration test,2026-03-01\nAnnual penetration test,2025-03-01\n'
+    );
+    assert.deepEqual(second.preview, { create: 1, update: 1 });
+  });
+
+  it('matches identifiers without regard to capitals', async () => {
+    const { org } = await anOrg('import-ref-case');
+    const first = await staged(org.id, 'evidence', 'ID,Title\nEV-1,Policy\n');
+    await commit(org.id, first.batch.id);
+    const lower = await staged(
+      org.id,
+      'evidence',
+      'ID,Title\nev-1,Policy v2\n'
+    );
+    assert.deepEqual(lower.preview, { update: 1 });
+  });
+
+  it('leaves an agreement on its supplier, and an archived one archived', async () => {
+    const { org } = await anOrg('import-dpa-move');
+    for (const name of ['Acme Hosting', 'Mailchimp'])
+      await createSupplier({
+        organisationId: org.id,
+        name,
+        categories: [],
+        actor: SYSTEM
+      });
+    const first = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title\nD-42,Acme Hosting,DPA\nD-43,Acme Hosting,Old DPA\n'
+    );
+    await commit(org.id, first.batch.id);
+    await db
+      .update(dpas)
+      .set({ archivedAt: new Date() })
+      .where(and(eq(dpas.organisationId, org.id), eq(dpas.title, 'Old DPA')));
+    const again = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title\nD-42,Mailchimp,DPA\nD-43,Acme Hosting,Old DPA\n'
+    );
+    assert.deepEqual(again.preview, { refuse: 2 });
+    const reasons = (await loadImport(again.batch.id, org.id))!.rows.map(
+      (r) => r.reason ?? ''
+    );
+    assert.match(reasons[0], /agreement with Acme Hosting/);
+    assert.match(reasons[1], /archived/);
+  });
+
+  it("supports only the records of evidence's own entity", async () => {
+    const { org } = await anOrg('import-evidence-entity');
+    const [other] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Other' })
+      .returning();
+    await importFile(
+      org.id,
+      'processing_activity',
+      'ID,Name\nP-1,Payroll\n',
+      other.id
+    );
+    const [activity] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.entityId, other.id));
+    const { batch, preview } = await staged(
+      org.id,
+      'evidence',
+      `Title,Supports\nPen test,${activity.reference}\n`
+    );
+    assert.deepEqual(preview, { refuse: 1 });
+    assert.match(
+      (await loadImport(batch.id, org.id))!.rows[0].reason ?? '',
+      /Nothing in this entity/
+    );
+  });
+
+  it('replaces what an earlier import said evidence supports, and puts it back on undo', async () => {
+    const { org } = await anOrg('import-evidence-relink');
+    await importFile(
+      org.id,
+      'processing_activity',
+      'ID,Name\nP-1,Payroll\nP-2,Pensions\n'
+    );
+    const activities = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.organisationId, org.id))
+      .orderBy(processingActivities.reference);
+    const [one, two] = activities;
+    const first = await staged(
+      org.id,
+      'evidence',
+      `ID,Title,Supports,File\nE-7,Policy,${one.reference},v1.pdf\n`,
+      [{ filename: 'v1.pdf', bytes: PDF('v1') }]
+    );
+    await commit(org.id, first.batch.id);
+    const again = await staged(
+      org.id,
+      'evidence',
+      `ID,Title,Supports,File\nE-7,Policy,${two.reference},v2.pdf\n`,
+      [{ filename: 'v2.pdf', bytes: PDF('v2') }]
+    );
+    await commit(org.id, again.batch.id);
+    const supports = async () =>
+      (
+        await db
+          .select({ toId: recordLinks.toId })
+          .from(recordLinks)
+          .where(eq(recordLinks.organisationId, org.id))
+      ).map((l) => l.toId);
+    assert.deepEqual(await supports(), [two.id]);
+    const files = await db
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.organisationId, org.id),
+          eq(documents.subjectType, 'evidence')
+        )
+      );
+    assert.equal(
+      files.find((f) => f.filename === 'v2.pdf')?.description,
+      'Imported, replacing v1.pdf'
+    );
+
+    await undoImport({
+      organisationId: org.id,
+      batchId: again.batch.id,
+      actor: SYSTEM
+    });
+    assert.deepEqual(await supports(), [one.id]);
+  });
+
+  it('offers an agreement whose reading failed to be read again', async () => {
+    const { org } = await anOrg('import-dpa-reread');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const { batch } = await staged(
+      org.id,
+      'dpa',
+      'Supplier,Title,File\nAcme Hosting,DPA,acme.pdf\n',
+      [{ filename: 'acme.pdf', bytes: PDF('acme') }]
+    );
+    await commit(org.id, batch.id);
+    const [dpa] = await db
+      .select()
+      .from(dpas)
+      .where(eq(dpas.organisationId, org.id));
+    const run = {
+      organisationId: org.id,
+      subjectType: 'dpa' as const,
+      subjectId: dpa.id,
+      model: 'test',
+      promptVersion: 'test',
+      requestedByLabel: 'import test'
+    };
+    await db.insert(extractions).values({ ...run, failure: 'Timed out' });
+    assert.deepEqual(await agreementsToRead(org.id, batch.id), [dpa.id]);
+    await db.insert(extractions).values(run);
+    assert.deepEqual(await agreementsToRead(org.id, batch.id), []);
+  });
+});
+
+describe('keeping what is recorded', () => {
+  const commit = (organisationId: string, batchId: string) =>
+    commitImport({ organisationId, batchId, actor: SYSTEM });
+
+  it('keeps dates a re-import leaves out, and clears its files once made', async () => {
+    const { org } = await anOrg('keep-dpa');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const first = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,Signed,Expires\nD-1,Acme Hosting,Acme DPA,01/02/2025,31/12/2027\n'
+    );
+    await commit(org.id, first.batch.id);
+    const again = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,File\nD-1,Acme Hosting,Acme DPA,acme.pdf\n',
+      [{ filename: 'acme.pdf', bytes: PDF('acme') }]
+    );
+    assert.deepEqual(again.preview, { update: 1 });
+    await commit(org.id, again.batch.id);
+    const [dpa] = await db
+      .select()
+      .from(dpas)
+      .where(eq(dpas.organisationId, org.id));
+    assert.equal(dpa.expiresAt?.toISOString().slice(0, 10), '2027-12-31');
+    assert.equal(dpa.signedAt?.toISOString().slice(0, 10), '2025-02-01');
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(importFiles)
+          .where(eq(importFiles.batchId, again.batch.id))
+      ).length,
+      0
+    );
+  });
+
+  it('refuses a row that describes ticked transfer mechanisms differently', async () => {
+    const { org } = await anOrg('keep-mechanisms');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme Hosting',
+      categories: [],
+      actor: SYSTEM
+    });
+    const first = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,Transfer mechanism\nD-1,Acme Hosting,Acme DPA,SCCs\n'
+    );
+    await commit(org.id, first.batch.id);
+    await db
+      .update(dpas)
+      .set({ transferMechanisms: [{ mechanism: 'eu_scc', module: 2 }] })
+      .where(eq(dpas.organisationId, org.id));
+    const again = await staged(
+      org.id,
+      'dpa',
+      'ID,Supplier,Title,Transfer mechanism\nD-1,Acme Hosting,Acme DPA,IDTA\n'
+    );
+    assert.deepEqual(again.preview, { refuse: 1 });
+    assert.match(
+      (await loadImport(again.batch.id, org.id))!.rows[0].reason ?? '',
+      /chosen on Acme Hosting's page/
+    );
+  });
+
+  it("keeps an AI system's vendor recorded here", async () => {
+    const { org } = await anOrg('keep-vendor');
+    await createSupplier({
+      organisationId: org.id,
+      name: 'Acme AI',
+      categories: [],
+      actor: SYSTEM
+    });
+    const rows =
+      'ID,Name,Purpose,Type,Provenance,Supplier\nAI-1,Chatbot,Answer customers,LLM,Third party API,Acme AI\n';
+    await commit(org.id, (await staged(org.id, 'ai_use_case', rows)).batch.id);
+    await db
+      .update(aiUseCases)
+      .set({ vendor: 'OpenAI' })
+      .where(eq(aiUseCases.organisationId, org.id));
+    await commit(org.id, (await staged(org.id, 'ai_use_case', rows)).batch.id);
+    const [system] = await db
+      .select()
+      .from(aiUseCases)
+      .where(eq(aiUseCases.organisationId, org.id));
+    assert.equal(system.vendor, 'OpenAI');
+  });
+
+  it('does not name what evidence supports in an entity the reader cannot see', async () => {
+    const { org, entity } = await anOrg('evidence-scope');
+    const [other] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Other Ltd' })
+      .returning();
+    const [hidden] = await db
+      .insert(processingActivities)
+      .values({
+        organisationId: org.id,
+        entityId: other.id,
+        reference: 'ROPA-2026-9001',
+        name: 'Hidden'
+      })
+      .returning();
+    const made = await staged(org.id, 'evidence', 'Title\nPen test\n');
+    await commit(org.id, made.batch.id);
+    const [item] = await db
+      .select()
+      .from(evidence)
+      .where(eq(evidence.organisationId, org.id));
+    await db.insert(recordLinks).values({
+      organisationId: org.id,
+      fromType: 'evidence',
+      fromId: item.id,
+      toType: 'processing_activity',
+      toId: hidden.id,
+      relation: 'supports'
+    });
+    const [mine] = await evidenceRegister(org.id, [entity.id]);
+    assert.deepEqual(mine.supports, []);
+    const [all] = await evidenceRegister(org.id, null);
+    assert.equal(all.supports[0]?.reference, 'ROPA-2026-9001');
   });
 });

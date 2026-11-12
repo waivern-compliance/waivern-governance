@@ -1,6 +1,6 @@
 # Plan: moving a team's records in from another governance platform
 
-Status: all decisions settled 11 November 2026, as recommended. Nothing built yet.
+Status: all decisions settled 11 November 2026, as recommended. Phases 0 and 1 built.
 
 ## What is asked for
 
@@ -162,12 +162,39 @@ same code and the tests can feed it real anonymised exports.
 - Provenance on the records: the batch, unconfirmed, and the legacy fields.
 - An Imports page under Settings, listing batches with their counts.
 
+Built (#21). Where it departs from the above:
+
+- The uploaded file is kept on the batch itself (`import_batch.file`), not as a
+  `documents` row: it belongs to no record until the batch is imported.
+- "Unconfirmed" is `import_confirmed_at`, empty until a person confirms, rather than a
+  flag; an imported activity shows the gap _imported, not yet confirmed_. Imported
+  suppliers use the review that reported suppliers already had.
+- Each source is an `import_source`, not an `integration_connection`, so no API secret
+  is minted for a platform nobody connects.
+
 ### Phase 1: the rest of the inventory, and agreements
 
 - DPAs and evidence, with their files.
 - DPAs held only as PDFs go through `extraction.ts` for their facts, proposed for
   review as today.
 - AI use cases.
+
+Built. Where it departs from the above:
+
+- Files are added to a batch in rounds on its page (`import_file`), each checked as any
+  attachment is (type, contents, size, viruses) when added, and named by a column of
+  the file. A zip of files was ruled out: uploads are capped at 12 MB a request.
+- An agreement is imported only for a supplier already recorded, matched by name; a row
+  naming an unknown supplier is refused rather than one invented. A list of two
+  columns, supplier and file, is enough; the agreements are then read through
+  `extraction.ts`, a few at a time from the batch page, and their terms proposed for
+  review as for any agreement.
+- Evidence can name the record it supports by reference. Evidence had no page, so an
+  evidence register (`/app/evidence`) now shows it, imported or pushed.
+- An import that registered AI systems cannot be undone: the AI register's stage
+  history is append-only, so a system once registered is retired, never removed.
+- Imported agreements, evidence and AI systems carry `import_confirmed_at` as
+  activities do; an unconfirmed agreement in force shows the gap on its supplier.
 
 ### Phase 2: risks and policies
 

@@ -58,6 +58,7 @@ import * as documentsSvc from '@/services/documents';
 import * as domains from '@/services/domains';
 import * as dsrIntake from '@/services/dsr-intake';
 import * as entitiesSvc from '@/services/entities';
+import * as evidenceSvc from '@/services/evidence';
 import * as exportSvc from '@/services/export';
 import * as exportsSvc from '@/services/exports';
 import * as extraction from '@/services/extraction';
@@ -1023,6 +1024,10 @@ describe("reading another organisation's records", () => {
     ['loadRisk', () => risksSvc.loadRisk(B.risk.id, A.org.id)],
     ['loadActivity', () => ropa.loadActivity(B.activity.id, A.org.id)],
     ['loadImport', () => importsSvc.loadImport(B.importBatch.id, A.org.id)],
+    [
+      'agreementsToRead',
+      () => importsSvc.agreementsToRead(A.org.id, B.importBatch.id)
+    ],
     ['loadTemplate', () => templatesSvc.loadTemplate(B.template, A.org.id)],
     ['loadSupplier', () => thirdParty.loadSupplier(B.supplier.id, A.org.id)],
     [
@@ -1437,11 +1442,47 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
-      'confirmImportedActivity',
+      'confirmImportedRecord',
       () =>
-        importsSvc.confirmImportedActivity({
+        importsSvc.confirmImportedRecord({
           organisationId: A.org.id,
-          activityId: B.activity.id,
+          type: 'processing_activity',
+          id: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      'addImportFiles',
+      () =>
+        importsSvc.addImportFiles({
+          organisationId: A.org.id,
+          batchId: B.importBatch.id,
+          files: [
+            {
+              filename: 'x.txt',
+              contentType: 'text/plain',
+              bytes: new TextEncoder().encode('planted')
+            }
+          ],
+          actor: as()
+        })
+    ],
+    [
+      'removeImportFile',
+      () =>
+        importsSvc.removeImportFile({
+          organisationId: A.org.id,
+          batchId: B.importBatch.id,
+          fileId: crypto.randomUUID(),
+          actor: as()
+        })
+    ],
+    [
+      'readImportedAgreements',
+      () =>
+        importsSvc.readImportedAgreements({
+          organisationId: A.org.id,
+          batchId: B.importBatch.id,
           actor: as()
         })
     ],
@@ -3362,6 +3403,10 @@ describe('lists', () => {
           importsSvc.importBatchesFor(o)
         ] as const,
         [
+          'evidenceSvc.evidenceRegister',
+          evidenceSvc.evidenceRegister(o, null)
+        ] as const,
+        [
           'exportsSvc.exportRequests',
           exportsSvc.exportRequests(o, null)
         ] as const,
@@ -3590,6 +3635,10 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'called by the assessment page after loadAssessment within the organisation',
   'breaches.severitySuggestion':
     'given a breach already loaded within the organisation',
+  'documents.checkFile':
+    "checks a file's bytes; writes only a refusal to the caller's own organisation's audit trail",
+  'documents.insertDocument':
+    "runs in the caller's transaction, once the caller has established the record is the organisation's",
   'documents.recordDownload':
     'given a document already read within the organisation',
   'risks.liveAcceptance': 'not called by the application',

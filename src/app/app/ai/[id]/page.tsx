@@ -6,6 +6,8 @@ import { AutomatedDecisions } from '@/components/AutomatedDecisions';
 import { Discussion } from '@/components/Discussion';
 import { EditForm } from '@/components/EditForm';
 import { GapChips } from '@/components/GapChips';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { StartAssessment } from '@/components/StartAssessment';
 import { db, scoped } from '@/db/client';
@@ -59,6 +61,7 @@ import {
   regimeOfUseCase
 } from '@/services/automated-decisions';
 import { candidatesFor } from '@/services/handover';
+import { importSourceName } from '@/services/imports';
 
 import { updateUseCaseAction } from '../actions';
 import { AssuranceForm } from './assurance';
@@ -271,6 +274,30 @@ export default async function UseCasePage({
         </p>
         <GapChips gaps={gaps} />
       </header>
+
+      {useCase.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(
+              active.membership.organisationId,
+              useCase.importSourceId
+            )) ?? 'another platform'
+          }
+          batchId={useCase.importBatchId}
+          confirmed={useCase.importConfirmedAt !== null}
+          legacy={useCase.legacy}
+          confirm={
+            mayEdit ? (
+              <ConfirmImported
+                type="ai_use_case"
+                id={useCase.id}
+                revalidate={`/app/ai/${useCase.id}`}
+                what="this AI system"
+              />
+            ) : null
+          }
+        />
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">

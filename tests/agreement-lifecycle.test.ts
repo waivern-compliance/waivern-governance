@@ -320,6 +320,10 @@ describe('which agreement counts', () => {
       subProcessors: [],
       sourceConnectionId: null,
       externalRef: null,
+      importSourceId: null,
+      importBatchId: null,
+      legacy: null,
+      importConfirmedAt: null,
       archivedBy: null,
       createdAt: new Date(),
       updatedAt: new Date()

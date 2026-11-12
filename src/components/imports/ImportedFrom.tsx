@@ -4,7 +4,7 @@ import Link from 'next/link';
 /**
  * Where an imported record came from, the source's fields Govern has no home
  * for, and, while it waits, a way for a person to confirm it. Imported
- * records are history until confirmed (docs/migration-plan.md, decision 2).
+ * records wait for that confirmation (docs/migration-plan.md, decision 2).
  */
 export function ImportedFrom({
   sourceName,
@@ -37,7 +37,7 @@ export function ImportedFrom({
       {confirmed ? null : (
         <p className="max-w-prose text-xs">
           It says what {sourceName} held. Until a person here checks it and
-          confirms it, it is history rather than the current record.
+          confirms it, it shows as not yet confirmed.
         </p>
       )}
       {batchId ? (

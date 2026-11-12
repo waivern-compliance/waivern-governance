@@ -5,8 +5,8 @@ import { asc, eq } from 'drizzle-orm';
 import { AutomatedDecisions } from '@/components/AutomatedDecisions';
 import { Discussion } from '@/components/Discussion';
 import { EditForm } from '@/components/EditForm';
-import { RefusableForm } from '@/components/foi/RefusableForm';
 import { GapChips } from '@/components/GapChips';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
@@ -60,7 +60,6 @@ import { importSourceName } from '@/services/imports';
 import { gapWordsFor, HARD_GAPS, loadActivity } from '@/services/ropa';
 import { agreementsFor } from '@/services/sharing-agreements';
 
-import { confirmImportedActivityAction } from '../../admin/imports/actions';
 import { saveFurtherProcessingAction, updateActivityAction } from '../actions';
 import { CategoryPicker } from '../CategoryPicker';
 import { FurtherProcessingFields } from '../FurtherProcessingFields';
@@ -246,14 +245,12 @@ export default async function ActivityPage({
           legacy={activity.legacy}
           confirm={
             mayEdit ? (
-              <RefusableForm
-                action={confirmImportedActivityAction.bind(null, activity.id)}
-                submit="I have checked it: confirm it"
-                pendingLabel="Confirming…"
-                className="space-y-2"
-              >
-                <span className="sr-only">Confirm this activity</span>
-              </RefusableForm>
+              <ConfirmImported
+                type="processing_activity"
+                id={activity.id}
+                revalidate={`/app/ropa/${activity.id}`}
+                what="this activity"
+              />
             ) : null
           }
         />

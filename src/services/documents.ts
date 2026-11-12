@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
 
-import { db, withOrganisation } from '@/db/client';
+import { db, withOrganisation, type Db } from '@/db/client';
 import { documents, users } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { contentMatchesType } from '@/lib/documents/content-check';
@@ -28,11 +28,182 @@ export type StoredDocument = Omit<typeof documents.$inferSelect, 'content'>;
 
 export { ACCEPTED, MAX_BYTES };
 
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
 export class UploadRefused extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'UploadRefused';
   }
+}
+
+/** A file that passed every check, ready to store. */
+export type CheckedFile = {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+  sha256: string;
+  scan: { scannedAt: Date; scannerVersion: string } | null;
+};
+
+/**
+ * Every check a file meets before it is stored: size, type, that its contents
+ * are what its type says, and the virus scanner where the deployment runs one.
+ * An infected file is refused and the refusal audited against `auditAs`; its
+ * bytes are never kept. Call it outside the organisation's transaction, or the
+ * record of the refusal goes with the failure.
+ */
+export async function checkFile(input: {
+  organisationId: string;
+  entityId: string | null;
+  filename: string;
+  contentType: string;
+  content: Buffer;
+  actor: Actor;
+  /** The record the refusal of an infected file is recorded against. */
+  auditAs: { subjectType: StoredDocument['subjectType']; subjectId: string };
+}): Promise<CheckedFile> {
+  if (input.content.byteLength === 0) {
+    throw new UploadRefused('That file is empty.');
+  }
+  if (input.content.byteLength > MAX_BYTES) {
+    throw new UploadRefused(
+      `That file is ${(input.content.byteLength / 1024 / 1024).toFixed(1)}MB. ` +
+        `The limit is ${MAX_BYTES / 1024 / 1024}MB - link to it instead if it is genuinely that large.`
+    );
+  }
+  if (RETIRED.has(input.contentType)) {
+    throw new UploadRefused(
+      `${RETIRED.get(input.contentType)} files are no longer accepted. ` +
+        'Save it as PDF, .docx or .xlsx and attach that instead.'
+    );
+  }
+  if (!ACCEPTED.has(input.contentType)) {
+    throw new UploadRefused(
+      `${input.contentType || 'That file type'} is not accepted. ` +
+        `Allowed: ${[...new Set(ACCEPTED.values())].join(', ')}.`
+    );
+  }
+
+  if (!contentMatchesType(input.contentType, input.content)) {
+    throw new UploadRefused(
+      `Its contents are not a ${ACCEPTED.get(input.contentType)} file, whatever its name says. ` +
+        'It may be misnamed or damaged - open it and save it again in that format.'
+    );
+  }
+
+  const sha256 = createHash('sha256').update(input.content).digest('hex');
+  // Kept as sent, minus any path a browser included.
+  const filename = input.filename.split(/[\\/]/).pop()!.slice(0, 200);
+
+  // Scanned before anything is written, so an infected file is never stored,
+  // not even briefly. Only where this deployment runs a scanner.
+  const config = scannerConfig();
+  if (!config)
+    return {
+      filename,
+      contentType: input.contentType,
+      content: input.content,
+      sha256,
+      scan: null
+    };
+  let verdict;
+  try {
+    verdict = await scanBuffer(input.content, config);
+  } catch (error) {
+    if (error instanceof ScannerUnavailable) {
+      throw new UploadRefused(
+        'It could not be checked for viruses just now, so it has not been attached. Try again shortly.'
+      );
+    }
+    throw error;
+  }
+  if (verdict.outcome === 'infected') {
+    // The refusal is the record's business: somebody tried to file
+    // something infected against it, and the organisation should be able
+    // to see what and when. The bytes are not kept.
+    await withOrganisation(input.organisationId, () =>
+      db.transaction(async (tx) => {
+        await appendAuditEvent(tx, {
+          ...input.actor,
+          organisationId: input.organisationId,
+          entityId: input.entityId ?? undefined,
+          action: 'document.refused_infected',
+          subjectType: input.auditAs.subjectType,
+          subjectId: input.auditAs.subjectId,
+          after: {
+            filename,
+            bytes: input.content.byteLength,
+            sha256,
+            signature: verdict.signature,
+            scanner: verdict.scanner
+          }
+        });
+      })
+    );
+    throw new UploadRefused(
+      `The virus scanner found ${verdict.signature} in it, so it has not been attached.`
+    );
+  }
+  return {
+    filename,
+    contentType: input.contentType,
+    content: input.content,
+    sha256,
+    scan: { scannedAt: new Date(), scannerVersion: verdict.scanner }
+  };
+}
+
+/** Store a checked file against a record, in the caller's transaction. */
+export async function insertDocument(
+  tx: Tx,
+  input: {
+    organisationId: string;
+    entityId: string | null;
+    subjectType: StoredDocument['subjectType'];
+    subjectId: string;
+    file: CheckedFile;
+    description?: string | null;
+    actor: Actor;
+  }
+) {
+  const { file } = input;
+  const [row] = await tx
+    .insert(documents)
+    .values({
+      organisationId: input.organisationId,
+      entityId: input.entityId,
+      subjectType: input.subjectType,
+      subjectId: input.subjectId,
+      filename: file.filename,
+      contentType: file.contentType,
+      byteSize: file.content.byteLength,
+      sha256: file.sha256,
+      description: input.description?.trim() || null,
+      content: file.content,
+      uploadedBy: input.actor.actorUserId ?? null,
+      uploadedByLabel: input.actor.actorLabel,
+      scannedAt: file.scan?.scannedAt ?? null,
+      scannerVersion: file.scan?.scannerVersion ?? null
+    })
+    .returning({ id: documents.id, filename: documents.filename });
+
+  await appendAuditEvent(tx, {
+    ...input.actor,
+    organisationId: input.organisationId,
+    entityId: input.entityId ?? undefined,
+    action: 'document.attached',
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+    after: {
+      document: row.id,
+      filename: row.filename,
+      bytes: file.content.byteLength,
+      sha256: file.sha256,
+      ...(file.scan ? { scanner: file.scan.scannerVersion } : {})
+    }
+  });
+  return row;
 }
 
 export async function attachDocument(input: {
@@ -46,41 +217,9 @@ export async function attachDocument(input: {
   content: Buffer;
   actor: Actor;
 }) {
-  const outcome = await withOrganisation(input.organisationId, async () => {
-    if (input.content.byteLength === 0) {
-      throw new UploadRefused('That file is empty.');
-    }
-    if (input.content.byteLength > MAX_BYTES) {
-      throw new UploadRefused(
-        `That file is ${(input.content.byteLength / 1024 / 1024).toFixed(1)}MB. ` +
-          `The limit is ${MAX_BYTES / 1024 / 1024}MB - link to it instead if it is genuinely that large.`
-      );
-    }
-    if (RETIRED.has(input.contentType)) {
-      throw new UploadRefused(
-        `${RETIRED.get(input.contentType)} files are no longer accepted. ` +
-          'Save it as PDF, .docx or .xlsx and attach that instead.'
-      );
-    }
-    if (!ACCEPTED.has(input.contentType)) {
-      throw new UploadRefused(
-        `${input.contentType || 'That file type'} is not accepted. ` +
-          `Allowed: ${[...new Set(ACCEPTED.values())].join(', ')}.`
-      );
-    }
-
-    if (!contentMatchesType(input.contentType, input.content)) {
-      throw new UploadRefused(
-        `Its contents are not a ${ACCEPTED.get(input.contentType)} file, whatever its name says. ` +
-          'It may be misnamed or damaged - open it and save it again in that format.'
-      );
-    }
-
-    const sha256 = createHash('sha256').update(input.content).digest('hex');
-    // Kept as sent, minus any path a browser included.
-    const filename = input.filename.split(/[\\/]/).pop()!.slice(0, 200);
-    // The record it is filed against must be this organisation's: a document
-    // filed against another's supplier would appear on that supplier's page.
+  // The record it is filed against must be this organisation's: a document
+  // filed against another's supplier would appear on that supplier's page.
+  await withOrganisation(input.organisationId, async () => {
     await assertRecordIn(
       input.organisationId,
       input.subjectType,
@@ -88,97 +227,26 @@ export async function attachDocument(input: {
     );
     if (input.entityId)
       await assertEntityIn(input.organisationId, input.entityId);
-
-    // Scanned before anything is written, so an infected file is never stored,
-    // not even briefly. Only where this deployment runs a scanner.
-    const config = scannerConfig();
-    let scan: { scannedAt: Date; scannerVersion: string } | null = null;
-    if (config) {
-      let verdict;
-      try {
-        verdict = await scanBuffer(input.content, config);
-      } catch (error) {
-        if (error instanceof ScannerUnavailable) {
-          throw new UploadRefused(
-            'It could not be checked for viruses just now, so it has not been attached. Try again shortly.'
-          );
-        }
-        throw error;
-      }
-      if (verdict.outcome === 'infected') {
-        // The refusal is the record's business: somebody tried to file
-        // something infected against it, and the organisation should be able
-        // to see what and when. The bytes are not kept.
-        await db.transaction(async (tx) => {
-          await appendAuditEvent(tx, {
-            ...input.actor,
-            organisationId: input.organisationId,
-            entityId: input.entityId ?? undefined,
-            action: 'document.refused_infected',
-            subjectType: input.subjectType,
-            subjectId: input.subjectId,
-            after: {
-              filename,
-              bytes: input.content.byteLength,
-              sha256,
-              signature: verdict.signature,
-              scanner: verdict.scanner
-            }
-          });
-        });
-        // Returned rather than thrown, so the audit entry is not rolled back
-        // with the rest of this transaction.
-        return { infected: verdict.signature };
-      }
-      scan = { scannedAt: new Date(), scannerVersion: verdict.scanner };
-    }
-
-    return db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(documents)
-        .values({
-          organisationId: input.organisationId,
-          entityId: input.entityId,
-          subjectType: input.subjectType,
-          subjectId: input.subjectId,
-          filename,
-          contentType: input.contentType,
-          byteSize: input.content.byteLength,
-          sha256,
-          description: input.description?.trim() || null,
-          content: input.content,
-          uploadedBy: input.actor.actorUserId ?? null,
-          uploadedByLabel: input.actor.actorLabel,
-          scannedAt: scan?.scannedAt ?? null,
-          scannerVersion: scan?.scannerVersion ?? null
-        })
-        .returning({ id: documents.id, filename: documents.filename });
-
-      await appendAuditEvent(tx, {
-        ...input.actor,
-        organisationId: input.organisationId,
-        entityId: input.entityId ?? undefined,
-        action: 'document.attached',
-        subjectType: input.subjectType,
-        subjectId: input.subjectId,
-        after: {
-          document: row.id,
-          filename: row.filename,
-          bytes: input.content.byteLength,
-          sha256,
-          ...(scan ? { scanner: scan.scannerVersion } : {})
-        }
-      });
-      return row;
-    });
   });
-
-  if ('infected' in outcome) {
-    throw new UploadRefused(
-      `The virus scanner found ${outcome.infected} in it, so it has not been attached.`
-    );
-  }
-  return outcome;
+  // Outside the organisation's transaction, so the record of a refused
+  // infected file is kept although the upload fails.
+  const file = await checkFile({
+    ...input,
+    auditAs: { subjectType: input.subjectType, subjectId: input.subjectId }
+  });
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      // Again, in the transaction that stores it: the record may have gone
+      // while the file was being scanned.
+      await assertRecordIn(
+        input.organisationId,
+        input.subjectType,
+        input.subjectId,
+        tx
+      );
+      return insertDocument(tx, { ...input, file });
+    })
+  );
 }
 
 /** Everything attached to one record. Never the bytes — those come one at a time. */

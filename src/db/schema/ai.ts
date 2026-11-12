@@ -36,6 +36,7 @@ import {
   atrsStatus,
   riskTier
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { integrationConnections, suppliers } from './integration';
 import { risks } from './risks';
 import { entities, organisations, users } from './tenancy';
@@ -174,6 +175,20 @@ export const aiUseCases = pgTable(
       { onDelete: 'set null' }
     ),
     externalRef: text('external_ref'),
+    /**
+     * Brought in from another platform (docs/migration-plan.md): the source,
+     * the batch, and the source's fields with no home here, kept to read.
+     */
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
 
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -184,6 +199,11 @@ export const aiUseCases = pgTable(
   },
   (t) => [
     uniqueIndex('ai_use_case_reference').on(t.organisationId, t.reference),
+    uniqueIndex('ai_use_case_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     uniqueIndex('ai_use_case_external')
       .on(t.organisationId, t.sourceConnectionId, t.externalRef)
       .where(sql`${t.externalRef} is not null`),

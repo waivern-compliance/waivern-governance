@@ -2,8 +2,31 @@
 
 export const RECORD_TYPE_LABEL: Record<string, string> = {
   processing_activity: 'Processing activities',
-  supplier: 'Suppliers and vendors'
+  supplier: 'Suppliers and vendors',
+  dpa: 'Processor agreements (DPAs)',
+  evidence: 'Evidence',
+  ai_use_case: 'AI systems'
 };
+
+/** Where a record of each kind is opened. */
+export function recordHref(
+  recordType: string,
+  id: string,
+  supplierId?: string | null
+): string {
+  switch (recordType) {
+    case 'dpa':
+      return `/app/third-parties/${supplierId}`;
+    case 'supplier':
+      return `/app/third-parties/${id}`;
+    case 'ai_use_case':
+      return `/app/ai/${id}`;
+    case 'evidence':
+      return `/app/evidence#${id}`;
+    default:
+      return `/app/ropa/${id}`;
+  }
+}
 
 export const STATUS_LABEL: Record<string, string> = {
   uploaded: 'columns to match',

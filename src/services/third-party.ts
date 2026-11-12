@@ -66,6 +66,7 @@ export type Article28Gap =
   | 'eu_transfer_no_tia'
   | 'subprocessors_undisclosed'
   | 'never_reviewed'
+  | 'dpa_unconfirmed'
   | 'no_owner';
 
 export const GAP_WORDS: Record<Article28Gap, string> = {
@@ -80,6 +81,8 @@ export const GAP_WORDS: Record<Article28Gap, string> = {
     'Transfers on an EU Article 46 safeguard with no transfer impact assessment',
   subprocessors_undisclosed: 'Sub-processors not recorded',
   never_reviewed: 'Nobody has confirmed what this third party is to us',
+  dpa_unconfirmed:
+    'Agreement imported from another platform and not yet confirmed',
   no_owner: 'No named owner'
 };
 
@@ -227,6 +230,10 @@ export function article28Gaps(
       // so this is reported as unrecorded rather than as a breach.
       if ((dpa.subProcessors ?? []).length === 0)
         gaps.push('subprocessors_undisclosed');
+      // What another platform said about the contract, until a person here
+      // has checked it against the contract.
+      if (dpa.importBatchId && !dpa.importConfirmedAt)
+        gaps.push('dpa_unconfirmed');
     }
   }
 
