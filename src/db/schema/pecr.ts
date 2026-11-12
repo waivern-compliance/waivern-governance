@@ -62,6 +62,17 @@ export const digitalProperties = pgTable(
     informationUrl: text('information_url'),
     /** How people object to statistics or preference storage, in a sentence. Schedule A1 paras 5 and 6. */
     objectionMechanism: text('objection_mechanism'),
+    /**
+     * Under the Irish ePrivacy Regulations: how many months stored consent
+     * lasts before people are asked again, the justification where that is
+     * over six, and the banner checks confirmed (DPC cookie guidance).
+     */
+    consentRenewalMonths: integer('consent_renewal_months'),
+    consentRenewalJustification: text('consent_renewal_justification'),
+    bannerChecks: jsonb('banner_checks')
+      .$type<Record<string, boolean>>()
+      .notNull()
+      .default({}),
     /** The consent platform, as last detected or entered. */
     cmp: text('cmp'),
     lastScannedAt: timestamp('last_scanned_at', { withTimezone: true }),
@@ -154,6 +165,11 @@ export const storageDecisions = pgTable(
       .notNull()
       .references(() => storageItems.id, { onDelete: 'cascade' }),
     basis: storageBasis('basis').notNull(),
+    /**
+     * The law the basis is recorded under: UK PECR or the Irish ePrivacy
+     * Regulations. A website under both has a decision for each.
+     */
+    law: text('law').$type<'uk' | 'ie'>().notNull().default('uk'),
     /** Which of the basis's conditions the person confirmed. */
     conditions: jsonb('conditions')
       .$type<Record<string, boolean>>()

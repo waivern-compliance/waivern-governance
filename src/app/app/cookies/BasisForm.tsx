@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react';
 
+import { IE_BASES, IE_BASIS_KEYS } from '@/lib/ie-eprivacy/storage';
 import { BASES, BASIS_KEYS, type StorageBasis } from '@/lib/pecr/statutory';
 
 import type { RequestResult } from '../requests/actions';
@@ -10,40 +11,56 @@ const input =
   'w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
 
 /**
- * Record the Schedule A1 basis for one item. The conditions shown follow the
- * basis chosen, so the person confirms exactly what that paragraph needs.
+ * Record the basis for one item under one law: PECR's Schedule A1, or
+ * regulation 5 of the Irish Regulations. The conditions shown follow the basis
+ * chosen, so the person confirms exactly what that provision needs.
  */
 export function BasisForm({
   action,
   current,
-  suggested
+  suggested,
+  law = 'uk'
 }: {
   action: (prev: RequestResult, formData: FormData) => Promise<RequestResult>;
   current: StorageBasis | null;
   suggested: StorageBasis | null;
+  law?: 'uk' | 'ie';
 }) {
+  const bases: Partial<
+    Record<
+      StorageBasis,
+      (typeof BASES)[StorageBasis] | (typeof IE_BASES)['consent']
+    >
+  > = law === 'ie' ? IE_BASES : BASES;
+  const keys: StorageBasis[] = law === 'ie' ? IE_BASIS_KEYS : BASIS_KEYS;
+  const usable = (b: StorageBasis | null) => (b && b in bases ? b : null);
   const [result, run, pending] = useActionState<RequestResult, FormData>(
     action,
     null
   );
   const [basis, setBasis] = useState<StorageBasis>(
-    current ?? suggested ?? 'consent'
+    usable(current) ?? usable(suggested) ?? 'consent'
   );
-  const spec = BASES[basis];
+  const spec = bases[basis] ?? bases.consent!;
 
   return (
     <form
       action={run}
       className="space-y-3 border-t border-line pt-3"
     >
+      <input
+        type="hidden"
+        name="law"
+        value={law}
+      />
       <label className="block space-y-1">
         <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
           Basis
-          {suggested && !current ? (
+          {usable(suggested) && !current ? (
             <span className="block font-normal normal-case tracking-normal">
               The scanner&apos;s category suggests{' '}
-              {BASES[suggested].label.toLowerCase()}. Check it: a suggestion is
-              not a decision.
+              {bases[suggested!]!.label.toLowerCase()}. Check it: a suggestion
+              is not a decision.
             </span>
           ) : null}
         </span>
@@ -53,12 +70,12 @@ export function BasisForm({
           onChange={(e) => setBasis(e.target.value as StorageBasis)}
           className={input}
         >
-          {BASIS_KEYS.map((b) => (
+          {keys.map((b) => (
             <option
               key={b}
               value={b}
             >
-              {BASES[b].label} - {BASES[b].citation}
+              {bases[b]!.label} - {bases[b]!.citation}
             </option>
           ))}
         </select>
@@ -85,7 +102,7 @@ export function BasisForm({
           ))}
         </fieldset>
       ) : null}
-      {spec.needsObjection ? (
+      {'needsObjection' in spec && spec.needsObjection ? (
         <p className="max-w-prose text-xs text-ink-soft">
           It also needs the website&apos;s information and a simple, free way to
           object, recorded once for the whole site above.

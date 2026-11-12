@@ -1076,7 +1076,13 @@ Counts only: no requester is named, so the figures can go into a board paper or 
 
 ### Under PECR or the Irish ePrivacy Regulations
 
-Each website or app records which ePrivacy law it is under: UK PECR, the Irish ePrivacy Regulations (S.I. 336/2011), or both, within its entity's. The bases and gaps below are PECR's; the Irish rules (regulation 5) allow storage without consent only to carry a communication or where strictly necessary for a service the user asked for, and Govern does not check them yet. See the Irish ePrivacy Regulations topic.
+Each website or app records which ePrivacy law it is under: UK PECR, the Irish ePrivacy Regulations (S.I. 336/2011), or both, within its entity's. Under the Irish Regulations each item has its own basis, recorded beside its PECR one where both apply, and its own gaps, labelled with the law they come from.
+
+Irish law has only three bases (regulation 5): consent, storage solely to carry a communication, and storage strictly necessary for a service the person explicitly asked for. There is nothing like PECR's statistics or appearance exceptions. Following the Data Protection Commission's guidance note on cookies (April 2020), Govern also flags an analytics item without consent, quoting the Commission's own words that first-party analytics are unlikely to be an enforcement priority but are not exempt (pages 7 and 8); an advertising item on any basis but consent (page 6); and a strictly necessary item lasting longer than the organisation's threshold, 12 months by default (pages 3 and 13).
+
+For the whole website or app, it asks how long stored consent lasts before people are asked again (the Commission's outer limit is six months, pages 8 and 11; longer needs a justification), and six things about the banner: reject as prominent as accept, consent by purpose, nothing ticked in advance, no consent taken from scrolling, withdrawal as easy as giving, and the policies readable without cookies. These are asked only where something relies on consent.
+
+The lifespan threshold is set for the organisation on the cookies page, by an owner or privacy administrator. Any figure other than 12 months needs a specific justification, which is kept and recorded in the audit trail. A website under the Irish Regulations alone is scanned from the EU.
 
 ### What the law requires
 
@@ -1135,7 +1141,7 @@ It will not decide a basis from a scan, change the website or its consent banner
 
 **See also:** Scan findings · Third parties and processor agreements (Article 28) · Exports
 
-<sub>Also searchable as: cookie, cookies, pecr, regulation 6, schedule a1, storage, access, terminal equipment, analytics, statistics, preferences, functional, strictly necessary, consent, opt out, object, duaa, data use and access act, consent analyser, scan, pixel, local storage, sdk, cookie notice, rescan, reminder, gaps, scan now, api token, credits</sub>
+<sub>Also searchable as: cookie, cookies, pecr, regulation 6, schedule a1, storage, access, terminal equipment, analytics, statistics, preferences, functional, strictly necessary, consent, opt out, object, duaa, data use and access act, consent analyser, scan, pixel, local storage, sdk, cookie notice, rescan, reminder, gaps, scan now, api token, credits, ireland, irish, dpc, banner, lifespan</sub>
 
 ## Electronic marketing
 
@@ -1213,7 +1219,7 @@ Turning the Irish Regulations off for an entity is refused while any of its webs
 
 ### What Govern checks today
 
-For now Govern records which law applies; the bases and gaps on the cookie and marketing registers are still PECR's. The Irish rules differ - for example, regulation 5 has no exceptions for statistics or appearance cookies, the soft opt-in for email (regulation 13(11)) is limited to sales in the previous 12 months, and marketing calls to mobile numbers need consent (regulation 13(6)). Checking those is planned for later releases. Until then, judge an Irish record against the Regulations themselves.
+The cookie register checks the Irish rules: each item has a basis under regulation 5, and the Data Protection Commission's cookie guidance is applied to items and to each website as a whole. See the cookies topic. The marketing register still shows PECR's bases and gaps for every activity; the Irish rules there differ - for example, the soft opt-in for email (regulation 13(11)) is limited to sales in the previous 12 months, and marketing calls to mobile numbers need consent (regulation 13(6)) - and checking them is planned. Until then, judge an Irish marketing activity against the Regulations themselves.
 
 **See also:** The organisation and its legal entities · Cookies and similar technologies · Electronic marketing
 

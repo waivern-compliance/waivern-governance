@@ -201,7 +201,11 @@ export type GapKind =
   | 'no_objection_route'
   | 'supplier_unknown'
   | 'before_consent'
-  | 'after_reject';
+  | 'after_reject'
+  // Irish Regulations only (`lib/ie-eprivacy/storage.ts`).
+  | 'analytics_needs_consent'
+  | 'advertising_not_necessary'
+  | 'lifespan_long';
 
 export type Gap = { kind: GapKind; text: string };
 
@@ -309,6 +313,18 @@ const GAP_PHRASE: Record<GapKind, [string, string]> = {
   condition_unconfirmed: [
     'item with a condition not confirmed',
     'items with a condition not confirmed'
+  ],
+  analytics_needs_consent: [
+    'analytics item without consent under Irish law',
+    'analytics items without consent under Irish law'
+  ],
+  advertising_not_necessary: [
+    'advertising item recorded as strictly necessary',
+    'advertising items recorded as strictly necessary'
+  ],
+  lifespan_long: [
+    'strictly necessary item kept unusually long',
+    'strictly necessary items kept unusually long'
   ]
 };
 
@@ -317,10 +333,13 @@ const GAP_ORDER: GapKind[] = [
   'before_consent',
   'after_reject',
   'basis_none',
+  'advertising_not_necessary',
+  'analytics_needs_consent',
   'no_basis',
   'no_objection_route',
   'no_information',
   'supplier_unknown',
+  'lifespan_long',
   'condition_unconfirmed'
 ];
 

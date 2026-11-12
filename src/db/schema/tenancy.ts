@@ -92,6 +92,16 @@ export const organisations = pgTable('organisation', {
   consentAnalyserTokenIv: text('consent_analyser_token_iv'),
   consentAnalyserTokenTag: text('consent_analyser_token_tag'),
   consentAnalyserTokenHint: text('consent_analyser_token_hint'),
+  /**
+   * How long a strictly necessary cookie may last under the Irish ePrivacy
+   * Regulations before it is flagged for a check, in months beyond the
+   * session. Changed from the default only with a justification
+   * (`lib/ie-eprivacy/storage.ts`).
+   */
+  cookieLifespanThresholdMonths: integer('cookie_lifespan_threshold_months')
+    .notNull()
+    .default(12),
+  cookieLifespanJustification: text('cookie_lifespan_justification'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

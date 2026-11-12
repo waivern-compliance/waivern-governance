@@ -5,6 +5,12 @@ import { EditForm } from '@/components/EditForm';
 import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { EprivacyScopeNote } from '@/components/EprivacyScopeNote';
 import { NotPermitted } from '@/components/NotPermitted';
+import {
+  BANNER_CHECK_KEYS,
+  BANNER_CHECKS,
+  CONSENT_RENEWAL_LIMIT_MONTHS,
+  suggestedIrishBasis
+} from '@/lib/ie-eprivacy/storage';
 import { RESCAN_INTERVALS, rescanState } from '@/lib/pecr/rescan';
 import { BASES, suggestedBasis } from '@/lib/pecr/statutory';
 import { can } from '@/lib/rbac';
@@ -87,6 +93,15 @@ function Sightings({
 const save =
   'rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
+const LAW_SHORT: Record<'uk' | 'ie', string> = {
+  uk: 'PECR',
+  ie: 'Irish'
+};
+const LAW_LONG: Record<'uk' | 'ie', string> = {
+  uk: 'UK PECR',
+  ie: 'the Irish Regulations'
+};
+
 export default async function PropertyPage({
   params
 }: {
@@ -101,6 +116,9 @@ export default async function PropertyPage({
     property,
     entityName,
     entityEprivacy,
+    scope,
+    irishPropertyGaps,
+    lifespanThresholdMonths,
     ownerEmail,
     items,
     gapSummary,
@@ -126,6 +144,11 @@ export default async function PropertyPage({
   const running = scans.find((s) => s.status === 'running');
   const latestScan = scans.find((s) => s.status === 'done') ?? null;
   const inUse = items.filter((i) => i.status === 'active');
+  // The laws each item's basis is recorded under: PECR, the Irish
+  // Regulations, or both. Read as PECR where no ePrivacy law reaches it.
+  const laws: Array<'uk' | 'ie'> =
+    scope === 'ie' ? ['ie'] : scope === 'uk_ie' ? ['uk', 'ie'] : ['uk'];
+  const irish = laws.includes('ie');
   const retired = items.filter((i) => i.status !== 'active');
   const rescan = rescanState(rescanDueAt);
 
@@ -302,11 +325,14 @@ export default async function PropertyPage({
         ) : null}
         {inUse.map((item) => {
           const suggested = suggestedBasis(item.suggestedCategory);
+          const decided = laws.every((l) =>
+            l === 'ie' ? item.irishDecision : item.decision
+          );
           return (
             <details
               key={item.id}
               className="rounded border border-line bg-surface"
-              open={!item.decision || item.gaps.length > 0}
+              open={!decided || item.gaps.length > 0}
             >
               <summary className="cursor-pointer space-y-1 px-4 py-3">
                 <span className="flex flex-wrap items-baseline justify-between gap-2">
@@ -317,14 +343,23 @@ export default async function PropertyPage({
                     </span>
                   </span>
                   <span
-                    className={`text-xs font-medium ${!item.decision || item.gaps.length ? 'text-amber-900' : 'text-emerald-900'}`}
+                    className={`text-xs font-medium ${!decided || item.gaps.length ? 'text-amber-900' : 'text-emerald-900'}`}
                   >
-                    {item.decision
-                      ? BASES[item.decision.basis].label
-                      : 'No basis recorded yet'}
+                    {laws
+                      .map((l) => {
+                        const d =
+                          l === 'ie' ? item.irishDecision : item.decision;
+                        const said = d
+                          ? BASES[d.basis].label
+                          : 'No basis recorded yet';
+                        return laws.length > 1
+                          ? `${LAW_SHORT[l]}: ${said}`
+                          : said;
+                      })
+                      .join(' · ')}
                     {item.gaps.length
                       ? ` · ${item.gaps.length} thing${item.gaps.length === 1 ? '' : 's'} missing`
-                      : item.decision
+                      : decided
                         ? ' · nothing missing'
                         : ''}
                   </span>
@@ -373,6 +408,7 @@ export default async function PropertyPage({
                         className="text-xs"
                       >
                         <span className="font-medium">
+                          {laws.length > 1 ? `${LAW_SHORT[d.law]}: ` : ''}
                           {BASES[d.basis].label}
                         </span>{' '}
                         <span className="font-mono text-ink-soft">
@@ -468,34 +504,50 @@ export default async function PropertyPage({
                     </div>
                   ) : null}
                 </EditForm>
-                {mayWrite ? (
-                  item.decision ? (
-                    <details className="border-t border-line pt-3">
-                      <summary className="cursor-pointer text-xs font-medium text-brand">
-                        Record a different basis
-                      </summary>
-                      <BasisForm
-                        action={decideBasisAction.bind(
-                          null,
-                          item.id,
-                          property.id
-                        )}
-                        current={item.decision.basis}
-                        suggested={suggested}
-                      />
-                    </details>
-                  ) : (
-                    <BasisForm
-                      action={decideBasisAction.bind(
-                        null,
-                        item.id,
-                        property.id
-                      )}
-                      current={null}
-                      suggested={suggested}
-                    />
-                  )
-                ) : null}
+                {mayWrite
+                  ? laws.map((l) => {
+                      const current =
+                        l === 'ie' ? item.irishDecision : item.decision;
+                      const form = (
+                        <BasisForm
+                          action={decideBasisAction.bind(
+                            null,
+                            item.id,
+                            property.id
+                          )}
+                          current={current?.basis ?? null}
+                          suggested={
+                            l === 'ie'
+                              ? suggestedIrishBasis(item.suggestedCategory)
+                              : suggested
+                          }
+                          law={l}
+                        />
+                      );
+                      const under =
+                        laws.length > 1 ? ` under ${LAW_LONG[l]}` : '';
+                      return current ? (
+                        <details
+                          key={l}
+                          className="border-t border-line pt-3"
+                        >
+                          <summary className="cursor-pointer text-xs font-medium text-brand">
+                            Record a different basis{under}
+                          </summary>
+                          {form}
+                        </details>
+                      ) : (
+                        <div key={l}>
+                          {under ? (
+                            <h3 className="pt-3 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                              The basis{under}
+                            </h3>
+                          ) : null}
+                          {form}
+                        </div>
+                      );
+                    })
+                  : null}
               </div>
             </details>
           );
@@ -609,7 +661,21 @@ export default async function PropertyPage({
       <EprivacyScopeNote
         entity={entityEprivacy}
         scope={property.eprivacyScope}
+        irishChecked
       />
+
+      {irishPropertyGaps.length > 0 ? (
+        <section className="space-y-2 rounded border border-amber-700 bg-amber-50 px-4 py-3">
+          <h2 className="text-sm font-semibold text-amber-900">
+            Under the Irish Regulations, this website or app does not yet show
+          </h2>
+          <ul className="list-disc space-y-0.5 pl-5 text-xs text-amber-900">
+            {irishPropertyGaps.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <EditForm
         key={savedKey(property)}
@@ -713,6 +779,79 @@ export default async function PropertyPage({
             <option value="">No reminders</option>
           </select>
         </label>
+        {irish ? (
+          <fieldset className="space-y-3 border-t border-line pt-3">
+            <legend className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
+              Consent under the Irish Regulations
+            </legend>
+            <input
+              type="hidden"
+              name="irishAsked"
+              value="1"
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1">
+                <Label
+                  text="Consent is asked again after (months)"
+                  hint={`The Data Protection Commission's outer limit is ${CONSENT_RENEWAL_LIMIT_MONTHS} months.`}
+                />
+                <input
+                  name="consentRenewalMonths"
+                  type="number"
+                  min={1}
+                  max={60}
+                  defaultValue={property.consentRenewalMonths ?? ''}
+                  disabled={!mayWrite}
+                  className={inputClass}
+                />
+              </label>
+              <label className="block space-y-1">
+                <Label
+                  text="Why longer, if it is"
+                  hint={`Needed only over ${CONSENT_RENEWAL_LIMIT_MONTHS} months: the Commission expects a case-by-case justification.`}
+                />
+                <input
+                  name="consentRenewalJustification"
+                  defaultValue={property.consentRenewalJustification ?? ''}
+                  disabled={!mayWrite}
+                  className={inputClass}
+                />
+              </label>
+            </div>
+            <div className="space-y-1.5">
+              <Label
+                text="The banner and consent"
+                hint="Tick what is true of this website or app. From the Commission's guidance note on cookies (April 2020)."
+              />
+              {BANNER_CHECK_KEYS.map((k) => (
+                <label
+                  key={k}
+                  className="flex items-start gap-2.5 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    name="bannerChecks"
+                    value={k}
+                    defaultChecked={Boolean(property.bannerChecks[k])}
+                    disabled={!mayWrite}
+                    className="mt-1 accent-brand"
+                  />
+                  <span>
+                    {BANNER_CHECKS[k].label}{' '}
+                    <span className="text-xs text-ink-soft">
+                      ({BANNER_CHECKS[k].pages})
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="max-w-prose text-xs text-ink-soft">
+              A strictly necessary item lasting more than{' '}
+              {lifespanThresholdMonths} months is flagged for a check; the
+              threshold is set for the organisation on the cookies page.
+            </p>
+          </fieldset>
+        ) : null}
         {mayWrite ? (
           <button
             type="submit"

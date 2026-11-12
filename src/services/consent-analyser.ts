@@ -1,8 +1,14 @@
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
-import { consentScans, digitalProperties, organisations } from '@/db/schema';
+import {
+  consentScans,
+  digitalProperties,
+  entities,
+  organisations
+} from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { recordEprivacy } from '@/lib/ie-eprivacy/scope';
 import { openSecret, sealSecret } from '@/lib/integration/crypto';
 import { FetchRefused, vetted } from '@/lib/net/fetch-page';
 import {
@@ -212,6 +218,18 @@ export async function startPropertyScan(
         )
       );
     if (!property) throw new Error('No such website or app');
+    const [entity] = await db
+      .select({
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
+      .from(entities)
+      .where(eq(entities.id, property.entityId));
+    // Under the Irish Regulations alone, the EU is where its visitors are.
+    const region =
+      entity && recordEprivacy(entity, property.eprivacyScope) === 'ie'
+        ? 'eu'
+        : 'uk';
     if (property.kind !== 'website')
       throw new InventoryRefused(
         "The Consent Analyser scans websites. Record an app's items by hand."
@@ -252,7 +270,8 @@ export async function startPropertyScan(
         creds.url,
         creds.token,
         property.url,
-        options
+        options,
+        region
       );
     } catch (error) {
       if (error instanceof AnalyserError)

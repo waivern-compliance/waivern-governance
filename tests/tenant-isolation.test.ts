@@ -3684,6 +3684,10 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
   'complaints.setComplaintTargets': "configures the caller's own organisation",
   'complaints.complaintTargets': "reads the caller's own organisation",
   'consent-analyser.analyserSettings': "reads the caller's own organisation",
+  'storage-inventory.cookieLifespanSetting':
+    "reads the caller's own organisation",
+  'storage-inventory.setCookieLifespanThreshold':
+    "changes the caller's own organisation's setting",
   'consent-analyser.setAnalyserSettings':
     "configures the caller's own organisation",
   'consent-analyser.finishRunningScans':
