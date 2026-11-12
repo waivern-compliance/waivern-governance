@@ -1192,7 +1192,9 @@ It will not hold your mailing lists or suppression lists, send anything, or tell
 
 The European Communities (Electronic Communications Networks and Services) (Privacy and Electronic Communications) Regulations 2011, S.I. No. 336 of 2011, are how Ireland gives effect to the ePrivacy Directive. They are the nearest equivalent of PECR: regulation 5 covers storing information on, or reading it from, a device (cookies and similar technologies); regulation 13 covers unsolicited direct marketing by email, text, phone and fax; regulation 4 covers security and breaches for providers of publicly available electronic communications services.
 
-They have been amended since 2011, mainly on definitions, directories, the National Directory Database and ComReg's procedures. The rules on cookies, marketing and their penalties have not been changed. The Data Protection Commission enforces most of them; ComReg has a monitoring role for some.
+They have been amended since 2011, mainly on definitions, directories, the National Directory Database and ComReg's procedures. The rules on cookies, marketing and their penalties have not been changed. The Data Protection Commission enforces them, including the cookie and marketing rules, by notice and by prosecution. ComReg monitors regulations 7 to 15 and, since 10 June 2023, can also take a breach of those regulations (which include the marketing rules and the National Directory Database) to an adjudicator for an administrative sanction (S.I. No. 304 of 2023).
+
+The GDPR's one-stop shop does not apply to them. An entity whose lead authority under the GDPR is in another member State still answers to the Data Protection Commission for the Irish Regulations (EDPB Opinion 5/2019, paragraph 80), because Irish law gives the Commission that role (regulations 17 and 26).
 
 ### Saying whether an entity is subject to them
 
