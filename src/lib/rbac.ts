@@ -45,6 +45,12 @@ export const ROLES = appRole.enumValues;
 export const CAPABILITIES = [
   'org.manage',
   'entity.manage',
+  /**
+   * Delete a legal entity and every record held for it, for good. An owner's
+   * alone, and never bundled into `entity.manage`, which a privacy
+   * administrator holds: see `mayDeleteEntity`.
+   */
+  'entity.delete',
   'member.manage',
   'retention.manage',
   'template.author',
@@ -217,6 +223,24 @@ export function mayManageEntities(grants: readonly Grant[]): boolean {
  */
 export function mayExportOrganisation(grants: readonly Grant[]): boolean {
   return grants.some((g) => g.role === 'owner' && g.scope === 'organisation');
+}
+
+/**
+ * May this person delete this legal entity and everything held for it?
+ *
+ * An owner whose grant reaches the entity, over the whole organisation or
+ * over that entity alone: it is theirs to give up. Or one of the
+ * deployment's own operators (`PLATFORM_ADMINS`), who answer for the instance
+ * and are sometimes asked to do it for a client; they still act through a
+ * membership of the organisation, so the deletion is theirs on the record.
+ * Nobody else, whatever else they may manage.
+ */
+export function mayDeleteEntity(
+  grants: readonly Grant[],
+  entityId: string,
+  platformAdmin: boolean
+): boolean {
+  return platformAdmin || can(grants, 'entity.delete', entityId);
 }
 
 /**

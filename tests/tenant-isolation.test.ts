@@ -58,6 +58,7 @@ import * as documentsSvc from '@/services/documents';
 import * as domains from '@/services/domains';
 import * as dsrIntake from '@/services/dsr-intake';
 import * as entitiesSvc from '@/services/entities';
+import * as entityErasure from '@/services/entity-erasure';
 import * as evidenceSvc from '@/services/evidence';
 import * as exportSvc from '@/services/export';
 import * as exportsSvc from '@/services/exports';
@@ -3788,8 +3789,71 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
   'feedback.markFeedbackHandled':
     'platform operators only; feedback belongs to no organisation',
   'feedback.deleteFeedback':
-    'platform operators only; feedback belongs to no organisation'
+    'platform operators only; feedback belongs to no organisation',
+  'entity-erasure.erasureForToken':
+    "looked up by the token's hash, as a contributor link is; the link is then acted on only in its own organisation, by the person it was sent to"
 };
+
+describe('deleting a legal entity', () => {
+  const sent = async () => ({ sent: true as const, messageId: 'test' });
+
+  it("cannot be asked for another organisation's entity", async () => {
+    const before = await bSnapshot();
+    await assert.rejects(
+      entityErasure.requestEntityErasure({
+        organisationId: A.org.id,
+        entityId: B.foiEntity.id,
+        userId: A.owner.user.id,
+        actor: as(),
+        origin: 'http://localhost',
+        send: sent
+      }),
+      /No such legal entity/
+    );
+    assert.deepEqual(changed(before, await bSnapshot()), []);
+  });
+
+  it("sees nothing of another organisation's entity", async () => {
+    assert.match(
+      (await entityErasure.erasureBlockers(A.org.id, B.foiEntity.id)).join(),
+      /No such legal entity/
+    );
+    const preview = await entityErasure.previewErasure(
+      A.org.id,
+      B.foiEntity.id
+    );
+    assert.equal(preview.records, 0);
+  });
+
+  it('cannot be confirmed from another organisation', async () => {
+    let link = '';
+    await entityErasure.requestEntityErasure({
+      organisationId: B.org.id,
+      entityId: B.foiEntity.id,
+      userId: B.owner.user.id,
+      actor: B.owner.actor,
+      origin: 'http://localhost',
+      send: async (email) => {
+        link = /delete-entity\/(\S+)/.exec(email.text)?.[1] ?? '';
+        return { sent: true, messageId: 'test' };
+      }
+    });
+    assert.equal((await entityErasure.erasureForToken(link)).state, 'open');
+    const before = await bSnapshot();
+    await assert.rejects(
+      entityErasure.confirmEntityErasure({
+        token: link,
+        userId: A.owner.user.id,
+        typed: 'delete everything',
+        actor: as(),
+        send: sent
+      }),
+      /sent to somebody else/
+    );
+    assert.deepEqual(changed(before, await bSnapshot()), []);
+    assert.deepEqual((await entityErasure.deletedEntities(A.org.id)).length, 0);
+  });
+});
 
 describe('coverage', () => {
   it('accounts for every exported service function', () => {

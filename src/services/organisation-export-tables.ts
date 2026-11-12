@@ -261,6 +261,7 @@ export const TABLES: readonly TableRule[] = [
 
   // The record of who did what.
   own('audit_event'),
+  own('entity_erasure', { withhold: { token_hash: ONE_WAY } }),
   own('audit_chain_head'),
 
   // Not the organisation's.

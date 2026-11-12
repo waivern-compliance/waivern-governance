@@ -64,9 +64,14 @@ export const entityAgreements = pgTable(
     organisationId: uuid('organisation_id')
       .notNull()
       .references(() => organisations.id, { onDelete: 'restrict' }),
-    entityId: uuid('entity_id')
-      .notNull()
-      .references(() => entities.id, { onDelete: 'restrict' }),
+    /**
+     * Null once the entity has been deleted. The acceptance itself is kept: it
+     * is Waivern's own record of who agreed to what, for whom (terms 6.3), and
+     * it carries the entity's name and reference as they were.
+     */
+    entityId: uuid('entity_id').references(() => entities.id, {
+      onDelete: 'set null'
+    }),
     entityName: text('entity_name').notNull(),
     legalEntityRef: text('legal_entity_ref'),
     termsVersion: text('terms_version').notNull(),
