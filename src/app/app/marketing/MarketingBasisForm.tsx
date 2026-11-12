@@ -3,11 +3,18 @@
 import { useActionState, useState } from 'react';
 
 import {
+  IE_MARKETING_BASES,
+  irishBasesFor,
+  irishConditionsOf
+} from '@/lib/ie-eprivacy/marketing';
+import {
   basesFor,
   conditionsOf,
   MARKETING_BASES,
   type MarketingBasis,
+  type MarketingBasisSpec,
   type MarketingChannel,
+  type MarketingCondition,
   type MarketingRecipients
 } from '@/lib/pecr/marketing';
 
@@ -17,7 +24,8 @@ const input =
   'w-full rounded border border-line bg-ground px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-brand';
 
 /**
- * Record the PECR basis a marketing activity relies on. Only the bases its
+ * Record the basis a marketing activity relies on, under PECR or the Irish
+ * Regulations. Only the bases its
  * channel can use are offered, and the conditions shown follow the basis
  * chosen, so the person confirms exactly what that regulation needs.
  */
@@ -25,29 +33,51 @@ export function MarketingBasisForm({
   action,
   channel,
   recipients,
-  current
+  current,
+  law = 'uk'
 }: {
   action: (prev: RequestResult, formData: FormData) => Promise<RequestResult>;
   channel: MarketingChannel;
   recipients: MarketingRecipients;
   current: MarketingBasis | null;
+  law?: 'uk' | 'ie';
 }) {
+  const offered: MarketingBasis[] =
+    law === 'ie'
+      ? irishBasesFor(channel, recipients)
+      : basesFor(channel, recipients);
+  const specOf = (b: MarketingBasis): MarketingBasisSpec =>
+    (law === 'ie'
+      ? (IE_MARKETING_BASES as Partial<
+          Record<MarketingBasis, MarketingBasisSpec>
+        >)
+      : (MARKETING_BASES as Partial<
+          Record<MarketingBasis, MarketingBasisSpec>
+        >))[b]!;
+  const conditionsFor = (b: MarketingBasis): MarketingCondition[] =>
+    law === 'ie'
+      ? irishConditionsOf(b as Parameters<typeof irishConditionsOf>[0], channel)
+      : conditionsOf(b as Parameters<typeof conditionsOf>[0], channel);
   const [result, run, pending] = useActionState<RequestResult, FormData>(
     action,
     null
   );
-  const offered = basesFor(channel, recipients);
   const [basis, setBasis] = useState<MarketingBasis>(
     current && offered.includes(current) ? current : offered[0]
   );
-  const spec = MARKETING_BASES[basis];
-  const conditions = conditionsOf(basis, channel);
+  const spec = specOf(basis);
+  const conditions = conditionsFor(basis);
 
   return (
     <form
       action={run}
       className="space-y-3"
     >
+      <input
+        type="hidden"
+        name="law"
+        value={law}
+      />
       <label className="block space-y-1">
         <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
           Basis
@@ -63,7 +93,7 @@ export function MarketingBasisForm({
               key={b}
               value={b}
             >
-              {MARKETING_BASES[b].label} - {MARKETING_BASES[b].citation}
+              {specOf(b).label} - {specOf(b).citation}
             </option>
           ))}
         </select>

@@ -271,6 +271,8 @@ export type IrishPropertyGapInput = {
   bannerChecks: Partial<Record<BannerCheck, boolean>>;
   /** Whether any item in use relies on consent under the Irish Regulations. */
   usesConsent: boolean;
+  /** Whether the site is linked to the processing activity its consent is recorded under. */
+  linkedToRopa: boolean;
 };
 
 /**
@@ -291,6 +293,10 @@ export function irishPropertyGaps(input: IrishPropertyGapInput): string[] {
   )
     out.push(
       `Stored consent lasts ${input.consentRenewalMonths} months, longer than the Commission's ${CONSENT_RENEWAL_LIMIT_MONTHS}, with no justification recorded (DPC guidance, pages 8 and 11).`
+    );
+  if (!input.linkedToRopa)
+    out.push(
+      'Not linked to the processing activity its consent is recorded under. The Commission expects the record of consent kept as part of the Article 30 record (DPC guidance, pages 9, 11 and 14).'
     );
   for (const key of BANNER_CHECK_KEYS) {
     if (!input.bannerChecks[key])

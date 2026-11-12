@@ -134,7 +134,8 @@ const DEFAULT_SLA_HOURS: Record<TaskType, number> = {
   // Cookies seen before consent may be unlawful today; a week to look at what the scan found.
   pecr_scan_changes: 24 * 7,
   // Placeholder: the sweep sets each reminder's due date to when the 28 days run out.
-  marketing_tps_screening: 24 * 3
+  marketing_tps_screening: 24 * 3,
+  marketing_ndd_screening: 24 * 3
 };
 
 async function slaHoursFor(tx: Tx, organisationId: string, type: TaskType) {

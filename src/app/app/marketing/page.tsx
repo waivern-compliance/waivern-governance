@@ -7,13 +7,9 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
+import { marketingBasisSpec } from '@/lib/ie-eprivacy/marketing';
 import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
-import {
-  CHANNEL_KEYS,
-  CHANNELS,
-  MARKETING_BASES,
-  RECIPIENTS
-} from '@/lib/pecr/marketing';
+import { CHANNEL_KEYS, CHANNELS, RECIPIENTS } from '@/lib/pecr/marketing';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
@@ -280,52 +276,75 @@ export default async function MarketingPage() {
       ) : null}
 
       <ul className="space-y-3">
-        {rows.map(({ activity, entityName, decision, gapList, objections }) => (
-          <li key={activity.id}>
-            <Link
-              href={`/app/marketing/${activity.id}`}
-              className="block space-y-1.5 rounded border border-line bg-surface p-4 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="flex items-baseline gap-3">
-                  <span className="font-mono text-xs text-ink-soft">
-                    {activity.reference}
+        {rows.map(
+          ({
+            activity,
+            entityName,
+            decision,
+            irishDecision,
+            scope,
+            gapList,
+            objections
+          }) => (
+            <li key={activity.id}>
+              <Link
+                href={`/app/marketing/${activity.id}`}
+                className="block space-y-1.5 rounded border border-line bg-surface p-4 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="flex items-baseline gap-3">
+                    <span className="font-mono text-xs text-ink-soft">
+                      {activity.reference}
+                    </span>
+                    <span className="font-medium">{activity.name}</span>
                   </span>
-                  <span className="font-medium">{activity.name}</span>
-                </span>
-                <span className="text-xs text-ink-soft">
-                  {CHANNELS[activity.channel].label} · {entityName} ·{' '}
-                  {STATUS_LABEL[activity.status]}
-                </span>
-              </div>
-              <p className="text-xs">
-                <span
-                  className={
-                    !decision || gapList.length
-                      ? 'text-amber-900'
-                      : 'text-emerald-900'
-                  }
-                >
-                  {decision
-                    ? MARKETING_BASES[decision.basis].label
-                    : 'No basis recorded yet'}
-                  {decision && activity.status !== 'ended'
-                    ? gapList.length
-                      ? ` · ${gapList.length} thing${gapList.length === 1 ? '' : 's'} missing`
-                      : ' · nothing missing'
-                    : ''}
-                </span>
-                {objections.upheld > 0 ? (
-                  <span className="text-ink-soft">
-                    {' '}
-                    · {objections.upheld} objection
-                    {objections.upheld === 1 ? '' : 's'} upheld this year
+                  <span className="text-xs text-ink-soft">
+                    {CHANNELS[activity.channel].label} · {entityName} ·{' '}
+                    {STATUS_LABEL[activity.status]}
                   </span>
-                ) : null}
-              </p>
-            </Link>
-          </li>
-        ))}
+                </div>
+                <p className="text-xs">
+                  <span
+                    className={
+                      (scope !== 'ie' && !decision) ||
+                      (scope !== 'uk' && !irishDecision) ||
+                      gapList.length
+                        ? 'text-amber-900'
+                        : 'text-emerald-900'
+                    }
+                  >
+                    {[
+                      ...(scope !== 'ie' ? [['PECR', decision] as const] : []),
+                      ...(scope !== 'uk'
+                        ? [['Irish', irishDecision] as const]
+                        : [])
+                    ]
+                      .map(([law, d], _i, all) => {
+                        const said = d
+                          ? (marketingBasisSpec(d.basis, d.law)?.label ??
+                            d.basis)
+                          : 'No basis recorded yet';
+                        return all.length > 1 ? `${law}: ${said}` : said;
+                      })
+                      .join(' · ')}
+                    {(decision || irishDecision) && activity.status !== 'ended'
+                      ? gapList.length
+                        ? ` · ${gapList.length} thing${gapList.length === 1 ? '' : 's'} missing`
+                        : ' · nothing missing'
+                      : ''}
+                  </span>
+                  {objections.upheld > 0 ? (
+                    <span className="text-ink-soft">
+                      {' '}
+                      · {objections.upheld} objection
+                      {objections.upheld === 1 ? '' : 's'} upheld this year
+                    </span>
+                  ) : null}
+                </p>
+              </Link>
+            </li>
+          )
+        )}
         {rows.length === 0 ? (
           <li className="rounded border border-line bg-surface px-4 py-6 text-sm text-ink-soft">
             Nothing yet. Add each newsletter, promotional email, text campaign

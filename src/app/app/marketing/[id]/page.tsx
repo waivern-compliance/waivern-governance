@@ -6,9 +6,14 @@ import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { EprivacyScopeNote } from '@/components/EprivacyScopeNote';
 import { NotPermitted } from '@/components/NotPermitted';
 import {
+  CALL_NUMBERS,
+  IRISH_MARKETING_REGULATOR,
+  marketingBasisSpec,
+  NDD_SCREENING_DAYS
+} from '@/lib/ie-eprivacy/marketing';
+import {
   CHANNEL_KEYS,
   CHANNELS,
-  MARKETING_BASES,
   RECIPIENTS,
   TPS_SCREENING_DAYS
 } from '@/lib/pecr/marketing';
@@ -24,6 +29,7 @@ import { ActionForm } from '../../requests/ActionForm';
 import { inputClass, Label, stamp } from '../../requests/fields';
 import {
   decideMarketingBasisAction,
+  recordNddAction,
   recordTpsAction,
   updateActivityAction
 } from '../actions';
@@ -33,6 +39,11 @@ const save =
   'rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+const LAW_LONG: Record<'uk' | 'ie', string> = {
+  uk: 'UK PECR',
+  ie: 'the Irish Regulations'
+};
 
 export default async function MarketingActivityPage({
   params
@@ -54,12 +65,21 @@ export default async function MarketingActivityPage({
     ownerEmail,
     processingActivity,
     decision,
+    irishDecision,
+    scope,
     history,
     gaps,
     objections,
     tpsDueAt,
-    tpsOverdue
+    tpsOverdue,
+    nddDueAt,
+    nddOverdue
   } = loaded;
+  // The laws its basis is recorded under: PECR, the Irish Regulations, or both.
+  const laws: Array<'uk' | 'ie'> =
+    scope === 'ie' ? ['ie'] : scope === 'uk_ie' ? ['uk', 'ie'] : ['uk'];
+  const calls =
+    activity.channel === 'live_call' || activity.channel === 'automated_call';
   if (!can(active.membership.grants, 'record.read', activity.entityId)) {
     return (
       <NotPermitted
@@ -128,83 +148,94 @@ export default async function MarketingActivityPage({
         </p>
       )}
 
-      <section
-        className="space-y-3 rounded border border-line bg-surface p-5"
-        aria-label="The basis"
-      >
-        <h2 className="text-sm font-semibold">What it relies on</h2>
-        {decision ? (
-          <div className="space-y-1">
-            <p className="text-sm">
-              <span className="font-medium">
-                {MARKETING_BASES[decision.basis].label}
-              </span>{' '}
-              <span className="text-xs text-ink-soft">
-                {decision.statutoryBasis}
-              </span>
-            </p>
-            <p className="max-w-prose text-sm">{decision.rationale}</p>
-            <p className="text-xs text-ink-soft">
-              Recorded by {decision.decidedByEmail ?? decision.decidedByLabel},{' '}
-              {stamp(decision.decidedAt)}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-ink-soft">No basis recorded yet.</p>
-        )}
-        {history.length > 1 ? (
-          <details>
-            <summary className="cursor-pointer text-xs text-ink-soft">
-              Earlier decisions ({history.length - 1})
-            </summary>
-            <ul className="space-y-1.5 pt-2">
-              {history.slice(1).map((d) => (
-                <li
-                  key={d.id}
-                  className="text-xs"
-                >
+      {laws.map((law) => {
+        const current = law === 'ie' ? irishDecision : decision;
+        const earlier = history.filter(
+          (d) => d.law === law && d.id !== current?.id
+        );
+        const under = laws.length > 1 ? ` under ${LAW_LONG[law]}` : '';
+        const form = (
+          <MarketingBasisForm
+            action={decideMarketingBasisAction.bind(null, activity.id)}
+            channel={activity.channel}
+            recipients={activity.recipients}
+            current={current?.basis ?? null}
+            law={law}
+          />
+        );
+        return (
+          <section
+            key={law}
+            className="space-y-3 rounded border border-line bg-surface p-5"
+            aria-label={`The basis${under}`}
+          >
+            <h2 className="text-sm font-semibold">What it relies on{under}</h2>
+            {law === 'ie' ? (
+              <p className="max-w-prose text-xs text-ink-soft">
+                {IRISH_MARKETING_REGULATOR}
+              </p>
+            ) : null}
+            {current ? (
+              <div className="space-y-1">
+                <p className="text-sm">
                   <span className="font-medium">
-                    {MARKETING_BASES[d.basis].label}
+                    {marketingBasisSpec(current.basis, law)?.label ??
+                      current.basis}
                   </span>{' '}
-                  - {d.rationale}{' '}
-                  <span className="text-ink-soft">
-                    {d.decidedByEmail ?? d.decidedByLabel} ·{' '}
-                    {stamp(d.decidedAt)}
+                  <span className="text-xs text-ink-soft">
+                    {current.statutoryBasis}
                   </span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-        {mayWrite ? (
-          decision ? (
-            <details className="border-t border-line pt-3">
-              <summary className="cursor-pointer text-xs font-medium text-brand">
-                Record a different basis
-              </summary>
-              <div className="pt-3">
-                <MarketingBasisForm
-                  action={decideMarketingBasisAction.bind(null, activity.id)}
-                  channel={activity.channel}
-                  recipients={activity.recipients}
-                  current={decision.basis}
-                />
+                </p>
+                <p className="max-w-prose text-sm">{current.rationale}</p>
+                <p className="text-xs text-ink-soft">
+                  Recorded by {current.decidedByEmail ?? current.decidedByLabel}
+                  , {stamp(current.decidedAt)}
+                </p>
               </div>
-            </details>
-          ) : (
-            <div className="border-t border-line pt-3">
-              <MarketingBasisForm
-                action={decideMarketingBasisAction.bind(null, activity.id)}
-                channel={activity.channel}
-                recipients={activity.recipients}
-                current={null}
-              />
-            </div>
-          )
-        ) : null}
-      </section>
+            ) : (
+              <p className="text-sm text-ink-soft">No basis recorded yet.</p>
+            )}
+            {earlier.length > 0 ? (
+              <details>
+                <summary className="cursor-pointer text-xs text-ink-soft">
+                  Earlier decisions ({earlier.length})
+                </summary>
+                <ul className="space-y-1.5 pt-2">
+                  {earlier.map((d) => (
+                    <li
+                      key={d.id}
+                      className="text-xs"
+                    >
+                      <span className="font-medium">
+                        {marketingBasisSpec(d.basis, law)?.label ?? d.basis}
+                      </span>{' '}
+                      - {d.rationale}{' '}
+                      <span className="text-ink-soft">
+                        {d.decidedByEmail ?? d.decidedByLabel} ·{' '}
+                        {stamp(d.decidedAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+            {mayWrite ? (
+              current ? (
+                <details className="border-t border-line pt-3">
+                  <summary className="cursor-pointer text-xs font-medium text-brand">
+                    Record a different basis{under}
+                  </summary>
+                  <div className="pt-3">{form}</div>
+                </details>
+              ) : (
+                <div className="border-t border-line pt-3">{form}</div>
+              )
+            ) : null}
+          </section>
+        );
+      })}
 
-      {activity.channel === 'live_call' ? (
+      {activity.channel === 'live_call' && laws.includes('uk') ? (
         <section
           className="space-y-3 rounded border border-line bg-surface p-5"
           aria-label="TPS screening"
@@ -228,6 +259,50 @@ export default async function MarketingActivityPage({
           {mayWrite ? (
             <ActionForm
               action={recordTpsAction.bind(null, activity.id)}
+              submit="Record the screening"
+              className="flex flex-wrap items-end gap-3"
+            >
+              <label className="block space-y-1">
+                <Label text="Screened on" />
+                <input
+                  name="screenedOn"
+                  type="date"
+                  required
+                  defaultValue={day(new Date())}
+                  className={inputClass}
+                />
+              </label>
+            </ActionForm>
+          ) : null}
+        </section>
+      ) : null}
+
+      {calls && laws.includes('ie') ? (
+        <section
+          className="space-y-3 rounded border border-line bg-surface p-5"
+          aria-label="National Directory Database screening"
+        >
+          <h2 className="text-sm font-semibold">
+            Screening against the National Directory Database
+          </h2>
+          <p className="max-w-prose text-xs text-ink-soft">
+            Under the Irish Regulations, marketing calls may not go to numbers
+            opted out in the National Directory Database (13(3), (5)), and an
+            opt-out binds {NDD_SCREENING_DAYS} days after it is recorded
+            (13(9)). Mobiles are opted out unless their owner opts in, so calls
+            to mobiles need consent (13(6)). A reminder is raised a few days
+            before a screening runs out.
+          </p>
+          <p
+            className={`text-sm ${nddOverdue || !activity.nddScreenedAt ? 'text-red-800' : ''}`}
+          >
+            {activity.nddScreenedAt
+              ? `Last screened ${day(activity.nddScreenedAt)}; ${nddOverdue ? 'ran out' : 'holds until'} ${day(nddDueAt!)}.`
+              : 'Never screened.'}
+          </p>
+          {mayWrite ? (
+            <ActionForm
+              action={recordNddAction.bind(null, activity.id)}
               submit="Record the screening"
               className="flex flex-wrap items-end gap-3"
             >
@@ -287,6 +362,7 @@ export default async function MarketingActivityPage({
       <EprivacyScopeNote
         entity={entityEprivacy}
         scope={activity.eprivacyScope}
+        irishChecked
       />
 
       <EditForm
@@ -407,6 +483,61 @@ export default async function MarketingActivityPage({
             />
           </label>
         </div>
+        {laws.includes('ie') && (calls || activity.channel === 'sms') ? (
+          <fieldset className="grid gap-3 border-t border-line pt-3 sm:grid-cols-2">
+            <legend className="text-xs font-semibold uppercase tracking-wider text-ink-soft">
+              Under the Irish Regulations
+            </legend>
+            <input
+              type="hidden"
+              name="irishAsked"
+              value="1"
+            />
+            {calls ? (
+              <label className="block space-y-1">
+                <Label
+                  text="The numbers it calls"
+                  hint="Calls to mobiles need consent (13(6))."
+                />
+                <select
+                  name="callNumbers"
+                  defaultValue={activity.callNumbers ?? ''}
+                  disabled={!mayWrite}
+                  className={inputClass}
+                >
+                  <option value="">Not yet known</option>
+                  {Object.entries(CALL_NUMBERS).map(([k, label]) => (
+                    <option
+                      key={k}
+                      value={k}
+                    >
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="flex items-start gap-2.5 text-sm sm:col-span-2">
+                <input
+                  type="hidden"
+                  name="inServiceTextsAsked"
+                  value="1"
+                />
+                <input
+                  type="checkbox"
+                  name="inServiceTexts"
+                  defaultChecked={Boolean(activity.inServiceTexts)}
+                  disabled={!mayWrite}
+                  className="mt-1 accent-brand"
+                />
+                <span>
+                  It adds marketing to texts sent for another purpose, such as
+                  delivery or appointment texts, which needs consent (13(7))
+                </span>
+              </label>
+            )}
+          </fieldset>
+        ) : null}
         {entityEprivacy === 'uk_ie' && mayWrite ? (
           <EprivacyScopeField
             label={

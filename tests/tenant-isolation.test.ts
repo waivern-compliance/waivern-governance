@@ -1680,6 +1680,16 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'recordNddScreening',
+      () =>
+        marketingSvc.recordNddScreening({
+          activityId: B.marketingActivity.id,
+          organisationId: A.org.id,
+          screenedAt: new Date(),
+          actor: as()
+        })
+    ],
+    [
       'recordMarketingDecision',
       () =>
         marketingSvc.recordMarketingDecision({
@@ -3275,6 +3285,13 @@ describe('lists', () => {
         [
           'marketingSvc.marketingProcessingActivities',
           marketingSvc.marketingProcessingActivities(o)
+        ] as const,
+        [
+          'marketingSvc.activitiesDueNddScreening',
+          marketingSvc.activitiesDueNddScreening(
+            o,
+            new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000)
+          )
         ] as const,
         [
           'marketingSvc.activitiesDueTpsScreening',

@@ -11,14 +11,30 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { entityEprivacy, recordEprivacy } from '@/lib/ie-eprivacy/scope';
+import {
+  IE_MARKETING_BASES,
+  irishBasesFor,
+  irishConditionsFor,
+  irishMarketingGapsOf,
+  isCallNumbers,
+  isIrishMarketingBasis,
+  nddDueAt,
+  type CallNumbers
+} from '@/lib/ie-eprivacy/marketing';
+import {
+  entityEprivacy,
+  recordEprivacy,
+  type EprivacyScope
+} from '@/lib/ie-eprivacy/scope';
 import {
   basesFor,
   CHANNEL_KEYS,
   conditionsFor,
+  isPecrMarketingBasis,
   MARKETING_BASES,
-  MARKETING_BASIS_KEYS,
   marketingGapsOf,
+  mostPressingFirst,
+  sharedMarketingGaps,
   summariseMarketingGaps,
   tpsDueAt,
   type MarketingBasis,
@@ -212,6 +228,10 @@ export async function updateMarketingActivity(input: {
     status: (typeof STATUSES)[number];
     charityNumber: string | null;
     eprivacyScope: string;
+    /** Under the Irish Regulations: landlines, mobiles or both, for a call activity. */
+    callNumbers: CallNumbers | null;
+    /** Under the Irish Regulations: whether marketing is added to texts sent for another purpose. */
+    inServiceTexts: boolean | null;
   }>;
   actor: Actor;
 }) {
@@ -222,6 +242,8 @@ export async function updateMarketingActivity(input: {
   checkRecipients(changes.recipients);
   if (changes.status !== undefined && !STATUSES.includes(changes.status))
     throw new MarketingRefused('Choose whether it is running.');
+  if (changes.callNumbers != null && !isCallNumbers(changes.callNumbers))
+    throw new MarketingRefused('Choose landlines, mobiles or both.');
   for (const k of ['description', 'tool', 'charityNumber'] as const) {
     if (changes[k] !== undefined) changes[k] = trimmed(changes[k]);
   }
@@ -336,6 +358,69 @@ export async function recordTpsScreening(input: {
 }
 
 /**
+ * Record that a call activity's numbers were screened against the National
+ * Directory Database, which holds for 28 days under the Irish Regulations
+ * (13(9)). Closes any reminder to do it.
+ */
+export async function recordNddScreening(input: {
+  activityId: string;
+  organisationId: string;
+  screenedAt: Date;
+  actor: Actor;
+}) {
+  if (Number.isNaN(input.screenedAt.getTime()))
+    throw new MarketingRefused('Give the date the numbers were screened.');
+  if (input.screenedAt.getTime() > Date.now() + DAY)
+    throw new MarketingRefused('The screening date cannot be in the future.');
+
+  return withOrganisation(input.organisationId, async () => {
+    return db.transaction(async (tx) => {
+      const before = await lockedActivity(
+        tx,
+        input.activityId,
+        input.organisationId
+      );
+      if (before.channel !== 'live_call' && before.channel !== 'automated_call')
+        throw new MarketingRefused(
+          'Only calls are screened against the National Directory Database.'
+        );
+      const [after] = await tx
+        .update(marketingActivities)
+        .set({ nddScreenedAt: input.screenedAt, updatedAt: new Date() })
+        .where(eq(marketingActivities.id, input.activityId))
+        .returning();
+      await tx
+        .update(tasks)
+        .set({
+          status: 'done',
+          completedAt: new Date(),
+          completedByLabel: input.actor.actorLabel
+        })
+        .where(
+          and(
+            eq(tasks.organisationId, input.organisationId),
+            eq(tasks.subjectType, 'marketing_activity'),
+            eq(tasks.subjectId, input.activityId),
+            eq(tasks.type, 'marketing_ndd_screening'),
+            inArray(tasks.status, ['open', 'in_progress'])
+          )
+        );
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: before.entityId,
+        action: 'marketing.ndd_screened',
+        subjectType: 'marketing_activity',
+        subjectId: input.activityId,
+        before: { nddScreenedAt: before.nddScreenedAt },
+        after: { nddScreenedAt: after.nddScreenedAt }
+      });
+      return after;
+    });
+  });
+}
+
+/**
  * Record the basis an activity relies on. Refused where the channel cannot
  * use it: the soft opt-in for a phone call, or corporate subscribers for a
  * list that reaches individuals.
@@ -346,15 +431,25 @@ export async function recordMarketingDecision(input: {
   basis: MarketingBasis;
   conditions?: Iterable<string>;
   rationale: string;
+  /** The law it is recorded under: UK PECR (the default) or the Irish Regulations. */
+  law?: 'uk' | 'ie';
   actor: Actor;
 }) {
-  if (!MARKETING_BASIS_KEYS.includes(input.basis))
+  const law = input.law ?? 'uk';
+  if (law !== 'uk' && law !== 'ie')
+    throw new MarketingRefused('Choose UK PECR or the Irish Regulations.');
+  if (
+    law === 'uk'
+      ? !isPecrMarketingBasis(input.basis)
+      : !isIrishMarketingBasis(input.basis)
+  )
     throw new MarketingRefused(
-      'Choose the basis it relies on, or record that there is none.'
+      law === 'ie' && isPecrMarketingBasis(input.basis)
+        ? `The Irish Regulations have no ${MARKETING_BASES[input.basis].label.toLowerCase()} basis.`
+        : 'Choose the basis it relies on, or record that there is none.'
     );
   const rationale = input.rationale.trim();
   if (!rationale) throw new MarketingRefused('Say why this basis applies.');
-  const spec = MARKETING_BASES[input.basis];
 
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
@@ -363,28 +458,67 @@ export async function recordMarketingDecision(input: {
         input.activityId,
         input.organisationId
       );
-      if (
-        !basesFor(activity.channel, activity.recipients).includes(input.basis)
-      ) {
+      // Recorded only under a law the activity answers to.
+      const [entity] = await tx
+        .select({
+          dataProtectionLaw: entities.dataProtectionLaw,
+          ieEprivacy: entities.ieEprivacy
+        })
+        .from(entities)
+        .where(eq(entities.id, activity.entityId));
+      const scope = entity
+        ? recordEprivacy(entity, activity.eprivacyScope)
+        : null;
+      if (law === 'uk' ? scope === 'ie' : scope !== 'ie' && scope !== 'uk_ie')
         throw new MarketingRefused(
-          input.basis === 'corporate_subscriber'
-            ? 'Corporate subscribers only works where the marketing never reaches individuals. Change who it reaches first, if that is so.'
-            : `${spec.label} is not available for this channel.`
+          law === 'ie'
+            ? 'This activity is not recorded as under the Irish Regulations.'
+            : 'This activity is not recorded as under UK PECR.'
         );
-      }
-      const confirmed = conditionsFor(
-        input.basis,
-        activity.channel,
-        input.conditions ?? []
-      );
+      let confirmed;
+      let citation: string;
+      if (law === 'ie' && isIrishMarketingBasis(input.basis)) {
+        if (
+          !irishBasesFor(activity.channel, activity.recipients).includes(
+            input.basis
+          )
+        )
+          throw new MarketingRefused(
+            input.basis === 'not_objected'
+              ? 'Organisations that have not objected works only where the marketing never reaches a natural person. Change who it reaches first, if that is so.'
+              : `${IE_MARKETING_BASES[input.basis].label} is not available under the Irish Regulations for this channel.`
+          );
+        confirmed = irishConditionsFor(
+          input.basis,
+          activity.channel,
+          input.conditions ?? []
+        );
+        citation = IE_MARKETING_BASES[input.basis].citation;
+      } else if (law === 'uk' && isPecrMarketingBasis(input.basis)) {
+        if (
+          !basesFor(activity.channel, activity.recipients).includes(input.basis)
+        )
+          throw new MarketingRefused(
+            input.basis === 'corporate_subscriber'
+              ? 'Corporate subscribers only works where the marketing never reaches individuals. Change who it reaches first, if that is so.'
+              : `${MARKETING_BASES[input.basis].label} is not available for this channel.`
+          );
+        confirmed = conditionsFor(
+          input.basis,
+          activity.channel,
+          input.conditions ?? []
+        );
+        citation = MARKETING_BASES[input.basis].citation;
+      } else throw new Error('unreachable');
       const [row] = await tx
         .insert(marketingDecisions)
         .values({
           organisationId: input.organisationId,
           activityId: activity.id,
+          law,
           basis: input.basis,
           conditions: confirmed,
-          statutoryBasis: spec.citation,
+          statutoryBasis: citation,
           rationale,
           decidedBy: input.actor.actorUserId,
           decidedByLabel: input.actor.actorLabel
@@ -400,6 +534,7 @@ export async function recordMarketingDecision(input: {
         after: {
           reference: activity.reference,
           basis: input.basis,
+          law,
           conditions: confirmed,
           decisionId: row.id
         }
@@ -434,30 +569,77 @@ function assemble(
   activity: MarketingActivity,
   history: DecisionWithEmail[],
   objections: { upheld: number; overridden: number; total: number } | undefined,
-  now: Date
+  now: Date,
+  /** The laws it is judged under; null reads as PECR, as before. */
+  judgedUnder: EprivacyScope | null = 'uk'
 ) {
-  const decision = history[0] ?? null;
+  const decision = history.find((d) => d.law === 'uk') ?? null;
+  const irishDecision = history.find((d) => d.law === 'ie') ?? null;
+  const scope = judgedUnder ?? 'uk';
+  const uk = scope !== 'ie';
+  const ie = scope !== 'uk';
+  const labelled = (law: string, gaps: MarketingGap[]) =>
+    scope === 'uk_ie'
+      ? gaps.map((g) => ({ ...g, text: `${law}: ${g.text}` }))
+      : gaps;
+  const shared = sharedMarketingGaps({
+    activity,
+    objectionsOverridden: objections?.overridden ?? 0
+  });
+  const sharedKinds = new Set(shared.map((g) => g.kind));
+  const pecr = uk
+    ? marketingGapsOf(
+        {
+          activity,
+          decision: decision
+            ? { basis: decision.basis, conditions: decision.conditions }
+            : null,
+          objectionsOverridden: objections?.overridden ?? 0
+        },
+        now
+      ).filter((g) => !sharedKinds.has(g.kind))
+    : [];
+  const irish = ie
+    ? irishMarketingGapsOf(
+        {
+          activity,
+          decision: irishDecision
+            ? {
+                basis: irishDecision.basis,
+                conditions: irishDecision.conditions
+              }
+            : null
+        },
+        now
+      )
+    : [];
+  const gapList: MarketingGap[] = mostPressingFirst([
+    ...shared,
+    ...labelled('PECR', pecr),
+    ...labelled('Irish Regulations', irish)
+  ]);
   const due =
-    activity.channel === 'live_call' ? tpsDueAt(activity.tpsScreenedAt) : null;
-  const gapList: MarketingGap[] = marketingGapsOf(
-    {
-      activity,
-      decision: decision
-        ? { basis: decision.basis, conditions: decision.conditions }
-        : null,
-      objectionsOverridden: objections?.overridden ?? 0
-    },
-    now
-  );
+    uk && activity.channel === 'live_call'
+      ? tpsDueAt(activity.tpsScreenedAt)
+      : null;
+  const ndd =
+    ie &&
+    (activity.channel === 'live_call' || activity.channel === 'automated_call')
+      ? nddDueAt(activity.nddScreenedAt)
+      : null;
   return {
     activity,
     decision,
+    irishDecision,
+    scope,
     history,
     objections: objections ?? { upheld: 0, overridden: 0, total: 0 },
     gapList,
     gaps: gapList.map((g) => g.text),
     tpsDueAt: due,
-    tpsOverdue: due ? due.getTime() < now.getTime() : false
+    tpsOverdue: due ? due.getTime() < now.getTime() : false,
+    nddDueAt: ndd,
+    nddOverdue: ndd ? ndd.getTime() < now.getTime() : false
   };
 }
 
@@ -507,7 +689,14 @@ export async function loadMarketingActivity(
         row.activity,
         decisions.get(row.activity.id) ?? [],
         pa ? objections.get(pa) : undefined,
-        now
+        now,
+        recordEprivacy(
+          {
+            dataProtectionLaw: row.entityLaw,
+            ieEprivacy: row.entityIeEprivacy
+          },
+          row.activity.eprivacyScope
+        )
       ),
       entityName: row.entityName,
       /** The ePrivacy laws its entity is under, so the page knows whether to ask. */
@@ -534,7 +723,12 @@ export async function marketingRegister(
     if (entityIds && entityIds.length === 0)
       return { rows: [], gapSummary: [] };
     const activities = await db
-      .select({ activity: marketingActivities, entityName: entities.name })
+      .select({
+        activity: marketingActivities,
+        entityName: entities.name,
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
       .from(marketingActivities)
       .innerJoin(entities, eq(entities.id, marketingActivities.entityId))
       .where(
@@ -567,7 +761,11 @@ export async function marketingRegister(
         a.activity.processingActivityId
           ? objections.get(a.activity.processingActivityId)
           : undefined,
-        now
+        now,
+        recordEprivacy(
+          { dataProtectionLaw: a.dataProtectionLaw, ieEprivacy: a.ieEprivacy },
+          a.activity.eprivacyScope
+        )
       ),
       entityName: a.entityName
     }));
@@ -637,9 +835,60 @@ export async function activitiesDueTpsScreening(
       .map((r) => r.activity);
     const decisions = await decisionsOf(calls.map((c) => c.id));
     return calls.flatMap((activity) => {
-      if (decisions.get(activity.id)?.[0]?.basis !== 'screened_calls')
-        return [];
+      const pecr = decisions.get(activity.id)?.find((d) => d.law === 'uk');
+      if (pecr?.basis !== 'screened_calls') return [];
       const dueAt = tpsDueAt(activity.tpsScreenedAt) ?? now;
+      if (dueAt.getTime() - now.getTime() > TPS_LEAD_DAYS * DAY) return [];
+      return [{ activity, dueAt, overdue: dueAt.getTime() <= now.getTime() }];
+    });
+  });
+}
+
+/**
+ * Call activities under the Irish Regulations whose National Directory
+ * Database screening runs out within a few days, has run out, or never
+ * happened. Only those relying on screening: live landline calls, and
+ * automated calls to organisations that have not objected.
+ */
+export async function activitiesDueNddScreening(
+  organisationId: string,
+  now = new Date()
+) {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select({
+        activity: marketingActivities,
+        dataProtectionLaw: entities.dataProtectionLaw,
+        ieEprivacy: entities.ieEprivacy
+      })
+      .from(marketingActivities)
+      .innerJoin(entities, eq(entities.id, marketingActivities.entityId))
+      .where(
+        and(
+          eq(marketingActivities.organisationId, organisationId),
+          inArray(marketingActivities.channel, ['live_call', 'automated_call']),
+          eq(marketingActivities.status, 'active')
+        )
+      );
+    const calls = rows
+      .filter(({ activity, dataProtectionLaw, ieEprivacy }) =>
+        ['ie', 'uk_ie'].includes(
+          recordEprivacy(
+            { dataProtectionLaw, ieEprivacy },
+            activity.eprivacyScope
+          ) ?? ''
+        )
+      )
+      .map((r) => r.activity);
+    const decisions = await decisionsOf(calls.map((c) => c.id));
+    return calls.flatMap((activity) => {
+      const irish = decisions.get(activity.id)?.find((d) => d.law === 'ie');
+      const screened =
+        irish?.basis === 'ndd_screened' ||
+        (irish?.basis === 'not_objected' &&
+          activity.channel === 'automated_call');
+      if (!screened) return [];
+      const dueAt = nddDueAt(activity.nddScreenedAt) ?? now;
       if (dueAt.getTime() - now.getTime() > TPS_LEAD_DAYS * DAY) return [];
       return [{ activity, dueAt, overdue: dueAt.getTime() <= now.getTime() }];
     });

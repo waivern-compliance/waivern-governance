@@ -20,7 +20,7 @@ import {
   storageProposalChange,
   storageProposalStatus
 } from './enums';
-import { evidence, suppliers } from './integration';
+import { evidence, processingActivities, suppliers } from './integration';
 import { entities, organisations, users } from './tenancy';
 
 /**
@@ -68,6 +68,15 @@ export const digitalProperties = pgTable(
      * over six, and the banner checks confirmed (DPC cookie guidance).
      */
     consentRenewalMonths: integer('consent_renewal_months'),
+    /**
+     * The processing activity the site's consent is recorded under. The
+     * Commission expects the record of cookie consent kept with the Article
+     * 30 record (cookie guidance, pages 9, 11 and 14).
+     */
+    processingActivityId: uuid('processing_activity_id').references(
+      () => processingActivities.id,
+      { onDelete: 'set null' }
+    ),
     consentRenewalJustification: text('consent_renewal_justification'),
     bannerChecks: jsonb('banner_checks')
       .$type<Record<string, boolean>>()

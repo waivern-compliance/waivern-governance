@@ -223,6 +223,8 @@ export async function updateProperty(input: {
     consentRenewalJustification: string | null;
     /** The banner checks confirmed, by key (`BANNER_CHECKS`). */
     bannerChecks: string[];
+    /** The processing activity its consent is recorded under. */
+    processingActivityId: string | null;
   }>;
   actor: Actor;
 }) {
@@ -269,6 +271,12 @@ export async function updateProperty(input: {
   return withOrganisation(input.organisationId, async () => {
     if (changes.ownerId)
       await assertMemberOf(input.organisationId, changes.ownerId);
+    if (changes.processingActivityId)
+      await assertRecordIn(
+        input.organisationId,
+        'processing_activity',
+        changes.processingActivityId
+      );
     return db.transaction(async (tx) => {
       const before = await lockedProperty(
         tx,
@@ -303,6 +311,7 @@ export async function updateProperty(input: {
           eprivacyScope: before.eprivacyScope,
           consentRenewalMonths: before.consentRenewalMonths,
           bannerChecks: before.bannerChecks,
+          processingActivityId: before.processingActivityId,
           changed: Object.keys(changes)
         },
         after: {
@@ -311,7 +320,8 @@ export async function updateProperty(input: {
           rescanIntervalMonths: after.rescanIntervalMonths,
           eprivacyScope: after.eprivacyScope,
           consentRenewalMonths: after.consentRenewalMonths,
-          bannerChecks: after.bannerChecks
+          bannerChecks: after.bannerChecks,
+          processingActivityId: after.processingActivityId
         }
       });
       return after;
@@ -1400,6 +1410,7 @@ export async function loadProperty(propertyId: string, organisationId: string) {
             consentRenewalJustification:
               row.property.consentRenewalJustification,
             bannerChecks: row.property.bannerChecks,
+            linkedToRopa: Boolean(row.property.processingActivityId),
             usesConsent: loaded.some(
               (i) =>
                 i.status === 'active' && i.irishDecision?.basis === 'consent'
@@ -1486,6 +1497,7 @@ export async function propertyRegister(
                 consentRenewalJustification:
                   property.consentRenewalJustification,
                 bannerChecks: property.bannerChecks,
+                linkedToRopa: Boolean(property.processingActivityId),
                 usesConsent: active.some(
                   (i) => i.irishDecision?.basis === 'consent'
                 )

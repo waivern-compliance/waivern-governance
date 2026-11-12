@@ -7,6 +7,7 @@ import {
   auditEvents,
   entities,
   organisations,
+  processingActivities,
   storageItems
 } from '@/db/schema';
 import {
@@ -214,7 +215,8 @@ describe('the Irish rules, on their own', () => {
     const none = {
       consentRenewalMonths: null,
       consentRenewalJustification: null,
-      bannerChecks: {}
+      bannerChecks: {},
+      linkedToRopa: true
     };
     assert.deepEqual(irishPropertyGaps({ ...none, usesConsent: false }), []);
     const all = {
@@ -231,6 +233,7 @@ describe('the Irish rules, on their own', () => {
         consentRenewalMonths: 12,
         consentRenewalJustification: null,
         bannerChecks: all,
+        linkedToRopa: true,
         usesConsent: true
       })[0],
       /lasts 12 months, longer than the Commission's 6/
@@ -240,6 +243,7 @@ describe('the Irish rules, on their own', () => {
         consentRenewalMonths: 12,
         consentRenewalJustification: 'A members-only site visited yearly.',
         bannerChecks: all,
+        linkedToRopa: true,
         usesConsent: true
       }),
       []
@@ -343,18 +347,28 @@ describe('the Irish rules on the register', () => {
     await decide(w, it1.id, 'consent', 'ie');
     assert.equal(
       (await loadProperty(w.property.id, w.org.id))!.irishPropertyGaps.length,
-      7
+      8
     );
     // The register counts them too, not only the website's own page.
     assert.equal(
       (await propertyRegister(w.org.id, null))[0].siteGaps.length,
-      7
+      8
     );
+    const [ropa] = await db
+      .insert(processingActivities)
+      .values({
+        organisationId: w.org.id,
+        entityId: w.entity.id,
+        reference: 'ROPA-2026-7001',
+        name: 'Website analytics and advertising'
+      })
+      .returning();
     await updateProperty({
       propertyId: w.property.id,
       organisationId: w.org.id,
       changes: {
         consentRenewalMonths: 6,
+        processingActivityId: ropa.id,
         bannerChecks: [
           'reject_as_prominent',
           'per_purpose',

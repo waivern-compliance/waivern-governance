@@ -46,7 +46,10 @@ import {
 import { pruneIntakeAttempts } from './dsr-intake';
 import { reviewsNeedingAttention } from './information-request-reviews';
 import { informationRequestsNeedingAttention } from './information-requests';
-import { activitiesDueTpsScreening } from './marketing';
+import {
+  activitiesDueNddScreening,
+  activitiesDueTpsScreening
+} from './marketing';
 import { deliverNotifications } from './member-email';
 import { appetitesDueForReview } from './risk-policy';
 import { propertiesDueForRescan } from './storage-inventory';
@@ -91,6 +94,7 @@ export type SweepResult = {
   complaintDeadlinesRaised: number;
   rescansRaised: number;
   tpsScreeningsRaised: number;
+  nddScreeningsRaised: number;
   consentScansFinished: number;
   objectionReviewsRaised: number;
   intakeAttemptsForgotten: number;
@@ -850,6 +854,46 @@ async function raiseTpsScreenings(organisationId: string): Promise<number> {
 }
 
 /**
+ * Call marketing under the Irish Regulations whose National Directory
+ * Database screening is about to run out, has run out, or never happened. An
+ * opt-out binds after 28 days (13(9)); recording a screening closes the
+ * reminder.
+ */
+async function raiseNddScreenings(organisationId: string): Promise<number> {
+  const due = await activitiesDueNddScreening(organisationId);
+  let raised = 0;
+  for (const { activity, dueAt, overdue } of due) {
+    const key = activity.nddScreenedAt
+      ? dueAt.toISOString().slice(0, 10)
+      : 'never';
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: activity.entityId,
+        type: 'marketing_ndd_screening',
+        title: activity.nddScreenedAt
+          ? `${activity.reference}: ${activity.name} ${overdue ? 'is overdue' : 'is due'} National Directory Database screening (${key})`
+          : `${activity.reference}: ${activity.name} has never been screened against the National Directory Database`,
+        description:
+          'Screen the call list against the National Directory Database and record the date. ' +
+          'Under the Irish ePrivacy Regulations (S.I. 336/2011, regulation 13), marketing calls may not go to numbers ' +
+          'opted out there, and an opt-out binds 28 days after it is recorded.',
+        subjectType: 'marketing_activity',
+        subjectId: activity.id,
+        ...(activity.ownerId
+          ? { assigneeUserId: activity.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
+        dueAt,
+        idempotencyKey: `marketing-ndd:${activity.id}:${key}`,
+        actor: SYSTEM
+      });
+      if (task) raised += 1;
+    });
+  }
+  return raised;
+}
+
+/**
  * Activities people keep objecting to.
  *
  * Each objection is decided on its own, but a run of them says something
@@ -1265,6 +1309,7 @@ export async function sweepOrganisation(
     consentScansFinished: await finishRunningScans(organisationId),
     rescansRaised: await raiseRescans(organisationId),
     tpsScreeningsRaised: await raiseTpsScreenings(organisationId),
+    nddScreeningsRaised: await raiseNddScreenings(organisationId),
     objectionReviewsRaised: await raiseObjectionReviews(organisationId),
     // Kept a day for rate limiting, then forgotten.
     intakeAttemptsForgotten: await pruneIntakeAttempts(organisationId),

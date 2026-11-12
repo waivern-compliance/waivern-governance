@@ -140,7 +140,9 @@ export async function updatePropertyAction(
                 : null,
               consentRenewalJustification:
                 text(formData.get('consentRenewalJustification')) || null,
-              bannerChecks: formData.getAll('bannerChecks').map(String)
+              bannerChecks: formData.getAll('bannerChecks').map(String),
+              processingActivityId:
+                text(formData.get('processingActivityId')) || null
             }
           : {})
       },
