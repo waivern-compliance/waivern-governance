@@ -175,8 +175,14 @@ export default async function PropertyPage({
           {ownerEmail ? ` · owned by ${ownerEmail}` : ''}
         </p>
         <p className="text-xs text-ink-soft">
-          {inUse.length} in use · {inUse.filter((i) => !i.decision).length} with
-          no basis · {inUse.filter((i) => i.gaps.length > 0).length} with gaps ·{' '}
+          {inUse.length} in use ·{' '}
+          {
+            inUse.filter((i) =>
+              laws.some((l) => !(l === 'ie' ? i.irishDecision : i.decision))
+            ).length
+          }{' '}
+          with no basis · {inUse.filter((i) => i.gaps.length > 0).length} with
+          gaps ·{' '}
           {property.lastScannedAt
             ? `last scanned ${stamp(property.lastScannedAt)}`
             : 'never scanned'}
@@ -235,9 +241,27 @@ export default async function PropertyPage({
             submit={latestScan ? 'Scan again now' : 'Scan now'}
             pendingLabel="Starting…"
           >
+            {scope === 'uk_ie' ? (
+              <label className="block space-y-1 text-xs">
+                <span className="text-ink-soft">Scan as a visitor from</span>
+                <select
+                  name="region"
+                  defaultValue="uk"
+                  className="rounded border border-line bg-ground px-2 py-1 text-xs"
+                >
+                  <option value="uk">The UK, for PECR</option>
+                  <option value="eu">The EU, for the Irish Regulations</option>
+                </select>
+              </label>
+            ) : null}
             <span className="block max-w-xs text-[11px] text-ink-soft">
-              From the UK where the analyser can. Uses one of the token
-              owner&apos;s scan credits; takes one to five minutes.
+              {scope === 'ie'
+                ? 'From the EU, where its visitors are.'
+                : scope === 'uk_ie'
+                  ? 'A banner can differ by country: scan from each to check each law.'
+                  : 'From the UK where the analyser can.'}{' '}
+              Uses one of the token owner&apos;s scan credits; takes one to five
+              minutes.
             </span>
           </ActionForm>
         ) : null}
@@ -325,9 +349,13 @@ export default async function PropertyPage({
         ) : null}
         {inUse.map((item) => {
           const suggested = suggestedBasis(item.suggestedCategory);
-          const decided = laws.every((l) =>
-            l === 'ie' ? item.irishDecision : item.decision
+          const bases = laws.map(
+            (l) => (l === 'ie' ? item.irishDecision : item.decision)?.basis
           );
+          const decided = bases.every(Boolean);
+          // Expected to be seen before a choice only where every law it
+          // answers to has it as strictly necessary.
+          const exempt = bases.every((b) => b === 'strictly_necessary');
           return (
             <details
               key={item.id}
@@ -378,10 +406,12 @@ export default async function PropertyPage({
                   {item.source === 'manual' ? ' · added by hand' : ''}
                 </span>
                 <Sightings
-                  list={sightings(item, item.decision?.basis ?? null)}
+                  list={sightings(
+                    item,
+                    exempt ? 'strictly_necessary' : (bases[0] ?? null)
+                  )}
                   note={
-                    item.decision?.basis === 'strictly_necessary' &&
-                    (item.seenBeforeConsent || item.seenAfterReject)
+                    exempt && (item.seenBeforeConsent || item.seenAfterReject)
                       ? 'expected for strictly necessary'
                       : undefined
                   }

@@ -33,16 +33,20 @@ export type ConditionKey =
 
 export type Condition = { key: ConditionKey; label: string };
 
+/** One basis as a form and a gap check read it, under either ePrivacy law. */
+export type BasisSpec = {
+  label: string;
+  citation: string;
+  summary: string;
+  conditions: Condition[];
+  needsInformation: boolean;
+  /** PECR Schedule A1 only: the person must be able to object. */
+  needsObjection?: boolean;
+};
+
 export const BASES: Record<
   StorageBasis,
-  {
-    label: string;
-    citation: string;
-    summary: string;
-    conditions: Condition[];
-    needsInformation: boolean;
-    needsObjection: boolean;
-  }
+  BasisSpec & { needsObjection: boolean }
 > = {
   consent: {
     label: 'Consent',

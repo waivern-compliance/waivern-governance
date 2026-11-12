@@ -3,7 +3,12 @@
 import { useActionState, useState } from 'react';
 
 import { IE_BASES, IE_BASIS_KEYS } from '@/lib/ie-eprivacy/storage';
-import { BASES, BASIS_KEYS, type StorageBasis } from '@/lib/pecr/statutory';
+import {
+  BASES,
+  BASIS_KEYS,
+  type BasisSpec,
+  type StorageBasis
+} from '@/lib/pecr/statutory';
 
 import type { RequestResult } from '../requests/actions';
 
@@ -26,12 +31,8 @@ export function BasisForm({
   suggested: StorageBasis | null;
   law?: 'uk' | 'ie';
 }) {
-  const bases: Partial<
-    Record<
-      StorageBasis,
-      (typeof BASES)[StorageBasis] | (typeof IE_BASES)['consent']
-    >
-  > = law === 'ie' ? IE_BASES : BASES;
+  const bases: Partial<Record<StorageBasis, BasisSpec>> =
+    law === 'ie' ? IE_BASES : BASES;
   const keys: StorageBasis[] = law === 'ie' ? IE_BASIS_KEYS : BASIS_KEYS;
   const usable = (b: StorageBasis | null) => (b && b in bases ? b : null);
   const [result, run, pending] = useActionState<RequestResult, FormData>(
@@ -102,7 +103,7 @@ export function BasisForm({
           ))}
         </fieldset>
       ) : null}
-      {'needsObjection' in spec && spec.needsObjection ? (
+      {spec.needsObjection ? (
         <p className="max-w-prose text-xs text-ink-soft">
           It also needs the website&apos;s information and a simple, free way to
           object, recorded once for the whole site above.

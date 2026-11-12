@@ -204,7 +204,13 @@ export async function setAnalyserSettings(
  * the token owner's credits on the same answer.
  */
 export async function startPropertyScan(
-  input: { propertyId: string; organisationId: string; actor: Actor },
+  input: {
+    propertyId: string;
+    organisationId: string;
+    /** For a website under both laws: where to scan from. Otherwise its laws decide. */
+    region?: 'uk' | 'eu';
+    actor: Actor;
+  },
   options: ScanOptions = {}
 ) {
   return withOrganisation(input.organisationId, async () => {
@@ -225,11 +231,18 @@ export async function startPropertyScan(
       })
       .from(entities)
       .where(eq(entities.id, property.entityId));
-    // Under the Irish Regulations alone, the EU is where its visitors are.
+    // Under the Irish Regulations alone, the EU is where its visitors are; a
+    // website under both may be scanned from either, as a banner can differ
+    // by country and each law is judged on what its visitors see.
+    const scope = entity
+      ? recordEprivacy(entity, property.eprivacyScope)
+      : null;
     const region =
-      entity && recordEprivacy(entity, property.eprivacyScope) === 'ie'
+      scope === 'ie'
         ? 'eu'
-        : 'uk';
+        : scope === 'uk_ie' && input.region
+          ? input.region
+          : 'uk';
     if (property.kind !== 'website')
       throw new InventoryRefused(
         "The Consent Analyser scans websites. Record an app's items by hand."

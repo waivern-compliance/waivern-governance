@@ -56,6 +56,7 @@ export default async function Dashboard() {
   const properties = allProperties.filter((p) => p.eprivacy !== null);
   const cookieGaps = mergeGapSummaries(properties.map((p) => p.gapSummary));
   const cookiesWithGaps = properties.reduce((n, p) => n + p.withGaps, 0);
+  const siteGaps = properties.reduce((n, p) => n + p.siteGaps.length, 0);
   const scansDue = properties.filter(
     (p) => rescanState(p.rescanDueAt) !== 'not_due'
   );
@@ -217,17 +218,19 @@ export default async function Dashboard() {
                     g.kind === 'before_consent' || g.kind === 'after_reject'
                 )
                   ? 'critical'
-                  : cookiesWithGaps > 0
+                  : cookiesWithGaps + siteGaps > 0
                     ? 'warning'
                     : 'good'
               }
               note={
-                cookieGaps.length
-                  ? cookieGaps
-                      .slice(0, 2)
-                      .map((g) => g.text)
-                      .join(', ')
-                  : 'every item has its basis recorded'
+                [
+                  ...cookieGaps.slice(0, 2).map((g) => g.text),
+                  ...(siteGaps > 0
+                    ? [
+                        `${siteGaps} website-wide Irish check${siteGaps === 1 ? '' : 's'} missing`
+                      ]
+                    : [])
+                ].join(', ') || 'every item has its basis recorded'
               }
             />
             <Tile

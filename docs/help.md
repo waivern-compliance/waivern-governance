@@ -1082,7 +1082,7 @@ Irish law has only three bases (regulation 5): consent, storage solely to carry 
 
 For the whole website or app, it asks how long stored consent lasts before people are asked again (the Commission's outer limit is six months, pages 8 and 11; longer needs a justification), and six things about the banner: reject as prominent as accept, consent by purpose, nothing ticked in advance, no consent taken from scrolling, withdrawal as easy as giving, and the policies readable without cookies. These are asked only where something relies on consent.
 
-The lifespan threshold is set for the organisation on the cookies page, by an owner or privacy administrator. Any figure other than 12 months needs a specific justification, which is kept and recorded in the audit trail. A website under the Irish Regulations alone is scanned from the EU.
+The lifespan threshold is set for the organisation on the cookies page, by an owner or privacy administrator. Any figure other than 12 months needs a specific justification, which is kept and recorded in the audit trail. A website under the Irish Regulations alone is scanned from the EU; one under both can be scanned from the UK or the EU, since a banner can differ by country and each law is judged on what its own visitors see.
 
 ### What the law requires
 

@@ -19,6 +19,7 @@ import type {
   Representative,
   RepresentativeExemption
 } from '@/lib/gdpr/establishment';
+import { DEFAULT_LIFESPAN_THRESHOLD_MONTHS } from '@/lib/ie-eprivacy/storage';
 
 import {
   aiFramework,
@@ -100,7 +101,7 @@ export const organisations = pgTable('organisation', {
    */
   cookieLifespanThresholdMonths: integer('cookie_lifespan_threshold_months')
     .notNull()
-    .default(12),
+    .default(DEFAULT_LIFESPAN_THRESHOLD_MONTHS),
   cookieLifespanJustification: text('cookie_lifespan_justification'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()

@@ -64,9 +64,10 @@ export default async function CookiesPage() {
       active: t.active + r.active,
       noBasis: t.noBasis + r.noBasis,
       gaps: t.gaps + r.withGaps,
+      siteGaps: t.siteGaps + r.siteGaps.length,
       pending: t.pending + r.pending
     }),
-    { active: 0, noBasis: 0, gaps: 0, pending: 0 }
+    { active: 0, noBasis: 0, gaps: 0, siteGaps: 0, pending: 0 }
   );
 
   return (
@@ -108,8 +109,12 @@ export default async function CookiesPage() {
         <Stat
           label="With gaps"
           value={totals.gaps}
-          note="Schedule A1 not yet shown"
-          tone={totals.gaps > 0 ? 'warn' : 'plain'}
+          note={
+            totals.siteGaps > 0
+              ? `the basis not yet shown, and ${totals.siteGaps} website-wide Irish check${totals.siteGaps === 1 ? '' : 's'}`
+              : 'the basis not yet shown'
+          }
+          tone={totals.gaps + totals.siteGaps > 0 ? 'warn' : 'plain'}
         />
         <Stat
           label="Waiting for review"
@@ -235,6 +240,7 @@ export default async function CookiesPage() {
             active: inUse,
             noBasis,
             withGaps,
+            siteGaps,
             beforeConsent,
             pending,
             gapSummary,
@@ -265,6 +271,9 @@ export default async function CookiesPage() {
                   <p className="text-xs">
                     {inUse} in use · {noBasis} with no basis · {withGaps} with
                     gaps · {beforeConsent} seen before consent
+                    {siteGaps.length > 0
+                      ? ` · ${siteGaps.length} website-wide check${siteGaps.length === 1 ? '' : 's'} missing under the Irish Regulations`
+                      : ''}
                     {pending > 0 ? ` · ${pending} to review` : ''}
                     {property.lastScannedAt
                       ? ` · last scanned ${property.lastScannedAt.toISOString().slice(0, 10)}`

@@ -22,6 +22,7 @@ import {
   createProperty,
   InventoryRefused,
   loadProperty,
+  propertyRegister,
   recordStorageDecision,
   setCookieLifespanThreshold,
   updateProperty
@@ -114,6 +115,10 @@ describe('the Irish rules, on their own', () => {
     assert.equal(lifespanMonths('2 years'), 24);
     assert.ok(Math.abs(lifespanMonths('400 days')! - 13.15) < 0.01);
     assert.equal(lifespanMonths('until you log out'), null);
+    // Every part counts, and the usual abbreviations are read.
+    assert.equal(lifespanMonths('1 year 6 months'), 18);
+    assert.equal(lifespanMonths('18mo'), 18);
+    assert.equal(lifespanMonths('1 yr'), 12);
     assert.equal(lifespanMonths(null), null);
   });
 
@@ -340,6 +345,11 @@ describe('the Irish rules on the register', () => {
       (await loadProperty(w.property.id, w.org.id))!.irishPropertyGaps.length,
       7
     );
+    // The register counts them too, not only the website's own page.
+    assert.equal(
+      (await propertyRegister(w.org.id, null))[0].siteGaps.length,
+      7
+    );
     await updateProperty({
       propertyId: w.property.id,
       organisationId: w.org.id,
@@ -357,6 +367,8 @@ describe('the Irish rules on the register', () => {
       },
       actor: SYSTEM
     });
+    const [row] = await propertyRegister(w.org.id, null);
+    assert.equal(row.siteGaps.length, 0);
     const loaded = (await loadProperty(w.property.id, w.org.id))!;
     assert.deepEqual(loaded.irishPropertyGaps, []);
     assert.equal('not_a_check' in loaded.property.bannerChecks, false);

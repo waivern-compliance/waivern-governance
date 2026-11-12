@@ -354,8 +354,11 @@ export async function analyserSettingsAction(
 }
 
 export async function startScanAction(
-  propertyId: string
+  propertyId: string,
+  _prev?: RequestResult,
+  formData?: FormData
 ): Promise<RequestResult> {
+  const asked = formData ? text(formData.get('region')) : '';
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
   let note: string | null = null;
@@ -363,6 +366,7 @@ export async function startScanAction(
     const scan = await startPropertyScan({
       propertyId,
       organisationId: active.membership.organisationId,
+      region: asked === 'eu' || asked === 'uk' ? asked : undefined,
       actor: actorOf(active)
     });
     note = scan.note;

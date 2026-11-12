@@ -16,7 +16,7 @@
  */
 
 import type {
-  Condition,
+  BasisSpec,
   ConditionKey,
   Gap,
   StorageBasis
@@ -28,16 +28,7 @@ export type IrishBasis = Extract<
   'consent' | 'transmission' | 'strictly_necessary' | 'none'
 >;
 
-export const IE_BASES: Record<
-  IrishBasis,
-  {
-    label: string;
-    citation: string;
-    summary: string;
-    conditions: Condition[];
-    needsInformation: boolean;
-  }
-> = {
+export const IE_BASES: Record<IrishBasis, BasisSpec> = {
   consent: {
     label: 'Consent',
     citation: 'S.I. 336/2011 reg 5(3)',
@@ -128,11 +119,27 @@ export function lifespanMonths(
   const text = expiry?.trim().toLowerCase();
   if (!text) return null;
   if (/^session\b/.test(text)) return 0;
-  const m = text.match(
-    /(\d+(?:\.\d+)?)\s*(year|month|week|day|hour|minute|second)s?\b/
+  // Every number and unit, added up: "1 year 6 months" is eighteen.
+  const parts = [
+    ...text.matchAll(
+      /(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|mths?|weeks?|wks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|seconds?|secs?|s)\b/g
+    )
+  ];
+  if (parts.length === 0) return null;
+  return parts.reduce(
+    (sum, [, n, unit]) => sum + Number(n) * monthsPer(unit),
+    0
   );
-  if (!m) return null;
-  return Number(m[1]) * MONTHS_PER[m[2]];
+}
+
+function monthsPer(unit: string): number {
+  if (/^(y|yrs?|years?)$/.test(unit)) return MONTHS_PER.year;
+  if (/^(mos?|mths?|months?)$/.test(unit)) return MONTHS_PER.month;
+  if (/^(w|wks?|weeks?)$/.test(unit)) return MONTHS_PER.week;
+  if (/^(d|days?)$/.test(unit)) return MONTHS_PER.day;
+  if (/^(h|hrs?|hours?)$/.test(unit)) return MONTHS_PER.hour;
+  if (/^(mins?|minutes?)$/.test(unit)) return MONTHS_PER.minute;
+  return MONTHS_PER.second;
 }
 
 export type IrishGapInput = {

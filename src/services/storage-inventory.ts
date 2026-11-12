@@ -1479,6 +1479,18 @@ export async function propertyRegister(
         return {
           property,
           entityName,
+          /** What the website as a whole does not yet show under the Irish Regulations. */
+          siteGaps: irish
+            ? irishPropertyGaps({
+                consentRenewalMonths: property.consentRenewalMonths,
+                consentRenewalJustification:
+                  property.consentRenewalJustification,
+                bannerChecks: property.bannerChecks,
+                usesConsent: active.some(
+                  (i) => i.irishDecision?.basis === 'consent'
+                )
+              })
+            : [],
           /** The ePrivacy law it is judged under; null where its entity is under neither. */
           eprivacy,
           active: active.length,
