@@ -132,10 +132,17 @@ interests"); text that does not is kept as the note and no basis is guessed, and
 basis already chosen in Waivern Governance Tool is left as it was. Exports carry all
 three fields, with `lawfulBasis` as the note.
 
-Recognised legitimate interests exists in UK law only. For an entity recorded as
-subject to EU law only, a record whose `lawfulBases` includes it is **skipped with
-the reason**, as an unknown entity is; text in `lawfulBasis` naming it is not read as
-a basis and is kept as the note.
+**Which law.** An optional `laws` says which of its entity's laws govern the record:
+`uk`, `eu` or `uk_eu`. Left out, a new record takes its entity's law and an existing
+one keeps what is recorded here. A value outside the entity's laws (`eu` for an entity
+under UK law only) is **skipped with the reason**, not narrowed, for the same reason an
+unknown entity is. Every rule is checked under each law the record is under.
+
+Recognised legitimate interests exists in UK law only. For a record under EU law only,
+`lawfulBases` including it is **skipped with the reason**, as an unknown entity is;
+text in `lawfulBasis` naming it is not read as a basis and is kept as the note. On a
+record under both laws it is accepted, and the register reports that the EU side needs
+another basis beside it.
 
 **Automated decisions, further processing, research and children.** Four more
 optional fields on a processing activity, in the same shape both ways. Each is a
@@ -201,6 +208,23 @@ means "not yet known".
 - `childrenLikely` is Article 25(1A): whether an online service in the processing is
   likely to be accessed by children.
 
+Under the EU GDPR (a record whose `laws` include `eu`), three more fields, all
+optional and additive:
+
+- `automatedDecisions.euException`: the Article 22(2) exception, `contract`, `law` or
+  `explicit_consent`, and `automatedDecisions.euLawNote`, the Union or member State
+  law for `law`. Without an exception, a solely automated decision may not be taken
+  under EU law, and the register reports it. Left out, what is recorded here is kept;
+  sent as `null`, it is cleared.
+- `furtherProcessing.euRoute`: how the new purpose is compatible under EU law,
+  `consent`, `law`, `research` (Article 5(1)(b)) or `assessed` (Article 6(4), on the
+  same `factors`), and `furtherProcessing.euNote`, the law for `law`. Left out, what
+  is recorded here is kept.
+- `childrenMemberStates`: the EEA States (ISO codes) where the activity offers an
+  information society service directly to children on the basis of consent (Article
+  8(1)). Each State sets its own age, from 13 to 16. An unknown code is refused per
+  record.
+
 Safeguards are reported as confirmed or not; one that is unconfirmed and has no note
 is not stored, so an export leaves it out and a reader treats a missing safeguard as
 unconfirmed.
@@ -237,9 +261,28 @@ what shape it received:
 
 Version 1.1 added `aiSystems`. Version 1.2 added `automatedDecisions`,
 `furtherProcessing`, `research` and `childrenLikely` to processing activities, and
-`automatedDecisions` and `processingActivities` to AI systems. Both changes are
-additive: a reader written for 1.0 that ignores keys it does not know reads 1.2
-unchanged.
+`automatedDecisions` and `processingActivities` to AI systems. Version 1.3 added the
+EU GDPR facts:
+
+- each entity carries `dataProtectionLaw` (`uk`, `eu` or `uk_eu`), `euEstablishments`
+  (EEA codes), `euMainEstablishment`, `euLeadAuthority` (`{ code, name }` or `null`),
+  `euRepresentative` and `ukRepresentative` (`{ name, contact, country }` or `null`),
+  so a privacy notice can name the right regulator and representative;
+- each processing activity carries `laws`, `childrenMemberStates`,
+  `automatedDecisions.euException` and `euLawNote`, and `furtherProcessing.euRoute`
+  and `euNote`;
+- each supplier agreement carries `transferMechanisms` beside `transferMechanism`.
+
+Each change is additive: a reader written for 1.0 that ignores keys it does not know
+reads 1.3 unchanged.
+
+```json
+{ "name": "Europe SAS", "legalEntityRef": "FR-123", "dataProtectionLaw": "uk_eu",
+  "euEstablishments": ["FR"], "euMainEstablishment": "FR",
+  "euLeadAuthority": { "code": "fr-cnil", "name": "Commission Nationale de l'Informatique et des Libertés (CNIL)" },
+  "euRepresentative": null,
+  "ukRepresentative": { "name": "UK Rep Ltd", "contact": "rep@example.co.uk", "country": null } }
+```
 
 **Only settled facts are exported.** An assessment appears once it is approved,
 never while it is in draft or in review — generating a compliance document from
@@ -414,7 +457,7 @@ first N requests, would read as a summary of everything.
 
 ```json
 {
-  "summaryVersion": "1.0",
+  "summaryVersion": "1.1",
   "generatedAt": "2026-10-30T09:14:02.881Z",
   "organisation": { "name": "BBC Group", "slug": "bbc-group", "defaultJurisdiction": "uk" },
   "scope": { "entities": null, "months": 12, "from": "2025-11-01T00:00:00.000Z", "to": "2026-10-30T09:14:02.881Z" },
@@ -459,6 +502,9 @@ first N requests, would read as a summary of everything.
 - **Small numbers are not suppressed.** Three erasure requests in a month is
   three. Whether a figure is fit to publish is the Portal's decision when it
   writes a document, not something this endpoint decides by hiding it.
+- `byLaw` (from 1.1) splits `totals` by the law each was handled under, with
+  `uk`, `eu` and `uk_eu` (both laws) as keys, each with the same counts as `totals`.
+  A law with nothing in the window is present with zeros.
 - `summaryVersion` versions this shape; additive changes bump the minor version.
 
 ### Data protection complaints, summarised
@@ -479,7 +525,7 @@ same reason. The window covers complaints **received** in it.
 
 ```json
 {
-  "summaryVersion": "1.0",
+  "summaryVersion": "1.1",
   "generatedAt": "2026-10-30T09:14:02.881Z",
   "organisation": { "name": "BBC Group", "slug": "bbc-group", "defaultJurisdiction": "uk" },
   "targets": { "outcomeTargetDays": 30, "updateIntervalDays": 30 },
@@ -521,7 +567,23 @@ same reason. The window covers complaints **received** in it.
 - `medianDaysToAcknowledge` and `medianDaysToOutcome` are calendar days from
   receipt, or `null` when nothing in the window got that far.
 - Small numbers are not suppressed, as for requests.
+- `byLaw` (from 1.1) splits `totals` by the law each was handled under, with
+  `uk`, `eu` and `uk_eu` (both laws) as keys, each with the same counts as `totals`.
+  A law with nothing in the window is present with zeros.
 - `summaryVersion` versions this shape; additive changes bump the minor version.
+
+### Transfer mechanisms on agreements
+
+`POST /api/v1/ingest/dpas` takes an optional `transferMechanisms`, an array of
+`{ "mechanism": ..., "module": ... }`, beside the free-text `transferMechanism`,
+which is kept as the note. `mechanism` is one of `uk_approval` (UK GDPR Article 45A,
+including the UK-US data bridge), `idta`, `uk_addendum`, `uk_bcr`, `eu_adequacy`
+(Article 45, including the EU-US Data Privacy Framework for a certified recipient),
+`eu_scc` (Implementing Decision (EU) 2021/914, with `module` 1 to 4), `eu_bcr`,
+`eu_code_or_certification` or `derogation` (Article 49). An unknown mechanism is
+refused per record. Left out, what is recorded here is kept, and where nothing is
+recorded the text is read where it names the mechanisms plainly. The context
+export carries both.
 
 ## Idempotency
 

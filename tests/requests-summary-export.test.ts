@@ -140,7 +140,7 @@ describe('GET /api/v1/export/requests-summary', () => {
     const body = await response.json();
     const text = JSON.stringify(body);
 
-    assert.equal(body.summaryVersion, '1.0');
+    assert.equal(body.summaryVersion, '1.1');
     assert.equal(body.organisation.defaultJurisdiction, 'uk');
     assert.equal(body.scope.months, 12);
     assert.equal(body.byMonth.length, 12);

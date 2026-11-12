@@ -132,7 +132,10 @@ describe('processing activities over the wire', () => {
     assert.deepEqual(out.automatedDecisions, {
       ...ADM,
       specialCondition: null,
-      safeguards: { information, representations, humanIntervention }
+      safeguards: { information, representations, humanIntervention },
+      // Added in context 1.3; nothing was sent, so nothing is recorded.
+      euException: null,
+      euLawNote: null
     });
     assert.equal(out.furtherProcessing.originalReference, orders.reference);
     assert.equal(out.furtherProcessing.originalExternalRef, 'orders');

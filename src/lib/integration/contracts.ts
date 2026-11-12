@@ -75,7 +75,15 @@ export const processingActivityIn = z.object({
   automatedDecisions: automatedDecisionsWire.optional(),
   furtherProcessing: furtherProcessingWire.optional(),
   research: researchWire.optional(),
-  childrenLikely: z.boolean().nullable().optional()
+  childrenLikely: z.boolean().nullable().optional(),
+  /**
+   * Which of its entity's laws govern the record. Left out: the entity's for
+   * a new record, as recorded for an existing one. Outside the entity's laws,
+   * the record is skipped with the reason.
+   */
+  laws: z.enum(['uk', 'eu', 'uk_eu']).optional(),
+  /** EU GDPR Article 8(1): EEA States, ISO codes. Unknown codes skip the record. */
+  childrenMemberStates: z.array(z.string().max(2)).max(30).optional()
 });
 
 export const vendorIn = z.object({
@@ -94,6 +102,19 @@ export const dpaIn = z.object({
   signedAt: z.iso.datetime().optional(),
   expiresAt: z.iso.datetime().optional(),
   transferMechanism: z.string().max(200).optional(),
+  /** Chosen from the list (`lib/gdpr/transfers.ts`); the text stays as the note. */
+  transferMechanisms: z
+    .array(
+      z.object({
+        mechanism: z.string().max(60),
+        module: z
+          .union([z.number(), z.string().max(2)])
+          .nullable()
+          .optional()
+      })
+    )
+    .max(20)
+    .optional(),
   subProcessors: z.array(z.string().max(200)).max(200).default([]),
   terms: z.record(z.string(), z.unknown()).default({})
 });

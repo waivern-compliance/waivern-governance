@@ -1872,6 +1872,8 @@ export async function requestMetrics(
       overridden: number;
       notApplicable: number;
     };
+    /** `totals` for the requests handled under each law. */
+    byLaw: Record<Jurisdiction, Timeliness['totals']>;
   }
 > {
   const periods = monthsEnding(now, months);
@@ -1883,12 +1885,9 @@ export async function requestMetrics(
   const objections = inWindow.flatMap((r) =>
     r.decisions.filter((d) => d.kind === 'objection')
   );
-  return {
-    months,
-    from,
-    to: now,
-    ...requestTimeliness(
-      inWindow.map((r) => ({
+  const timed = (rows: typeof inWindow) =>
+    requestTimeliness(
+      rows.map((r) => ({
         rights: r.request.rights,
         receivedAt: r.request.receivedAt,
         respondedAt: r.request.respondedAt,
@@ -1898,7 +1897,18 @@ export async function requestMetrics(
         closedAt: r.request.closedAt
       })),
       periods
-    ),
+    );
+  return {
+    months,
+    from,
+    to: now,
+    ...timed(inWindow),
+    byLaw: Object.fromEntries(
+      (['uk', 'eu', 'uk_eu'] as const).map((law) => [
+        law,
+        timed(inWindow.filter((r) => r.request.jurisdiction === law)).totals
+      ])
+    ) as Record<Jurisdiction, Timeliness['totals']>,
     objections: {
       decided: objections.length,
       upheld: objections.filter((d) => d.outcome === 'complied').length,
@@ -1954,7 +1964,7 @@ export async function requestsSummary(input: {
 
     const m = await requestMetrics(input.organisationId, entityIds, months);
     return {
-      summaryVersion: '1.0',
+      summaryVersion: '1.1',
       generatedAt: new Date().toISOString(),
       organisation: {
         name: org.name,
@@ -1970,6 +1980,7 @@ export async function requestsSummary(input: {
         to: m.to.toISOString()
       },
       totals: m.totals,
+      byLaw: m.byLaw,
       byRight: m.byRight,
       byMonth: m.byMonth,
       objections: m.objections
