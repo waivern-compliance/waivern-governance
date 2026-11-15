@@ -6,6 +6,7 @@ import { EditForm } from '@/components/EditForm';
 import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { EprivacyScopeNote } from '@/components/EprivacyScopeNote';
 import { NotPermitted } from '@/components/NotPermitted';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { processingActivities } from '@/db/schema';
 import {
@@ -253,7 +254,10 @@ export default async function PropertyPage({
               startedAt={running.startedAt.toISOString()}
             />
           </div>
-        ) : property.kind === 'website' && mayWrite && analyser.configured ? (
+        ) : property.kind === 'website' &&
+          mayWrite &&
+          analyser.configured &&
+          can(active.membership.grants, 'contact.outside') ? (
           <ActionForm
             action={startScanAction.bind(null, property.id)}
             submit={latestScan ? 'Scan again now' : 'Scan now'}
@@ -932,7 +936,12 @@ export default async function PropertyPage({
         ) : null}
       </EditForm>
 
-      {mayWrite ? (
+      {mayWrite && !can(active.membership.grants, 'file.upload') ? (
+        <TrialNotice
+          withheld="file.upload"
+          what="Consent Analyser reports"
+        />
+      ) : mayWrite ? (
         <section className="space-y-3 rounded border border-line bg-surface p-5">
           <h2 className="text-sm font-semibold">
             Upload a Consent Analyser report

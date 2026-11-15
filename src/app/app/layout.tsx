@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { FeedbackButton } from '@/components/FeedbackButton';
 import { HomeLink } from '@/components/HomeLink';
+import { TrialBanner } from '@/components/trial/TrialBanner';
 import { Wordmark } from '@/components/Wordmark';
 import { isPlatformAdmin } from '@/lib/platform';
 import { can } from '@/lib/rbac';
@@ -122,6 +123,9 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
+      {active?.membership.trial ? (
+        <TrialBanner endsAt={active.membership.trial.endsAt.toISOString()} />
+      ) : null}
       {children}
       {active?.email ? <FeedbackButton email={active.email} /> : null}
     </>

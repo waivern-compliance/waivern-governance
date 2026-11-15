@@ -3,9 +3,10 @@
 import { revalidatePath } from 'next/cache';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
-import { requireCapability } from '@/lib/session';
+import { refusedUnless, requireCapability } from '@/lib/session';
 import {
   attachDocument,
+  attachSampleDocument,
   moveDocument,
   removeDocument,
   UploadRefused
@@ -32,6 +33,11 @@ export async function uploadDocumentsAction(
   _prev: UploadResult,
   formData: FormData
 ): Promise<UploadResult> {
+  const refusal = await refusedUnless(
+    'file.upload',
+    context.entityId ? { entityId: context.entityId } : {}
+  );
+  if (refusal) return refusal;
   const active = await requireCapability(
     'record.write',
     context.entityId ? { entityId: context.entityId } : undefined
@@ -142,4 +148,41 @@ export async function moveDocumentAction(
     });
     revalidatePath(revalidate);
   });
+}
+
+/**
+ * Attach a built-in example file, in a trial, in place of an upload. Only the
+ * sample's id is read from the form: no file, so nothing of the trial's own
+ * reaches the server.
+ */
+export async function attachSampleAction(
+  context: {
+    subjectType: StoredDocument['subjectType'];
+    subjectId: string;
+    entityId: string | null;
+    revalidate: string;
+  },
+  _prev: UploadResult,
+  formData: FormData
+): Promise<UploadResult> {
+  const active = await requireCapability(
+    'record.write',
+    context.entityId ? { entityId: context.entityId } : undefined
+  );
+  const result = await refusable(() =>
+    attachSampleDocument({
+      organisationId: active.membership.organisationId,
+      entityId: context.entityId,
+      subjectType: context.subjectType,
+      subjectId: context.subjectId,
+      sampleId: String(formData.get('sample') ?? ''),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    })
+  );
+  revalidatePath(context.revalidate);
+  return result?.ok ? { ok: true, message: 'Attached.' } : result;
 }

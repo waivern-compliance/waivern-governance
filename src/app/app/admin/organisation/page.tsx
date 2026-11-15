@@ -4,6 +4,7 @@ import { and, asc, eq } from 'drizzle-orm';
 
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
 import { waivernHosted } from '@/lib/hosting';
@@ -174,17 +175,24 @@ export default async function OrganisationPage() {
         }))}
       />
 
-      <DomainsPanel
-        claims={domains.map((d) => ({
-          id: d.id,
-          domain: d.domain,
-          verifiedAt: d.verifiedAt
-            ? d.verifiedAt.toISOString().slice(0, 10)
-            : null,
-          recordName: d.recordName,
-          recordValue: d.recordValue
-        }))}
-      />
+      {can(active.membership.grants, 'member.manage') ? (
+        <DomainsPanel
+          claims={domains.map((d) => ({
+            id: d.id,
+            domain: d.domain,
+            verifiedAt: d.verifiedAt
+              ? d.verifiedAt.toISOString().slice(0, 10)
+              : null,
+            recordName: d.recordName,
+            recordValue: d.recordValue
+          }))}
+        />
+      ) : (
+        <TrialNotice
+          withheld="member.manage"
+          what="Joining by email domain"
+        />
+      )}
 
       <section className="space-y-2 rounded border border-line bg-surface p-5">
         <h2 className="text-sm font-semibold">What is not changed here</h2>

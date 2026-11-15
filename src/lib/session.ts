@@ -3,11 +3,13 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { auth, loadMemberships, type SessionMembership } from '@/auth';
+import { refusable, type EditResult } from '@/lib/edit-result';
 import { agreementStatus } from '@/services/agreements';
 
 import { waivernHosted } from './hosting';
 import { resolvePersona, type Persona } from './persona';
-import { can, scopedEntityIds, type Capability } from './rbac';
+import { can, scopedEntityIds, withheldByTrial, type Capability } from './rbac';
+import { TRIAL_REFUSAL, type TRIAL_WITHHELD } from './trial';
 
 export class NotAuthenticated extends Error {
   constructor() {
@@ -24,6 +26,20 @@ export class NotPermitted extends Error {
     );
   }
 }
+
+/**
+ * Refused because the organisation is a trial, not because of the person's
+ * role: said in words the person trying it can act on.
+ */
+export class TrialWithheld extends NotPermitted {
+  constructor(capability: (typeof TRIAL_WITHHELD)[number]) {
+    super(capability);
+    this.message = TRIAL_REFUSAL[capability];
+  }
+}
+
+/** Where a trial whose time is up is sent, from every page and action. */
+export const TRIAL_ENDED_PATH = '/trial/ended';
 
 export type ActiveSession = {
   userId: string;
@@ -124,6 +140,11 @@ export async function getActiveSession(
     : chooseMembership(memberships, await preferredOrganisation());
   if (!membership) return null;
 
+  // A trial stops at its end, everywhere at once: every page, action and
+  // download resolves its caller here.
+  if (membership.trial && membership.trial.endsAt.getTime() <= Date.now())
+    redirect(TRIAL_ENDED_PATH);
+
   if (
     opts.agreements !== 'skip' &&
     waivernHosted() &&
@@ -167,9 +188,25 @@ export async function requireCapability(
 ): Promise<ActiveSession> {
   const active = await requireSession(opts.organisationId);
   if (!can(active.membership.grants, capability, opts.entityId)) {
+    if (withheldByTrial(active.membership.grants, capability))
+      throw new TrialWithheld(capability as (typeof TRIAL_WITHHELD)[number]);
     throw new NotPermitted(capability, opts.entityId);
   }
   return active;
+}
+
+/**
+ * `requireCapability` for an action that reports refusals beside its form
+ * rather than on an error page: the refusal, through `refusable`, or null to
+ * carry on. Used for the capabilities a trial is refused, so a trial is told
+ * why where it tried.
+ */
+export async function refusedUnless(
+  capability: Capability,
+  opts: { organisationId?: string; entityId?: string } = {}
+): Promise<Exclude<EditResult, null> | null> {
+  const result = await refusable(() => requireCapability(capability, opts));
+  return result && !result.ok ? result : null;
 }
 
 /** Entities this caller may exercise a capability over; `null` means all. */

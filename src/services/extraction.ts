@@ -25,6 +25,7 @@ import {
 
 import { providerFor } from './assistant';
 import type { Actor } from './templates';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * Asking the organisation's own model to read an agreement.
@@ -436,6 +437,7 @@ export async function followLink(input: {
   linkId: string;
   actor: Actor;
 }): Promise<RunResult> {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   const configured = await providerFor(input.organisationId);
   if (!configured?.surfaces.includes('extraction')) {
     throw new ExtractionUnavailable(

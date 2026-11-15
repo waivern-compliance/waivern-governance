@@ -7,7 +7,11 @@ import { refusable, type EditResult } from '@/lib/edit-result';
 import { EprivacyRefused } from '@/lib/ie-eprivacy/scope';
 import type { ConditionKey, StorageBasis } from '@/lib/pecr/statutory';
 import { can, mayConfigureAnalyser } from '@/lib/rbac';
-import { requireCapability, requireSession } from '@/lib/session';
+import {
+  refusedUnless,
+  requireCapability,
+  requireSession
+} from '@/lib/session';
 import {
   checkPropertyScan,
   setAnalyserSettings,
@@ -162,6 +166,8 @@ export async function uploadReportAction(
   _prev: RequestResult,
   formData: FormData
 ): Promise<RequestResult> {
+  const refusal = await refusedUnless('file.upload');
+  if (refusal) return refusal;
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
   const raw = text(formData.get('report'));
@@ -326,6 +332,8 @@ export async function analyserSettingsAction(
   _prev: RequestResult,
   formData: FormData
 ): Promise<RequestResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await requireSession();
   if (!mayConfigureAnalyser(active.membership.grants)) {
     return {
@@ -361,6 +369,8 @@ export async function startScanAction(
   formData?: FormData
 ): Promise<RequestResult> {
   const asked = formData ? text(formData.get('region')) : '';
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await writerFor({ property: propertyId });
   if (!active) return NOT_YOURS;
   let note: string | null = null;

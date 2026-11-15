@@ -264,6 +264,10 @@ export const TABLES: readonly TableRule[] = [
   own('entity_erasure', { withhold: { token_hash: ONE_WAY } }),
   own('audit_chain_head'),
 
+  // A trial, and what it asked the administrators.
+  own('trial'),
+  own('trial_request'),
+
   // Not the organisation's.
   {
     table: 'app_user',
@@ -279,6 +283,11 @@ export const TABLES: readonly TableRule[] = [
     table: 'terms_acceptance',
     excluded:
       "Waivern's own record, as provider, that people accepted its terms. A person can ask Waivern for their entries under their own data protection rights."
+  },
+  {
+    table: 'trial_signup',
+    excluded:
+      'Requests for a trial, before any organisation exists: an address and a hashed link, kept two days for rate limiting.'
   },
   {
     table: 'feedback',

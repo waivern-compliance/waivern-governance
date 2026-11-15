@@ -81,7 +81,10 @@ export const recordType = pgEnum('record_type', [
   'sharing_agreement',
   // Added with the register of freedom of information requests.
   'information_request',
-  'information_request_decision'
+  'information_request_decision',
+  // Added with self-service trials.
+  'trial',
+  'trial_request'
 ]);
 
 /**

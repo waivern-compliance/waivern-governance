@@ -6,13 +6,20 @@ import { HomeLink } from '@/components/HomeLink';
 import { Wordmark } from '@/components/Wordmark';
 import { missingEmailSettings } from '@/lib/email/resend';
 import { isPlatformAdmin, platformAdmins } from '@/lib/platform';
+import { hasEnded, MAX_EXTENSION_DAYS, timeLeft } from '@/lib/trial';
 import { DIRECT, requestQueue } from '@/services/organisation-requests';
+import { trialQueue } from '@/services/trials';
 
 import { CreateOrganisation } from './CreateOrganisation';
 import { Decision } from './Decision';
 import { TestEmail } from './TestEmail';
+import { TrialDecision } from './TrialDecision';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
+
+/** How long a trial has left, or when it ended. */
+const endedOrLeft = (endsAt: Date) =>
+  hasEnded(endsAt) ? `ended ${day(endsAt)}` : `${timeLeft(endsAt)} left`;
 
 /**
  * Waivern's operators: requests for new organisations.
@@ -25,7 +32,10 @@ export default async function Platform() {
   if (!session?.user?.email) redirect('/sign-in');
   if (!isPlatformAdmin(session.user.email)) notFound();
 
-  const { pending, decided } = await requestQueue();
+  const [{ pending, decided }, trialsWaiting] = await Promise.all([
+    requestQueue(),
+    trialQueue()
+  ]);
   const missing = missingEmailSettings();
 
   return (
@@ -119,6 +129,70 @@ export default async function Platform() {
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            Trials asking for more ({trialsWaiting.pending.length})
+          </h2>
+          <p className="max-w-prose text-sm text-ink-soft">
+            A trial can ask in its last day, or after it has ended. Converting
+            lifts every trial restriction and the end date; extending adds days
+            from now or from its end, whichever is later. Nothing else changes a
+            trial.
+          </p>
+          {trialsWaiting.pending.length === 0 ? (
+            <p className="text-sm text-ink-soft">Nothing waiting.</p>
+          ) : (
+            <ul className="divide-y divide-line rounded border border-line bg-surface">
+              {trialsWaiting.pending.map(({ request, email, endsAt }) => (
+                <li
+                  key={request.id}
+                  className="space-y-2 px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">
+                      {request.organisationName}
+                    </span>
+                    <span className="font-mono text-[11px] text-ink-soft">
+                      {day(request.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-soft">
+                    {email} · asks for{' '}
+                    {request.kind === 'convert'
+                      ? 'a full account'
+                      : 'more time'}{' '}
+                    · {endedOrLeft(endsAt)}
+                  </p>
+                  <p className="whitespace-pre-line text-sm">
+                    {request.message}
+                  </p>
+                  <TrialDecision
+                    requestId={request.id}
+                    maxDays={MAX_EXTENSION_DAYS}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+          {trialsWaiting.running.length > 0 ? (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-ink-soft">
+                Trials running or in their grace period (
+                {trialsWaiting.running.length})
+              </summary>
+              <ul className="mt-2 space-y-1 font-mono text-[11px]">
+                {trialsWaiting.running.map((t) => (
+                  <li key={t.id}>
+                    {t.email}
+                    {t.organisationName ? ` (${t.organisationName})` : ''} ·
+                    started {day(t.startedAt)} · {endedOrLeft(t.endsAt)}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </section>
 
         {decided.length > 0 ? (

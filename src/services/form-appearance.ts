@@ -19,6 +19,7 @@ import { formIsOpen } from '@/lib/intake-forms';
 
 import { RequestRefused } from './data-subject-requests';
 import type { Actor } from './templates';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * How public forms look.
@@ -126,6 +127,7 @@ export async function setFormAppearance(input: {
   logo?: Uint8Array | null;
   actor: Actor;
 }) {
+  if (input.logo) await refuseDuringTrial(input.organisationId, 'file.upload');
   let checked: ReturnType<typeof checkAppearance>;
   let logoType: string | null = null;
   try {

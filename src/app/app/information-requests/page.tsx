@@ -9,6 +9,7 @@ import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { REGIME } from '@/lib/foi/statutory';
@@ -66,6 +67,9 @@ export default async function InformationRequestsPage() {
   const mayConfigure = mayConfigureInformationRequests(
     active.membership.grants
   );
+  // A public form reaches people outside the organisation: never in a trial.
+  const mayPublish =
+    mayConfigure && can(active.membership.grants, 'contact.outside');
   const mayRecordIn = foiEntities.filter((e) =>
     can(active.membership.grants, 'foi.handle', e.id)
   );
@@ -295,7 +299,7 @@ export default async function InformationRequestsPage() {
             to your data protection form if you have one. It shows nothing back
             except a reference and the deadline.
           </p>
-          {forms.length > 0 || mayConfigure ? (
+          {forms.length > 0 || mayPublish ? (
             <AppearancePanel
               scope="organisation"
               appearance={appearances.organisation}
@@ -346,7 +350,13 @@ export default async function InformationRequestsPage() {
               </>
             )}
           />
-          {mayConfigure && foiEntities.length > 0 ? (
+          {mayConfigure && !mayPublish ? (
+            <TrialNotice
+              withheld="contact.outside"
+              what="Public forms"
+            />
+          ) : null}
+          {mayPublish && foiEntities.length > 0 ? (
             <RefusableForm
               action={issueFoiFormAction}
               submit="Create a form"

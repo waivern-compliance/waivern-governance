@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { EprivacyScopeField } from '@/components/EprivacyScopeField';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
@@ -322,7 +323,9 @@ export default async function CookiesPage() {
           private to them there. Create a token at /account/tokens on the
           analyser.
         </p>
-        {mayConfigure ? (
+        {mayConfigure && !can(active.membership.grants, 'contact.outside') ? (
+          <TrialNotice withheld="contact.outside" />
+        ) : mayConfigure ? (
           <ActionForm
             action={analyserSettingsAction}
             submit="Save"

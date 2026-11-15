@@ -54,6 +54,7 @@ import { deliverNotifications } from './member-email';
 import { appetitesDueForReview } from './risk-policy';
 import { propertiesDueForRescan } from './storage-inventory';
 import { dpasNeedingAttention, EXPIRING_WITHIN_LABEL } from './third-party';
+import { purgeEndedTrials } from './trials';
 import { deliverPending } from './webhooks';
 import { queueNotification, raiseTask } from './workflow';
 
@@ -1345,6 +1346,14 @@ export async function sweepOrganisation(
 }
 
 export async function sweepAll(): Promise<SweepResult[]> {
+  // Ended trials past their grace period go first, so their organisations are
+  // not swept for work nobody will do. A failure is logged, not fatal: the
+  // rest of the sweep matters more, and the next one tries again.
+  await purgeEndedTrials().catch((error: unknown) =>
+    log('warn', 'trial.purge_failed', {
+      error: error instanceof Error ? error.name : 'unknown'
+    })
+  );
   const orgs = await db.select({ id: organisations.id }).from(organisations);
   const results: SweepResult[] = [];
   for (const o of orgs) results.push(await sweepOrganisation(o.id));

@@ -6,6 +6,7 @@ import { appendAuditEvent } from '@/lib/audit';
 import { sha256Hex } from '@/lib/canonical';
 
 import type { Actor } from './templates';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * Access for a contributor who has no account.
@@ -45,6 +46,7 @@ export async function issueContributorLink(input: {
   ttlDays?: number;
   actor: Actor;
 }): Promise<IssuedLink> {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   return withOrganisation(input.organisationId, async () => {
     const [assessment] = await db
       .select()

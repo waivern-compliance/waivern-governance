@@ -14,6 +14,7 @@ import {
 import { appendAuditEvent } from '@/lib/audit';
 
 import type { Actor } from './templates';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * What one person is holding, and how to hand it to somebody else.
@@ -183,6 +184,7 @@ export async function handOver(input: {
   toUserId: string;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'member.manage');
   return withOrganisation(input.organisationId, async () => {
     if (input.fromUserId === input.toUserId) {
       throw new HandoverRefused(

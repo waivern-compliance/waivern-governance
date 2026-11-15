@@ -15,6 +15,7 @@ Every help topic the application carries, in the order it presents them.
 - [Roles, and why you cannot see something](#roles-and-why-you-cannot-see-something) - Access is granted per role, and can be scoped to a single entity. Two powers are deliberately held apart from the rest.
 - [Tasks, and being mentioned](#tasks-and-being-mentioned) - Everything waiting on you, whether it names you directly or waits on a role you hold.
 - [Security and backups](#security-and-backups) - How the tool protects what you keep in it, and how Waivern's hosted service backs it up - on a page you can send to anyone, signed in or not.
+- [Trial accounts](#trial-accounts) - Try the tool for 7 days with a fictional demo company and simulated colleagues: fictional data only, reaching nobody else, and extended or converted only by an administrator.
 
 **Doing the work**
 
@@ -266,6 +267,50 @@ The page is open without signing in, so you can send its address to an informati
 **See also:** What this is, and what it is not · Roles, and why you cannot see something · The audit trail
 
 <sub>Also searchable as: security, backups, backup, encryption, hosting, data centre, where is my data, dedicated instance, row-level security, infosec, due diligence</sub>
+
+## Trial accounts
+
+*Try the tool for 7 days with a fictional demo company and simulated colleagues: fictional data only, reaching nobody else, and extended or converted only by an administrator.*
+
+**Screen:** `/app/trial`
+
+### Starting one
+
+Where trials are offered, the sign-in page has a Start a 7 days trial button. Give your email address: a work one is best, but a personal one such as Gmail works too. You can also give your organisation's name. You are sent a link that works once, for 30 minutes. Opening it changes nothing until you press Continue, so a mail scanner that opens it first does not use it up.
+
+Each mailbox has one trial. Asking again with the same address, however it is spelt, sends a link that signs you back in to it. The form says the same thing whatever the address, so nobody can use it to find out who has an account. It also limits how often one address, and one connection, can ask. On Waivern's hosted service you accept the Terms of Service and the Data Processing Agreement before you start, as every owner does.
+
+### Fictional data only
+
+A trial is for exploring with fictional data only. Do not enter real personal data about anyone, and above all no special category data: health, ethnicity, religion, sexual orientation, biometrics, trade union membership or criminal records. The demo company and its colleagues are made up.
+
+You accept this before the link is sent, and the acceptance is recorded in the trial's audit log with the time you gave it. The same warning is on every page of the trial.
+
+### The demo company and its colleagues
+
+A trial starts as Brackenfield Home Goods, a made-up company, with records to explore at once: processing activities, a breach whose 72-hour clock is running, an AI system with risks, suppliers with gaps in their agreements, a subject access request and a complaint.
+
+It also has simulated colleagues: a head of legal who approves, a privacy analyst and a data science lead. Their names say they are simulated. Approvals, reviews and tasks for their roles go to them in the app only. They cannot sign in, are never emailed, and nobody real is ever told. You decide their approvals yourself: as the owner you may decide every stage, so you can draft an assessment, submit it and approve it to see the whole loop.
+
+### What a trial cannot do
+
+Your own files cannot be uploaded: no documents, imports, cookie reports or logos. Where a file would go, you can attach a fictional example instead in one click: a sample data processing addendum, a penetration test summary or a training record. You choose one by name and nothing of yours is sent.
+
+A trial reaches nobody else. Nobody can be invited or given a role. Contributor links, public request forms, joining by email domain, the Integration API and webhooks are all off, and so are outside services: an AI provider, the Consent Analyser, and fetching a page from an agreement. There is no assistant, and reading an agreement with a model is not available, during a trial.
+
+These are refused by the server whatever is sent to it, not just hidden. Where a control would be, a note says why it is not there.
+
+### When it ends
+
+A banner on every page shows how long is left. A trial lasts 7 days from the moment you continue. When the time is up, every page and action stops, and you are shown a page explaining why and how to ask for more.
+
+In the last 48 hours, and after it has ended, you can ask from Your trial for more time or for a full account. The request goes to the platform administrators, who extend it, convert it or decline it with a reason; you see the answer on the same page. Only they can change a trial, and converting lifts every restriction at once. The same pages offer a guided demo or an advisory session with Waivern, where one can be booked, and point out that Govern is open source under the AGPL-3.0 and can be run on your own infrastructure.
+
+What you entered is kept for 30 days after the trial ends, so it can carry on if it is extended or converted. After that it is deleted with the same deletion an owner uses for a legal entity: the audit trail keeps who did what and when, with what changed erased, and the trial cannot be signed in to again.
+
+**See also:** What this is, and what it is not · Roles, and why you cannot see something · Approving, returning and rejecting
+
+<sub>Also searchable as: trial, free trial, 7 days, demo company, sample data, simulated colleagues, example files, extend trial, convert trial, personal email, book a demo</sub>
 
 ---
 

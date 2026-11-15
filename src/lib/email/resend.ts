@@ -1,5 +1,6 @@
 import { waivernHosted } from '@/lib/hosting';
 import { log } from '@/lib/log';
+import { isUndeliverable } from '@/lib/trial-rules';
 
 /**
  * Transactional email, through Resend.
@@ -80,8 +81,14 @@ export async function sendEmail(
 ): Promise<SendOutcome> {
   const config = options.config === undefined ? emailConfig() : options.config;
   if (!config) return { sent: false, reason: 'not_configured' };
+  // Never to an address that cannot be a real mailbox: a trial's simulated
+  // colleagues are at `.invalid`, and must not be mailed whatever asks.
   const to = [
-    ...new Set(email.to.map((a) => a.trim().toLowerCase()).filter(Boolean))
+    ...new Set(
+      email.to
+        .map((a) => a.trim().toLowerCase())
+        .filter((a) => a && !isUndeliverable(a))
+    )
   ];
   if (to.length === 0) return { sent: false, reason: 'no_recipients' };
 

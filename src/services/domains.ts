@@ -20,6 +20,7 @@ import {
 } from '@/lib/auth/domains';
 
 import type { Actor } from './templates';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * Email domains an organisation has claimed, and joining through them.
@@ -53,6 +54,7 @@ export async function claimDomain(input: {
   domain: string;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'member.manage');
   return withOrganisation(input.organisationId, async () => {
     const refusal = claimRefusal(input.domain);
     if (refusal === 'not_a_domain')
@@ -112,6 +114,7 @@ export async function verifyDomain(input: {
   actor: Actor;
   lookup?: TxtLookup;
 }) {
+  await refuseDuringTrial(input.organisationId, 'member.manage');
   return withOrganisation(input.organisationId, async () => {
     const [claim] = await db
       .select()

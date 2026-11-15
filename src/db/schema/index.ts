@@ -23,3 +23,4 @@ export * from './dpa2018';
 export * from './feedback';
 export * from './agreements';
 export * from './erasure';
+export * from './trials';

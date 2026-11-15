@@ -935,3 +935,48 @@ async function eraseEntity(
     })
   );
 }
+
+/**
+ * Delete a legal entity on the platform's own authority, with no link: for a
+ * trial whose time and grace period have run out (`services/trials.ts`),
+ * where nobody is left to confirm one. The same transaction as an owner's
+ * deletion, recorded the same way, against the person the trial was for.
+ */
+export async function eraseEntityForPlatform(input: {
+  organisationId: string;
+  entityId: string;
+  requestedBy: string;
+  requestedByEmail: string;
+  actor: Actor;
+}) {
+  const erasureId = await withOrganisation(input.organisationId, async () => {
+    const [entity] = await db
+      .select()
+      .from(entities)
+      .where(
+        and(
+          eq(entities.id, input.entityId),
+          eq(entities.organisationId, input.organisationId)
+        )
+      );
+    if (!entity)
+      throw new ErasureRefused('No such legal entity in this organisation.');
+    const [row] = await db
+      .insert(entityErasures)
+      .values({
+        organisationId: input.organisationId,
+        entityId: entity.id,
+        entityName: entity.name,
+        legalEntityRef: entity.legalEntityRef,
+        // Never sent: a token nobody holds, so the row cannot be confirmed
+        // from a link, and expires as the deletion runs.
+        tokenHash: await sha256Hex(randomBytes(32).toString('base64url')),
+        expiresAt: new Date(Date.now() + 5 * 60_000),
+        requestedBy: input.requestedBy,
+        requestedByEmail: input.requestedByEmail
+      })
+      .returning({ id: entityErasures.id });
+    return row.id;
+  });
+  return eraseEntity(erasureId, input.organisationId, input.actor);
+}

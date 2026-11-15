@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
 import { providerSummary, RETAIN_DAYS } from '@/services/assistant';
@@ -63,7 +64,14 @@ export default async function AssistantAdminPage() {
         </p>
       </section>
 
-      <ProviderForm existing={existing} />
+      {can(active.membership.grants, 'contact.outside') ? (
+        <ProviderForm existing={existing} />
+      ) : (
+        <TrialNotice
+          withheld="contact.outside"
+          what="AI provider"
+        />
+      )}
 
       {existing ? (
         <form

@@ -114,6 +114,8 @@ export async function inviteAction(
     const sectionKey = String(formData.get('sectionKey') ?? '') || null;
     if (!email) return { error: 'An email address is needed' };
 
+    // Somebody outside the organisation, by link: never during a trial.
+    await requireCapability('contact.outside');
     const { active } = await authorise(assessmentId, 'assessment.answer');
     const issued = await issueContributorLink({
       organisationId: active.membership.organisationId,

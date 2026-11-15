@@ -8,6 +8,7 @@ import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { JURISDICTION_SHORT, RIGHTS, type Right } from '@/lib/dsr/statutory';
@@ -68,6 +69,9 @@ export default async function RequestsPage() {
     ]);
   const origin = await requestOrigin();
   const mayConfigure = mayConfigureRequests(active.membership.grants);
+  // A public form reaches people outside the organisation: never in a trial.
+  const mayPublish =
+    mayConfigure && can(active.membership.grants, 'contact.outside');
   const mayRecordIn = orgEntities.filter((e) =>
     can(active.membership.grants, 'dsr.handle', e.id)
   );
@@ -393,7 +397,7 @@ export default async function RequestsPage() {
           how often one address can submit. It is one route among many: requests
           by email, post or in person still count.
         </p>
-        {intakeLinks.length > 0 || mayConfigure ? (
+        {intakeLinks.length > 0 || mayPublish ? (
           <AppearancePanel
             scope="organisation"
             appearance={appearances.organisation}
@@ -470,7 +474,13 @@ export default async function RequestsPage() {
             </>
           )}
         />
-        {mayConfigure && mayRecordIn.length > 0 ? (
+        {mayConfigure && !mayPublish ? (
+          <TrialNotice
+            withheld="contact.outside"
+            what="Public forms"
+          />
+        ) : null}
+        {mayPublish && mayRecordIn.length > 0 ? (
           <ActionForm
             action={issueIntakeLinkAction}
             submit="Create a form"

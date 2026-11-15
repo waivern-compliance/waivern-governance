@@ -7,6 +7,7 @@ import { Discussion } from '@/components/Discussion';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RaiseRiskForm } from '@/components/RaiseRiskForm';
 import { RiskTierBadge } from '@/components/RiskTierBadge';
+import { TrialNotice } from '@/components/trial/TrialNotice';
 import { categoryLabel } from '@/lib/ai-frameworks';
 import { legalRefMap } from '@/lib/legal-refs';
 import {
@@ -162,7 +163,13 @@ export default async function AssessmentPage({
         }
       />
 
-      {editable ? (
+      {editable &&
+      !can(active.membership.grants, 'contact.outside', assessment.entityId) ? (
+        <TrialNotice
+          withheld="contact.outside"
+          what="Contributors"
+        />
+      ) : editable ? (
         <InviteContributor
           assessmentId={id}
           sections={definition.schema.sections.map((s) => ({
@@ -181,6 +188,13 @@ export default async function AssessmentPage({
         />
       ) : null}
 
+      {active.membership.trial ? (
+        <p className="max-w-prose rounded border border-dashed border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          In a trial, the people these stages go to are simulated colleagues,
+          told in the app and never by email. Decide each stage yourself to see
+          what happens next.
+        </p>
+      ) : null}
       <Approvals
         assessmentId={id}
         gates={gates.map((g) => ({

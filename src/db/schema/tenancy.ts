@@ -299,7 +299,14 @@ export const users = pgTable('app_user', {
   emailNotifications: boolean('email_notifications').notNull().default(false),
   emailNotificationsChangedAt: timestamp('email_notifications_changed_at', {
     withTimezone: true
-  })
+  }),
+  /**
+   * A fictional colleague in a trial organisation, so its approvals and
+   * tasks have somebody to go to. Never signs in and is never emailed: the
+   * address is at `simulated.invalid`, a domain that cannot receive mail
+   * (`lib/trial-rules.ts`).
+   */
+  simulated: boolean('simulated').notNull().default(false)
 });
 
 /** Ties a person to an organisation. Revoking this revokes all their roles. */

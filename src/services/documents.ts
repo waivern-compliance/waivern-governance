@@ -11,9 +11,11 @@ import {
   scannerConfig,
   ScannerUnavailable
 } from '@/lib/documents/scan';
+import { sampleFile } from '@/lib/trial-samples';
 
 import type { Actor } from './templates';
 import { assertEntityIn, assertRecordIn } from './tenancy-guards';
+import { isTrial, refuseDuringTrial } from './trial-guard';
 
 /**
  * Files attached to a record.
@@ -207,6 +209,54 @@ export async function insertDocument(
 }
 
 export async function attachDocument(input: {
+  organisationId: string;
+  entityId: string | null;
+  subjectType: StoredDocument['subjectType'];
+  subjectId: string;
+  filename: string;
+  contentType: string;
+  description?: string | null;
+  content: Buffer;
+  actor: Actor;
+}) {
+  await refuseDuringTrial(input.organisationId, 'file.upload');
+  return storeDocument(input);
+}
+
+/**
+ * Attach one of the built-in example files (`lib/trial-samples.ts`): what a
+ * trial does instead of uploading. The caller names a sample, never sends
+ * content, so the bytes stored are ones the server already held. Only for a
+ * trial, where nobody can upload; anybody else uploads their own.
+ */
+export async function attachSampleDocument(input: {
+  organisationId: string;
+  entityId: string | null;
+  subjectType: StoredDocument['subjectType'];
+  subjectId: string;
+  sampleId: string;
+  actor: Actor;
+}) {
+  const sample = sampleFile(input.sampleId);
+  if (!sample || !sample.suits.includes(input.subjectType))
+    throw new Error('There is no such example file for this record.');
+  if (!(await isTrial(input.organisationId)))
+    throw new Error('Example files are for trials. Upload your own instead.');
+  return storeDocument({
+    organisationId: input.organisationId,
+    entityId: input.entityId,
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+    filename: sample.filename,
+    contentType: sample.contentType,
+    description: `${sample.label} (fictional example)`,
+    content: Buffer.from(sample.text, 'utf8'),
+    actor: input.actor
+  });
+}
+
+/** Check, scan and store a file against a record of the organisation's. */
+async function storeDocument(input: {
   organisationId: string;
   entityId: string | null;
   subjectType: StoredDocument['subjectType'];

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 
 import { refusable } from '@/lib/edit-result';
 import { can, mayConfigureInformationRequests } from '@/lib/rbac';
-import { NotPermitted, requireCapability } from '@/lib/session';
+import { NotPermitted, refusedUnless, requireCapability } from '@/lib/session';
 import { issueIntakeLink, revokeIntakeLink } from '@/services/dsr-intake';
 import {
   decideInformationRequestReview,
@@ -497,6 +497,8 @@ export async function issueFoiFormAction(
   _prev: Result,
   formData: FormData
 ): Promise<Result> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await requireCapability('foi.handle');
   if (!mayConfigureInformationRequests(active.membership.grants))
     return {

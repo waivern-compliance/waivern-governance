@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { eq, sql } from 'drizzle-orm';
 
-import { db, sql as pg } from '@/db/client';
+import { db, sql as pg, withOrganisation } from '@/db/client';
 import {
   aiConversations,
   auditEvents,
@@ -30,6 +30,9 @@ import {
   memberships,
   organisations,
   roleAssignments,
+  suppliers,
+  trialRequests,
+  trials,
   users
 } from '@/db/schema';
 import { currentDocument } from '@/lib/legal/documents';
@@ -86,6 +89,8 @@ import * as templatesSvc from '@/services/templates';
 import * as thirdParty from '@/services/third-party';
 import * as training from '@/services/training';
 import * as trends from '@/services/trends';
+import * as trialGuard from '@/services/trial-guard';
+import * as trialsSvc from '@/services/trials';
 import * as webhooks from '@/services/webhooks';
 import * as workflow from '@/services/workflow';
 
@@ -3583,11 +3588,185 @@ describe('lists', () => {
   });
 });
 
+describe('trials', () => {
+  /** A trial organisation, made directly: its entity, its one member, its trial. */
+  async function trialOrg(label: string, endsInMs = 3_600_000) {
+    const [org] = await db
+      .insert(organisations)
+      .values({
+        name: `Trial ${label}`,
+        slug: `trial-iso-${crypto.randomUUID().slice(0, 8)}`
+      })
+      .returning();
+    const [entity] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: `${label} Ltd`, isDefault: true })
+      .returning();
+    const email = `trial-${label}-${crypto.randomUUID().slice(0, 8)}@example.test`;
+    const [user] = await db.insert(users).values({ email }).returning();
+    const [membership] = await db
+      .insert(memberships)
+      .values({ organisationId: org.id, userId: user.id })
+      .returning();
+    await db.insert(roleAssignments).values({
+      membershipId: membership.id,
+      role: 'owner',
+      scope: 'organisation'
+    });
+    const [trial] = await db
+      .insert(trials)
+      .values({
+        organisationId: org.id,
+        userId: user.id,
+        canonicalEmail: email,
+        endsAt: new Date(Date.now() + endsInMs),
+        fictionalDataAcceptedAt: new Date()
+      })
+      .returning();
+    return { org, entity, user, trial };
+  }
+
+  it("shows one trial's record and requests to nobody else", async () => {
+    const a = await trialOrg('a');
+    const b = await trialOrg('b');
+    await trialsSvc.requestTrialChange({
+      userId: b.user.id,
+      email: b.user.email,
+      kind: 'convert',
+      organisationName: 'B Ltd',
+      message: "B's own words"
+    });
+    const [seenTrials, seenRequests] = await withOrganisation(
+      a.org.id,
+      async () => [
+        await db.select().from(trials),
+        await db.select().from(trialRequests)
+      ]
+    );
+    assert.deepEqual(
+      (seenTrials as Array<{ organisationId: string }>).map(
+        (t) => t.organisationId
+      ),
+      [a.org.id]
+    );
+    assert.equal(seenRequests.length, 0);
+  });
+
+  it('never treats one organisation as a trial because another is', async () => {
+    const a = await trialOrg('a');
+    const [full] = await db
+      .insert(organisations)
+      .values({
+        name: 'Full',
+        slug: `full-iso-${crypto.randomUUID().slice(0, 8)}`
+      })
+      .returning();
+    assert.equal(await trialGuard.isTrial(a.org.id), true);
+    assert.equal(await trialGuard.isTrial(full.id), false);
+    await trialGuard.refuseDuringTrial(full.id, 'file.upload');
+  });
+
+  it("reads only the person's own trial, and asks only about it", async () => {
+    const a = await trialOrg('a', 60_000);
+    const b = await trialOrg('b', 60_000);
+    const mine = await trialsSvc.trialOfUser(a.user.id);
+    assert.equal(mine?.trial.organisationId, a.org.id);
+    const asked = await trialsSvc.requestTrialChange({
+      userId: a.user.id,
+      email: a.user.email,
+      kind: 'extend',
+      organisationName: 'A Ltd',
+      message: 'More time'
+    });
+    assert.equal(asked.organisationId, a.org.id);
+    assert.equal((await trialsSvc.trialOfUser(b.user.id))?.pending, null);
+  });
+
+  it('changes only the trial a request belongs to', async () => {
+    const a = await trialOrg('a', 60_000);
+    const b = await trialOrg('b', 60_000);
+    const asked = await trialsSvc.requestTrialChange({
+      userId: a.user.id,
+      email: a.user.email,
+      kind: 'convert',
+      organisationName: 'A Ltd',
+      message: 'Convert us'
+    });
+    await trialsSvc.decideTrialRequest({
+      requestId: asked.id,
+      decidedByEmail: 'ops@waivern.test',
+      decision: 'convert'
+    });
+    assert.equal(await trialGuard.isTrial(a.org.id), false);
+    assert.equal(await trialGuard.isTrial(b.org.id), true);
+  });
+
+  it("will not attach an example file to another organisation's record", async () => {
+    const a = await trialOrg('a');
+    const b = await trialOrg('b');
+    const [theirs] = await db
+      .insert(suppliers)
+      .values({
+        organisationId: b.org.id,
+        name: "B's supplier",
+        canonicalKey: `b-${crypto.randomUUID()}`
+      })
+      .returning();
+    await assert.rejects(
+      documentsSvc.attachSampleDocument({
+        organisationId: a.org.id,
+        entityId: null,
+        subjectType: 'supplier',
+        subjectId: theirs.id,
+        sampleId: 'sample-dpa',
+        actor: SYSTEM
+      })
+    );
+  });
+
+  it("will not delete another organisation's entity on the platform's authority", async () => {
+    const a = await trialOrg('a');
+    const b = await trialOrg('b');
+    await assert.rejects(
+      entityErasure.eraseEntityForPlatform({
+        organisationId: a.org.id,
+        entityId: b.entity.id,
+        requestedBy: a.user.id,
+        requestedByEmail: a.user.email,
+        actor: SYSTEM
+      }),
+      entityErasure.ErasureRefused
+    );
+    const [still] = await db
+      .select()
+      .from(entities)
+      .where(eq(entities.id, b.entity.id));
+    assert.ok(still);
+  });
+});
+
 /**
  * Every exported service function, and how it is isolated. A new one fails
  * this until somebody adds it to a group above or says here why it needs none.
  */
 const NOT_TENANT_SCOPED: Record<string, string> = {
+  // Trials: sign-up belongs to no organisation, as organisation requests do.
+  'organisation-requests.setUpOrganisation':
+    'creates a new organisation, inside its own scope; covered through approveRequest and trials',
+  'trials.requestTrialLink':
+    'sign-up: belongs to no organisation until the link is used',
+  'trials.trialLinkState':
+    'sign-up: reads a link, which belongs to no organisation',
+  'trials.redeemTrialLink':
+    "sign-up: starts a new organisation of its own, or finds the address's own trial",
+  'trials.trialQueue':
+    "the platform administrators' queue, across every trial, read as the owner",
+  'trial-demo.addSimulatedColleagues':
+    "runs in the new trial's own transaction, inside its organisation, at sign-up",
+  'trial-demo.seedTrialDemo':
+    "fills the new trial through the ordinary services, each inside the trial's organisation",
+  'trials.purgeEndedTrials':
+    'a platform job: each trial is deleted inside its own organisation',
   // The checks themselves, exercised by every linking test above.
   'tenancy-guards.assertEntityIn': 'is the check',
   'tenancy-guards.assertMemberOf': 'is the check',

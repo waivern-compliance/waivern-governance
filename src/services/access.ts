@@ -14,6 +14,7 @@ import type { AppRole } from '@/lib/rbac';
 
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * Who may use this, and as what.
@@ -133,6 +134,7 @@ export async function inviteMember(input: {
   entityId?: string | null;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'member.manage');
   return withOrganisation(input.organisationId, async () => {
     const email = input.email.toLowerCase().trim();
     if (input.entityId)

@@ -36,6 +36,7 @@ import { appearanceForLink } from './form-appearance';
 import { forgetFrameOrigins } from './frame-origins';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 import { raiseTask } from './workflow';
 
 /**
@@ -120,6 +121,7 @@ export async function issueIntakeLink(input: {
   kind?: IntakeFormKind;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   const kind = input.kind ?? 'data_protection';
   const label = input.label.trim();
   if (!label)

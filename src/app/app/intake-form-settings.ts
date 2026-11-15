@@ -6,7 +6,7 @@ import {
   mayConfigureInformationRequests,
   mayConfigureRequests
 } from '@/lib/rbac';
-import { requireCapability } from '@/lib/session';
+import { refusedUnless, requireCapability } from '@/lib/session';
 import {
   setIntakeLinkFrameOrigins,
   type IntakeFormKind
@@ -122,6 +122,10 @@ export async function setFormAppearanceFrom(
   const file = formData.get('logo');
   const uploading = file instanceof File && file.size > 0;
   const removing = formData.get('removeLogo') === 'on';
+  if (uploading) {
+    const refusal = await refusedUnless('file.upload');
+    if (refusal) return refusal;
+  }
   if (uploading && removing)
     return {
       ok: false,

@@ -20,6 +20,7 @@ import {
 import { sendEmail, type EmailConfig } from '@/lib/email/resend';
 import { log } from '@/lib/log';
 import { pathFor } from '@/lib/records';
+import { isUndeliverable } from '@/lib/trial-rules';
 
 /**
  * Hands recorded notifications (`notification`) to email, for the people who
@@ -186,7 +187,10 @@ export async function deliverNotifications(
         n.recipient,
         task?.entityId ?? null
       );
-      const wanting = people.filter((p) => p.optedIn);
+      // A trial's simulated colleagues are told in the app only.
+      const wanting = people.filter(
+        (p) => p.optedIn && !isUndeliverable(p.email)
+      );
       if (wanting.length === 0) {
         plans.push({
           id: n.id,

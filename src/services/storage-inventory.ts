@@ -60,6 +60,7 @@ import {
   assertMemberOf,
   assertRecordIn
 } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 import { raiseTask } from './workflow';
 
 /**
@@ -634,6 +635,8 @@ export async function ingestAnalyserReport(input: {
   scanId?: string;
   actor: Actor;
 }) {
+  if (input.source === 'upload')
+    await refuseDuringTrial(input.organisationId, 'file.upload');
   const validated = validateReport(input.report);
   if (!validated.ok) throw new InventoryRefused(validated.reason);
   const stripped = stripReport(validated.report);

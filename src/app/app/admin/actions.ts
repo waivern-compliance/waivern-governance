@@ -18,7 +18,7 @@ import { entityAgreementFrom } from '@/lib/legal/acceptance';
 import { PERSONAS, type Persona } from '@/lib/persona';
 import { mayManageEntities, ROLES, type AppRole } from '@/lib/rbac';
 import { isScaleId, SCALES } from '@/lib/risk/scale';
-import { NotPermitted, requireCapability } from '@/lib/session';
+import { NotPermitted, refusedUnless, requireCapability } from '@/lib/session';
 import {
   inviteMember,
   LastOwnerRemains,
@@ -82,6 +82,8 @@ export async function inviteAction(
     return { ok: false, message: 'That is not an email address.' };
   if (!ROLES.includes(role)) return { ok: false, message: 'Choose a role.' };
 
+  const refusal = await refusedUnless('member.manage');
+  if (refusal) return refusal;
   const active = await requireCapability('member.manage');
   const persona = text(formData.get('persona'));
   const entityId = text(formData.get('entityId'));
@@ -162,6 +164,8 @@ export async function saveProviderAction(
   _prev: AdminResult,
   formData: FormData
 ): Promise<AdminResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await requireCapability('org.manage');
 
   const baseUrl = text(formData.get('baseUrl'));
@@ -218,6 +222,8 @@ export async function saveProviderAction(
 export async function testProviderAction(
   _prev: AdminResult
 ): Promise<AdminResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await requireCapability('org.manage');
   const result = await testProvider(active.membership.organisationId);
   return { ok: result.ok, message: result.detail };
@@ -366,6 +372,8 @@ export async function claimDomainAction(
   _prev: AdminResult,
   formData: FormData
 ): Promise<AdminResult> {
+  const refusal = await refusedUnless('member.manage');
+  if (refusal) return refusal;
   const active = await requireCapability('org.manage');
   return domainResult(async () => {
     const claim = await claimDomain({
@@ -381,6 +389,8 @@ export async function verifyDomainAction(
   claimId: string,
   _prev: AdminResult
 ): Promise<AdminResult> {
+  const refusal = await refusedUnless('member.manage');
+  if (refusal) return refusal;
   const active = await requireCapability('org.manage');
   return domainResult(async () => {
     const claim = await verifyDomain({
