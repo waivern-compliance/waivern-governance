@@ -1,5 +1,7 @@
 import { appRole } from '@/db/schema';
 
+import { withheldDuringTrial } from './trial-rules';
+
 export type AppRole = (typeof appRole.enumValues)[number];
 
 /**
@@ -84,7 +86,20 @@ export const CAPABILITIES = [
    * requester's name and address are still personal data, so not under
    * `record.read` either.
    */
-  'foi.handle'
+  'foi.handle',
+  /**
+   * Put a file into Govern: a document, evidence, an agreement, an import, a
+   * cookie report, a form's logo. Held by everyone who writes records, and
+   * withheld during a trial, which is text only (`lib/trial.ts`).
+   */
+  'file.upload',
+  /**
+   * Make Govern reach somebody or something outside the organisation: a
+   * contributor link, a public request form, joining by domain, an AI
+   * provider, the Consent Analyser, fetching a page. Held by everyone who
+   * writes records, and withheld during a trial, which reaches nobody.
+   */
+  'contact.outside'
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -100,6 +115,8 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
     'workflow.configure',
     'record.read',
     'record.write',
+    'file.upload',
+    'contact.outside',
     'assessment.create',
     'assessment.answer',
     'assessment.submit',
@@ -114,6 +131,8 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
   privacy_analyst: [
     'record.read',
     'record.write',
+    'file.upload',
+    'contact.outside',
     'assessment.create',
     'assessment.answer',
     'assessment.submit',
@@ -125,6 +144,8 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
   ai_governance: [
     'record.read',
     'record.write',
+    'file.upload',
+    'contact.outside',
     'assessment.create',
     'assessment.answer',
     'assessment.submit',
@@ -134,6 +155,8 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
   ai_governance_lead: [
     'record.read',
     'record.write',
+    'file.upload',
+    'contact.outside',
     'assessment.create',
     'assessment.answer',
     'assessment.submit',
@@ -148,7 +171,9 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
   // personal accountability, so they sit on their own role rather than being
   // bundled into an administrative one.
   approver: ['record.read', 'approval.decide', 'risk.accept'],
-  contributor: ['assessment.answer'],
+  // Contributors may send a section to somebody without an account, as they
+  // always could: that is reaching outside, which a trial is refused.
+  contributor: ['assessment.answer', 'contact.outside'],
   auditor: ['record.read', 'audit.read', 'audit.export']
 };
 
@@ -174,10 +199,38 @@ const KIND_LIMITS: Partial<Record<AppRole, readonly string[]>> = {
   ai_governance_lead: AI_LEAD_KINDS
 };
 
-/** One role grant: organisation-wide, or confined to a single legal entity. */
-export type Grant =
+/**
+ * One role grant: organisation-wide, or confined to a single legal entity.
+ * `trial` marks a grant in a trial organisation, which holds its role's
+ * capabilities except those a trial never has. It is read from the
+ * organisation's trial record on every request, never from a persona.
+ */
+export type Grant = (
   | { role: AppRole; scope: 'organisation' }
-  | { role: AppRole; scope: 'entity'; entityId: string };
+  | { role: AppRole; scope: 'entity'; entityId: string }
+) & { trial?: boolean };
+
+/** Does this one grant carry `capability`, wherever it applies? */
+function holds(g: Grant, capability: Capability): boolean {
+  if (g.trial && withheldDuringTrial(capability)) return false;
+  return ROLE_CAPABILITIES[g.role].includes(capability);
+}
+
+/**
+ * Whether these grants would hold `capability` but for a trial: what tells a
+ * refusal that is about the trial from one that is about the role.
+ */
+export function withheldByTrial(
+  grants: readonly Grant[],
+  capability: Capability
+): boolean {
+  return (
+    withheldDuringTrial(capability) &&
+    grants.some(
+      (g) => g.trial && ROLE_CAPABILITIES[g.role].includes(capability)
+    )
+  );
+}
 
 /**
  * Does this set of grants permit `capability`?
@@ -194,7 +247,7 @@ export function can(
   entityId?: string
 ): boolean {
   return grants.some((g) => {
-    if (!ROLE_CAPABILITIES[g.role].includes(capability)) return false;
+    if (!holds(g, capability)) return false;
     if (g.scope === 'organisation') return true;
     return entityId === undefined || g.entityId === entityId;
   });
@@ -270,8 +323,8 @@ export function mayConfigureInformationRequests(
   return grants.some(
     (g) =>
       g.scope === 'organisation' &&
-      ROLE_CAPABILITIES[g.role].includes('foi.handle') &&
-      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+      holds(g, 'foi.handle') &&
+      holds(g, 'workflow.configure')
   );
 }
 
@@ -289,8 +342,8 @@ export function mayConfigureRequests(grants: readonly Grant[]): boolean {
   return grants.some(
     (g) =>
       g.scope === 'organisation' &&
-      ROLE_CAPABILITIES[g.role].includes('dsr.handle') &&
-      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+      holds(g, 'dsr.handle') &&
+      holds(g, 'workflow.configure')
   );
 }
 
@@ -303,9 +356,7 @@ export function mayConfigureRequests(grants: readonly Grant[]): boolean {
  */
 export function mayConfigureAnalyser(grants: readonly Grant[]): boolean {
   return grants.some(
-    (g) =>
-      g.scope === 'organisation' &&
-      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+    (g) => g.scope === 'organisation' && holds(g, 'workflow.configure')
   );
 }
 
@@ -389,9 +440,7 @@ export function kindsFor(
   grants: readonly Grant[],
   capability: Capability
 ): string[] | null {
-  const holding = grants.filter((g) =>
-    ROLE_CAPABILITIES[g.role].includes(capability)
-  );
+  const holding = grants.filter((g) => holds(g, capability));
   if (!KIND_CAPABILITIES.includes(capability))
     return holding.length > 0 ? null : [];
   if (holding.some((g) => !KIND_LIMITS[g.role])) return null;
@@ -413,9 +462,7 @@ export function scopedEntityIds(
   grants: readonly Grant[],
   capability: Capability
 ): string[] | null {
-  const relevant = grants.filter((g) =>
-    ROLE_CAPABILITIES[g.role].includes(capability)
-  );
+  const relevant = grants.filter((g) => holds(g, capability));
   if (relevant.some((g) => g.scope === 'organisation')) return null;
   return [
     ...new Set(
@@ -438,6 +485,7 @@ export function mayImport(grants: readonly Grant[]): boolean {
   return grants.some(
     (g) =>
       g.scope === 'organisation' &&
-      ROLE_CAPABILITIES[g.role].includes('workflow.configure')
+      holds(g, 'workflow.configure') &&
+      holds(g, 'file.upload')
   );
 }

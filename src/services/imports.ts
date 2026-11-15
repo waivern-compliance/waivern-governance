@@ -48,6 +48,7 @@ import { canonicalise as canonicaliseByPush, nextReference } from './ingest';
 import { cleanLawfulBases } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise } from './third-party';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * Moving records in from another platform: upload, match columns to fields,
@@ -112,6 +113,7 @@ export async function uploadImport(input: {
   bytes: Uint8Array;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'file.upload');
   const sourceName = input.sourceName.trim().replace(/\s+/g, ' ');
   if (!sourceName)
     throw new ImportRefused(
@@ -352,6 +354,7 @@ export async function addImportFiles(input: {
   files: Array<{ filename: string; contentType: string; bytes: Uint8Array }>;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'file.upload');
   const batch = await withOrganisation(input.organisationId, async () => {
     const [found] = await db
       .select({

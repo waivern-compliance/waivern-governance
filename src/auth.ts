@@ -1,11 +1,11 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 
 import { db } from '@/db/client';
-import { memberships, users } from '@/db/schema';
+import { memberships, trials, users } from '@/db/schema';
 import { listsAddresses } from '@/lib/app-url';
 import {
   mayJoinByDomain,
@@ -15,7 +15,9 @@ import {
 import type { Persona } from '@/lib/persona';
 import { requestsOpen } from '@/lib/platform';
 import type { Grant } from '@/lib/rbac';
+import { trialsOpen } from '@/lib/trial';
 import { joinByVerifiedDomain } from '@/services/domains';
+import { redeemTrialLink } from '@/services/trials';
 
 /**
  * Only providers with credentials configured are offered, so a deployment can
@@ -64,7 +66,28 @@ function providers() {
           const row = await db.query.users.findFirst({
             where: eq(users.email, email)
           });
-          return row ? { id: row.id, email: row.email, name: row.name } : null;
+          return row && !row.simulated
+            ? { id: row.id, email: row.email, name: row.name }
+            : null;
+        }
+      })
+    );
+  }
+
+  // Self-service trials: the single-use link emailed to the address is the
+  // proof that it is theirs, so using it signs them in. Its own id, so it is
+  // never mistaken for the development sign-in above. See services/trials.ts.
+  if (trialsOpen()) {
+    list.push(
+      Credentials({
+        id: 'trial',
+        name: 'Trial link',
+        credentials: { token: { label: 'Token', type: 'text' } },
+        async authorize(credentials) {
+          const person = await redeemTrialLink(
+            String(credentials?.token ?? '')
+          );
+          return person ? { id: person.id, email: person.email } : null;
         }
       })
     );
@@ -84,6 +107,12 @@ export type SessionMembership = {
    * Null means unchosen, which is derived rather than defaulted to off.
    */
   guidance: 'off' | 'setup' | 'maintain' | null;
+  /**
+   * When the organisation is a trial that has not been converted: when it
+   * ends. Its grants are marked `trial`, which withholds what a trial may
+   * never do (`lib/trial.ts`).
+   */
+  trial: { endsAt: Date } | null;
 };
 
 /**
@@ -125,6 +154,9 @@ async function loadIdentity(
     });
   }
   if (!existing) return null;
+  // A trial's simulated colleague is a name on tasks, never somebody who
+  // signs in, whatever provider claims the address.
+  if (existing.simulated) return null;
 
   await db
     .update(users)
@@ -167,17 +199,45 @@ export async function loadMemberships(
     with: { organisation: true, roles: true }
   });
 
-  return rows.map((m) => ({
-    organisationId: m.organisationId,
-    organisationName: m.organisation.name,
-    persona: m.persona,
-    guidance: m.guidance,
-    grants: m.roles.map((r) =>
-      r.scope === 'entity' && r.entityId
-        ? { role: r.role, scope: 'entity' as const, entityId: r.entityId }
-        : { role: r.role, scope: 'organisation' as const }
-    )
-  }));
+  // Read with the memberships, on every request, for the same reason: an
+  // administrator's conversion or extension takes effect at once.
+  const trialRows = rows.length
+    ? await db
+        .select({
+          organisationId: trials.organisationId,
+          endsAt: trials.endsAt,
+          status: trials.status
+        })
+        .from(trials)
+        .where(
+          inArray(
+            trials.organisationId,
+            rows.map((m) => m.organisationId)
+          )
+        )
+    : [];
+  const trialOf = new Map(
+    trialRows
+      .filter((t) => t.status !== 'converted')
+      .map((t) => [t.organisationId, { endsAt: t.endsAt }])
+  );
+
+  return rows.map((m) => {
+    const trial = trialOf.get(m.organisationId) ?? null;
+    return {
+      organisationId: m.organisationId,
+      organisationName: m.organisation.name,
+      persona: m.persona,
+      guidance: m.guidance,
+      trial,
+      grants: m.roles.map((r) => ({
+        ...(r.scope === 'entity' && r.entityId
+          ? { role: r.role, scope: 'entity' as const, entityId: r.entityId }
+          : { role: r.role, scope: 'organisation' as const }),
+        ...(trial ? { trial: true } : {})
+      }))
+    };
+  });
 }
 
 /** How long a sign-in lasts before the identity provider is asked again. */

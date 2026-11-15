@@ -166,6 +166,11 @@ export default async function PolicyDocumentPage({
         revalidate={`/app/policy-documents/${doc.id}`}
         documents={files}
         mayEdit={mayEdit}
+        mayUpload={can(
+          active.membership.grants,
+          'file.upload',
+          doc.entityId ?? undefined
+        )}
         what="The policy document"
       />
 

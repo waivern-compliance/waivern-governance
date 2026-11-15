@@ -799,6 +799,20 @@
       "when": 1794510278866,
       "tag": "0113_entity_erasure",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1794773128050,
+      "tag": "0114_trials",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1794773129745,
+      "tag": "0115_trial_guards",
+      "breakpoints": true
     }
   ]
 }

@@ -1,24 +1,19 @@
 import { headers } from 'next/headers';
 
+import { visitorAddress } from '@/lib/visitor-address';
 import type { EntityAgreementInput } from '@/services/agreements';
 
 /**
  * Where an acceptance came from: the address and browser that sent it. Part of
  * the evidence that the person named, and nobody else, ticked the boxes.
- *
- * Behind the hosting provider's proxy the client's address is the first in
- * `x-forwarded-for`; the proxy sets the header, so a client cannot put an
- * address in front of its own.
  */
 export async function acceptanceOrigin(): Promise<{
   ipAddress: string | null;
   userAgent: string | null;
 }> {
-  const h = await headers();
-  const forwarded = h.get('x-forwarded-for')?.split(',')[0]?.trim();
   return {
-    ipAddress: forwarded || h.get('x-real-ip') || null,
-    userAgent: h.get('user-agent')
+    ipAddress: await visitorAddress(),
+    userAgent: (await headers()).get('user-agent')
   };
 }
 

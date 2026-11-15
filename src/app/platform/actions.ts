@@ -18,6 +18,7 @@ import {
   declineRequest,
   RequestRefused
 } from '@/services/organisation-requests';
+import { decideTrialRequest, TrialRefused } from '@/services/trials';
 
 export type DecisionResult = { ok: boolean; message: string } | null;
 
@@ -107,4 +108,52 @@ export async function sendTestEmailAction(): Promise<DecisionResult> {
     reason: outcome.sent ? null : outcome.reason
   });
   return describeTestOutcome(outcome, platformAdmins().length);
+}
+
+/** Extend a trial, convert it to a full account, or decline what it asked. */
+export async function decideTrialAction(
+  requestId: string,
+  _prev: DecisionResult,
+  formData: FormData
+): Promise<DecisionResult> {
+  const email = await operator();
+  const decision = String(formData.get('decision') ?? '');
+  try {
+    if (decision === 'extend') {
+      const days = Number(formData.get('days'));
+      await decideTrialRequest({
+        requestId,
+        decidedByEmail: email,
+        decision: 'extend',
+        days
+      });
+      revalidatePath('/platform');
+      return { ok: true, message: `Extended by ${days} days.` };
+    }
+    if (decision === 'convert') {
+      await decideTrialRequest({
+        requestId,
+        decidedByEmail: email,
+        decision: 'convert'
+      });
+      revalidatePath('/platform');
+      return {
+        ok: true,
+        message:
+          'Converted. It is a full account now, with nothing withheld and no end.'
+      };
+    }
+    await decideTrialRequest({
+      requestId,
+      decidedByEmail: email,
+      decision: 'decline',
+      note: String(formData.get('note') ?? '')
+    });
+    revalidatePath('/platform');
+    return { ok: true, message: 'Declined. They will see why.' };
+  } catch (error) {
+    if (error instanceof TrialRefused)
+      return { ok: false, message: error.message };
+    throw error;
+  }
 }

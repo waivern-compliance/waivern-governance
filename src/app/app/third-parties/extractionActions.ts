@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { requireCapability } from '@/lib/session';
+import { refusedUnless, requireCapability } from '@/lib/session';
 import {
   decideFinding,
   declineLink,
@@ -89,6 +89,8 @@ export async function followLinkAction(
   context: { entityId: string | null; revalidate: string },
   _prev: ExtractionResult
 ): Promise<ExtractionResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await requireCapability(
     'record.write',
     context.entityId ? { entityId: context.entityId } : undefined

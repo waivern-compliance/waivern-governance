@@ -9,7 +9,7 @@ import { aiUseCases, evidence, processingActivities } from '@/db/schema';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import type { RecordType } from '@/lib/import/fields';
 import { can, mayImport } from '@/lib/rbac';
-import { NotPermitted, requireCapability } from '@/lib/session';
+import { NotPermitted, refusedUnless, requireCapability } from '@/lib/session';
 import {
   addImportFiles,
   commitImport,
@@ -45,6 +45,8 @@ export async function uploadImportAction(
   _prev: EditResult,
   formData: FormData
 ): Promise<EditResult> {
+  const refusal = await refusedUnless('file.upload');
+  if (refusal) return refusal;
   const { organisationId, actor } = await importer();
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0)
@@ -129,6 +131,8 @@ export async function addImportFilesAction(
   _prev: EditResult,
   formData: FormData
 ): Promise<EditResult> {
+  const refusal = await refusedUnless('file.upload');
+  if (refusal) return refusal;
   const { organisationId, actor } = await importer();
   const files = formData
     .getAll('files')
@@ -181,6 +185,8 @@ export async function readImportedAgreementsAction(
   batchId: string,
   _prev: EditResult
 ): Promise<EditResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const { organisationId, actor } = await importer();
   let outcome: Awaited<ReturnType<typeof readImportedAgreements>> | null = null;
   const result = await refusable(async () => {

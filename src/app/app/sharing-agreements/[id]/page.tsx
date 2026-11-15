@@ -510,6 +510,11 @@ export default async function SharingAgreementPage({
         revalidate={`/app/sharing-agreements/${agreement.id}`}
         documents={files}
         mayEdit={mayEdit}
+        mayUpload={can(
+          active.membership.grants,
+          'file.upload',
+          agreement.entityId ?? undefined
+        )}
         what="The signed agreement"
       />
 

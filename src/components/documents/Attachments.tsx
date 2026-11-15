@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 
 import {
+  attachSampleAction,
   moveDocumentAction,
   removeDocumentAction,
   uploadDocumentsAction,
@@ -11,6 +12,8 @@ import {
 import { EditForm } from '@/components/EditForm';
 import { ACCEPTED, MAX_BYTES } from '@/lib/documents/limits';
 import { savedKey } from '@/lib/saved-key';
+import { TRIAL_REFUSAL } from '@/lib/trial-rules';
+import { samplesFor } from '@/lib/trial-samples';
 import type { StoredDocument } from '@/services/documents';
 
 /** Somewhere else on this third party a file could belong instead. */
@@ -35,6 +38,7 @@ export function Attachments({
   revalidate,
   documents,
   mayEdit,
+  mayUpload = mayEdit,
   what,
   moveTargets = []
 }: {
@@ -44,6 +48,11 @@ export function Attachments({
   revalidate: string;
   documents: Array<StoredDocument & { uploaderEmail: string | null }>;
   mayEdit: boolean;
+  /**
+   * Whether new files may be added. Separate from editing because a trial
+   * edits records but uploads nothing; there the box explains why instead.
+   */
+  mayUpload?: boolean;
   /** What these are, in the words of the record they hang off. */
   what: string;
   /**
@@ -157,7 +166,12 @@ export function Attachments({
         </p>
       )}
 
-      {mayEdit ? (
+      {mayEdit && !mayUpload ? (
+        <SampleFiles
+          context={{ subjectType, subjectId, entityId, revalidate }}
+        />
+      ) : null}
+      {mayEdit && mayUpload ? (
         <form
           action={action}
           className="space-y-2 rounded border border-dashed border-line p-3"
@@ -204,6 +218,60 @@ export function Attachments({
             {pending ? 'Uploading…' : 'Attach'}
           </button>
         </form>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * In a trial, where nothing can be uploaded: the built-in example files that
+ * suit this record, each attached by name in one click.
+ */
+function SampleFiles({
+  context
+}: {
+  context: {
+    subjectType: StoredDocument['subjectType'];
+    subjectId: string;
+    entityId: string | null;
+    revalidate: string;
+  };
+}) {
+  const [result, action, pending] = useActionState<UploadResult, FormData>(
+    attachSampleAction.bind(null, context),
+    null
+  );
+  const samples = samplesFor(context.subjectType);
+  return (
+    <div className="space-y-2 rounded border border-dashed border-line p-3 text-xs">
+      <p className="text-ink-soft">{TRIAL_REFUSAL['file.upload']}</p>
+      {samples.length > 0 ? (
+        <form
+          action={action}
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span className="text-ink-soft">Attach a fictional example:</span>
+          {samples.map((s) => (
+            <button
+              key={s.id}
+              type="submit"
+              name="sample"
+              value={s.id}
+              disabled={pending}
+              className="rounded border border-line bg-surface px-2.5 py-1 hover:border-brand disabled:opacity-50"
+            >
+              {s.label}
+            </button>
+          ))}
+        </form>
+      ) : null}
+      {result ? (
+        <p
+          role="status"
+          className={result.ok ? 'text-emerald-800' : 'text-amber-900'}
+        >
+          {result.message}
+        </p>
       ) : null}
     </div>
   );

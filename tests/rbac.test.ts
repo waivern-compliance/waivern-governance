@@ -61,7 +61,12 @@ describe('role definitions', () => {
     assert.deepEqual(writes, []);
   });
 
-  it('limits a contributor to answering questions', () => {
-    assert.deepEqual(capabilitiesFor('contributor'), ['assessment.answer']);
+  it('limits a contributor to answering questions, and sending a section on', () => {
+    // Sending a section to somebody without an account is reaching outside,
+    // which a contributor always could and a trial never can.
+    assert.deepEqual(capabilitiesFor('contributor'), [
+      'assessment.answer',
+      'contact.outside'
+    ]);
   });
 });

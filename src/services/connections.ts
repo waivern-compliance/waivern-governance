@@ -7,6 +7,7 @@ import { newSecret, sealSecret } from '@/lib/integration/crypto';
 
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 
 export type ProvisionedConnection = {
   id: string;
@@ -22,6 +23,7 @@ export async function createConnection(input: {
   webhookUrl?: string;
   actor: Actor;
 }): Promise<ProvisionedConnection> {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   return withOrganisation(input.organisationId, async () => {
     const secret = newSecret();
     const sealed = sealSecret(secret);
@@ -67,6 +69,7 @@ export async function rotateSecret(input: {
   organisationId: string;
   actor: Actor;
 }): Promise<ProvisionedConnection> {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   return withOrganisation(input.organisationId, async () => {
     const secret = newSecret();
     const sealed = sealSecret(secret);

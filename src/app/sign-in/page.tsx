@@ -8,6 +8,7 @@ import { HOSTED, waivernHosted } from '@/lib/hosting';
 import { requestsOpen } from '@/lib/platform';
 import { PRODUCT_DESCRIPTION, SOURCE_CODE_URL } from '@/lib/product';
 import { getActiveSession } from '@/lib/session';
+import { TRIAL_LENGTH, trialsOpen } from '@/lib/trial';
 
 import { Hero, Pitch } from './Pitch';
 import { ProviderButton, providerLabel } from './ProviderButton';
@@ -44,7 +45,9 @@ export default async function SignIn({
     };
   });
   const sso = providers.filter((p) => p.type !== 'credentials');
-  const dev = providers.find((p) => p.type === 'credentials');
+  // A trial's link is not a button here; it signs in from /trial/start.
+  const dev = providers.find((p) => p.id === 'credentials');
+  const trials = trialsOpen();
 
   // What a newcomer gets, beside the buttons. Each is true of the hosted
   // service only, so a self-hosted copy shows none of them.
@@ -161,6 +164,22 @@ export default async function SignIn({
                   sign-on.
                 </p>
               )}
+
+              {trials ? (
+                <div className="space-y-2 border-t border-line pt-4">
+                  <p className="text-sm text-ink-soft">
+                    No work account to hand? Try it for {TRIAL_LENGTH} with any
+                    email address you can read, personal ones included. Already
+                    trying it? Ask for a new link there.
+                  </p>
+                  <Link
+                    href="/trial"
+                    className="block w-full rounded border border-brand px-4 py-2 text-center text-sm font-medium text-brand hover:bg-brand/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  >
+                    Start a {TRIAL_LENGTH} trial
+                  </Link>
+                </div>
+              ) : null}
 
               {promises.length > 0 ? (
                 <CheckList

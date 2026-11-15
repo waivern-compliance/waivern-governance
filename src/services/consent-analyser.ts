@@ -23,6 +23,7 @@ import {
 
 import { ingestAnalyserReport, InventoryRefused } from './storage-inventory';
 import type { Actor } from './templates';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * Scanning a website with the Waivern Consent Analyser from inside Govern.
@@ -119,6 +120,7 @@ export async function setAnalyserSettings(
   },
   options: ScanOptions = {}
 ) {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   const url = input.url.trim().replace(/\/+$/, '') || DEFAULT_ANALYSER_URL;
   if (!localAnalyserAllowed(url)) {
     if (!url.startsWith('https://'))
@@ -213,6 +215,7 @@ export async function startPropertyScan(
   },
   options: ScanOptions = {}
 ) {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   return withOrganisation(input.organisationId, async () => {
     const [property] = await db
       .select()
@@ -382,6 +385,7 @@ export async function checkPropertyScan(
   },
   options: ScanOptions = {}
 ): Promise<ScanProgress> {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   const actor = input.actor ?? SYSTEM;
   return withOrganisation(input.organisationId, async () => {
     const [row] = await db

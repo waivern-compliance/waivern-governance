@@ -21,6 +21,7 @@ import { PRODUCT_NAME } from '@/lib/product';
 
 import type { Actor } from './templates';
 import { assertRecordIn, NotInOrganisation } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 
 /**
  * The assistant, such as it is permitted to be.
@@ -441,6 +442,7 @@ export async function saveProvider(input: {
   isActive: boolean;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   return withOrganisation(input.organisationId, async () => {
     const settings: ProviderSettings = {
       kind: input.kind,
@@ -592,6 +594,7 @@ export async function testProvider(organisationId: string): Promise<{
   detail: string;
   model?: string;
 }> {
+  await refuseDuringTrial(organisationId, 'contact.outside');
   const configured = await providerFor(organisationId);
   if (!configured) return { ok: false, detail: 'No model is configured.' };
 

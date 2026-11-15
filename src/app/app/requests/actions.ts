@@ -7,7 +7,7 @@ import type { Regime } from '@/lib/dpa2018/part3';
 import type { Jurisdiction, ProcessingBasis } from '@/lib/dsr/statutory';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { mayConfigureRequests } from '@/lib/rbac';
-import { requireCapability } from '@/lib/session';
+import { refusedUnless, requireCapability } from '@/lib/session';
 import {
   addScopeEntry,
   closeRequest,
@@ -446,6 +446,8 @@ export async function issueIntakeLinkAction(
   _prev: RequestResult,
   formData: FormData
 ): Promise<RequestResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
   const active = await requireCapability('dsr.handle');
   if (!mayConfigureRequests(active.membership.grants)) {
     return {

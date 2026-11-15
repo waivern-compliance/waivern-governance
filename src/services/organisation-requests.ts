@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, like, sql } from 'drizzle-orm';
 
-import { db, withOrganisation } from '@/db/client';
+import { db, withOrganisation, type Db } from '@/db/client';
 import {
   entities,
   memberships,
@@ -17,7 +17,7 @@ import { RETENTION_DEFAULTS, slugFor } from '@/lib/organisation/defaults';
 import { DEFAULT_SLA } from '@/lib/workflow/defaults';
 
 import { installShippedWorkflows } from './approval-routing';
-import { installShippedTemplates } from './templates';
+import { installShippedTemplates, type Actor } from './templates';
 
 /**
  * Requests for new organisations, and creating one when a request is approved.
@@ -27,6 +27,8 @@ import { installShippedTemplates } from './templates';
  * set up inside its own scope, under its row-level security, through the same
  * installers an existing organisation uses.
  */
+
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export class RequestRefused extends Error {}
 
@@ -148,20 +150,30 @@ async function freeSlug(name: string): Promise<string> {
  * If any of it fails the organisation is removed again, so a half-built one
  * never appears in anybody's switcher.
  */
-async function setUpOrganisation(input: {
+export async function setUpOrganisation(input: {
   organisationName: string;
   entityName: string;
+  /** Its own, rather than one made from the name. */
+  slug?: string;
   owner: { id: string; email: string } | { email: string };
-  actor: { actorKind: 'user'; actorUserId: null; actorLabel: string };
+  actor: Actor;
   /** What the audit records about how it came about. */
   origin: Record<string, unknown>;
+  /**
+   * More to set up in the same transaction, once the organisation, its
+   * entity and its owner exist: a trial's record, say.
+   */
+  also?: (
+    tx: Tx,
+    created: { organisationId: string; ownerId: string }
+  ) => Promise<void>;
 }) {
   const { actor } = input;
   const [org] = await db
     .insert(organisations)
     .values({
       name: input.organisationName,
-      slug: await freeSlug(input.organisationName)
+      slug: input.slug ?? (await freeSlug(input.organisationName))
     })
     .returning();
 
@@ -253,6 +265,7 @@ async function setUpOrganisation(input: {
             scope: 'organisation'
           }
         });
+        await input.also?.(tx, { organisationId: org.id, ownerId });
       });
       await installShippedTemplates({ organisationId: org.id, actor });
       await installShippedWorkflows({ organisationId: org.id, actor });

@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
   and,
   count,
@@ -29,6 +29,7 @@ import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
 import { regulatorFor } from '@/lib/gdpr/establishment';
 import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
 import { formIsOpen } from '@/lib/intake-forms';
+import { hashVisitor, openedAt, openingToken } from '@/lib/public-form';
 
 import { ComplaintRefused, recordComplaint } from './complaints';
 import { recordRequest, RequestRefused } from './data-subject-requests';
@@ -36,6 +37,7 @@ import { appearanceForLink } from './form-appearance';
 import { forgetFrameOrigins } from './frame-origins';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 import { raiseTask } from './workflow';
 
 /**
@@ -68,21 +70,9 @@ export const FIELD_LIMITS = {
   description: 5000
 } as const;
 
-function secret(): string {
-  const value = process.env.AUTH_SECRET;
-  if (value) return value;
-  // Without a secret the address hashes could be reversed by trying every
-  // IPv4 address, so production refuses to run the form at all.
-  if (process.env.NODE_ENV === 'production')
-    throw new Error('AUTH_SECRET is required for the request form');
-  return 'govern-development-only';
-}
-
 /** An address, made unreadable. Kept a day, for rate limiting only. */
 export function hashAddress(address: string): string {
-  return createHmac('sha256', secret())
-    .update(`dsr-intake:${address}`)
-    .digest('hex');
+  return hashVisitor('dsr-intake', address);
 }
 
 /**
@@ -92,24 +82,7 @@ export function hashAddress(address: string): string {
  * trust, without storing anything about the visitor between the two requests.
  */
 export function startedToken(slug: string, at = new Date()): string {
-  const issued = String(at.getTime());
-  const mac = createHmac('sha256', secret())
-    .update(`${slug}.${issued}`)
-    .digest('base64url');
-  return `${issued}.${mac}`;
-}
-
-function startedAt(slug: string, token: string): Date | null {
-  const [issued, mac] = token.split('.');
-  if (!issued || !mac) return null;
-  const expected = createHmac('sha256', secret())
-    .update(`${slug}.${issued}`)
-    .digest('base64url');
-  const a = Buffer.from(mac);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  const at = new Date(Number(issued));
-  return Number.isNaN(at.getTime()) ? null : at;
+  return openingToken(slug, at);
 }
 
 export async function issueIntakeLink(input: {
@@ -120,6 +93,7 @@ export async function issueIntakeLink(input: {
   kind?: IntakeFormKind;
   actor: Actor;
 }) {
+  await refuseDuringTrial(input.organisationId, 'contact.outside');
   const kind = input.kind ?? 'data_protection';
   const label = input.label.trim();
   if (!label)
@@ -367,7 +341,7 @@ export async function admit(
       refused:
         'This could not be sent. Please contact the organisation directly by email or post.'
     };
-  const at = startedAt(slug, started);
+  const at = openedAt(slug, started);
   if (!at || now.getTime() - at.getTime() > MAX_OPEN_HOURS * 3_600_000) {
     return {
       refused:

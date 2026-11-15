@@ -4,12 +4,15 @@ import { redirect } from 'next/navigation';
 import { NotPermitted } from '@/components/NotPermitted';
 import { can, type Capability } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
+import { TRIAL_REFUSAL } from '@/lib/trial-rules';
 
 const SETTINGS: Array<{
   href: string;
   title: string;
   detail: string;
   capability: Capability;
+  /** A second capability it needs: what a trial is refused. */
+  also?: Capability;
 }> = [
   {
     href: '/app/admin/organisation',
@@ -37,14 +40,16 @@ const SETTINGS: Array<{
     title: 'Import records',
     detail:
       'Bring records in from another platform, such as OneTrust or Vanta, or from a spreadsheet: match the columns, preview every row, then import. An import can be undone until its records are worked on.',
-    capability: 'workflow.configure'
+    capability: 'workflow.configure',
+    also: 'file.upload'
   },
   {
     href: '/app/admin/assistant',
     title: 'Assistant',
     detail:
       'Point the platform at a model you control, and choose where it may appear. Off until you configure it.',
-    capability: 'org.manage'
+    capability: 'org.manage',
+    also: 'contact.outside'
   }
 ];
 
@@ -52,8 +57,10 @@ export default async function AdminPage() {
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
-  const available = SETTINGS.filter((s) =>
-    can(active.membership.grants, s.capability)
+  const available = SETTINGS.filter(
+    (s) =>
+      can(active.membership.grants, s.capability) &&
+      (!s.also || can(active.membership.grants, s.also))
   );
   if (available.length === 0) {
     return (
@@ -95,6 +102,13 @@ export default async function AdminPage() {
           </li>
         ))}
       </ul>
+
+      {active.membership.trial ? (
+        <p className="max-w-prose rounded border border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          People and access, imports and the assistant are not available during
+          a trial. {TRIAL_REFUSAL['member.manage']}
+        </p>
+      ) : null}
 
       <p className="max-w-prose text-xs text-ink-soft">
         Assessment templates are configured under their own screen, since

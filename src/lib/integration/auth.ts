@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db/client';
 import { integrationConnections } from '@/db/schema';
+import { isTrial } from '@/services/trial-guard';
 
 import { openSecret, verifyRequest } from './crypto';
 
@@ -109,6 +110,12 @@ export async function authenticate(
   if (!INGEST_KINDS.includes(connection.kind as IngestKind)) {
     return { ok: false, failure: REFUSED };
   }
+
+  // A trial reaches nothing outside it, and nothing outside reaches it. No
+  // connection can be made for one (`createConnection` refuses), and this
+  // refuses one that exists anyway, without saying why.
+  if (await isTrial(connection.organisationId))
+    return { ok: false, failure: REFUSED };
 
   let secret: string;
   try {

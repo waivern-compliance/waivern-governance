@@ -524,6 +524,7 @@ export default async function SupplierPage({
                 revalidate={here}
                 documents={docsByDpa.get(d.id) ?? []}
                 mayEdit={mayEdit}
+                mayUpload={can(active.membership.grants, 'file.upload')}
                 what="the signed agreement and its schedules go here"
                 moveTargets={moveTargets(`dpa:${d.id}`)}
               />
@@ -570,6 +571,7 @@ export default async function SupplierPage({
           revalidate={here}
           documents={supplierDocs}
           mayEdit={mayEdit}
+          mayUpload={can(active.membership.grants, 'file.upload')}
           what="due diligence, certifications, an audit report"
           moveTargets={moveTargets(`supplier:${supplier.id}`)}
         />
