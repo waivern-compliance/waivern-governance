@@ -69,8 +69,6 @@ const DEMO_ACTOR: Actor = {
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-const ago = (ms: number) => new Date(Date.now() - ms);
-const ahead = (ms: number) => new Date(Date.now() + ms);
 
 /** A colleague's address: theirs alone, in this trial alone, at a domain nobody can mail. */
 export function colleagueAddress(local: string, organisationId: string) {
@@ -133,8 +131,12 @@ export async function seedTrialDemo(input: {
   entityId: string;
   ownerId: string;
   colleagues: Map<AppRole, string>;
+  /** When the trial started: the demo's dates are set from it. */
+  now: Date;
 }) {
   const { organisationId, entityId } = input;
+  const ago = (ms: number) => new Date(input.now.getTime() - ms);
+  const ahead = (ms: number) => new Date(input.now.getTime() + ms);
   const base = { organisationId, actor: DEMO_ACTOR };
   const analyst = input.colleagues.get('privacy_analyst') ?? input.ownerId;
   const aiLead = input.colleagues.get('ai_governance') ?? input.ownerId;

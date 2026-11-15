@@ -9,7 +9,7 @@ import { agreementStatus } from '@/services/agreements';
 import { waivernHosted } from './hosting';
 import { resolvePersona, type Persona } from './persona';
 import { can, scopedEntityIds, withheldByTrial, type Capability } from './rbac';
-import { TRIAL_REFUSAL, type TRIAL_WITHHELD } from './trial';
+import { hasEnded, TRIAL_REFUSAL, type TRIAL_WITHHELD } from './trial';
 
 export class NotAuthenticated extends Error {
   constructor() {
@@ -135,15 +135,21 @@ export async function getActiveSession(
   // to null and lands back at sign-in, rather than rendering a half-broken page
   // against records it can no longer reach.
   const memberships = await loadMemberships(session.user.id);
+  // An ended trial is chosen only when nothing else is: somebody who also
+  // belongs to a real organisation carries on there, and can still open
+  // the ended trial's own page.
+  const usable = memberships.filter((m) => !trialEnded(m));
   const membership = organisationId
     ? memberships.find((m) => m.organisationId === organisationId)
-    : chooseMembership(memberships, await preferredOrganisation());
+    : chooseMembership(
+        usable.length > 0 ? usable : memberships,
+        await preferredOrganisation()
+      );
   if (!membership) return null;
 
   // A trial stops at its end, everywhere at once: every page, action and
   // download resolves its caller here.
-  if (membership.trial && membership.trial.endsAt.getTime() <= Date.now())
-    redirect(TRIAL_ENDED_PATH);
+  if (trialEnded(membership)) redirect(TRIAL_ENDED_PATH);
 
   if (
     opts.agreements !== 'skip' &&
@@ -163,8 +169,12 @@ export async function getActiveSession(
     name: session.user.name ?? null,
     membership,
     persona: resolvePersona(membership.persona, membership.grants),
-    organisations: chooseMembershipOrder(memberships)
+    organisations: chooseMembershipOrder(usable)
   };
+}
+
+function trialEnded(membership: SessionMembership): boolean {
+  return Boolean(membership.trial && hasEnded(membership.trial.endsAt));
 }
 
 export async function requireSession(

@@ -34,8 +34,12 @@ it to a full account. Off unless `TRIAL_SIGN_UP=true`.
 
 One mailbox has one trial, ever (lower case, no `+tag`, no dots for Gmail).
 A session lasts 12 hours, as any does; asking again on `/trial` signs back in.
+Somebody who also belongs to a real organisation carries on there once the
+trial ends; only someone with nothing else is sent to `/trial/ended`.
 
-Anti-abuse, beyond the limits of 3 an hour for each mailbox, 5 an hour and 20
+The limits are counted and the attempt recorded under one advisory lock, so
+a burst sent at once cannot all read the same count. Anti-abuse, beyond the
+limits of 3 an hour for each mailbox, 5 an hour and 20
 a day for each IP address (HMAC, as the public forms keep theirs), and 100 an
 hour overall:
 
@@ -137,15 +141,28 @@ offer two things:
 ## After it ends
 
 Records are kept for 30 days after the end, so a late conversion keeps its
-work. Then the hourly sweep (`purgeEndedTrials`) does three things. It makes
-an empty entity the default, because entity deletion never takes the last or
-default one. It deletes every other entity through `eraseEntityForPlatform`:
-the same transaction as an owner's deletion (PR #49), with the audit chain
-kept whole and the contents of its events erased. Finally it ends the
-memberships, deletes the trial's requests and sign-up rows, and marks the
-trial `purged`.
+work. A request made before then holds the trial back until an
+administrator answers it; none can be made after. Then the hourly sweep
+(`purgeEndedTrials`) does three things, re-checking under a lock on the
+trial row, which requests and decisions take too, that nothing extended,
+converted or asked about it since it was found due. It makes an empty
+entity the default, because entity deletion never takes the last or default
+one. It deletes every other entity through `eraseEntityForPlatform`: the
+same transaction as an owner's deletion (PR #49), with the audit chain kept
+whole and the contents of its events erased. Finally it ends the
+memberships, deletes the trial's requests and sign-up rows, erases the
+contents of the audit events about the trial and its requests (all but the
+fictional-data acceptance, which holds only a time and a fixed statement),
+clears the organisation name the person gave, and marks the trial `purged`.
 
 What remains is the organisation row, renamed "Ended trial", its audit chain,
 and the `app_user` rows of the person and the simulated colleagues. Audit
 events keep the actor's email as their label, as they do for every deleted
 entity.
+
+## Conversion
+
+Converting lifts every restriction and suspends the simulated colleagues'
+memberships, each with its `membership.suspended` event: they can never sign
+in or be emailed, so approvals and tasks routed to their roles in a real
+organisation would wait on nobody.

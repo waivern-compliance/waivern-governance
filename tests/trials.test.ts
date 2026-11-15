@@ -355,6 +355,20 @@ describe('signing up', () => {
     assert.equal(sent.length, 0);
   });
 
+  it('holds to the limit when many ask at once', async () => {
+    const local = `burst${tag()}`;
+    const results = await Promise.all(
+      Array.from({ length: LIMITS.perEmail + 3 }, (_, i) =>
+        signUp(`${local}+${i}@gmail.com`)
+      )
+    );
+    assert.equal(
+      results.filter((r) => r.result.ok).length,
+      LIMITS.perEmail,
+      'no more links than the limit, however close together they come'
+    );
+  });
+
   it('limits how often one connection can ask', async () => {
     const from = address();
     for (let i = 0; i < LIMITS.perAddress; i++)
@@ -1159,6 +1173,19 @@ describe('asking for more', () => {
     assert.equal(await isTrial(t.organisationId), false);
     const [membership] = await loadMemberships(t.person.id);
     assert.equal(membership.trial, null);
+    // The simulated colleagues leave with the trial: nothing real waits on them.
+    const colleagues = await db
+      .select({ isActive: memberships.isActive })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(memberships.organisationId, t.organisationId),
+          eq(users.simulated, true)
+        )
+      );
+    assert.equal(colleagues.length, COLLEAGUES.length);
+    assert.ok(colleagues.every((c) => !c.isActive));
     const [stranger] = await db
       .insert(users)
       .values({ email: `colleague-${tag()}@example.test` })
@@ -1209,9 +1236,17 @@ describe('after the grace period', () => {
         trialId: t.trial.id,
         kind: 'convert',
         organisationName: 'Example Ltd',
-        message: 'Personal words'
+        message: 'Personal words',
+        status: 'declined',
+        decidedByEmail: 'ops@waivern.test',
+        decidedAt: new Date(),
+        decisionNote: 'Not now'
       })
     );
+    await db
+      .update(trials)
+      .set({ organisationName: 'Their Real Ltd' })
+      .where(eq(trials.id, t.trial.id));
     await endsIn(t.trial.id, -(RETENTION_DAYS + 1) * DAY);
 
     await purgeEndedTrials();
@@ -1221,6 +1256,20 @@ describe('after the grace period', () => {
       .from(trials)
       .where(eq(trials.id, t.trial.id));
     assert.equal(trial.status, 'purged');
+    assert.equal(trial.organisationName, null);
+    const events = await withOrganisation(t.organisationId, () =>
+      db
+        .select()
+        .from(auditEvents)
+        .where(eq(auditEvents.organisationId, t.organisationId))
+    );
+    const started = events.find((e) => e.action === 'trial.started');
+    assert.ok(started?.erasedAt, 'what the person gave at sign-up is erased');
+    assert.equal(started?.after, null);
+    const accepted = events.find(
+      (e) => e.action === 'trial.fictional_data_accepted'
+    );
+    assert.equal(accepted?.erasedAt, null, 'the acceptance stays whole');
     const left = await db
       .select()
       .from(entities)
@@ -1247,6 +1296,49 @@ describe('after the grace period', () => {
     const { sent } = await signUp(`${local}@gmail.com`);
     assert.match(sent[0].subject, /ended/);
     assert.doesNotMatch(sent[0].text, /\/trial\/start#/);
+  });
+
+  it('waits for an answer to a request made in time', async () => {
+    const t = await startTrial();
+    await endsIn(t.trial.id, -HOUR);
+    const request = await requestTrialChange({
+      userId: t.person.id,
+      email: t.person.email,
+      kind: 'convert',
+      organisationName: 'Example Ltd',
+      message: 'We would like to carry on.'
+    });
+    await endsIn(t.trial.id, -(RETENTION_DAYS + 1) * DAY);
+
+    await purgeEndedTrials();
+    const statusOf = async () =>
+      (await db.select().from(trials).where(eq(trials.id, t.trial.id)))[0]
+        .status;
+    assert.equal(await statusOf(), 'active', 'kept while the request waits');
+
+    await decideTrialRequest({
+      requestId: request.id,
+      decidedByEmail: 'ops@waivern.test',
+      decision: 'decline',
+      note: 'Talk to sales.'
+    });
+    await purgeEndedTrials();
+    assert.equal(await statusOf(), 'purged');
+  });
+
+  it('takes no new request once the records are due for deletion', async () => {
+    const t = await startTrial();
+    await endsIn(t.trial.id, -(RETENTION_DAYS + 1) * DAY);
+    await assert.rejects(
+      requestTrialChange({
+        userId: t.person.id,
+        email: t.person.email,
+        kind: 'convert',
+        organisationName: 'Example Ltd',
+        message: 'Too late?'
+      }),
+      /being deleted/
+    );
   });
 
   it('leaves a trial in its grace period alone', async () => {

@@ -1,13 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { AuthError } from 'next-auth';
 
 import { auth, signIn, signOut } from '@/auth';
 import { requestOrigin } from '@/lib/request-origin';
 import { trialsOpen } from '@/lib/trial';
+import { visitorAddress } from '@/lib/visitor-address';
 import {
   requestTrialChange,
   requestTrialLink,
@@ -23,16 +23,6 @@ const CLOSED = {
   message: 'Trials are not being offered here at the moment.'
 };
 
-/** The visitor's own address, for rate limiting alone; hashed before it is kept. */
-async function visitorAddress() {
-  const h = await headers();
-  return (
-    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    h.get('x-real-ip') ||
-    'unknown'
-  );
-}
-
 /** Ask for a trial. The answer is the same whether the address is known or not. */
 export async function requestTrialLinkAction(
   _prev: TrialResult,
@@ -41,7 +31,7 @@ export async function requestTrialLinkAction(
   if (!trialsOpen()) return CLOSED;
   return requestTrialLink({
     email: String(formData.get('email') ?? ''),
-    address: await visitorAddress(),
+    address: (await visitorAddress()) ?? 'unknown',
     started: String(formData.get('started') ?? ''),
     trap: String(formData.get('website') ?? ''),
     fictionalOnly: formData.get('fictionalOnly') === 'on',

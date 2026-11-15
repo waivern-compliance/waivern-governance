@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
   and,
   count,
@@ -10,12 +10,15 @@ import {
   isNull,
   lt,
   ne,
+  notExists,
   or,
+  sql,
   type SQL
 } from 'drizzle-orm';
 
-import { db, withOrganisation } from '@/db/client';
+import { db, withOrganisation, type Db } from '@/db/client';
 import {
+  auditEvents,
   entities,
   memberships,
   organisations,
@@ -26,7 +29,7 @@ import {
   type TrialRequestKind
 } from '@/db/schema';
 import { appUrl } from '@/lib/app-url';
-import { appendAuditEvent } from '@/lib/audit';
+import { appendAuditEvent, eraseAuditContents } from '@/lib/audit';
 import { sha256Hex } from '@/lib/canonical';
 import { isEmailAddress } from '@/lib/email-address';
 import { alertPlatformAdmins } from '@/lib/email/platform-alerts';
@@ -43,6 +46,7 @@ import {
   trialRequestEmail
 } from '@/lib/email/trial';
 import { log } from '@/lib/log';
+import { hashVisitor, openedAt, openingToken } from '@/lib/public-form';
 import type { AppRole } from '@/lib/rbac';
 import {
   canonicalEmail,
@@ -75,6 +79,7 @@ import { addSimulatedColleagues, DEMO, seedTrialDemo } from './trial-demo';
 export class TrialRefused extends Error {}
 
 type Send = (email: Email) => Promise<SendOutcome>;
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -105,46 +110,15 @@ export const SIGN_UP_SENT = `Check your email. If that address can receive mail,
 export const SIGN_UP_TOO_MANY =
   'Too many trials have been asked for from here, or for that address, recently. Try again in an hour.';
 
-function secret(): string {
-  const value = process.env.AUTH_SECRET;
-  if (value) return value;
-  // Without a secret the address hashes could be reversed by trying every
-  // IPv4 address, so production refuses to run sign-up at all.
-  if (process.env.NODE_ENV === 'production')
-    throw new Error('AUTH_SECRET is required for trial sign-up');
-  return 'govern-development-only';
-}
-
-/** A visitor's address, made unreadable, for rate limiting alone. */
-function hashVisitor(address: string): string {
-  return createHmac('sha256', secret())
-    .update(`trial-sign-up:${address}`)
-    .digest('hex');
-}
+/** The sign-up form's key for its signed opening time and address hashes. */
+const SIGN_UP_FORM = 'trial-sign-up';
 
 /**
  * A signed note of when the sign-up form was opened, so a submission can be
  * judged too quick to be a person without storing anything between requests.
  */
 export function signUpStarted(at = new Date()): string {
-  const issued = String(at.getTime());
-  const mac = createHmac('sha256', secret())
-    .update(`trial-sign-up.${issued}`)
-    .digest('base64url');
-  return `${issued}.${mac}`;
-}
-
-function startedAt(token: string): Date | null {
-  const [issued, mac] = token.split('.');
-  if (!issued || !mac) return null;
-  const expected = createHmac('sha256', secret())
-    .update(`trial-sign-up.${issued}`)
-    .digest('base64url');
-  const a = Buffer.from(mac);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  const at = new Date(Number(issued));
-  return Number.isNaN(at.getTime()) ? null : at;
+  return openingToken(SIGN_UP_FORM, at);
 }
 
 /** Whether the link can be shown in the server log instead of being sent. */
@@ -189,7 +163,7 @@ export async function requestTrialLink(input: {
     log('info', 'trial.sign_up_trapped', {});
     return { ok: true, message: SIGN_UP_SENT };
   }
-  const opened = startedAt(input.started);
+  const opened = openedAt(SIGN_UP_FORM, input.started);
   if (!opened || now.getTime() - opened.getTime() > MAX_OPEN_HOURS * HOUR)
     return {
       ok: false,
@@ -215,66 +189,82 @@ export async function requestTrialLink(input: {
     null;
 
   const canonical = canonicalEmail(email);
-  const ipHash = hashVisitor(input.address);
+  const ipHash = hashVisitor(SIGN_UP_FORM, input.address);
   const hourAgo = new Date(now.getTime() - HOUR);
   const dayAgo = new Date(now.getTime() - DAY);
-  const tally = (where: SQL | undefined) =>
-    db
-      .select({ n: count() })
-      .from(trialSignups)
-      .where(where)
-      .then(([row]) => Number(row.n));
-  const [forEmail, fromHere, fromHereToday, overall] = await Promise.all([
-    tally(
-      and(
-        eq(trialSignups.canonicalEmail, canonical),
-        gte(trialSignups.createdAt, hourAgo)
-      )
-    ),
-    tally(
-      and(eq(trialSignups.ipHash, ipHash), gte(trialSignups.createdAt, hourAgo))
-    ),
-    tally(
-      and(eq(trialSignups.ipHash, ipHash), gte(trialSignups.createdAt, dayAgo))
-    ),
-    tally(gte(trialSignups.createdAt, hourAgo))
-  ]);
-  if (
-    forEmail >= LIMITS.perEmail ||
-    fromHere >= LIMITS.perAddress ||
-    fromHereToday >= LIMITS.perAddressPerDay ||
-    overall >= LIMITS.overall
-  ) {
-    log('warn', 'trial.sign_up_limited', {
-      forEmail,
-      fromHere,
-      fromHereToday,
-      overall
-    });
-    return { ok: false, message: SIGN_UP_TOO_MANY };
-  }
-
-  // Which one email this address gets.
-  const [trial] = await db
-    .select({ status: trials.status })
-    .from(trials)
-    .where(eq(trials.canonicalEmail, canonical));
-  let outcome: 'link' | 'has_account' | 'gone' = 'link';
-  if (trial?.status === 'purged') outcome = 'gone';
-  else if (!trial && (await hasFullAccount(email))) outcome = 'has_account';
-
   const token = randomBytes(32).toString('base64url');
-  await db.insert(trialSignups).values({
-    email,
-    canonicalEmail: canonical,
-    tokenHash: await sha256Hex(token),
-    ipHash,
-    organisationName,
-    fictionalDataAcceptedAt: now,
-    expiresAt: new Date(now.getTime() + LINK_MINUTES * 60_000),
-    // Counted against the limits, but there is no link to use.
-    usedAt: outcome === 'link' ? null : now
+
+  // Counted and recorded one at a time: counting first and inserting after,
+  // a burst sent at once would all read the same count and all get through.
+  const outcome = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext('trial_signup'))`
+    );
+    const tally = (where: SQL | undefined) =>
+      tx
+        .select({ n: count() })
+        .from(trialSignups)
+        .where(where)
+        .then(([row]) => Number(row.n));
+    const [forEmail, fromHere, fromHereToday, overall] = await Promise.all([
+      tally(
+        and(
+          eq(trialSignups.canonicalEmail, canonical),
+          gte(trialSignups.createdAt, hourAgo)
+        )
+      ),
+      tally(
+        and(
+          eq(trialSignups.ipHash, ipHash),
+          gte(trialSignups.createdAt, hourAgo)
+        )
+      ),
+      tally(
+        and(
+          eq(trialSignups.ipHash, ipHash),
+          gte(trialSignups.createdAt, dayAgo)
+        )
+      ),
+      tally(gte(trialSignups.createdAt, hourAgo))
+    ]);
+    if (
+      forEmail >= LIMITS.perEmail ||
+      fromHere >= LIMITS.perAddress ||
+      fromHereToday >= LIMITS.perAddressPerDay ||
+      overall >= LIMITS.overall
+    ) {
+      log('warn', 'trial.sign_up_limited', {
+        forEmail,
+        fromHere,
+        fromHereToday,
+        overall
+      });
+      return 'limited' as const;
+    }
+
+    // Which one email this address gets.
+    const [trial] = await tx
+      .select({ status: trials.status })
+      .from(trials)
+      .where(eq(trials.canonicalEmail, canonical));
+    let which: 'link' | 'has_account' | 'gone' = 'link';
+    if (trial?.status === 'purged') which = 'gone';
+    else if (!trial && (await hasFullAccount(email, tx))) which = 'has_account';
+
+    await tx.insert(trialSignups).values({
+      email,
+      canonicalEmail: canonical,
+      tokenHash: await sha256Hex(token),
+      ipHash,
+      organisationName,
+      fictionalDataAcceptedAt: now,
+      expiresAt: new Date(now.getTime() + LINK_MINUTES * 60_000),
+      // Counted against the limits, but there is no link to use.
+      usedAt: which === 'link' ? null : now
+    });
+    return which;
   });
+  if (outcome === 'limited') return { ok: false, message: SIGN_UP_TOO_MANY };
 
   const link = `${linkBase(input.origin)}${trialLinkPath(token)}`;
   const message =
@@ -299,8 +289,11 @@ export async function requestTrialLink(input: {
 }
 
 /** Whether the address belongs to somebody with a full account here. */
-async function hasFullAccount(email: string): Promise<boolean> {
-  const [row] = await db
+async function hasFullAccount(
+  email: string,
+  on: Db | Tx = db
+): Promise<boolean> {
+  const [row] = await on
     .select({ id: memberships.id })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
@@ -472,7 +465,8 @@ async function startTrial(input: {
     organisationId: org.id,
     entityId: entity.id,
     ownerId: ownerOf,
-    colleagues
+    colleagues,
+    now: input.now
   });
   log('info', 'trial.started', {});
   return org;
@@ -540,6 +534,7 @@ export async function requestTrialChange(input: {
     throw new TrialRefused('There is no trial to ask about.');
   if (trial.status === 'converted')
     throw new TrialRefused('Your trial is already a full account.');
+  if (dueForDeletion(trial.endsAt, now)) throw new TrialRefused(TOO_LATE);
   if (!inRequestWindow(trial.endsAt, now)) {
     const opens = new Date(
       trial.endsAt.getTime() - REQUEST_WINDOW_HOURS * HOUR
@@ -551,6 +546,15 @@ export async function requestTrialChange(input: {
 
   const request = await withOrganisation(trial.organisationId, () =>
     db.transaction(async (tx) => {
+      // Locked, so the sweep cannot start deleting the trial between the
+      // check above and the request being saved: it takes the same lock.
+      const [locked] = await tx
+        .select({ status: trials.status, endsAt: trials.endsAt })
+        .from(trials)
+        .where(eq(trials.id, trial.id))
+        .for('update');
+      if (locked.status !== 'active' || dueForDeletion(locked.endsAt, now))
+        throw new TrialRefused(TOO_LATE);
       const [pending] = await tx
         .select({ id: trialRequests.id })
         .from(trialRequests)
@@ -600,6 +604,17 @@ export async function requestTrialChange(input: {
     })
   );
   return request;
+}
+
+const TOO_LATE =
+  'Your trial has ended and its records are being deleted, so it can no longer be extended. Ask for a new trial, or book a session with us.';
+
+/**
+ * Whether a trial's grace period is over, so the sweep may delete it. A
+ * request made before then holds it back until an administrator decides.
+ */
+function dueForDeletion(endsAt: Date, now: Date): boolean {
+  return endsAt.getTime() < now.getTime() - RETENTION_DAYS * DAY;
 }
 
 /** For the platform administrators: what is waiting, and every trial still running or in its grace period. */
@@ -741,6 +756,7 @@ export async function decideTrialRequest(
           before: { status: 'active' },
           after: { status: 'converted' }
         });
+        await suspendSimulatedColleagues(tx, trial.organisationId, actor);
       } else {
         await tx
           .update(trialRequests)
@@ -758,6 +774,45 @@ export async function decideTrialRequest(
       return { organisationId: trial.organisationId };
     })
   );
+}
+
+/**
+ * On conversion the simulated colleagues stop being members: they can never
+ * sign in or be emailed, so approvals and tasks routed to their roles in a
+ * real organisation would wait on nobody. The new owner gives those roles to
+ * real people.
+ */
+async function suspendSimulatedColleagues(
+  tx: Tx,
+  organisationId: string,
+  actor: Actor
+) {
+  const colleagues = await tx
+    .select({ id: memberships.id, email: users.email })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(
+      and(
+        eq(memberships.organisationId, organisationId),
+        eq(memberships.isActive, true),
+        eq(users.simulated, true)
+      )
+    );
+  for (const colleague of colleagues) {
+    await tx
+      .update(memberships)
+      .set({ isActive: false })
+      .where(eq(memberships.id, colleague.id));
+    await appendAuditEvent(tx, {
+      ...actor,
+      organisationId,
+      action: 'membership.suspended',
+      subjectType: 'membership',
+      subjectId: colleague.id,
+      before: { email: colleague.email, isActive: true },
+      after: { isActive: false, reason: 'trial converted' }
+    });
+  }
 }
 
 /**
@@ -787,13 +842,28 @@ export async function purgeEndedTrials(now = new Date()) {
     })
     .from(trials)
     .innerJoin(users, eq(users.id, trials.userId))
-    .where(and(eq(trials.status, 'active'), lt(trials.endsAt, cutoff)));
+    .where(
+      and(
+        eq(trials.status, 'active'),
+        lt(trials.endsAt, cutoff),
+        notExists(
+          db
+            .select({ id: trialRequests.id })
+            .from(trialRequests)
+            .where(
+              and(
+                eq(trialRequests.trialId, trials.id),
+                eq(trialRequests.status, 'pending')
+              )
+            )
+        )
+      )
+    );
 
   let purged = 0;
   for (const trial of due) {
     try {
-      await purgeTrial(trial);
-      purged++;
+      if (await purgeTrial(trial, now)) purged++;
     } catch (error) {
       log('warn', 'trial.purge_failed', {
         error: error instanceof Error ? error.name : 'unknown'
@@ -803,16 +873,45 @@ export async function purgeEndedTrials(now = new Date()) {
   return { due: due.length, purged };
 }
 
-async function purgeTrial(trial: {
-  id: string;
-  organisationId: string;
-  userId: string;
-  canonicalEmail: string;
-  email: string;
-}) {
+/**
+ * Delete one trial's records. False, deleting nothing, if it was extended,
+ * converted or asked about since it was found due: the trial row is locked
+ * while that is checked, as an administrator's decision and a request lock
+ * it, and neither can follow once it is due.
+ */
+async function purgeTrial(
+  trial: {
+    id: string;
+    organisationId: string;
+    userId: string;
+    canonicalEmail: string;
+    email: string;
+  },
+  now: Date
+): Promise<boolean> {
   const { organisationId } = trial;
   const keep = await withOrganisation(organisationId, () =>
     db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ status: trials.status, endsAt: trials.endsAt })
+        .from(trials)
+        .where(eq(trials.id, trial.id))
+        .for('update');
+      const [pending] = await tx
+        .select({ id: trialRequests.id })
+        .from(trialRequests)
+        .where(
+          and(
+            eq(trialRequests.trialId, trial.id),
+            eq(trialRequests.status, 'pending')
+          )
+        );
+      if (
+        locked?.status !== 'active' ||
+        !dueForDeletion(locked.endsAt, now) ||
+        pending
+      )
+        return null;
       await tx
         .update(entities)
         .set({ isDefault: false, updatedAt: new Date() })
@@ -838,6 +937,7 @@ async function purgeTrial(trial: {
       return placeholder.id;
     })
   );
+  if (!keep) return false;
 
   const others = await withOrganisation(organisationId, () =>
     db
@@ -862,12 +962,39 @@ async function purgeTrial(trial: {
         .update(memberships)
         .set({ isActive: false })
         .where(eq(memberships.organisationId, organisationId));
+      // What the person wrote about the trial (the organisation they named,
+      // their requests and the answers) goes from the audit events too, as
+      // an entity's deletion erases its events. The acceptance of fictional
+      // data only stays whole: it holds a time and a fixed statement.
+      const about = await tx
+        .select({ id: auditEvents.id })
+        .from(auditEvents)
+        .where(
+          and(
+            eq(auditEvents.organisationId, organisationId),
+            or(
+              and(
+                eq(auditEvents.subjectType, 'trial'),
+                eq(auditEvents.subjectId, trial.id),
+                ne(auditEvents.action, 'trial.fictional_data_accepted')
+              ),
+              eq(auditEvents.subjectType, 'trial_request')
+            )
+          )
+        );
+      await eraseAuditContents(tx, {
+        organisationId,
+        eventIds: about.map((e) => e.id),
+        reason: "The trial's records were deleted after its grace period.",
+        actor: SWEEP,
+        subject: { subjectType: 'trial', subjectId: trial.id }
+      });
       await tx
         .delete(trialRequests)
         .where(eq(trialRequests.organisationId, organisationId));
       await tx
         .update(trials)
-        .set({ status: 'purged', purgedAt: new Date() })
+        .set({ status: 'purged', purgedAt: new Date(), organisationName: null })
         .where(eq(trials.id, trial.id));
       await appendAuditEvent(tx, {
         ...SWEEP,
@@ -887,11 +1014,12 @@ async function purgeTrial(trial: {
         inArray(trialSignups.email, [trial.email])
       )
     );
-  // The organisation's name is the only thing left that a person typed.
+  // The demo company's name, which would otherwise outlive its records.
   await withOrganisation(organisationId, () =>
     db
       .update(organisations)
       .set({ name: 'Ended trial' })
       .where(eq(organisations.id, organisationId))
   );
+  return true;
 }

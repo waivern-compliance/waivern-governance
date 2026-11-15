@@ -30,17 +30,27 @@ function files(dir: string): string[] {
   });
 }
 
-/** Each exported function in a file, with its body: up to the next top-level declaration. */
-function exportedFunctions(
+/**
+ * Each top-level function in a file, exported or not, declared or assigned
+ * to a const, with its body: up to the next top-level declaration. Private
+ * helpers count, so work moved into one is still seen.
+ */
+function topLevelFunctions(
   source: string
 ): Array<{ name: string; body: string }> {
-  const starts = [...source.matchAll(/^export (?:async )?function (\w+)/gm)];
+  const starts = [
+    ...source.matchAll(
+      /^(?:export )?(?:(?:async )?function (\w+)|const (\w+)(?::[^=]+)? = (?:async )?(?:\([^)]*\)|\w+)(?::[^=]+)? =>)/gm
+    )
+  ].map((m) => ({ index: m.index, name: m[1] ?? m[2] }));
   const boundaries = [
-    ...source.matchAll(/^(?:export |async function |function |const |type )/gm)
+    ...source.matchAll(
+      /^(?:export |async function |function |const |let |type |class |\/\*\*)/gm
+    )
   ].map((m) => m.index);
   return starts.map((m) => {
     const end = boundaries.find((b) => b > m.index) ?? source.length;
-    return { name: m[1], body: source.slice(m.index, end) };
+    return { name: m.name, body: source.slice(m.index, end) };
   });
 }
 
@@ -60,7 +70,8 @@ const SERVICE_PRIMITIVES: Array<[string, RegExp]> = [
   ['claims a domain', /\.insert\(organisationDomains\)/],
   ['configures an outside connection', /\.insert\(integrationConnections\)/],
   ['makes a request outside', /\b(fetch|fetchPage|fetchReport)\(/],
-  ['sends email', /\bsendEmail\(/]
+  ['sends email', /\bsendEmail\(/],
+  ['asks an AI model', /\bask\(/]
 ];
 
 /**
@@ -76,6 +87,10 @@ const SERVICE_EXEMPT: Record<string, string> = {
     'joins an organisation that has verified a domain, which a trial cannot (claimDomain and verifyDomain refuse), and the database refuses a trial a second member (migration 0115)',
   'documents.insertDocument':
     "runs inside a guarded caller's transaction: attachDocument, an import, or the Integration API, which refuses a trial when it authenticates",
+  'assistant.converse':
+    "asks the organisation's own AI provider, which a trial cannot configure (saveProvider refuses), and there is no platform default",
+  'extraction.persist':
+    "asks the organisation's own AI provider, which a trial cannot configure (saveProvider refuses), and there is no platform default",
   'webhooks.deliverPending':
     'delivers to connections, and a trial cannot have one (createConnection refuses, authenticate refuses)',
   'agreement-notices.notifyAgreementChanges':
@@ -96,7 +111,7 @@ function serviceFunctions() {
   return readdirSync(SERVICES_DIR)
     .filter((f) => f.endsWith('.ts'))
     .flatMap((file) =>
-      exportedFunctions(readFileSync(join(SERVICES_DIR, file), 'utf8')).map(
+      topLevelFunctions(readFileSync(join(SERVICES_DIR, file), 'utf8')).map(
         (fn) => ({ ...fn, key: `${file.replace(/\.ts$/, '')}.${fn.name}` })
       )
     );
@@ -112,6 +127,17 @@ function guardedServices(): Set<string> {
 }
 
 describe('services a trial must not reach', () => {
+  it('sees private helpers and arrow functions, not only exported declarations', () => {
+    const names = topLevelFunctions(
+      [
+        'async function notify() {}',
+        'export const send = async (to: string) => {};',
+        'export async function run() {}'
+      ].join('\n')
+    ).map((fn) => fn.name);
+    assert.deepEqual(names, ['notify', 'send', 'run']);
+  });
+
   it('refuse a trial themselves, or say why they need not', () => {
     const missing: string[] = [];
     for (const fn of serviceFunctions()) {
@@ -201,7 +227,7 @@ function appFunctions() {
   return files(join(ROOT, 'src/app'))
     .filter((f) => /\.ts$/.test(f))
     .flatMap((f) =>
-      exportedFunctions(readFileSync(f, 'utf8')).map((fn) => ({
+      topLevelFunctions(readFileSync(f, 'utf8')).map((fn) => ({
         ...fn,
         key: `${rel(f)} ${fn.name}`
       }))
