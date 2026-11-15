@@ -82,6 +82,7 @@ export default async function SignIn({
             <Hero
               providers={sso.map((p) => providerLabel(p.id, p.name))}
               open={open}
+              trials={trials}
             />
           ) : (
             <p className="text-ink-soft">{PRODUCT_DESCRIPTION}</p>
@@ -168,15 +169,16 @@ export default async function SignIn({
               {trials ? (
                 <div className="space-y-2 border-t border-line pt-4">
                   <p className="text-sm text-ink-soft">
-                    No work account to hand? Try it for {TRIAL_LENGTH} with any
-                    email address you can read, personal ones included. Already
-                    trying it? Ask for a new link there.
+                    Want to look around first? Explore a fictional demo company
+                    for {TRIAL_LENGTH} with any email address you can read,
+                    personal ones included. Fictional data only. Already trying
+                    it? Ask for a new link there.
                   </p>
                   <Link
                     href="/trial"
                     className="block w-full rounded border border-brand px-4 py-2 text-center text-sm font-medium text-brand hover:bg-brand/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                   >
-                    Start a {TRIAL_LENGTH} trial
+                    Explore the demo for {TRIAL_LENGTH}
                   </Link>
                 </div>
               ) : null}
@@ -275,7 +277,7 @@ export default async function SignIn({
 
         {hosted ? (
           <div className="lg:col-start-1 lg:row-start-2">
-            <Pitch />
+            <Pitch trials={trials} />
           </div>
         ) : null}
       </main>

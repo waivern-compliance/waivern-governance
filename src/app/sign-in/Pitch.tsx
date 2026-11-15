@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CheckList } from '@/components/site/CheckList';
 import { PageTag } from '@/components/site/PageTag';
 import { EXPANSION_SURVEY_URL, SOURCE_CODE_URL } from '@/lib/product';
+import { TRIAL_LENGTH } from '@/lib/trial-rules';
 
 /**
  * Why somebody might want to sign in: the case for the hosted service.
@@ -10,12 +11,15 @@ import { EXPANSION_SURVEY_URL, SOURCE_CODE_URL } from '@/lib/product';
  * Shown only on Waivern's hosted service (`lib/hosting.ts`). "Free", "built by
  * us" and "starting in the UK and Ireland" are Waivern's promises, not the
  * code's, so a copy running on someone else's servers shows none of it.
+ *
+ * Where trials are open (`lib/trial.ts`) it also offers the demo company: a
+ * sandbox to look around before signing up, not a time limit on the service.
  */
 
 const REASONS = [
   {
     title: 'Free to use',
-    body: 'No licence fee, no per-seat pricing and no trial that runs out. Good compliance should not depend on the size of your budget.'
+    body: 'No licence fee, no per-seat pricing, and your organisation never runs out of time. Good compliance should not depend on the size of your budget.'
   },
   {
     title: 'Open source, so you stay in control',
@@ -39,16 +43,22 @@ const COVERS = [
   'Policies, evidence, training and a full audit trail'
 ] as const;
 
+const secondaryCta =
+  'inline-flex items-center gap-2 rounded-lg border-2 border-brand px-6 py-3.5 text-base font-semibold text-brand transition hover:bg-brand/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
+
 const primaryCta =
   'inline-flex items-center gap-3 rounded-lg bg-brand px-8 py-4 text-lg font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:opacity-95 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
 export function Hero({
   providers,
-  open
+  open,
+  trials
 }: {
   providers: string[];
   /** Whether newcomers can ask for an organisation (`lib/platform.ts`). */
   open: boolean;
+  /** Whether anybody may start a trial with the demo company (`lib/trial.ts`). */
+  trials: boolean;
 }) {
   return (
     <section className="space-y-6">
@@ -69,19 +79,32 @@ export function Hero({
         >
           Get started free <span aria-hidden>→</span>
         </a>
+        {trials ? (
+          <Link
+            href="/trial"
+            className={secondaryCta}
+          >
+            Explore a demo company
+          </Link>
+        ) : null}
       </div>
       <p className="text-sm text-ink-soft">
         No card needed.
         {providers.length > 0 ? ` Sign in with ${providers.join(' or ')}.` : ''}
         {open ? ' Then ask for your organisation, and we will set it up.' : ''}
+        {trials
+          ? ` Or look around a fictional company for ${TRIAL_LENGTH} first, with just an email address.`
+          : ''}
       </p>
     </section>
   );
 }
 
-export function Pitch() {
+export function Pitch({ trials }: { trials: boolean }) {
   return (
     <div className="space-y-14">
+      {trials ? <DemoCompany /> : null}
+
       <section
         aria-labelledby="why"
         className="space-y-5"
@@ -222,7 +245,71 @@ export function Pitch() {
         >
           Get started free <span aria-hidden>→</span>
         </a>
+        {trials ? (
+          <p className="text-sm text-ink-soft">
+            Not ready yet?{' '}
+            <Link
+              href="/trial"
+              className="font-medium text-brand underline underline-offset-2"
+            >
+              Explore the demo company for {TRIAL_LENGTH}
+            </Link>
+            .
+          </p>
+        ) : null}
       </section>
     </div>
+  );
+}
+
+const DEMO_INCLUDES = [
+  'Processing activities, already recorded',
+  'A personal data breach with its 72-hour clock running',
+  'An AI system with its risks',
+  'Suppliers with gaps in their agreements',
+  'A subject access request and a complaint',
+  'Simulated colleagues, so you can take a DPIA from draft to sign-off'
+] as const;
+
+/**
+ * The trial, offered as what it is: a made-up company to look around, for
+ * fictional data only, alongside the free organisation that never ends.
+ */
+function DemoCompany() {
+  return (
+    <section
+      aria-labelledby="demo"
+      className="space-y-5 rounded-lg border border-brand/20 bg-brand/5 p-6 sm:p-8"
+    >
+      <div className="max-w-2xl space-y-2">
+        <h2
+          id="demo"
+          className="text-xl font-semibold tracking-tight text-navy"
+        >
+          See it working before you sign up
+        </h2>
+        <p className="text-ink-soft">
+          Give an email address and, within a minute, you are inside a fictional
+          retailer with its compliance already under way. Look around for{' '}
+          {TRIAL_LENGTH}, with no work account and no card.
+        </p>
+      </div>
+      <CheckList
+        items={DEMO_INCLUDES}
+        className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2"
+      />
+      <p className="max-w-2xl text-sm text-ink-soft">
+        The demo is for fictional data only, so enter nothing real. It reaches
+        nobody outside it and uploads nothing, and sample documents are there to
+        attach. When you are ready, sign in with your work account for an
+        organisation of your own, free and with no end date.
+      </p>
+      <Link
+        href="/trial"
+        className="inline-flex items-center gap-2 rounded-md bg-navy px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+      >
+        Explore the demo company <span aria-hidden>→</span>
+      </Link>
+    </section>
   );
 }
