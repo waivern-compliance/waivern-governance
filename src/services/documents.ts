@@ -505,6 +505,13 @@ export async function moveDocument(input: {
         row.subjectId === input.subjectId
       )
         return row;
+      // Only between a third party and its processor agreements, as the page
+      // offers. Anything else - a contract's signed copy above all - would
+      // be read under the rules of wherever it landed.
+      if (row.subjectType !== 'supplier' && row.subjectType !== 'dpa')
+        throw new Error(
+          'Only a file on a third party or its agreement can be moved.'
+        );
       await assertRecordIn(
         input.organisationId,
         input.subjectType,

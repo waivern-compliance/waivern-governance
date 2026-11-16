@@ -27,6 +27,8 @@ function supplier(over: Partial<Supplier> = {}): Supplier {
     reviewedAt: NOW,
     reviewedBy: 'u',
     aiInvolvement: null,
+    tier: null,
+    tierReason: null,
     role: 'processor',
     sourceConnectionId: null,
     externalRef: null,

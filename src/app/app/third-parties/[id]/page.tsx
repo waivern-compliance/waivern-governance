@@ -14,7 +14,9 @@ import { StartAssessment } from '@/components/StartAssessment';
 import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
 import { MechanismFields } from '@/components/thirdparty/MechanismFields';
 import { ReadAgreement } from '@/components/thirdparty/ReadAgreement';
+import { SupplierContracts } from '@/components/thirdparty/SupplierContracts';
 import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
+import { TierPanel } from '@/components/thirdparty/TierPanel';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
 import {
@@ -36,11 +38,13 @@ import {
   SERIOUS_AI_GAPS,
   type AiInvolvement
 } from '@/lib/thirdparty/ai-procurement';
+import { contractsFor } from '@/services/contracts';
 import { documentsFor } from '@/services/documents';
 import { extractionAvailable, latestExtraction } from '@/services/extraction';
 import { importSourceName } from '@/services/imports';
 import { assetsFor } from '@/services/information-assets';
 import { agreementsFor } from '@/services/sharing-agreements';
+import { supplierTier } from '@/services/supplier-tier';
 import { GAP_WORDS, HARD_GAPS, loadSupplier } from '@/services/third-party';
 
 import {
@@ -87,12 +91,16 @@ export default async function SupplierPage({
   );
 
   const org = active.membership.organisationId;
-  const [sharing, assets, supplierDocs, ...dpaDocs] = await Promise.all([
-    agreementsFor(org, { supplierId: supplier.id }),
-    assetsFor(org, { supplierId: supplier.id }, visibleEntityIds(active)),
-    documentsFor(org, 'supplier', supplier.id),
-    ...dpas.map((d) => documentsFor(org, 'dpa', d.id))
-  ]);
+  const viewer = { userId: active.userId, grants: active.membership.grants };
+  const [sharing, assets, tiering, contracts, supplierDocs, ...dpaDocs] =
+    await Promise.all([
+      agreementsFor(org, { supplierId: supplier.id }),
+      assetsFor(org, { supplierId: supplier.id }, visibleEntityIds(active)),
+      supplierTier(org, supplier.id),
+      contractsFor(org, supplier.id, visibleEntityIds(active), viewer),
+      documentsFor(org, 'supplier', supplier.id),
+      ...dpas.map((d) => documentsFor(org, 'dpa', d.id))
+    ]);
   const docsByDpa = new Map(dpas.map((d, i) => [d.id, dpaDocs[i] ?? []]));
 
   // What a model has already been asked to read out of each agreement, and
@@ -325,6 +333,20 @@ export default async function SupplierPage({
           </div>
         ) : null}
       </section>
+
+      <TierPanel
+        supplierId={supplier.id}
+        tier={supplier.tier}
+        tierReason={supplier.tierReason}
+        recommendation={tiering.recommendation}
+        mayEdit={mayEdit}
+      />
+
+      <SupplierContracts
+        supplierId={supplier.id}
+        contracts={contracts}
+        mayAdd={mayEdit}
+      />
 
       <LinkedAssets
         assets={assets}

@@ -414,7 +414,10 @@ async function* archiveEntries(input: {
       key,
       organisation.id,
       organisation.name,
-      null
+      null,
+      // The archive is the owner's, and holds every table whole, contract
+      // terms included: its spreadsheets show what its tables already do.
+      { userId: '', grants: [{ role: 'owner', scope: 'organisation' }] }
     );
     manifest.spreadsheets.push({ path, title: DATASET_LABEL[key], rows });
     yield { name: path, data: body, compress: true, modifiedAt: startedAt };

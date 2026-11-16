@@ -39,6 +39,7 @@ async function main() {
       r.lapsedReviewsRaised +
       r.aiReviewsRaised +
       r.assetReviewsRaised +
+      r.contractNoticesRaised +
       r.appetiteReviewsRaised +
       r.documentsScanned +
       r.webhooksDelivered +
@@ -91,6 +92,8 @@ async function main() {
           r.aiReviewsRaised && `${r.aiReviewsRaised} AI system(s) past review`,
           r.assetReviewsRaised &&
             `${r.assetReviewsRaised} information asset(s) past review`,
+          r.contractNoticesRaised &&
+            `${r.contractNoticesRaised} contract notice date(s) coming up`,
           r.appetiteReviewsRaised &&
             `${r.appetiteReviewsRaised} risk appetite statement(s) past review`,
           r.documentsScanned &&

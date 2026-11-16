@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
+import { mayReadContractDocument } from '@/services/contracts';
 import {
   ContentAltered,
   DocumentQuarantined,
@@ -68,6 +69,19 @@ export async function GET(
   ) {
     return NextResponse.json(
       { error: 'Not part of your access' },
+      { status: 403 }
+    );
+  }
+  // A contract's signed copy is part of its commercial terms.
+  if (
+    (await mayReadContractDocument(
+      active.membership.organisationId,
+      document.id,
+      { userId: active.userId, grants: active.membership.grants }
+    )) === false
+  ) {
+    return NextResponse.json(
+      { error: "This contract's terms are not shown to you" },
       { status: 403 }
     );
   }

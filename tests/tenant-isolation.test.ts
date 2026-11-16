@@ -55,6 +55,7 @@ import * as collaboration from '@/services/collaboration';
 import * as complaintsSvc from '@/services/complaints';
 import * as connections from '@/services/connections';
 import * as analyserSvc from '@/services/consent-analyser';
+import * as contractsSvc from '@/services/contracts';
 import * as contributorLinks from '@/services/contributor-links';
 import * as countries from '@/services/countries';
 import * as dsr from '@/services/data-subject-requests';
@@ -85,6 +86,7 @@ import * as risksSvc from '@/services/risks';
 import * as ropa from '@/services/ropa';
 import * as sharingSvc from '@/services/sharing-agreements';
 import * as inventory from '@/services/storage-inventory';
+import * as tierSvc from '@/services/supplier-tier';
 import * as sweep from '@/services/sweep';
 import * as templatesSvc from '@/services/templates';
 import * as thirdParty from '@/services/third-party';
@@ -458,6 +460,22 @@ async function populated() {
     },
     actor: SYSTEM
   });
+  const contract = await contractsSvc.createContract({
+    organisationId: id,
+    entityId: o.entity.id,
+    supplierId: partner.id,
+    details: {
+      title: "B's hosting contract",
+      ownerId: null,
+      startsAt: null,
+      endsAt: new Date(Date.now() + 30 * DAY),
+      noticeDays: 0,
+      autoRenews: true
+    },
+    terms: { value: '424242', currency: 'GBP' },
+    viewerIds: [],
+    actor: o.owner.actor
+  });
   for (const [kind, targetId] of [
     ['activity', activity.id],
     ['supplier', partner.id],
@@ -696,6 +714,7 @@ async function populated() {
     sharing,
     sharingParty,
     asset,
+    contract,
     intakeLink,
     importBatch,
     useCase,
@@ -725,6 +744,7 @@ let B: Awaited<ReturnType<typeof populated>>;
 let mine: {
   sharing: { id: string };
   asset: { id: string };
+  supplier: { id: string };
   policyDoc: { id: string };
   risk: { id: string };
   breach: { id: string };
@@ -865,9 +885,15 @@ before(async () => {
     },
     actor: SYSTEM
   });
+  const supplier = await thirdParty.createSupplier({
+    organisationId: A.org.id,
+    name: "A's own supplier",
+    actor: SYSTEM
+  });
   mine = {
     sharing,
     asset,
+    supplier,
     policyDoc,
     risk,
     breach,
@@ -974,6 +1000,11 @@ function changed(
 }
 
 const as = () => A.owner.actor;
+/** A, with every capability: the strongest reader there is. */
+const aViewer = () => ({
+  userId: A.owner.user.id,
+  grants: [{ role: 'owner' as const, scope: 'organisation' as const }]
+});
 
 describe("reading another organisation's records", () => {
   const reads: Array<[string, () => Promise<unknown>]> = [
@@ -1132,6 +1163,28 @@ describe("reading another organisation's records", () => {
       () => sharingSvc.agreementsFor(A.org.id, { supplierId: B.partner.id })
     ],
     ['loadAsset', () => assetsSvc.loadAsset(B.asset.id, A.org.id)],
+    [
+      'loadContract',
+      () => contractsSvc.loadContract(B.contract.id, A.org.id, aViewer())
+    ],
+    [
+      "contractsFor B's partner",
+      () => contractsSvc.contractsFor(A.org.id, B.partner.id, null, aViewer())
+    ],
+    [
+      "mayReadContractTerms of B's contract",
+      () =>
+        contractsSvc.mayReadContractTerms(A.org.id, B.contract.id, aViewer())
+    ],
+    [
+      "mayReadContractDocument of B's document",
+      () =>
+        contractsSvc.mayReadContractDocument(A.org.id, B.document.id, aViewer())
+    ],
+    [
+      "supplierTier of B's partner",
+      () => tierSvc.supplierTier(A.org.id, B.partner.id)
+    ],
     [
       "assetsFor B's activity",
       () => assetsSvc.assetsFor(A.org.id, { activityId: B.activity.id }, null)
@@ -2553,6 +2606,57 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'setSupplierTier',
+      () =>
+        tierSvc.setSupplierTier({
+          organisationId: A.org.id,
+          supplierId: B.partner.id,
+          tier: 'low',
+          reason: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'updateContract',
+      () =>
+        contractsSvc.updateContract({
+          id: B.contract.id,
+          organisationId: A.org.id,
+          details: {
+            title: 'taken',
+            ownerId: null,
+            startsAt: null,
+            endsAt: null,
+            noticeDays: null,
+            autoRenews: false
+          },
+          terms: { value: '1', currency: 'GBP' },
+          viewer: aViewer(),
+          actor: as()
+        })
+    ],
+    [
+      'setContractViewers',
+      () =>
+        contractsSvc.setContractViewers({
+          id: B.contract.id,
+          organisationId: A.org.id,
+          userIds: [A.owner.user.id],
+          viewer: aViewer(),
+          actor: as()
+        })
+    ],
+    [
+      'endContract',
+      () =>
+        contractsSvc.endContract({
+          id: B.contract.id,
+          organisationId: A.org.id,
+          reason: 'taken',
+          actor: as()
+        })
+    ],
+    [
       'recordAssetReview',
       () =>
         assetsSvc.recordAssetReview({
@@ -2913,6 +3017,66 @@ describe("linking one's own records to another organisation's", () => {
             furtherProcessing: true,
             originalActivityId: B.activity.id
           },
+          actor: as()
+        })
+    ],
+    [
+      "a contract with B's partner",
+      () =>
+        contractsSvc.createContract({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          supplierId: B.partner.id,
+          details: {
+            title: 'x',
+            ownerId: null,
+            startsAt: null,
+            endsAt: null,
+            noticeDays: null,
+            autoRenews: false
+          },
+          terms: { value: null, currency: null },
+          viewerIds: [],
+          actor: as()
+        })
+    ],
+    [
+      "a contract signed by B's entity",
+      () =>
+        contractsSvc.createContract({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          supplierId: B.partner.id,
+          details: {
+            title: 'x',
+            ownerId: null,
+            startsAt: null,
+            endsAt: null,
+            noticeDays: null,
+            autoRenews: false
+          },
+          terms: { value: null, currency: null },
+          viewerIds: [],
+          actor: as()
+        })
+    ],
+    [
+      "my contract shown to B's person",
+      () =>
+        contractsSvc.createContract({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          supplierId: mine.supplier.id,
+          details: {
+            title: 'x',
+            ownerId: null,
+            startsAt: null,
+            endsAt: null,
+            noticeDays: null,
+            autoRenews: false
+          },
+          terms: { value: null, currency: null },
+          viewerIds: [B.owner.user.id],
           actor: as()
         })
     ],
@@ -3724,7 +3888,22 @@ describe('lists', () => {
           'assetsSvc.assetsDueForReview',
           assetsSvc.assetsDueForReview(o, new Date(Date.now() + 3650 * DAY))
         ] as const,
-        ['exportsSvc.exportAssets', exportsSvc.exportAssets(o, null)] as const
+        ['exportsSvc.exportAssets', exportsSvc.exportAssets(o, null)] as const,
+        [
+          'contractsSvc.contractRegister',
+          contractsSvc.contractRegister(o, null, aViewer())
+        ] as const,
+        [
+          'contractsSvc.contractsNeedingNotice',
+          contractsSvc.contractsNeedingNotice(
+            o,
+            new Date(Date.now() + 3650 * DAY)
+          )
+        ] as const,
+        [
+          'exportsSvc.exportContracts',
+          exportsSvc.exportContracts(o, null, aViewer())
+        ] as const
       ].map(async ([n, r]) => [n, await r] as [string, unknown])
     );
     const text = (v: unknown) =>
@@ -3758,6 +3937,8 @@ describe('lists', () => {
       B.sharing.id,
       B.sharingParty.id,
       B.asset.id,
+      B.contract.id,
+      '424242',
       B.template,
       B.dpiaVersion,
       B.workflow.id,

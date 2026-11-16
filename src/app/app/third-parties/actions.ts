@@ -7,6 +7,7 @@ import type { SupplierRole } from '@/lib/dpa2018/sharing';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { requireCapability } from '@/lib/session';
 import { isAiInvolvement } from '@/lib/thirdparty/ai-procurement';
+import { setSupplierTier } from '@/services/supplier-tier';
 import {
   archiveDpa,
   ArchiveRefused,
@@ -274,4 +275,28 @@ export async function restoreDpaAction(supplierId: string, dpaId: string) {
   });
   revalidatePath(`/app/third-parties/${supplierId}`);
   revalidatePath('/app/third-parties');
+}
+
+/** Set the tier. A choice other than the register's suggestion needs a reason. */
+export async function setTierAction(
+  supplierId: string,
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await requireCapability('record.write');
+    await setSupplierTier({
+      supplierId,
+      organisationId: active.membership.organisationId,
+      tier: text(formData.get('tier')),
+      reason: text(formData.get('reason')) || null,
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    revalidatePath(`/app/third-parties/${supplierId}`);
+    revalidatePath('/app/third-parties');
+  });
 }

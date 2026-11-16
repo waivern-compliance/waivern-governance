@@ -86,7 +86,9 @@ export const recordType = pgEnum('record_type', [
   'trial',
   'trial_request',
   // Added with the information asset register.
-  'information_asset'
+  'information_asset',
+  // Added with supplier contracts.
+  'supplier_contract'
 ]);
 
 /**

@@ -38,10 +38,13 @@ import { legalRefMap } from '@/lib/legal-refs';
 import { PRODUCT_NAME } from '@/lib/product';
 import { questionsOf } from '@/lib/templates/logic';
 import { AI_STANDING_LABEL } from '@/lib/thirdparty/ai-procurement';
+import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
+import { TIER_LABEL } from '@/lib/thirdparty/tier';
 
 import { gapsFor } from './ai-register';
 import { aiRiskLog, treatmentWords } from './ai-risk-profile';
 import { breachRegister } from './breaches';
+import { contractRegister, type ContractViewer } from './contracts';
 import { libraryFor } from './countries';
 import { requestMetrics, requestRegister } from './data-subject-requests';
 import { assetRegister } from './information-assets';
@@ -80,6 +83,7 @@ export type Dataset =
   | 'ropa'
   | 'assets'
   | 'third-parties'
+  | 'contracts'
   | 'breaches'
   | 'requests'
   | 'information-requests'
@@ -95,6 +99,7 @@ export const DATASET_LABEL: Record<Dataset, string> = {
   ropa: 'Processing register (Article 30)',
   assets: 'Information asset register',
   'third-parties': 'Third parties (Article 28)',
+  contracts: 'Supplier contracts',
   breaches: 'Breach register (Article 33(5))',
   requests: 'Data subject requests',
   'information-requests': 'Freedom of information requests',
@@ -631,7 +636,9 @@ export async function renderDataset(
   key: Dataset,
   organisationId: string,
   organisationName: string,
-  entityIds: string[] | null
+  entityIds: string[] | null,
+  /** Who is exporting, for the contract terms they may see. Without one, none. */
+  viewer?: ContractViewer
 ): Promise<{ body: string; rows: number; complete?: boolean }> {
   if (key === 'audit') {
     const result = await exportAudit(organisationId, entityIds);
@@ -652,7 +659,7 @@ export async function renderDataset(
       toCsv(result.columns, result.rows, false);
     return { body, rows: result.rows.length, complete: result.complete };
   }
-  const result = await DATASET_EXPORT[key](organisationId, entityIds);
+  const result = await DATASET_EXPORT[key](organisationId, entityIds, viewer);
   return { body: toCsv(result.columns, result.rows), rows: result.rows.length };
 }
 
@@ -660,7 +667,11 @@ type Table = { columns: string[]; rows: unknown[][] };
 
 const DATASET_EXPORT: Record<
   Exclude<Dataset, 'audit'>,
-  (organisationId: string, entityIds: string[] | null) => Promise<Table>
+  (
+    organisationId: string,
+    entityIds: string[] | null,
+    viewer?: ContractViewer
+  ) => Promise<Table>
 > = {
   risks: exportRisks,
   assessments: exportAssessments,
@@ -669,6 +680,7 @@ const DATASET_EXPORT: Record<
   ropa: exportRopa,
   assets: exportAssets,
   'third-parties': (org) => exportThirdParties(org),
+  contracts: exportContracts,
   breaches: exportBreaches,
   requests: exportRequests,
   'information-requests': exportInformationRequests,
@@ -853,6 +865,8 @@ export async function exportThirdParties(organisationId: string) {
     return {
       columns: [
         'Third party',
+        'Tier',
+        'Why the tier differs from the suggestion',
         'Categories',
         'Description',
         'Owner',
@@ -873,6 +887,8 @@ export async function exportThirdParties(organisationId: string) {
       rows: rows.map(
         ({ supplier, current, ownerEmail, gaps, hardGaps, privacy, ai }) => [
           supplier.name,
+          supplier.tier ? TIER_LABEL[supplier.tier] : null,
+          supplier.tierReason,
           (supplier.categories ?? []).join('; '),
           supplier.description,
           ownerEmail,
@@ -893,6 +909,60 @@ export async function exportThirdParties(organisationId: string) {
       )
     };
   });
+}
+
+/**
+ * Supplier contracts with their dates and notice. The value and currency are
+ * filled in only where the person exporting may see that contract's terms,
+ * and say so where they may not, so a blank is never read as "no value".
+ */
+export async function exportContracts(
+  organisationId: string,
+  entityIds: string[] | null,
+  viewer?: ContractViewer
+) {
+  const rows = await contractRegister(
+    organisationId,
+    entityIds,
+    viewer ?? { userId: '', grants: [] }
+  );
+  const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  return {
+    columns: [
+      'Reference',
+      'Entity',
+      'Third party',
+      'Contract',
+      'Owner',
+      'Value',
+      'Currency',
+      'Starts',
+      'Ends',
+      'Notice period (days)',
+      'Notice by',
+      'Renews automatically',
+      'Notice',
+      'Ended',
+      'Ended because'
+    ],
+    rows: rows.map((r) => [
+      r.contract.reference,
+      r.entityName,
+      r.supplierName,
+      r.contract.title,
+      r.ownerEmail,
+      r.termsVisible ? r.contract.value : 'withheld',
+      r.termsVisible ? r.contract.currency : 'withheld',
+      day(r.contract.startsAt),
+      day(r.contract.endsAt),
+      r.contract.noticeDays,
+      day(r.noticeBy),
+      r.contract.autoRenews ? 'yes' : 'no',
+      NOTICE_WORDS[r.notice],
+      day(r.contract.endedAt),
+      r.contract.endedReason
+    ])
+  };
 }
 
 /** The trend figures, for a board pack that needs numbers rather than a screenshot. */

@@ -67,7 +67,8 @@ export async function GET(
     key,
     org,
     active.membership.organisationName,
-    entityIds
+    entityIds,
+    { userId: active.userId, grants: active.membership.grants }
   );
 
   await recordExport({
