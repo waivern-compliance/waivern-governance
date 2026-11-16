@@ -36,6 +36,7 @@ import {
 } from '@/lib/ai-frameworks/profile';
 import { appendAuditEvent } from '@/lib/audit';
 import { exportFilename, toCsv } from '@/lib/csv';
+import { isAiSupplierDefinition } from '@/lib/thirdparty/ai-procurement';
 
 import type { Actor } from './templates';
 
@@ -85,6 +86,27 @@ export async function featureEvidence(
             )
           )
       );
+    // Supplier records include security and privacy due diligence, which says
+    // nothing about AI; only assessments built on the AI supplier questions
+    // count towards it.
+    const approvedAiSupplierAssessments = async () =>
+      (
+        await db
+          .select({ definition: templateVersions.definition })
+          .from(assessments)
+          .innerJoin(
+            templateVersions,
+            eq(templateVersions.id, assessments.templateVersionId)
+          )
+          .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+          .where(
+            and(
+              eq(assessments.organisationId, organisationId),
+              eq(assessments.status, 'approved'),
+              eq(templates.kind, 'supplier_record')
+            )
+          )
+      ).filter((r) => isAiSupplierDefinition(r.definition)).length;
     const stagesOf = (
       stages: Array<'pilot' | 'production' | 'retiring' | 'retired'>
     ) =>
@@ -173,7 +195,7 @@ export async function featureEvidence(
       stagesOf(['pilot', 'production']),
       stagesOf(['retiring', 'retired']),
       all(trainingRecords),
-      approvedOfKind(['supplier_record']),
+      approvedAiSupplierAssessments(),
       all(aiIncidents),
       all(atrsRecords),
       approvedOfKind(['eia']),

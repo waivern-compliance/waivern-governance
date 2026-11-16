@@ -80,6 +80,7 @@ export default async function ContributePage({
         initialAnswers={loaded.answers}
         onlySection={redeemed.link.sectionKey}
         legalRefs={refs}
+        law={loaded.entityLaw}
         onSave={contributorSaveAction.bind(null, token)}
         onFinish={contributorFinishAction.bind(null, token)}
         finishLabel="I've finished my part"

@@ -12,6 +12,7 @@ import {
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import { nextReference } from '@/lib/references';
 import {
   checkForSubmission,
@@ -168,6 +169,8 @@ export async function createAssessment(input: {
 
 export type LoadedAssessment = {
   assessment: typeof assessments.$inferSelect;
+  /** The law its entity is under, which decides the articles shown beside questions. */
+  entityLaw: DataProtectionLaw;
   definition: (typeof templateVersions.$inferSelect)['definition'];
   templateName: string;
   templateKind: string;
@@ -185,7 +188,8 @@ export async function loadAssessment(
       .select({
         assessment: assessments,
         version: templateVersions,
-        template: templates
+        template: templates,
+        entityLaw: entities.dataProtectionLaw
       })
       .from(assessments)
       .innerJoin(
@@ -193,6 +197,7 @@ export async function loadAssessment(
         eq(templateVersions.id, assessments.templateVersionId)
       )
       .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+      .innerJoin(entities, eq(entities.id, assessments.entityId))
       .where(
         and(
           eq(assessments.id, assessmentId),
@@ -215,6 +220,7 @@ export async function loadAssessment(
 
     return {
       assessment: row.assessment,
+      entityLaw: row.entityLaw,
       definition: row.version.definition,
       templateName: row.template.name,
       templateKind: row.template.kind,

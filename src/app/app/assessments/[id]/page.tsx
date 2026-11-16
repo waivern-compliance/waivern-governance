@@ -156,6 +156,7 @@ export default async function AssessmentPage({
         initialAnswers={answers}
         readOnly={!editable}
         legalRefs={refs}
+        law={loaded.entityLaw}
         answerMeta={meta}
         onSave={saveAction.bind(null, id)}
         onFinish={

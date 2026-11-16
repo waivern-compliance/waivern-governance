@@ -29,6 +29,10 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
+  DUE_DILIGENCE_NAMES,
+  dueDiligenceDepth
+} from '@/lib/templates/library/supplier-due-diligence';
+import {
   AI_CONTRACT_TERMS,
   AI_GAP_WORDS,
   AI_INVOLVEMENT_LABEL,
@@ -38,6 +42,7 @@ import {
   SERIOUS_AI_GAPS,
   type AiInvolvement
 } from '@/lib/thirdparty/ai-procurement';
+import { isSupplierTier } from '@/lib/thirdparty/tier';
 import { contractsFor } from '@/services/contracts';
 import { documentsFor } from '@/services/documents';
 import { extractionAvailable, latestExtraction } from '@/services/extraction';
@@ -341,6 +346,32 @@ export default async function SupplierPage({
         recommendation={tiering.recommendation}
         mayEdit={mayEdit}
       />
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Due diligence</h2>
+        <p className="max-w-prose text-xs text-ink-soft">
+          A security and privacy questionnaire under Articles 28 and 32: full
+          for critical and high tier suppliers, light for the rest. Invite the
+          supplier to answer it from the assessment, and it is approved like any
+          other supplier assessment.
+        </p>
+        {mayEdit ? (
+          <StartAssessment
+            organisationId={org}
+            subjectType="supplier"
+            subjectId={supplier.id}
+            prefer={
+              DUE_DILIGENCE_NAMES[
+                dueDiligenceDepth(
+                  isSupplierTier(supplier.tier)
+                    ? supplier.tier
+                    : tiering.recommendation.tier
+                )
+              ]
+            }
+          />
+        ) : null}
+      </section>
 
       <SupplierContracts
         supplierId={supplier.id}

@@ -2,8 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react';
 
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { ResolvedRef } from '@/lib/legal-refs';
 import { optionsForType } from '@/lib/templates/catalogues';
+import { citedFor } from '@/lib/templates/cited';
 import {
   evaluate,
   type Answers,
@@ -20,6 +22,8 @@ type Props = {
   onlySection?: string | null;
   readOnly?: boolean;
   legalRefs: Record<string, ResolvedRef>;
+  /** The law the assessment's entity is under, which decides whether UK or EU GDPR articles are shown. */
+  law?: DataProtectionLaw;
   answerMeta?: Record<string, { by: string; at: string }>;
   onSave: (answers: Record<string, AnswerValue>) => Promise<SaveResult>;
   onFinish?: () => Promise<SaveResult>;
@@ -37,6 +41,7 @@ export function AssessmentForm({
   onlySection,
   readOnly = false,
   legalRefs,
+  law,
   answerMeta = {},
   onSave,
   onFinish,
@@ -196,6 +201,7 @@ export function AssessmentForm({
                 required={evaluation.questions[question.key].required}
                 readOnly={readOnly}
                 legalRefs={legalRefs}
+                law={law}
                 meta={answerMeta[question.key]}
                 onChange={(v) => set(question.key, v)}
               />
@@ -226,6 +232,7 @@ function Field({
   required,
   readOnly,
   legalRefs,
+  law,
   meta,
   onChange
 }: {
@@ -234,6 +241,7 @@ function Field({
   required: boolean;
   readOnly: boolean;
   legalRefs: Props['legalRefs'];
+  law?: DataProtectionLaw;
   meta?: { by: string; at: string };
   onChange: (v: AnswerValue) => void;
 }) {
@@ -374,9 +382,7 @@ function Field({
     );
   })();
 
-  const refs = question.legalRefs
-    .map((code) => legalRefs[code])
-    .filter(Boolean);
+  const refs = citedFor(question.legalRefs, legalRefs, law);
 
   return (
     <div className="space-y-2 border-l-2 border-line pl-4">
