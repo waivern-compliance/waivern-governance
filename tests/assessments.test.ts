@@ -468,6 +468,74 @@ describe('contributor links', () => {
     );
   });
 
+  it("keeps the organisation's own sections from contributors, even on a whole-assessment link", async () => {
+    const { org, entity } = await world('organisation-only');
+    const light = SYSTEM_TEMPLATES.find(
+      (t) => t.name === 'Supplier due diligence (light)'
+    )!;
+    const { version } = await createTemplate({
+      organisationId: org.id,
+      kind: light.kind,
+      name: light.name,
+      definition: light.definition,
+      actor: ACTOR
+    });
+    const published = await publishVersion({
+      organisationId: org.id,
+      versionId: version.id,
+      actor: ACTOR
+    });
+    const assessment = await createAssessment({
+      organisationId: org.id,
+      entityId: entity.id,
+      templateVersionId: published.id,
+      title: 'Hosting supplier',
+      actor: ACTOR
+    });
+
+    await assert.rejects(
+      issueContributorLink({
+        organisationId: org.id,
+        assessmentId: assessment.id,
+        email: 'security@supplier.example',
+        sectionKey: 'conclusion',
+        actor: ACTOR
+      }),
+      /for the organisation to answer/
+    );
+
+    const issued = await issueContributorLink({
+      organisationId: org.id,
+      assessmentId: assessment.id,
+      email: 'security@supplier.example',
+      actor: ACTOR
+    });
+    const redeemed = await redeemContributorLink(issued.token);
+    assert.equal(redeemed.ok, true);
+    if (!redeemed.ok) return;
+    const asSupplier = (answers: Record<string, string>) =>
+      saveAnswers({
+        assessmentId: assessment.id,
+        organisationId: org.id,
+        answers,
+        allowedSection: redeemed.link.sectionKey,
+        byContributor: true,
+        actor: contributorActor(redeemed.link.email)
+      });
+
+    await asSupplier({ supplier_name: 'Northwind Hosting' });
+    await assert.rejects(asSupplier({ recommendation: 'proceed' }), (e) =>
+      /for the organisation to answer/.test(messageChain(e))
+    );
+    // The organisation answers it as usual.
+    await saveAnswers({
+      assessmentId: assessment.id,
+      organisationId: org.id,
+      answers: { recommendation: 'proceed' },
+      actor: ACTOR
+    });
+  });
+
   it('never stores the token itself', async () => {
     const { org, assessment } = await world('hashed');
     const issued = await issueContributorLink({

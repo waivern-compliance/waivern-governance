@@ -33,6 +33,7 @@ export async function contributorSaveAction(
       organisationId: redeemed.link.organisationId,
       answers,
       allowedSection: redeemed.link.sectionKey,
+      byContributor: true,
       actor: contributorActor(redeemed.link.email)
     });
     revalidatePath(`/contribute/${token}`);

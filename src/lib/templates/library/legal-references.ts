@@ -649,6 +649,33 @@ const REFERENCES = [
     jurisdiction: 'UK'
   },
   {
+    code: 'ncsc.cyberessentials',
+    regime: 'NCSC',
+    citation: 'Cyber Essentials',
+    title: 'Five technical controls that guard against the most common attacks',
+    url: 'https://www.ncsc.gov.uk/cyberessentials/overview',
+    jurisdiction: 'UK'
+  },
+  // Named as evidence a supplier may offer, never as requirements: Article 32
+  // asks for security appropriate to the risk, not for a particular standard.
+  {
+    code: 'iso27001',
+    regime: 'ISO/IEC 27001',
+    citation: 'ISO/IEC 27001:2022',
+    title: 'Information security management systems',
+    url: 'https://www.iso.org/standard/27001',
+    jurisdiction: 'International'
+  },
+  {
+    code: 'aicpa.soc2',
+    regime: 'AICPA',
+    citation: 'SOC 2',
+    title:
+      "An auditor's report on controls for security, availability, processing integrity, confidentiality or privacy",
+    url: 'https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2',
+    jurisdiction: 'US'
+  },
+  {
     code: 'ncsc.mlprinciples',
     regime: 'NCSC',
     citation: 'Principles for the security of machine learning',

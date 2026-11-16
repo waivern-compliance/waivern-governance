@@ -79,7 +79,9 @@ export default async function ContributePage({
         definition={loaded.definition}
         initialAnswers={loaded.answers}
         onlySection={redeemed.link.sectionKey}
+        contributor
         legalRefs={refs}
+        law={loaded.entityLaw}
         onSave={contributorSaveAction.bind(null, token)}
         onFinish={contributorFinishAction.bind(null, token)}
         finishLabel="I've finished my part"

@@ -13,18 +13,27 @@ export async function StartAssessment({
   organisationId,
   subjectType,
   subjectId,
-  prefer
+  prefer,
+  only,
+  missing
 }: {
   organisationId: string;
   subjectType: AssessableSubject;
   subjectId: string;
   /** A template name to put first, where one is the obvious choice. */
   prefer?: string;
+  /** Offer only templates with these names, where the section is about one kind of assessment. */
+  only?: readonly string[];
+  /** Said instead of the form when none of `only` is in the library yet. */
+  missing?: string;
 }) {
   const fitting = (await availableTemplates(organisationId)).filter(
-    ({ template }) => KINDS_FOR[subjectType].includes(template.kind)
+    ({ template }) =>
+      KINDS_FOR[subjectType].includes(template.kind) &&
+      (!only || only.includes(template.name))
   );
-  if (fitting.length === 0) return null;
+  if (fitting.length === 0)
+    return missing ? <p className="text-xs text-ink-soft">{missing}</p> : null;
   const ordered = prefer
     ? [...fitting].sort(
         (a, b) =>

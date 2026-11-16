@@ -1,7 +1,7 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
-import { assessments, contributorLinks } from '@/db/schema';
+import { assessments, contributorLinks, templateVersions } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { sha256Hex } from '@/lib/canonical';
 
@@ -48,16 +48,32 @@ export async function issueContributorLink(input: {
 }): Promise<IssuedLink> {
   await refuseDuringTrial(input.organisationId, 'contact.outside');
   return withOrganisation(input.organisationId, async () => {
-    const [assessment] = await db
-      .select()
+    const [found] = await db
+      .select({
+        assessment: assessments,
+        definition: templateVersions.definition
+      })
       .from(assessments)
+      .innerJoin(
+        templateVersions,
+        eq(templateVersions.id, assessments.templateVersionId)
+      )
       .where(
         and(
           eq(assessments.id, input.assessmentId),
           eq(assessments.organisationId, input.organisationId)
         )
       );
-    if (!assessment) throw new Error('No such assessment');
+    if (!found) throw new Error('No such assessment');
+    const assessment = found.assessment;
+    const section = input.sectionKey
+      ? found.definition.schema.sections.find((s) => s.key === input.sectionKey)
+      : undefined;
+    if (input.sectionKey && !section) throw new Error('No such section');
+    if (section?.organisationOnly)
+      throw new Error(
+        `${section.title} is for the organisation to answer, so it cannot be sent to a contributor.`
+      );
 
     const bytes = crypto.getRandomValues(new Uint8Array(TOKEN_BYTES));
     const token = encodeToken(bytes);

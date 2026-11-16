@@ -14,6 +14,11 @@ import { IE_PROVIDER_DUTIES } from './ie-provider';
 import { LIA } from './lia';
 import { NIST_AI_RISK } from './nist-ai-risk';
 import { SCREENING } from './screening';
+import {
+  DUE_DILIGENCE_NAMES,
+  SUPPLIER_DUE_DILIGENCE_FULL,
+  SUPPLIER_DUE_DILIGENCE_LIGHT
+} from './supplier-due-diligence';
 import { TIA_EU, TRA_UK } from './transfers';
 import { TRA_PART3 } from './transfers-part3';
 
@@ -162,6 +167,22 @@ export const SYSTEM_TEMPLATES: Array<{
       "What a supplier's AI does with our data, how it was tested, and what the contract holds them to - following PPN 02/24 and the Crown Commercial Service's data ethics requirements.",
     jurisdiction: 'UK',
     definition: AI_SUPPLIER
+  },
+  {
+    kind: 'supplier_record',
+    name: DUE_DILIGENCE_NAMES.light,
+    description:
+      'Security and privacy due diligence for medium and low tier suppliers: what data they get, where it is processed, sub-processors, certifications held, breach notification and a contact. Under UK GDPR Articles 28 and 32, with the EU GDPR where it applies.',
+    jurisdiction: 'UK and EU',
+    definition: SUPPLIER_DUE_DILIGENCE_LIGHT
+  },
+  {
+    kind: 'supplier_record',
+    name: DUE_DILIGENCE_NAMES.full,
+    description:
+      'Security and privacy due diligence for critical and high tier suppliers: the light questions, plus access control, encryption, vulnerability management and testing, continuity, staff vetting, logging, international transfers, Article 28 terms and deletion at the end of the contract.',
+    jurisdiction: 'UK and EU',
+    definition: SUPPLIER_DUE_DILIGENCE_FULL
   },
   {
     kind: 'eia',

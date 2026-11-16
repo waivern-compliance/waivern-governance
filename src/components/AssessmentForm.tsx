@@ -2,8 +2,10 @@
 
 import { useMemo, useState, useTransition } from 'react';
 
+import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { ResolvedRef } from '@/lib/legal-refs';
 import { optionsForType } from '@/lib/templates/catalogues';
+import { citedFor } from '@/lib/templates/cited';
 import {
   evaluate,
   type Answers,
@@ -18,8 +20,12 @@ type Props = {
   initialAnswers: Answers;
   /** Restricts the form to one section, for a contributor working on their part. */
   onlySection?: string | null;
+  /** Answered through a contributor link, which never reaches the organisation's own sections. */
+  contributor?: boolean;
   readOnly?: boolean;
   legalRefs: Record<string, ResolvedRef>;
+  /** The law the assessment's entity is under, which decides whether UK or EU GDPR articles are shown. */
+  law?: DataProtectionLaw;
   answerMeta?: Record<string, { by: string; at: string }>;
   onSave: (answers: Record<string, AnswerValue>) => Promise<SaveResult>;
   onFinish?: () => Promise<SaveResult>;
@@ -35,8 +41,10 @@ export function AssessmentForm({
   definition,
   initialAnswers,
   onlySection,
+  contributor = false,
   readOnly = false,
   legalRefs,
+  law,
   answerMeta = {},
   onSave,
   onFinish,
@@ -58,6 +66,7 @@ export function AssessmentForm({
   const sections = definition.schema.sections.filter(
     (s) =>
       (!onlySection || s.key === onlySection) &&
+      !(contributor && s.organisationOnly) &&
       evaluation.sections[s.key]?.visible
   );
 
@@ -73,10 +82,11 @@ export function AssessmentForm({
     const keys = new Set<string>();
     for (const s of definition.schema.sections) {
       if (onlySection && s.key !== onlySection) continue;
+      if (contributor && s.organisationOnly) continue;
       for (const q of s.questions) keys.add(q.key);
     }
     return keys;
-  }, [definition.schema.sections, onlySection]);
+  }, [definition.schema.sections, onlySection, contributor]);
 
   const scoped = Object.entries(evaluation.questions).filter(
     ([key, q]) => q.visible && inScope.has(key)
@@ -196,6 +206,7 @@ export function AssessmentForm({
                 required={evaluation.questions[question.key].required}
                 readOnly={readOnly}
                 legalRefs={legalRefs}
+                law={law}
                 meta={answerMeta[question.key]}
                 onChange={(v) => set(question.key, v)}
               />
@@ -226,6 +237,7 @@ function Field({
   required,
   readOnly,
   legalRefs,
+  law,
   meta,
   onChange
 }: {
@@ -234,6 +246,7 @@ function Field({
   required: boolean;
   readOnly: boolean;
   legalRefs: Props['legalRefs'];
+  law?: DataProtectionLaw;
   meta?: { by: string; at: string };
   onChange: (v: AnswerValue) => void;
 }) {
@@ -374,9 +387,7 @@ function Field({
     );
   })();
 
-  const refs = question.legalRefs
-    .map((code) => legalRefs[code])
-    .filter(Boolean);
+  const refs = citedFor(question.legalRefs, legalRefs, law);
 
   return (
     <div className="space-y-2 border-l-2 border-line pl-4">

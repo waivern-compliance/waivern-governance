@@ -676,6 +676,14 @@ Each third party can be given a tier - critical, high, medium or low - for how m
 
 Choosing a tier other than the suggestion needs a reason. The suggestion, its grounds, the tier chosen and the reason all go in the audit log. The register can be filtered by tier.
 
+### Due diligence
+
+Assess a supplier's security and data protection from its page with a due diligence questionnaire, under UK GDPR Articles 28 and 32. It comes in two depths, and the page puts first the one that suits the supplier's tier. Light, for medium and low tiers, asks what data the supplier gets, where it is processed, its sub-processors, the certifications it holds, how soon it reports a breach, and who to contact. Full, for critical and high tiers, adds access control, encryption, security updates and penetration testing, continuity, staff vetting, logging, international transfers, the Article 28 terms and what happens to your data when the contract ends.
+
+Invite someone at the supplier to answer it from the assessment, as with any assessment; they need no account. Where they say they hold a certificate or report - ISO/IEC 27001, Cyber Essentials, SOC 2 or a penetration test - they are asked for its details, and to send you a copy, which you can attach to the supplier's page. These are named as evidence, not required: Article 32 asks for security appropriate to the risk. The last section, whether the evidence arrived and your recommendation, is yours: it is never sent to the supplier, even on a link to the whole assessment. The assessment is approved through the supplier assessment workflow, and goes to Responsible AI review where the supplier says it uses AI.
+
+Whether a processor agreement is held is not asked again: the register reads it from the agreement on the supplier's page, and the questionnaire asks what that agreement says. The score rises with what is missing or not known, and reaches the accountable approver from the high band. A due diligence assessment is not read as an assessment of the supplier's AI: use the AI supplier assessment for that.
+
 ### Where these come from
 
 Some you record. Others arrive from a connected scanner, because a tracker seen on a page is a third party whether or not procurement knew about it.
@@ -1829,7 +1837,7 @@ When Waivern updates a template you already have, the library says which, and of
 
 ### Which templates, under which law
 
-The DPIA screening and the breach severity assessment serve the UK GDPR, the EU GDPR or both, because Articles 33 to 35 read the same in each; their questions cite both laws, and EU sources (the EDPB, WP29, the CNIL) beside the ICO. The full DPIA, the legitimate interests assessment and the UK transfer risk assessment are built on UK law and offered where some entity is subject to it. The CNIL method and the EU transfer impact assessment are offered to every organisation. An entity marked as a provider of electronic communications services in Ireland is also offered the Electronic communications provider duties (Ireland) checklist, of what the Irish ePrivacy Regulations ask of a provider; it goes for review like the organisation's own templates.
+The DPIA screening and the breach severity assessment serve the UK GDPR, the EU GDPR or both, because Articles 33 to 35 read the same in each; their questions cite both laws, and EU sources (the EDPB, WP29, the CNIL) beside the ICO. The full DPIA, the legitimate interests assessment and the UK transfer risk assessment are built on UK law and offered where some entity is subject to it. The CNIL method and the EU transfer impact assessment are offered to every organisation, as are the supplier due diligence questionnaires, which cite UK GDPR Articles 28 and 32. Where a question cites both laws, an assessment shows the EU GDPR article only if its entity is subject to the EU GDPR, and the UK one only if it is subject to UK law. An entity marked as a provider of electronic communications services in Ireland is also offered the Electronic communications provider duties (Ireland) checklist, of what the Irish ePrivacy Regulations ask of a provider; it goes for review like the organisation's own templates.
 
 Under EU law, check also the list of processing that needs a DPIA published by your lead or competent authority under Article 35(4): the CNIL's, for France.
 
