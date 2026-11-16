@@ -8,6 +8,7 @@ import { EditForm } from '@/components/EditForm';
 import { GapChips } from '@/components/GapChips';
 import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
+import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { StartAssessment } from '@/components/StartAssessment';
 import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
@@ -24,7 +25,7 @@ import {
 import { TRANSFER_MECHANISMS } from '@/lib/gdpr/transfers';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
-import { getActiveSession } from '@/lib/session';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
   AI_CONTRACT_TERMS,
   AI_GAP_WORDS,
@@ -38,6 +39,7 @@ import {
 import { documentsFor } from '@/services/documents';
 import { extractionAvailable, latestExtraction } from '@/services/extraction';
 import { importSourceName } from '@/services/imports';
+import { assetsFor } from '@/services/information-assets';
 import { agreementsFor } from '@/services/sharing-agreements';
 import { GAP_WORDS, HARD_GAPS, loadSupplier } from '@/services/third-party';
 
@@ -85,8 +87,9 @@ export default async function SupplierPage({
   );
 
   const org = active.membership.organisationId;
-  const [sharing, supplierDocs, ...dpaDocs] = await Promise.all([
+  const [sharing, assets, supplierDocs, ...dpaDocs] = await Promise.all([
     agreementsFor(org, { supplierId: supplier.id }),
+    assetsFor(org, { supplierId: supplier.id }, visibleEntityIds(active)),
     documentsFor(org, 'supplier', supplier.id),
     ...dpas.map((d) => documentsFor(org, 'dpa', d.id))
   ]);
@@ -322,6 +325,11 @@ export default async function SupplierPage({
           </div>
         ) : null}
       </section>
+
+      <LinkedAssets
+        assets={assets}
+        empty="No system or repository is recorded as hosted, run or supported by them."
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">AI</h2>

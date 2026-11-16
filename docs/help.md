@@ -30,6 +30,7 @@ Every help topic the application carries, in the order it presents them.
 **The registers**
 
 - [The processing register (Article 30)](#the-processing-register-article-30) - Every processing activity, checked against what Article 30 actually requires rather than against whether the form was filled in.
+- [Information asset register](#information-asset-register) - The systems and repositories you hold information in: who owns each, where it is hosted, how it is classified, how long it keeps things, and what it links to.
 - [Appropriate policy documents (Schedule 1)](#appropriate-policy-documents-schedule-1) - Which Schedule 1 conditions each appropriate policy document covers, and which processing relies on a condition no current document covers.
 - [Third parties and processor agreements (Article 28)](#third-parties-and-processor-agreements-article-28) - Every processor you rely on, whether or not anybody procured it, and whether a contract actually covers them.
 - [Data sharing agreements](#data-sharing-agreements) - Sharing personal data with other controllers: who with, on what basis and gateway, and which sharing no agreement covers.
@@ -595,6 +596,44 @@ A competent authority's law enforcement transfers are assessed with the 'Transfe
 **See also:** Countries, UK approval and transfers · Third parties and processor agreements (Article 28) · Exports · Appropriate policy documents (Schedule 1)
 
 <sub>Also searchable as: ropa, article 30, record of processing, purposes, lawful basis, retention, recipients</sub>
+
+## Information asset register
+
+*The systems and repositories you hold information in: who owns each, where it is hosted, how it is classified, how long it keeps things, and what it links to.*
+
+**Screen:** `/app/assets`
+
+### What it is for
+
+The processing register records what you do with personal data and which categories of it. This register records where information is held: each system or repository - a database, a file share, a SaaS application, a paper archive, a device - with its owner, where it is hosted, its classification and how long what it holds is kept.
+
+It describes systems, not their contents. Do not list individual files or the personal data in a system here; link the asset to the processing activities whose data it holds, and the categories stay on the processing register.
+
+No statute requires an asset register. UK public bodies keep one under the National Cyber Security Centre guidance and the Government Security Classifications, and other organisations keep one because it supports the records of processing under Article 30 and the security of processing under Article 32 of the UK GDPR and EU GDPR. Govern does not treat a gap here as a breach of anything.
+
+### Each asset
+
+An asset belongs to one legal entity and gets a reference such as IA-2026-0001. Its information asset owner is a member of the organisation, accountable for who uses it, how it is protected and what happens to it at the end. An asset can be recorded before anybody owns it, and shows as a gap until somebody does.
+
+Where it is: whether it is on premises, SaaS run by the supplier, in your own cloud on a provider, or a mix; who hosts it or which building it is in; the region; and the countries it is held in. Retention is written as you would say it, with the schedule reference or the rule.
+
+### Classification
+
+Assets are classified on one scheme for the whole organisation, chosen on the organisation settings page: a neutral set (public, internal, confidential, restricted) by default, or the Government Security Classifications (Official, Official-Sensitive, Secret, Top Secret). The scheme can be changed only while no asset is classified, so the register is never classified two ways at once.
+
+### Links
+
+Link an asset to the processing activities whose data it holds, the third parties that host, run or support it, and the risks that concern it. Activities and risks must be its own legal entity's, so a link never shows one entity's records to people who may see only another's; any third party on the register can be linked. Each linked activity, third party and risk shows the asset on its own page.
+
+### Reviews and retiring
+
+Give each asset a review date. Record a review with the date the next is due. Once a month, if any asset in use is past its review date, a task goes to the privacy administrators naming how many.
+
+When an asset is decommissioned or replaced, retire it with a reason. It is kept with its links, owes no more reviews, and can no longer be edited. The register hides retired assets unless you ask for them.
+
+**See also:** The processing register (Article 30) · Third parties and processor agreements (Article 28) · The risk register · The organisation and its legal entities
+
+<sub>Also searchable as: iar, information asset, asset register, information asset owner, iao, system inventory, data inventory, classification, government security classifications, official sensitive, hosting, data location</sub>
 
 ## Appropriate policy documents (Schedule 1)
 
@@ -1830,6 +1869,10 @@ The categories AI risks are filed under and appetite is set against, the appetit
 The UK framework uses the nine categories of DSIT's AI Risk Management Toolkit. NIST AI RMF uses its seven characteristics of trustworthy AI, plus Financial and Legal and regulatory compliance, which keep the same meaning in both. Its template follows Map and Measure, and every question cites the NIST subcategory it serves.
 
 UK law applies whichever is followed. The NIST template still asks about the DPIA, solely automated decisions, the equality duty and transparency records.
+
+### Asset classification
+
+The information asset register classifies on one scheme: a neutral set by default, or the Government Security Classifications. Like the risk scale, it can only be changed while no asset is classified.
 
 ### Who can change it
 

@@ -11,6 +11,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { ClassificationScheme } from '@/lib/assets/register';
 import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 import type { Dpo } from '@/lib/dpa2018/public-authority';
@@ -103,6 +104,16 @@ export const organisations = pgTable('organisation', {
     .notNull()
     .default(DEFAULT_LIFESPAN_THRESHOLD_MONTHS),
   cookieLifespanJustification: text('cookie_lifespan_justification'),
+  /**
+   * The classification scheme its information asset register uses. Fixed once
+   * any asset is classified, as the risk scale is once any risk is rated: a
+   * register classified on two schemes cannot be compared. See
+   * `lib/assets/register.ts`.
+   */
+  assetClassificationScheme: text('asset_classification_scheme')
+    .$type<ClassificationScheme>()
+    .notNull()
+    .default('neutral'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

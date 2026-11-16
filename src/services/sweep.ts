@@ -44,6 +44,7 @@ import {
   requestsNeedingAttention
 } from './data-subject-requests';
 import { pruneIntakeAttempts } from './dsr-intake';
+import { assetsDueForReview } from './information-assets';
 import { reviewsNeedingAttention } from './information-request-reviews';
 import { informationRequestsNeedingAttention } from './information-requests';
 import {
@@ -101,6 +102,7 @@ export type SweepResult = {
   intakeAttemptsForgotten: number;
   lapsedReviewsRaised: number;
   aiReviewsRaised: number;
+  assetReviewsRaised: number;
   appetiteReviewsRaised: number;
   documentsScanned: number;
   documentsQuarantined: number;
@@ -1097,6 +1099,45 @@ async function raiseAiReviews(organisationId: string): Promise<number> {
 }
 
 /**
+ * Information assets in use whose review date has passed.
+ *
+ * As for AI systems: one task naming the count, keyed on the month so a
+ * neglected register nags monthly rather than hourly, and nothing for a
+ * retired asset. It goes to the privacy administrators, who keep the
+ * register; the asset's owner is named on the asset itself.
+ */
+async function raiseAssetReviews(organisationId: string): Promise<number> {
+  const due = await assetsDueForReview(organisationId);
+  if (due.length === 0) return 0;
+
+  const period = new Date().toISOString().slice(0, 7);
+  const oldest = due[0];
+  let raised = 0;
+
+  await db.transaction(async (tx) => {
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: oldest.entityId,
+      type: 'reassess',
+      title:
+        due.length === 1
+          ? `${oldest.reference} ${oldest.name} is due for review`
+          : `${due.length} information assets are past their review date`,
+      description:
+        `Oldest is ${oldest.reference}, due ${oldest.nextReviewAt!.toISOString().slice(0, 10)}. ` +
+        'Check its owner, where it is hosted, its classification and retention are still right, then record the review.',
+      subjectType: 'information_asset',
+      subjectId: oldest.id,
+      assigneeRole: 'privacy_admin',
+      idempotencyKey: `asset-reviews:${period}`,
+      actor: SYSTEM
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
+/**
  * Approved risk appetites whose review date has passed.
  *
  * An appetite is a judgement about how much risk is worth carrying for a
@@ -1316,6 +1357,7 @@ export async function sweepOrganisation(
     intakeAttemptsForgotten: await pruneIntakeAttempts(organisationId),
     lapsedReviewsRaised: await raiseLapsedReviews(organisationId),
     aiReviewsRaised: await raiseAiReviews(organisationId),
+    assetReviewsRaised: await raiseAssetReviews(organisationId),
     appetiteReviewsRaised: await raiseAppetiteReviews(organisationId),
     documentsScanned: 0,
     documentsQuarantined: 0,
