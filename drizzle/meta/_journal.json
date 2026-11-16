@@ -827,6 +827,20 @@
       "when": 1794839499152,
       "tag": "0117_information_asset_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1794848190914,
+      "tag": "0118_supplier_tier_and_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1794848192533,
+      "tag": "0119_supplier_contract_guards",
+      "breakpoints": true
     }
   ]
 }

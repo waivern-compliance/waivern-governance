@@ -197,6 +197,8 @@ export const TABLES: readonly TableRule[] = [
   // Processing, suppliers and evidence.
   own('processing_activity'),
   own('supplier'),
+  own('supplier_contract'),
+  own('supplier_contract_viewer'),
   own('dpa'),
   own('evidence'),
   own('scan_finding'),

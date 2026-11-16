@@ -42,6 +42,7 @@ import type {
 } from '@/lib/gdpr/further-processing';
 import type { LawfulBasis, RecognisedCondition } from '@/lib/gdpr/lawful-basis';
 import type { RecordedMechanism } from '@/lib/gdpr/transfers';
+import type { SupplierTier } from '@/lib/thirdparty/tier';
 
 import {
   deliveryStatus,
@@ -414,6 +415,13 @@ export const suppliers = pgTable(
      * AI assessment, and read from there.
      */
     aiInvolvement: supplierAiInvolvement('ai_involvement'),
+    /**
+     * How much it matters, set by a person (`lib/thirdparty/tier.ts`). Null
+     * until somebody has decided. Where the choice departs from what the
+     * register recommended, the reason is kept beside it.
+     */
+    tier: text('tier').$type<SupplierTier>(),
+    tierReason: text('tier_reason'),
     sourceConnectionId: uuid('source_connection_id').references(
       () => integrationConnections.id,
       { onDelete: 'set null' }

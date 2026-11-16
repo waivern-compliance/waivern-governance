@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, like, ne } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -6,7 +6,6 @@ import {
   entities,
   informationRequestDecisions,
   informationRequests,
-  referenceCounters,
   tasks,
   users
 } from '@/db/schema';
@@ -31,6 +30,7 @@ import {
   type InformationRequestClock,
   type Pause
 } from '@/lib/foi/statutory';
+import { nextReference } from '@/lib/references';
 
 import { recordRequest } from './data-subject-requests';
 import type { Actor } from './templates';
@@ -149,17 +149,6 @@ function checkedChannel(channel: string, regimes: readonly FoiRegime[]) {
     );
 }
 
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'FOI', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `FOI-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 /** Record a request as it arrived, by whatever channel. */
 export async function recordInformationRequest(input: {
   organisationId: string;
@@ -231,7 +220,9 @@ export async function recordInformationRequest(input: {
       );
       checkedChannel(input.channel, regimes);
       const reference = await nextReference(
+        db,
         input.organisationId,
+        'FOI',
         new Date().getUTCFullYear()
       );
 

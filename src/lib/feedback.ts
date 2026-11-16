@@ -32,6 +32,8 @@ const PLACES: Array<[RegExp, string]> = [
   [/^\/app\/assets\/\[id\]/, 'An information asset'],
   [/^\/app\/assets/, 'Information asset register'],
   [/^\/app\/third-parties/, 'Third parties'],
+  [/^\/app\/contracts\/\[id\]/, 'A supplier contract'],
+  [/^\/app\/contracts/, 'Supplier contracts'],
   [/^\/app\/ai\/\[id\]/, 'An AI use case'],
   [/^\/app\/ai/, 'AI register'],
   [/^\/app\/breaches/, 'Breaches'],

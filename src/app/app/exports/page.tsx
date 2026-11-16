@@ -20,6 +20,8 @@ const BLURB: Record<Dataset, string> = {
     'Every system and repository on the information asset register: its owner, where it is hosted, its classification and retention, and the activities, third parties and risks it is linked to.',
   'third-parties':
     'Every processor with the agreement in force, its expiry, and what is missing against Article 28.',
+  contracts:
+    'Every supplier contract with its dates, notice period and the last day to give notice. Values appear only for the contracts whose terms you may see.',
   breaches:
     'Every breach with both statutory decisions and the reasoning for each, including the ones judged not notifiable.',
   requests:

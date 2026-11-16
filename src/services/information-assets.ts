@@ -18,7 +18,6 @@ import {
   informationAssetSuppliers,
   organisations,
   processingActivities,
-  referenceCounters,
   risks,
   suppliers,
   users
@@ -37,6 +36,7 @@ import {
   type HostingModel
 } from '@/lib/assets/register';
 import { appendAuditEvent } from '@/lib/audit';
+import { nextReference } from '@/lib/references';
 
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
@@ -62,17 +62,6 @@ export type LinkKind = (typeof LINK_KINDS)[number];
 
 export function isLinkKind(value: unknown): value is LinkKind {
   return (LINK_KINDS as readonly unknown[]).includes(value);
-}
-
-async function nextReference(tx: Tx, organisationId: string, year: number) {
-  const rows = await tx.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'IA', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `IA-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 async function loadForWrite(tx: Tx, id: string, organisationId: string) {
@@ -500,6 +489,7 @@ export async function createAsset(input: {
       const reference = await nextReference(
         tx,
         input.organisationId,
+        'IA',
         new Date().getUTCFullYear()
       );
       const [row] = await tx

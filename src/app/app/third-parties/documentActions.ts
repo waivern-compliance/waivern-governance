@@ -5,6 +5,10 @@ import { revalidatePath } from 'next/cache';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { refusedUnless, requireCapability } from '@/lib/session';
 import {
+  mayReadContractDocument,
+  mayReadContractTerms
+} from '@/services/contracts';
+import {
   attachDocument,
   attachSampleDocument,
   moveDocument,
@@ -42,6 +46,21 @@ export async function uploadDocumentsAction(
     'record.write',
     context.entityId ? { entityId: context.entityId } : undefined
   );
+
+  // A contract's signed copy is part of its terms: only those who may see
+  // them may add one.
+  if (
+    context.subjectType === 'supplier_contract' &&
+    !(await mayReadContractTerms(
+      active.membership.organisationId,
+      context.subjectId,
+      { userId: active.userId, grants: active.membership.grants }
+    ))
+  )
+    return {
+      ok: false,
+      message: "You may not see this contract's terms, so cannot attach to it."
+    };
 
   const files = formData
     .getAll('files')
@@ -102,6 +121,13 @@ export async function uploadDocumentsAction(
 
 export async function removeDocumentAction(id: string, revalidate: string) {
   const active = await requireCapability('record.write');
+  if (
+    (await mayReadContractDocument(active.membership.organisationId, id, {
+      userId: active.userId,
+      grants: active.membership.grants
+    })) === false
+  )
+    throw new Error("You may not see this contract's terms.");
   await removeDocument({
     id,
     organisationId: active.membership.organisationId,

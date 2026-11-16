@@ -8,7 +8,6 @@ import {
   entities,
   organisations,
   processingActivities,
-  referenceCounters,
   suppliers,
   users
 } from '@/db/schema';
@@ -49,6 +48,7 @@ import {
 } from '@/lib/dsr/statutory';
 import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
+import { nextReference } from '@/lib/references';
 
 import { canonicalise } from './ingest';
 import { regulatorOfEntity } from './regulator';
@@ -349,17 +349,6 @@ async function seedScope(tx: Tx, request: DataSubjectRequest): Promise<number> {
   return inserted.length;
 }
 
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'DSR', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `DSR-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 /**
  * The regime a request is handled under, refused where it is not available:
  * Part 3 only on a UK request to a competent authority's entity, and only
@@ -500,7 +489,9 @@ export async function recordRequest(input: {
     // both laws is a UK request.
     if (regime === 'dpa_part3') jurisdiction = 'uk';
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'DSR',
       new Date().getUTCFullYear()
     );
 

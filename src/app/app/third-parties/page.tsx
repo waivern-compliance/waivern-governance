@@ -8,6 +8,7 @@ import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
 import { AI_GAP_WORDS, SERIOUS_AI_GAPS } from '@/lib/thirdparty/ai-procurement';
+import { SUPPLIER_TIERS, TIER_LABEL } from '@/lib/thirdparty/tier';
 import {
   EXPIRING_WITHIN_LABEL,
   GAP_WORDS,
@@ -17,7 +18,11 @@ import {
 
 import { addSupplier } from './actions';
 
-export default async function ThirdPartiesPage() {
+export default async function ThirdPartiesPage({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
@@ -32,6 +37,11 @@ export default async function ThirdPartiesPage() {
 
   const health = await registerHealth(active.membership.organisationId);
   const mayAdd = can(active.membership.grants, 'record.write');
+  const tierParam = (await searchParams).tier;
+  const tier = Array.isArray(tierParam) ? tierParam[0] : tierParam;
+  const rows = health.rows.filter((r) =>
+    !tier ? true : tier === 'none' ? !r.supplier.tier : r.supplier.tier === tier
+  );
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
@@ -146,62 +156,95 @@ export default async function ThirdPartiesPage() {
         </details>
       ) : null}
 
+      <nav
+        aria-label="Filter by tier"
+        className="flex flex-wrap items-center gap-2 text-xs"
+      >
+        <span className="text-ink-soft">Tier:</span>
+        {[
+          ['', 'All'],
+          ...SUPPLIER_TIERS.map((t) => [t, TIER_LABEL[t]]),
+          ['none', 'Not set']
+        ].map(([key, label]) => (
+          <Link
+            key={key}
+            href={key ? `/app/third-parties?tier=${key}` : '/app/third-parties'}
+            aria-current={(tier ?? '') === key ? 'page' : undefined}
+            className={`rounded border px-2 py-0.5 ${
+              (tier ?? '') === key
+                ? 'border-brand text-brand'
+                : 'border-line text-ink-soft hover:border-brand'
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
       <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
-        {health.rows.map(
-          ({ supplier, current, ownerEmail, gaps, privacy, ai }) => (
-            <li key={supplier.id}>
-              <Link
-                href={`/app/third-parties/${supplier.id}`}
-                className="block space-y-2 px-4 py-3.5 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <span className="font-medium">
-                    {supplier.name}
-                    {supplier.aiInvolvement &&
-                    supplier.aiInvolvement !== 'none' ? (
-                      <span className="ml-2 rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
-                        AI
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="font-mono text-[11px] text-ink-soft">
-                    {supplier.sourceConnectionId
-                      ? 'found by a tool'
-                      : 'recorded by a person'}
-                  </span>
-                </div>
-                <p className="text-xs text-ink-soft">
-                  {(supplier.categories ?? []).join(' · ') || 'no categories'}
-                  {current
-                    ? ` · ${current.title}${
-                        current.expiresAt
-                          ? ` to ${current.expiresAt.toISOString().slice(0, 10)}`
-                          : ', no end date'
-                      }`
-                    : ' · no agreement'}
-                  {ownerEmail ? ` · ${ownerEmail}` : ' · no owner'}
-                </p>
-                <SupplierStandings
-                  privacy={privacy}
-                  ai={ai.standing}
-                />
+        {rows.map(({ supplier, current, ownerEmail, gaps, privacy, ai }) => (
+          <li key={supplier.id}>
+            <Link
+              href={`/app/third-parties/${supplier.id}`}
+              className="block space-y-2 px-4 py-3.5 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="font-medium">
+                  {supplier.name}
+                  {supplier.tier ? (
+                    <span className="ml-2 rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
+                      {TIER_LABEL[supplier.tier]}
+                    </span>
+                  ) : null}
+                  {supplier.aiInvolvement &&
+                  supplier.aiInvolvement !== 'none' ? (
+                    <span className="ml-2 rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-soft">
+                      AI
+                    </span>
+                  ) : null}
+                </span>
+                <span className="font-mono text-[11px] text-ink-soft">
+                  {supplier.sourceConnectionId
+                    ? 'found by a tool'
+                    : 'recorded by a person'}
+                </span>
+              </div>
+              <p className="text-xs text-ink-soft">
+                {(supplier.categories ?? []).join(' · ') || 'no categories'}
+                {current
+                  ? ` · ${current.title}${
+                      current.expiresAt
+                        ? ` to ${current.expiresAt.toISOString().slice(0, 10)}`
+                        : ', no end date'
+                    }`
+                  : ' · no agreement'}
+                {ownerEmail ? ` · ${ownerEmail}` : ' · no owner'}
+              </p>
+              <SupplierStandings
+                privacy={privacy}
+                ai={ai.standing}
+              />
+              <GapChips
+                gaps={gaps}
+                words={GAP_WORDS}
+                serious={HARD_GAPS}
+                clear="Article 28 satisfied"
+              />
+              {ai.gaps.length > 0 ? (
                 <GapChips
-                  gaps={gaps}
-                  words={GAP_WORDS}
-                  serious={HARD_GAPS}
-                  clear="Article 28 satisfied"
+                  gaps={ai.gaps}
+                  words={AI_GAP_WORDS}
+                  serious={SERIOUS_AI_GAPS}
                 />
-                {ai.gaps.length > 0 ? (
-                  <GapChips
-                    gaps={ai.gaps}
-                    words={AI_GAP_WORDS}
-                    serious={SERIOUS_AI_GAPS}
-                  />
-                ) : null}
-              </Link>
-            </li>
-          )
-        )}
+              ) : null}
+            </Link>
+          </li>
+        ))}
+        {rows.length === 0 && health.rows.length > 0 ? (
+          <li className="px-4 py-6 text-sm text-ink-soft">
+            No third party at this tier.
+          </li>
+        ) : null}
         {health.rows.length === 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
             Nothing recorded yet. Connect a scanner and it will start reporting

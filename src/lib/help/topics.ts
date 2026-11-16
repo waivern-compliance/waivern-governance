@@ -889,6 +889,48 @@ export const HELP_TOPICS: HelpTopic[] = [
     related: ['third-parties', 'ropa', 'policy-documents']
   },
   {
+    id: 'contracts',
+    title: 'Supplier contracts',
+    summary:
+      'Commercial contracts with third parties: who owns each, when it ends, the last day to give notice, and who may see what it is worth.',
+    path: '/app/contracts',
+    keywords: [
+      'contract',
+      'commercial contract',
+      'renewal',
+      'notice period',
+      'auto-renewal',
+      'contract value',
+      'vendor contract',
+      'contract tracking'
+    ],
+    sections: [
+      {
+        heading: 'What it is for',
+        body: [
+          'A processor agreement under Article 28 says what a supplier may do with personal data. A commercial contract says what you pay and for how long. They are kept apart: processor agreements stay on the third-party register, and contracts are recorded here, each signed by one of your legal entities.',
+          'Each contract records its third party, the entity that signed it, its owner, its value and currency, when it starts and ends, its notice period and whether it renews automatically. The signed copy can be attached.'
+        ]
+      },
+      {
+        heading: 'The notice date',
+        body: [
+          'The date that matters is the last day to give notice: the end date less the notice period. A contract that renews automatically commits you to another term if that day passes unnoticed.',
+          'From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no owner who can still open it. A task is raised once for each notice date. Changing the dates cancels the old task and raises a fresh one for the new date. Ending a contract closes its task and stops its reminders.',
+          'When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.'
+        ]
+      },
+      {
+        heading: 'Who sees the commercial terms',
+        body: [
+          "A contract's value and signed copy are shown only to whoever added it, the members they named, and those who may see every contract's terms (owners and privacy administrators). Only current members who can open records in the entity that signed it can be named, as owner or to see the terms, so the terms never go to an outside address or to someone who cannot open the contract. Whoever added it, or an owner or privacy administrator, can change who is named.",
+          'Everyone who can read records still sees that the contract exists, its third party and its dates, so renewals are never hidden from the people who must act on them. The audit log records that the terms changed, never what they are, and the contracts spreadsheet says "withheld" where you may not see a value.'
+        ]
+      }
+    ],
+    related: ['third-parties', 'exports', 'roles-and-access']
+  },
+  {
     id: 'third-parties',
     title: 'Third parties and processor agreements (Article 28)',
     summary:
@@ -910,6 +952,13 @@ export const HELP_TOPICS: HelpTopic[] = [
       'sub-processor list'
     ],
     sections: [
+      {
+        heading: 'Tier',
+        body: [
+          'Each third party can be given a tier - critical, high, medium or low - for how much it matters to you. A person sets it. Beside the choice, the register suggests a tier from what it already records, and says why: critical where the supplier hosts or supports an information asset at the highest classification; high where it receives or holds special category data, or supports a confidential asset; medium where it is a processor or uses AI; otherwise low.',
+          'Choosing a tier other than the suggestion needs a reason. The suggestion, its grounds, the tier chosen and the reason all go in the audit log. The register can be filtered by tier.'
+        ]
+      },
       {
         heading: 'Where these come from',
         body: [
@@ -3101,6 +3150,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'information-assets',
       'policy-documents',
       'third-parties',
+      'contracts',
       'sharing-agreements',
       'breaches',
       'data-subject-requests',

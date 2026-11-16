@@ -1,18 +1,18 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
-import { db, withOrganisation, type Db } from '@/db/client';
+import { db, withOrganisation } from '@/db/client';
 import {
   approvals,
   assessmentAnswers,
   assessmentRevisions,
   assessments,
   entities,
-  referenceCounters,
   templates,
   templateVersions,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { nextReference } from '@/lib/references';
 import {
   checkForSubmission,
   validateAnswer,
@@ -32,8 +32,6 @@ import {
   assertMemberOf,
   assertRecordIn
 } from './tenancy-guards';
-
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /** Statuses in which answers may still be changed. */
 const EDITABLE = ['draft', 'in_progress', 'returned'] as const;
@@ -72,31 +70,6 @@ export class SubmissionIncomplete extends Error {
         [...missing, ...invalid].map((p) => p.questionKey).join(', ')
     );
   }
-}
-
-/**
- * Allocate the next reference for a prefix and year.
- *
- * The upsert takes a row lock, so concurrent creation serialises rather than
- * handing two assessments the same number — the same reason the audit chain
- * locks its head.
- */
-async function nextReference(
-  tx: Tx,
-  organisationId: string,
-  kind: string,
-  year: number
-) {
-  const prefix = REFERENCE_PREFIX[kind] ?? 'ASMT';
-  const rows = await tx.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, ${prefix}, ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  const value = Number(rows[0]?.next_value ?? 1);
-  return `${prefix}-${year}-${String(value).padStart(4, '0')}`;
 }
 
 export async function createAssessment(input: {
@@ -152,7 +125,7 @@ export async function createAssessment(input: {
       const reference = await nextReference(
         tx,
         input.organisationId,
-        version.template.kind,
+        REFERENCE_PREFIX[version.template.kind] ?? 'ASMT',
         new Date().getUTCFullYear()
       );
 

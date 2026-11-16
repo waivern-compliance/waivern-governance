@@ -33,6 +33,7 @@ Every help topic the application carries, in the order it presents them.
 - [Information asset register](#information-asset-register) - The systems and repositories you hold information in: who owns each, where it is hosted, how it is classified, how long it keeps things, and what it links to.
 - [Appropriate policy documents (Schedule 1)](#appropriate-policy-documents-schedule-1) - Which Schedule 1 conditions each appropriate policy document covers, and which processing relies on a condition no current document covers.
 - [Third parties and processor agreements (Article 28)](#third-parties-and-processor-agreements-article-28) - Every processor you rely on, whether or not anybody procured it, and whether a contract actually covers them.
+- [Supplier contracts](#supplier-contracts) - Commercial contracts with third parties: who owns each, when it ends, the last day to give notice, and who may see what it is worth.
 - [Data sharing agreements](#data-sharing-agreements) - Sharing personal data with other controllers: who with, on what basis and gateway, and which sharing no agreement covers.
 - [Personal data breaches](#personal-data-breaches) - Record every breach, decide the two statutory questions separately, and keep the reasoning for both.
 - [Data subject requests](#data-subject-requests) - Record every request from a person exercising their rights, run the month to answer it, and keep the reasoning for each decision.
@@ -669,6 +670,12 @@ When a document is no longer in force, withdraw it. It stops covering anything a
 
 **Screen:** `/app/third-parties`
 
+### Tier
+
+Each third party can be given a tier - critical, high, medium or low - for how much it matters to you. A person sets it. Beside the choice, the register suggests a tier from what it already records, and says why: critical where the supplier hosts or supports an information asset at the highest classification; high where it receives or holds special category data, or supports a confidential asset; medium where it is a processor or uses AI; otherwise low.
+
+Choosing a tier other than the suggestion needs a reason. The suggestion, its grounds, the tier chosen and the reason all go in the audit log. The register can be filtered by tier.
+
 ### Where these come from
 
 Some you record. Others arrive from a connected scanner, because a tracker seen on a page is a third party whether or not procurement knew about it.
@@ -760,6 +767,36 @@ Only an AI supplier assessment counts for the AI standing. It is recognised by t
 **See also:** The processing register (Article 30) · Countries, UK approval and transfers · Scan findings · The AI register
 
 <sub>Also searchable as: supplier, vendor, dpa, article 28, processor, sub-processor, contract, expiry, extract, read the agreement, transfer mechanism, provenance, sub-processor list</sub>
+
+## Supplier contracts
+
+*Commercial contracts with third parties: who owns each, when it ends, the last day to give notice, and who may see what it is worth.*
+
+**Screen:** `/app/contracts`
+
+### What it is for
+
+A processor agreement under Article 28 says what a supplier may do with personal data. A commercial contract says what you pay and for how long. They are kept apart: processor agreements stay on the third-party register, and contracts are recorded here, each signed by one of your legal entities.
+
+Each contract records its third party, the entity that signed it, its owner, its value and currency, when it starts and ends, its notice period and whether it renews automatically. The signed copy can be attached.
+
+### The notice date
+
+The date that matters is the last day to give notice: the end date less the notice period. A contract that renews automatically commits you to another term if that day passes unnoticed.
+
+From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no owner who can still open it. A task is raised once for each notice date. Changing the dates cancels the old task and raises a fresh one for the new date. Ending a contract closes its task and stops its reminders.
+
+When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.
+
+### Who sees the commercial terms
+
+A contract's value and signed copy are shown only to whoever added it, the members they named, and those who may see every contract's terms (owners and privacy administrators). Only current members who can open records in the entity that signed it can be named, as owner or to see the terms, so the terms never go to an outside address or to someone who cannot open the contract. Whoever added it, or an owner or privacy administrator, can change who is named.
+
+Everyone who can read records still sees that the contract exists, its third party and its dates, so renewals are never hidden from the people who must act on them. The audit log records that the terms changed, never what they are, and the contracts spreadsheet says "withheld" where you may not see a value.
+
+**See also:** Third parties and processor agreements (Article 28) · Exports · Roles, and why you cannot see something
+
+<sub>Also searchable as: contract, commercial contract, renewal, notice period, auto-renewal, contract value, vendor contract, contract tracking</sub>
 
 ## Data sharing agreements
 

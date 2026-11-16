@@ -72,6 +72,13 @@ export const CAPABILITIES = [
   /** See who raised a confidential concern. Whistleblowing depends on few people holding this. */
   'concern.confidential',
   /**
+   * See every supplier contract's commercial terms: its value and signed
+   * copy. Otherwise a contract's terms are shown only to whoever added it and
+   * the members they named (`services/contracts.ts`), because what an
+   * organisation pays is often more sensitive than the register around it.
+   */
+  'contract.confidential',
+  /**
    * Read and handle requests and complaints from data subjects. Separate from
    * `record.read` because each is the person's own personal data — sometimes
    * about their health or a grievance — and an auditor or approver reading the
@@ -125,6 +132,7 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
     'audit.read',
     'audit.export',
     'concern.confidential',
+    'contract.confidential',
     'dsr.handle',
     'foi.handle'
   ],

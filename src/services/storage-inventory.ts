@@ -8,7 +8,6 @@ import {
   evidence,
   organisations,
   processingActivities,
-  referenceCounters,
   scanFindings,
   storageDecisions,
   storageItems,
@@ -52,6 +51,7 @@ import {
   type Gap,
   type StorageBasis
 } from '@/lib/pecr/statutory';
+import { nextReference } from '@/lib/references';
 
 import { eprivacyScopeFor } from './entities';
 import type { Actor } from './templates';
@@ -96,17 +96,6 @@ export const ITEM_KINDS = [
   'sdk',
   'other'
 ] as const;
-
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'WEB', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `WEB-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
 
 const trimmed = (v: string | null | undefined) => v?.trim() || null;
 
@@ -156,7 +145,9 @@ export async function createProperty(input: {
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'WEB',
       new Date().getUTCFullYear()
     );
     return db.transaction(async (tx) => {

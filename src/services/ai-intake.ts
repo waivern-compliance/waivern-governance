@@ -2,14 +2,10 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db, withOrganisation } from '@/db/client';
-import {
-  aiUseCaseRequests,
-  entities,
-  referenceCounters,
-  users
-} from '@/db/schema';
+import { aiUseCaseRequests, entities, users } from '@/db/schema';
 import { cautionsFor, isScore, priority, quadrant } from '@/lib/ai/intake';
 import { appendAuditEvent } from '@/lib/audit';
+import { nextReference } from '@/lib/references';
 
 import { createUseCase, type Provenance, type SystemType } from './ai-register';
 import type { Actor } from './templates';
@@ -35,17 +31,6 @@ export const STATUS_LABEL: Record<RequestStatus, string> = {
 };
 
 export class RequestRefused extends Error {}
-
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'AIREQ', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `AIREQ-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
 
 const trimmed = (v: string | null | undefined) => (v ?? '').trim() || null;
 
@@ -116,7 +101,9 @@ export async function submitRequest(input: {
     }
 
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'AIREQ',
       new Date().getUTCFullYear()
     );
     return db.transaction(async (tx) => {

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -6,7 +6,6 @@ import {
   breachDecisions,
   breaches,
   entities,
-  referenceCounters,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
@@ -29,6 +28,7 @@ import {
   type NotifyTarget
 } from '@/lib/gdpr/establishment';
 import { effectiveLaws } from '@/lib/gdpr/regimes';
+import { nextReference } from '@/lib/references';
 
 import { cleanRecordLaws } from './ropa';
 import type { Actor } from './templates';
@@ -252,17 +252,6 @@ function assemble(
   };
 }
 
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'BR', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `BR-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 /** Part 3 only on a competent authority's entity; the default follows the entity. */
 async function checkedRegime(
   executor: Pick<typeof db, 'select'>,
@@ -339,7 +328,9 @@ export async function recordBreach(input: {
     const laws = await checkedLaws(db, input.entityId, input.laws, regime);
     const affectedStates = cleanStates(input.affectedStates ?? []);
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'BR',
       new Date().getUTCFullYear()
     );
 

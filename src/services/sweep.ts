@@ -37,6 +37,7 @@ import { forgetExpiredConversations } from './assistant';
 import { breachesNeedingAttention } from './breaches';
 import { complaintsNeedingAttention } from './complaints';
 import { finishRunningScans } from './consent-analyser';
+import { contractsNeedingNotice, retireContractReminders } from './contracts';
 import { countriesDueForReview } from './countries';
 import {
   objectionCounts,
@@ -103,6 +104,7 @@ export type SweepResult = {
   lapsedReviewsRaised: number;
   aiReviewsRaised: number;
   assetReviewsRaised: number;
+  contractNoticesRaised: number;
   appetiteReviewsRaised: number;
   documentsScanned: number;
   documentsQuarantined: number;
@@ -1138,6 +1140,61 @@ async function raiseAssetReviews(organisationId: string): Promise<number> {
 }
 
 /**
+ * Supplier contracts whose last day to give notice is near or past.
+ *
+ * One task per contract and notice date, to its owner where they are still a
+ * member, otherwise to the privacy administrators. Keyed on the notice date,
+ * so moving the dates raises a fresh reminder and nothing else does. The
+ * task names the dates only: whoever it goes to may not see the terms.
+ */
+async function raiseContractNotices(organisationId: string): Promise<number> {
+  const due = await contractsNeedingNotice(organisationId);
+  let raised = 0;
+  for (const { contract, key, noticeBy, notice, ownerMayAct } of due) {
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const renewed = notice === 'renewed';
+    const by = day(noticeBy!);
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: contract.entityId,
+        type: 'reassess',
+        title: renewed
+          ? `${contract.reference} ${contract.title}: renewed on ${day(contract.endsAt!)}, record the new term`
+          : notice === 'passed'
+            ? `${contract.reference} ${contract.title}: the notice date has passed`
+            : `${contract.reference} ${contract.title}: notice due by ${by}`,
+        description: renewed
+          ? `Its term ended on ${day(contract.endsAt!)} and it renews automatically. Record the new end date on the contract, or end it if notice was given.`
+          : (contract.autoRenews
+              ? `It renews automatically unless notice is given by ${by}. `
+              : `Notice must be given by ${by} to end it at the end of its term. `) +
+            'Decide whether to renew, renegotiate or end it, and record the outcome on the contract.',
+        subjectType: 'supplier_contract',
+        subjectId: contract.id,
+        ...(ownerMayAct
+          ? { assigneeUserId: contract.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
+        // A renewal is due a new end date promptly; the default service level
+        // sets when.
+        ...(renewed ? {} : { dueAt: noticeBy! }),
+        idempotencyKey: key,
+        actor: SYSTEM
+      });
+      if (task) raised += 1;
+      // Once a term has renewed, the reminder to give notice on it is spent.
+      await retireContractReminders(
+        tx,
+        organisationId,
+        contract,
+        SYSTEM.actorLabel
+      );
+    });
+  }
+  return raised;
+}
+
+/**
  * Approved risk appetites whose review date has passed.
  *
  * An appetite is a judgement about how much risk is worth carrying for a
@@ -1358,6 +1415,7 @@ export async function sweepOrganisation(
     lapsedReviewsRaised: await raiseLapsedReviews(organisationId),
     aiReviewsRaised: await raiseAiReviews(organisationId),
     assetReviewsRaised: await raiseAssetReviews(organisationId),
+    contractNoticesRaised: await raiseContractNotices(organisationId),
     appetiteReviewsRaised: await raiseAppetiteReviews(organisationId),
     documentsScanned: 0,
     documentsQuarantined: 0,

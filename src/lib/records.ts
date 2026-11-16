@@ -33,7 +33,9 @@ const PATHS: Record<string, (id: string) => string> = {
   data_protection_complaint_event: () => '/app/complaints',
   risk_appetite: () => '/app/risks/appetite',
   ai_incident: (id) => `/app/ai/incidents/${id}`,
-  ai_use_case_request: (id) => `/app/ai/intake/${id}`
+  ai_use_case_request: (id) => `/app/ai/intake/${id}`,
+  information_asset: (id) => `/app/assets/${id}`,
+  supplier_contract: (id) => `/app/contracts/${id}`
 };
 
 /**

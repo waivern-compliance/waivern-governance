@@ -40,11 +40,12 @@ import {
   type Table
 } from '@/lib/import/parse';
 import type { ImportMapping, ImportRecord } from '@/lib/import/types';
+import { nextReference } from '@/lib/references';
 
 import { createUseCase } from './ai-register';
 import { checkFile, insertDocument, UploadRefused } from './documents';
 import { ExtractionUnavailable, runExtraction } from './extraction';
-import { canonicalise as canonicaliseByPush, nextReference } from './ingest';
+import { canonicalise as canonicaliseByPush } from './ingest';
 import { cleanLawfulBases } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise } from './third-party';

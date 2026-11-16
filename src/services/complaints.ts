@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -7,7 +7,6 @@ import {
   dataSubjectRequests,
   entities,
   organisations,
-  referenceCounters,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
@@ -29,6 +28,7 @@ import {
 import type { Jurisdiction } from '@/lib/dsr/statutory';
 import { regulatorFor } from '@/lib/gdpr/establishment';
 import { BadQuery } from '@/lib/integration/query';
+import { nextReference } from '@/lib/references';
 
 import {
   CHANNELS,
@@ -105,17 +105,6 @@ function clockOf(
     updateIntervalDays: targets.updateIntervalDays,
     now
   });
-}
-
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'CMP', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `CMP-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 function validSubject(subject: string): string {
@@ -296,7 +285,9 @@ export async function recordComplaint(input: {
     const refusal = jurisdictionRefusal(entity, jurisdiction, 'complaint');
     if (refusal) throw new ComplaintRefused(refusal);
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'CMP',
       new Date().getUTCFullYear()
     );
 
