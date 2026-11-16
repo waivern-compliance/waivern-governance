@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { CheckList } from '@/components/site/CheckList';
 import { PageTag } from '@/components/site/PageTag';
 import { EXPANSION_SURVEY_URL, SOURCE_CODE_URL } from '@/lib/product';
-import { TRIAL_LENGTH } from '@/lib/trial-rules';
+import { TRIAL_LENGTH } from '@/lib/trial';
+import { DEMO_HIGHLIGHTS } from '@/services/trial-demo';
 
 /**
  * Why somebody might want to sign in: the case for the hosted service.
@@ -42,6 +43,10 @@ const COVERS = [
   'Freedom of information requests and complaints',
   'Policies, evidence, training and a full audit trail'
 ] as const;
+
+/** The navy button the page's own sections end with. */
+const navyCta =
+  'inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-navy px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy';
 
 const secondaryCta =
   'inline-flex items-center gap-2 rounded-lg border-2 border-brand px-6 py-3.5 text-base font-semibold text-brand transition hover:bg-brand/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
@@ -93,7 +98,7 @@ export function Hero({
         {providers.length > 0 ? ` Sign in with ${providers.join(' or ')}.` : ''}
         {open ? ' Then ask for your organisation, and we will set it up.' : ''}
         {trials
-          ? ` Or look around a fictional company for ${TRIAL_LENGTH} first, with just an email address.`
+          ? ` You can also look around a fictional company for ${TRIAL_LENGTH} first, with just an email address.`
           : ''}
       </p>
     </section>
@@ -147,7 +152,7 @@ export function Pitch({ trials }: { trials: boolean }) {
         </div>
         <Link
           href="/services"
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-navy px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+          className={navyCta}
         >
           See our services <span aria-hidden>→</span>
         </Link>
@@ -262,15 +267,6 @@ export function Pitch({ trials }: { trials: boolean }) {
   );
 }
 
-const DEMO_INCLUDES = [
-  'Processing activities, already recorded',
-  'A personal data breach with its 72-hour clock running',
-  'An AI system with its risks',
-  'Suppliers with gaps in their agreements',
-  'A subject access request and a complaint',
-  'Simulated colleagues, so you can take a DPIA from draft to sign-off'
-] as const;
-
 /**
  * The trial, offered as what it is: a made-up company to look around, for
  * fictional data only, alongside the free organisation that never ends.
@@ -289,13 +285,13 @@ function DemoCompany() {
           See it working before you sign up
         </h2>
         <p className="text-ink-soft">
-          Give an email address and, within a minute, you are inside a fictional
-          retailer with its compliance already under way. Look around for{' '}
-          {TRIAL_LENGTH}, with no work account and no card.
+          Give an email address, open the link we send you, and you are inside a
+          fictional retailer with its compliance already under way. Look around
+          for {TRIAL_LENGTH}, with no work account and no card.
         </p>
       </div>
       <CheckList
-        items={DEMO_INCLUDES}
+        items={DEMO_HIGHLIGHTS}
         className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2"
       />
       <p className="max-w-2xl text-sm text-ink-soft">
@@ -306,7 +302,7 @@ function DemoCompany() {
       </p>
       <Link
         href="/trial"
-        className="inline-flex items-center gap-2 rounded-md bg-navy px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+        className={navyCta}
       >
         Explore the demo company <span aria-hidden>→</span>
       </Link>

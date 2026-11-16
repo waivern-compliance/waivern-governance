@@ -78,7 +78,7 @@ import { handOver } from '@/services/handover';
 import { addImportFiles, uploadImport } from '@/services/imports';
 import { deliverNotifications } from '@/services/member-email';
 import { ingestAnalyserReport } from '@/services/storage-inventory';
-import { COLLEAGUES } from '@/services/trial-demo';
+import { COLLEAGUES, DEMO_HIGHLIGHTS } from '@/services/trial-demo';
 import { isTrial, TrialRestricted } from '@/services/trial-guard';
 import {
   decideTrialRequest,
@@ -551,6 +551,39 @@ describe('the demo company', () => {
     assert.equal(rows.agreements[0].signedAt, null, 'the other is unsigned');
     assert.equal(rows.requests.length, 1, 'a request');
     assert.equal(rows.complaints.length, 1, 'a complaint');
+
+    // What the sign-in page promises a visitor, one check per line of
+    // DEMO_HIGHLIGHTS, in order: a new line there needs its check here.
+    const approvers = await withOrganisation(org, () =>
+      db
+        .select({ id: users.id })
+        .from(roleAssignments)
+        .innerJoin(
+          memberships,
+          eq(memberships.id, roleAssignments.membershipId)
+        )
+        .innerJoin(users, eq(users.id, memberships.userId))
+        .where(
+          and(
+            eq(memberships.organisationId, org),
+            eq(roleAssignments.role, 'approver'),
+            eq(users.simulated, true)
+          )
+        )
+    );
+    const promised = [
+      rows.activities.length > 0,
+      rows.breaches.some(
+        (b) => b.discoveredAt.getTime() > Date.now() - 72 * HOUR
+      ),
+      rows.systems.length > 0 && rows.risks.length > 0,
+      rows.agreements.length < rows.suppliers.length ||
+        rows.agreements.some((a) => a.signedAt === null),
+      rows.requests.length > 0 && rows.complaints.length > 0,
+      approvers.length > 0
+    ];
+    assert.equal(promised.length, DEMO_HIGHLIGHTS.length);
+    promised.forEach((kept, i) => assert.ok(kept, DEMO_HIGHLIGHTS[i]));
 
     // Every address in it is one nobody can be reached at.
     const text = JSON.stringify(rows);

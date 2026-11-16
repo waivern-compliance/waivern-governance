@@ -91,7 +91,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Starting one',
         body: [
-          `Where trials are offered, the sign-in page has a Start a ${TRIAL_LENGTH} trial button. Give your email address: a work one is best, but a personal one such as Gmail works too. You can also give your organisation's name. You are sent a link that works once, for ${LINK_MINUTES} minutes. Opening it changes nothing until you press Continue, so a mail scanner that opens it first does not use it up.`,
+          `Where trials are offered, the sign-in page has an Explore the demo for ${TRIAL_LENGTH} button. Give your email address: a work one is best, but a personal one such as Gmail works too. You can also give your organisation's name. You are sent a link that works once, for ${LINK_MINUTES} minutes. Opening it changes nothing until you press Continue, so a mail scanner that opens it first does not use it up.`,
           "Each mailbox has one trial. Asking again with the same address, however it is spelt, sends a link that signs you back in to it. The form says the same thing whatever the address, so nobody can use it to find out who has an account. It also limits how often one address, and one connection, can ask. On Waivern's hosted service you accept the Terms of Service and the Data Processing Agreement before you start, as every owner does."
         ]
       },

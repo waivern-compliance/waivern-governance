@@ -32,6 +32,20 @@ export const DEMO = {
 } as const;
 
 /**
+ * What the demo company holds, as the sign-in page offers it. Kept beside
+ * `seedTrialDemo` so the promise and the records change together;
+ * `tests/trials.test.ts` checks each against a freshly started trial.
+ */
+export const DEMO_HIGHLIGHTS = [
+  'Processing activities, already recorded',
+  'A personal data breach with its 72-hour clock running',
+  'An AI system with its risks',
+  'Suppliers with gaps in their agreements',
+  'A subject access request and a complaint',
+  'Simulated colleagues on the approval steps, so you can take a DPIA from draft to sign-off'
+] as const;
+
+/**
  * The trial's simulated colleagues, and what each is asked to do. Approvals,
  * reviews and tasks that name their roles go to them, in the app only.
  */
