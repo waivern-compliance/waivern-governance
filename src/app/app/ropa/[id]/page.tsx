@@ -8,6 +8,7 @@ import { EditForm } from '@/components/EditForm';
 import { GapChips } from '@/components/GapChips';
 import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
+import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, processingActivities, users } from '@/db/schema';
@@ -46,7 +47,7 @@ import {
 import { appliesEu, appliesUk, RECORD_LAWS } from '@/lib/gdpr/regimes';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
-import { getActiveSession } from '@/lib/session';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
   DATA_CATEGORIES,
   SUBJECT_CATEGORIES
@@ -57,6 +58,7 @@ import {
   objectionReviewThreshold
 } from '@/services/data-subject-requests';
 import { importSourceName } from '@/services/imports';
+import { assetsFor } from '@/services/information-assets';
 import { gapWordsFor, HARD_GAPS, loadActivity } from '@/services/ropa';
 import { agreementsFor } from '@/services/sharing-agreements';
 
@@ -117,39 +119,50 @@ export default async function ActivityPage({
   );
 
   // Counts only — no requester — so anyone who may read the record may see them.
-  const [objections, threshold, linkedUseCases, otherActivities, sharing] =
-    await Promise.all([
-      objectionCounts(active.membership.organisationId, [activity.id]).then(
-        (m) => m.get(activity.id)
-      ),
-      objectionReviewThreshold(active.membership.organisationId),
-      linkedUseCasesOf(active.membership.organisationId, activity),
-      // What this activity could reuse data from, for the further-processing link.
-      mayEdit
-        ? scoped(active.membership.organisationId, () =>
-            db
-              .select({
-                id: processingActivities.id,
-                entityId: processingActivities.entityId,
-                reference: processingActivities.reference,
-                name: processingActivities.name,
-                lawfulBases: processingActivities.lawfulBases,
-                regime: processingActivities.regime
-              })
-              .from(processingActivities)
-              .where(
-                eq(
-                  processingActivities.organisationId,
-                  active.membership.organisationId
-                )
+  const [
+    objections,
+    threshold,
+    linkedUseCases,
+    otherActivities,
+    sharing,
+    assets
+  ] = await Promise.all([
+    objectionCounts(active.membership.organisationId, [activity.id]).then((m) =>
+      m.get(activity.id)
+    ),
+    objectionReviewThreshold(active.membership.organisationId),
+    linkedUseCasesOf(active.membership.organisationId, activity),
+    // What this activity could reuse data from, for the further-processing link.
+    mayEdit
+      ? scoped(active.membership.organisationId, () =>
+          db
+            .select({
+              id: processingActivities.id,
+              entityId: processingActivities.entityId,
+              reference: processingActivities.reference,
+              name: processingActivities.name,
+              lawfulBases: processingActivities.lawfulBases,
+              regime: processingActivities.regime
+            })
+            .from(processingActivities)
+            .where(
+              eq(
+                processingActivities.organisationId,
+                active.membership.organisationId
               )
-              .orderBy(asc(processingActivities.reference))
-          )
-        : Promise.resolve([]),
-      agreementsFor(active.membership.organisationId, {
-        activityId: activity.id
-      })
-    ]);
+            )
+            .orderBy(asc(processingActivities.reference))
+        )
+      : Promise.resolve([]),
+    agreementsFor(active.membership.organisationId, {
+      activityId: activity.id
+    }),
+    assetsFor(
+      active.membership.organisationId,
+      { activityId: activity.id },
+      visibleEntityIds(active)
+    )
+  ]);
 
   const transfersText = (activity.transfers ?? [])
     .map((t) => (t.mechanism ? `${t.country}: ${t.mechanism}` : t.country))
@@ -283,6 +296,11 @@ export default async function ActivityPage({
           </ul>
         </section>
       ) : null}
+
+      <LinkedAssets
+        assets={assets}
+        empty="No system or repository is recorded as holding this activity's data."
+      />
 
       {sharing.length > 0 ||
       (ukLaw && loaded.uncoveredControllers.length > 0) ? (

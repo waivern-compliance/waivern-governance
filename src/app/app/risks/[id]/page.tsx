@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { Discussion } from '@/components/Discussion';
 import { EditForm } from '@/components/EditForm';
+import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RiskTierBadge } from '@/components/RiskTierBadge';
 import { categoryLabel, frameworkOfSuggestion } from '@/lib/ai-frameworks';
@@ -12,8 +13,9 @@ import { labelFor, SCALES, type RiskScaleId } from '@/lib/risk/scale';
 import { TREATMENT_LABEL, type TreatmentType } from '@/lib/risk/treatment';
 import { suggestionsFor } from '@/lib/risk/treatment-library';
 import { savedKey } from '@/lib/saved-key';
-import { getActiveSession } from '@/lib/session';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { aiFrameworkPackOf } from '@/services/ai-framework';
+import { assetsFor } from '@/services/information-assets';
 import { appetiteInForce } from '@/services/risk-policy';
 import { loadRisk } from '@/services/risks';
 
@@ -67,6 +69,11 @@ export default async function RiskPage({
   const live = acceptances.find((a) => !a.supersededAt && !a.revokedAt) ?? null;
   const lapsed = live ? hasPassed(live.expiresAt) : false;
   const ownsIt = risk.ownerId !== null && risk.ownerId === active.userId;
+  const assets = await assetsFor(
+    active.membership.organisationId,
+    { riskId: risk.id },
+    visibleEntityIds(active)
+  );
 
   return (
     <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
@@ -174,6 +181,11 @@ export default async function RiskPage({
           </div>
         </section>
       )}
+
+      <LinkedAssets
+        assets={assets}
+        empty="No system or repository is linked to this risk."
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">

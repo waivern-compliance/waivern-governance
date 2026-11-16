@@ -569,6 +569,7 @@ export const ERASED_BY_ENTITY = [
   'digital_property',
   'marketing_activity',
   'sharing_agreement',
+  'information_asset',
   'processing_activity',
   'scan_finding',
   'evidence',

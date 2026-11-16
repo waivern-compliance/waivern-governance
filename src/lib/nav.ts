@@ -90,6 +90,12 @@ export const NAV: NavItem[] = [
     capability: 'record.read'
   },
   {
+    href: '/app/assets',
+    label: 'Information asset register',
+    hint: 'systems and repositories, who owns them and where they are',
+    capability: 'record.read'
+  },
+  {
     href: '/app/ai',
     label: 'AI register',
     hint: 'every AI system, and what nobody has assessed',

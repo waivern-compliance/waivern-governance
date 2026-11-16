@@ -19,8 +19,13 @@ import { organisationDetail } from '@/services/access';
 import { agreementsOf } from '@/services/agreements';
 import { domainsFor } from '@/services/domains';
 import { dpoPosition, entitiesOf, establishmentOf } from '@/services/entities';
+import {
+  classificationSchemeOf,
+  classifiedAssetCount
+} from '@/services/information-assets';
 import { riskCount, riskScaleOf } from '@/services/risk-policy';
 
+import { ClassificationForm } from './ClassificationForm';
 import { DomainsPanel } from './DomainsPanel';
 import { DpoPanel } from './DpoPanel';
 import { EntitiesPanel } from './EntitiesPanel';
@@ -44,28 +49,39 @@ export default async function OrganisationPage() {
   if (!org) redirect('/app');
 
   const hosted = waivernHosted();
-  const [legalEntities, scale, risksHeld, domains, dpo, members, agreements] =
-    await Promise.all([
-      entitiesOf(org.id),
-      riskScaleOf(org.id),
-      riskCount(org.id),
-      domainsFor(org.id),
-      dpoPosition(org.id),
-      scoped(org.id, () =>
-        db
-          .select({ id: users.id, email: users.email })
-          .from(memberships)
-          .innerJoin(users, eq(users.id, memberships.userId))
-          .where(
-            and(
-              eq(memberships.organisationId, org.id),
-              eq(memberships.isActive, true)
-            )
+  const [
+    legalEntities,
+    scale,
+    risksHeld,
+    domains,
+    dpo,
+    members,
+    agreements,
+    scheme,
+    classified
+  ] = await Promise.all([
+    entitiesOf(org.id),
+    riskScaleOf(org.id),
+    riskCount(org.id),
+    domainsFor(org.id),
+    dpoPosition(org.id),
+    scoped(org.id, () =>
+      db
+        .select({ id: users.id, email: users.email })
+        .from(memberships)
+        .innerJoin(users, eq(users.id, memberships.userId))
+        .where(
+          and(
+            eq(memberships.organisationId, org.id),
+            eq(memberships.isActive, true)
           )
-          .orderBy(asc(users.email))
-      ),
-      hosted ? agreementsOf(org.id) : Promise.resolve([])
-    ]);
+        )
+        .orderBy(asc(users.email))
+    ),
+    hosted ? agreementsOf(org.id) : Promise.resolve([]),
+    classificationSchemeOf(org.id),
+    classifiedAssetCount(org.id)
+  ]);
   // The latest acceptance for each entity, for the record beside it.
   const latestAgreement = new Map<string, (typeof agreements)[number]>();
   for (const a of agreements)
@@ -173,6 +189,11 @@ export default async function OrganisationPage() {
           likelihood: SCALES[id].likelihood.map((p) => `${p.value} ${p.label}`),
           impact: SCALES[id].impact.map((p) => `${p.value} ${p.label}`)
         }))}
+      />
+
+      <ClassificationForm
+        current={scheme}
+        classified={classified}
       />
 
       {can(active.membership.grants, 'member.manage') ? (

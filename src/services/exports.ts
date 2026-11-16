@@ -17,6 +17,12 @@ import {
   users
 } from '@/db/schema';
 import { categoryLabel } from '@/lib/ai-frameworks';
+import {
+  ASSET_GAP_WORDS,
+  ASSET_TYPE_LABEL,
+  classificationLabel,
+  HOSTING_LABEL
+} from '@/lib/assets/register';
 import { appendAuditEvent, GENESIS_HASH } from '@/lib/audit';
 import { BOM, toCsv } from '@/lib/csv';
 import {
@@ -38,6 +44,7 @@ import { aiRiskLog, treatmentWords } from './ai-risk-profile';
 import { breachRegister } from './breaches';
 import { libraryFor } from './countries';
 import { requestMetrics, requestRegister } from './data-subject-requests';
+import { assetRegister } from './information-assets';
 import {
   decisionsOf,
   informationRequestRegister
@@ -71,6 +78,7 @@ export type Dataset =
   | 'ai-register'
   | 'ai-risks'
   | 'ropa'
+  | 'assets'
   | 'third-parties'
   | 'breaches'
   | 'requests'
@@ -85,6 +93,7 @@ export const DATASET_LABEL: Record<Dataset, string> = {
   'ai-register': 'AI register',
   'ai-risks': 'AI risk log',
   ropa: 'Processing register (Article 30)',
+  assets: 'Information asset register',
   'third-parties': 'Third parties (Article 28)',
   breaches: 'Breach register (Article 33(5))',
   requests: 'Data subject requests',
@@ -658,6 +667,7 @@ const DATASET_EXPORT: Record<
   'ai-register': exportAiRegister,
   'ai-risks': exportAiRiskLog,
   ropa: exportRopa,
+  assets: exportAssets,
   'third-parties': (org) => exportThirdParties(org),
   breaches: exportBreaches,
   requests: exportRequests,
@@ -768,6 +778,65 @@ export async function exportRopa(
       ])
     };
   });
+}
+
+/**
+ * The information asset register: each system or repository, where it is,
+ * who owns it, and what it links to. Retired assets are included and say so.
+ */
+export async function exportAssets(
+  organisationId: string,
+  entityIds: string[] | null
+) {
+  const rows = await assetRegister(organisationId, entityIds, {
+    links: true
+  });
+  return {
+    columns: [
+      'Reference',
+      'Entity',
+      'Asset',
+      'Type',
+      'Description',
+      'Information asset owner',
+      'Hosting',
+      'Hosted by',
+      'Region',
+      'Countries',
+      'Classification',
+      'Retention',
+      'Processing activities',
+      'Third parties',
+      'Risks',
+      'Last reviewed',
+      'Next review',
+      'Outstanding',
+      'Retired',
+      'Retired because'
+    ],
+    rows: rows.map((r) => [
+      r.asset.reference,
+      r.entityName,
+      r.asset.name,
+      ASSET_TYPE_LABEL[r.asset.assetType] ?? r.asset.assetType,
+      r.asset.description,
+      r.ownerEmail,
+      r.asset.hosting ? HOSTING_LABEL[r.asset.hosting] : null,
+      r.asset.hostedBy,
+      r.asset.region,
+      r.asset.countries.join('; '),
+      classificationLabel(r.asset.classification),
+      r.asset.retention,
+      r.activities.map((a) => `${a.reference} ${a.name}`).join('; '),
+      r.suppliers.map((s) => s.name).join('; '),
+      r.risks.map((k) => `${k.reference} ${k.title}`).join('; '),
+      r.asset.lastReviewedAt,
+      r.asset.nextReviewAt,
+      r.gaps.map((g) => ASSET_GAP_WORDS[g]).join('; ') || 'nothing',
+      r.asset.retiredAt,
+      r.asset.retiredReason
+    ])
+  };
 }
 
 /**

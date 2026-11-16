@@ -84,7 +84,9 @@ export const recordType = pgEnum('record_type', [
   'information_request_decision',
   // Added with self-service trials.
   'trial',
-  'trial_request'
+  'trial_request',
+  // Added with the information asset register.
+  'information_asset'
 ]);
 
 /**

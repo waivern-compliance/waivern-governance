@@ -73,6 +73,7 @@ import * as graph from '@/services/graph';
 import * as guidance from '@/services/guidance';
 import * as handover from '@/services/handover';
 import * as importsSvc from '@/services/imports';
+import * as assetsSvc from '@/services/information-assets';
 import * as foiReviews from '@/services/information-request-reviews';
 import * as foi from '@/services/information-requests';
 import * as ingest from '@/services/ingest';
@@ -439,6 +440,37 @@ async function populated() {
     supplierId: partner.id,
     actor: SYSTEM
   });
+  const asset = await assetsSvc.createAsset({
+    organisationId: id,
+    entityId: o.entity.id,
+    details: {
+      name: "B's HR system",
+      description: null,
+      assetType: 'saas_application',
+      ownerId: null,
+      hosting: 'saas',
+      hostedBy: null,
+      region: null,
+      countries: [],
+      classification: 'confidential',
+      retention: null,
+      nextReviewAt: null
+    },
+    actor: SYSTEM
+  });
+  for (const [kind, targetId] of [
+    ['activity', activity.id],
+    ['supplier', partner.id],
+    ['risk', risk.id]
+  ] as const) {
+    await assetsSvc.linkAsset({
+      assetId: asset.id,
+      organisationId: id,
+      kind,
+      targetId,
+      actor: SYSTEM
+    });
+  }
   const policyDoc = await policyDocs.createPolicyDocument({
     organisationId: id,
     entityId: o.entity.id,
@@ -663,6 +695,7 @@ async function populated() {
     partner,
     sharing,
     sharingParty,
+    asset,
     intakeLink,
     importBatch,
     useCase,
@@ -691,6 +724,7 @@ let B: Awaited<ReturnType<typeof populated>>;
 
 let mine: {
   sharing: { id: string };
+  asset: { id: string };
   policyDoc: { id: string };
   risk: { id: string };
   breach: { id: string };
@@ -813,8 +847,27 @@ before(async () => {
     title: "A's agreement",
     actor: SYSTEM
   });
+  const asset = await assetsSvc.createAsset({
+    organisationId: A.org.id,
+    entityId: A.entity.id,
+    details: {
+      name: "A's file share",
+      description: null,
+      assetType: 'file_share',
+      ownerId: null,
+      hosting: null,
+      hostedBy: null,
+      region: null,
+      countries: [],
+      classification: null,
+      retention: null,
+      nextReviewAt: null
+    },
+    actor: SYSTEM
+  });
   mine = {
     sharing,
+    asset,
     policyDoc,
     risk,
     breach,
@@ -1077,6 +1130,26 @@ describe("reading another organisation's records", () => {
     [
       "agreementsFor B's partner",
       () => sharingSvc.agreementsFor(A.org.id, { supplierId: B.partner.id })
+    ],
+    ['loadAsset', () => assetsSvc.loadAsset(B.asset.id, A.org.id)],
+    [
+      "assetsFor B's activity",
+      () => assetsSvc.assetsFor(A.org.id, { activityId: B.activity.id }, null)
+    ],
+    [
+      "assetsFor B's partner",
+      () => assetsSvc.assetsFor(A.org.id, { supplierId: B.partner.id }, null)
+    ],
+    [
+      "assetsFor B's risk",
+      () => assetsSvc.assetsFor(A.org.id, { riskId: B.risk.id }, null)
+    ],
+    [
+      "linkOptions for B's entity",
+      () =>
+        assetsSvc
+          .linkOptions(A.org.id, B.entity.id)
+          .then((o) => [...o.activity, ...o.risk])
     ]
   ];
   for (const [name, read] of reads) {
@@ -2458,6 +2531,70 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'updateAsset',
+      () =>
+        assetsSvc.updateAsset({
+          id: B.asset.id,
+          organisationId: A.org.id,
+          details: {
+            name: 'taken',
+            description: null,
+            assetType: 'system',
+            ownerId: null,
+            hosting: null,
+            hostedBy: null,
+            region: null,
+            countries: [],
+            classification: null,
+            retention: null,
+            nextReviewAt: null
+          },
+          actor: as()
+        })
+    ],
+    [
+      'recordAssetReview',
+      () =>
+        assetsSvc.recordAssetReview({
+          id: B.asset.id,
+          organisationId: A.org.id,
+          nextReviewAt: new Date(Date.now() + 365 * DAY),
+          actor: as()
+        })
+    ],
+    [
+      'retireAsset',
+      () =>
+        assetsSvc.retireAsset({
+          id: B.asset.id,
+          organisationId: A.org.id,
+          reason: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      "linkAsset (B's asset)",
+      () =>
+        assetsSvc.linkAsset({
+          assetId: B.asset.id,
+          organisationId: A.org.id,
+          kind: 'supplier',
+          targetId: B.supplier.id,
+          actor: as()
+        })
+    ],
+    [
+      "unlinkAsset (B's asset)",
+      () =>
+        assetsSvc.unlinkAsset({
+          assetId: B.asset.id,
+          organisationId: A.org.id,
+          kind: 'activity',
+          targetId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
       'endSharingAgreement',
       () =>
         sharingSvc.endSharingAgreement({
@@ -2779,6 +2916,47 @@ describe("linking one's own records to another organisation's", () => {
           actor: as()
         })
     ],
+    [
+      "an asset in B's entity",
+      () =>
+        assetsSvc.createAsset({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          details: {
+            name: 'x',
+            description: null,
+            assetType: 'system',
+            ownerId: null,
+            hosting: null,
+            hostedBy: null,
+            region: null,
+            countries: [],
+            classification: null,
+            retention: null,
+            nextReviewAt: null
+          },
+          actor: as()
+        })
+    ],
+    ...(['activity', 'supplier', 'risk'] as const).map(
+      (kind) =>
+        [
+          `my asset linked to B's ${kind}`,
+          () =>
+            assetsSvc.linkAsset({
+              assetId: mine.asset.id,
+              organisationId: A.org.id,
+              kind,
+              targetId:
+                kind === 'activity'
+                  ? B.activity.id
+                  : kind === 'supplier'
+                    ? B.partner.id
+                    : B.risk.id,
+              actor: as()
+            })
+        ] as [string, () => Promise<unknown>]
+    ),
     [
       "a sharing agreement for B's entity",
       () =>
@@ -3537,7 +3715,16 @@ describe('lists', () => {
           'sharingSvc.sharingRegister',
           sharingSvc.sharingRegister(o, null)
         ] as const,
-        ['sharingSvc.sharingCoverage', sharingSvc.sharingCoverage(o)] as const
+        ['sharingSvc.sharingCoverage', sharingSvc.sharingCoverage(o)] as const,
+        [
+          'assetsSvc.assetRegister',
+          assetsSvc.assetRegister(o, null, { links: true })
+        ] as const,
+        [
+          'assetsSvc.assetsDueForReview',
+          assetsSvc.assetsDueForReview(o, new Date(Date.now() + 3650 * DAY))
+        ] as const,
+        ['exportsSvc.exportAssets', exportsSvc.exportAssets(o, null)] as const
       ].map(async ([n, r]) => [n, await r] as [string, unknown])
     );
     const text = (v: unknown) =>
@@ -3570,6 +3757,7 @@ describe('lists', () => {
       B.partner.id,
       B.sharing.id,
       B.sharingParty.id,
+      B.asset.id,
       B.template,
       B.dpiaVersion,
       B.workflow.id,
@@ -4055,6 +4243,30 @@ describe('deleting a legal entity', () => {
       await entityErasure.deletionBy(A.org.id, theirs.id, A.owner.user.id),
       null
     );
+  });
+});
+
+describe('the classification scheme', () => {
+  it("is each organisation's own, and counts only its own assets", async () => {
+    assert.equal(await assetsSvc.classifiedAssetCount(A.org.id), 0);
+    assert.equal(await assetsSvc.classifiedAssetCount(B.org.id), 1);
+    const before = await bSnapshot();
+    await assetsSvc.setClassificationScheme({
+      organisationId: A.org.id,
+      scheme: 'uk_government',
+      actor: as()
+    });
+    assert.equal(
+      await assetsSvc.classificationSchemeOf(A.org.id),
+      'uk_government'
+    );
+    assert.equal(await assetsSvc.classificationSchemeOf(B.org.id), 'neutral');
+    assert.deepEqual(changed(before, await bSnapshot()), []);
+    await assetsSvc.setClassificationScheme({
+      organisationId: A.org.id,
+      scheme: 'neutral',
+      actor: as()
+    });
   });
 });
 

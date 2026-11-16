@@ -16,6 +16,8 @@ const BLURB: Record<Dataset, string> = {
   'ai-risks':
     "Every risk belonging to an AI system, judged against appetite, with its treatments - the central AI risk log DSIT's toolkit asks departments to keep and share with GDS and DSIT.",
   ropa: 'Every processing activity in Article 30 order, with the gaps in each record named so you can see what an inspection would find.',
+  assets:
+    'Every system and repository on the information asset register: its owner, where it is hosted, its classification and retention, and the activities, third parties and risks it is linked to.',
   'third-parties':
     'Every processor with the agreement in force, its expiry, and what is missing against Article 28.',
   breaches:
