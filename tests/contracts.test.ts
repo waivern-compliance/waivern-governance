@@ -9,14 +9,18 @@ import {
   memberships,
   organisations,
   processingActivities,
+  roleAssignments,
+  supplierContracts,
   suppliers,
   tasks,
   users
 } from '@/db/schema';
 import type { Grant } from '@/lib/rbac';
+import { pathFor } from '@/lib/records';
 import { noticeBy, noticeState } from '@/lib/thirdparty/contracts';
 import { recommendTier } from '@/lib/thirdparty/tier';
 import {
+  contractPeople,
   contractRegister,
   contractsNeedingNotice,
   createContract,
@@ -47,16 +51,28 @@ const refusedBy = (pattern: RegExp) => (error: Error) =>
     `${error.message} ${(error.cause as Error | undefined)?.message ?? ''}`
   );
 
-async function person(organisationId: string, label: string, active = true) {
+/** A member with an analyst role: across the organisation, or in one entity. */
+async function person(
+  organisationId: string,
+  label: string,
+  active = true,
+  entityId?: string
+) {
   const [user] = await db
     .insert(users)
     .values({
       email: `${label}-${crypto.randomUUID().slice(0, 8)}@example.com`
     })
     .returning();
-  await db
+  const [membership] = await db
     .insert(memberships)
-    .values({ organisationId, userId: user.id, isActive: active });
+    .values({ organisationId, userId: user.id, isActive: active })
+    .returning();
+  await db.insert(roleAssignments).values({
+    membershipId: membership.id,
+    role: 'privacy_analyst',
+    ...(entityId ? { scope: 'entity', entityId } : { scope: 'organisation' })
+  });
   return user;
 }
 
@@ -187,7 +203,7 @@ describe('setting a tier', () => {
       organisationId: w.org.id,
       entityId: w.entity.id,
       name: 'Occupational health',
-      recipients: ['cloud host tier'],
+      recipients: ['Cloud Host - Tier.'],
       actor: SYSTEM
     });
     await db
@@ -562,35 +578,62 @@ describe('notice', () => {
   it('falls due the notice period before the end date', () => {
     const endsAt = new Date('2027-06-30T00:00:00Z');
     assert.equal(
-      noticeBy({ endsAt, noticeDays: 90, endedAt: null })
+      noticeBy({ endsAt, noticeDays: 90, autoRenews: false, endedAt: null })
         ?.toISOString()
         .slice(0, 10),
       '2027-04-01'
     );
     assert.equal(
-      noticeBy({ endsAt: null, noticeDays: 90, endedAt: null }),
+      noticeBy({
+        endsAt: null,
+        noticeDays: 90,
+        autoRenews: false,
+        endedAt: null
+      }),
       null
     );
     const now = new Date('2027-01-15T00:00:00Z');
     assert.equal(
-      noticeState({ endsAt, noticeDays: 90, endedAt: null }, now),
+      noticeState(
+        { endsAt, noticeDays: 90, autoRenews: false, endedAt: null },
+        now
+      ),
       'due_soon'
     );
     assert.equal(
-      noticeState({ endsAt, noticeDays: 0, endedAt: null }, now),
+      noticeState(
+        { endsAt, noticeDays: 0, autoRenews: false, endedAt: null },
+        now
+      ),
       'later'
     );
     assert.equal(
       noticeState(
-        { endsAt, noticeDays: 90, endedAt: null },
+        { endsAt, noticeDays: 90, autoRenews: false, endedAt: null },
         new Date('2027-05-01T00:00:00Z')
       ),
       'passed'
     );
     assert.equal(
-      noticeState({ endsAt, noticeDays: 90, endedAt: now }, now),
+      noticeState(
+        { endsAt, noticeDays: 90, autoRenews: false, endedAt: now },
+        now
+      ),
       'ended'
     );
+  });
+
+  it('calls a contract that renewed on its own renewed, not overdue', () => {
+    const endsAt = new Date('2027-06-30T00:00:00Z');
+    const after = new Date('2027-07-15T00:00:00Z');
+    const dates = { endsAt, noticeDays: 90, endedAt: null };
+    assert.equal(noticeState({ ...dates, autoRenews: true }, after), 'renewed');
+    assert.equal(noticeState({ ...dates, autoRenews: false }, after), 'passed');
+  });
+
+  it('links its reminders to the contract', () => {
+    assert.equal(pathFor('supplier_contract', 'c1'), '/app/contracts/c1');
+    assert.equal(pathFor('information_asset', 'a1'), '/app/assets/a1');
   });
 
   it('raises one task per notice date to the owner, naming no terms, and none once ended', async () => {
@@ -633,5 +676,162 @@ describe('notice', () => {
       !`${raised[0].title} ${raised[0].description}`.includes('120000')
     );
     assert.equal((await sweepOrganisation(w.org.id)).contractNoticesRaised, 0);
+  });
+
+  async function reminders(organisationId: string) {
+    return db
+      .select()
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.organisationId, organisationId),
+          eq(tasks.subjectType, 'supplier_contract')
+        )
+      );
+  }
+
+  it('closes the reminder when the contract ends', async () => {
+    const w = await world('end-closes');
+    const c = await contractIn(w, {
+      ownerId: w.named.id,
+      endsAt: new Date(Date.now() + 120 * DAY),
+      noticeDays: 60
+    });
+    await sweepOrganisation(w.org.id);
+    await endContract({
+      id: c.id,
+      organisationId: w.org.id,
+      reason: 'Terminated',
+      actor: SYSTEM
+    });
+    const [task] = await reminders(w.org.id);
+    assert.equal(task.status, 'done');
+  });
+
+  it('replaces the reminder when the dates change', async () => {
+    const w = await world('redate');
+    const c = await contractIn(w, {
+      ownerId: w.named.id,
+      endsAt: new Date(Date.now() + 120 * DAY),
+      noticeDays: 60
+    });
+    await sweepOrganisation(w.org.id);
+    await updateContract({
+      id: c.id,
+      organisationId: w.org.id,
+      details: details({
+        ownerId: w.named.id,
+        endsAt: new Date(Date.now() + 130 * DAY),
+        noticeDays: 60
+      }),
+      viewer: { userId: w.adder.id, grants: ANALYST },
+      actor: actorFor(w.adder)
+    });
+    assert.deepEqual(
+      (await reminders(w.org.id)).map((t) => t.status),
+      ['cancelled']
+    );
+    assert.equal((await sweepOrganisation(w.org.id)).contractNoticesRaised, 1);
+    const open = (await reminders(w.org.id)).filter((t) => t.status === 'open');
+    assert.equal(open.length, 1);
+    assert.equal(
+      open[0].dueAt?.toISOString().slice(0, 10),
+      new Date(Date.now() + 70 * DAY).toISOString().slice(0, 10)
+    );
+  });
+
+  it('asks for the new term once an automatic renewal has happened, and retires the notice reminder', async () => {
+    const w = await world('renewed');
+    const c = await contractIn(w, {
+      ownerId: w.named.id,
+      endsAt: new Date(Date.now() + 20 * DAY),
+      noticeDays: 30,
+      autoRenews: true
+    });
+    await sweepOrganisation(w.org.id);
+    // The term ends and it renews; nobody records the new end date.
+    await withOrganisation(w.org.id, () =>
+      db
+        .update(supplierContracts)
+        .set({ endsAt: new Date(Date.now() - 2 * DAY) })
+        .where(eq(supplierContracts.id, c.id))
+    );
+    const [due] = await contractsNeedingNotice(w.org.id);
+    assert.equal(due.notice, 'renewed');
+    assert.equal((await sweepOrganisation(w.org.id)).contractNoticesRaised, 1);
+    const all = await reminders(w.org.id);
+    assert.deepEqual(
+      all.map((t) => [t.idempotencyKey?.split(':')[0], t.status]).sort(),
+      [
+        ['contract-notice', 'cancelled'],
+        ['contract-renewed', 'open']
+      ]
+    );
+  });
+
+  it('sends the reminder to the privacy administrators when the owner cannot open the contract', async () => {
+    const w = await world('owner-scope');
+    const c = await contractIn(w, {
+      ownerId: w.named.id,
+      endsAt: new Date(Date.now() + 120 * DAY),
+      noticeDays: 60
+    });
+    // The owner's access is narrowed to another entity after they were named.
+    const [elsewhere] = await db
+      .insert(entities)
+      .values({ organisationId: w.org.id, name: 'Elsewhere Ltd' })
+      .returning();
+    const [membership] = await db
+      .select()
+      .from(memberships)
+      .where(eq(memberships.userId, w.named.id));
+    await db
+      .update(roleAssignments)
+      .set({ scope: 'entity', entityId: elsewhere.id })
+      .where(eq(roleAssignments.membershipId, membership.id));
+    const [due] = await contractsNeedingNotice(w.org.id);
+    assert.equal(due.contract.id, c.id);
+    assert.equal(due.ownerMayAct, false);
+    await sweepOrganisation(w.org.id);
+    const [task] = await reminders(w.org.id);
+    assert.equal(task.assigneeUserId, null);
+    assert.equal(task.assigneeRole, 'privacy_admin');
+  });
+});
+
+describe('who can be named', () => {
+  it('offers and accepts only members who can open records in the entity that signed', async () => {
+    const w = await world('people');
+    const [elsewhere] = await db
+      .insert(entities)
+      .values({ organisationId: w.org.id, name: 'Elsewhere Ltd' })
+      .returning();
+    const confined = await person(w.org.id, 'confined', true, elsewhere.id);
+    const people = (await contractPeople(w.org.id, w.entity.id)).map(
+      (p) => p.id
+    );
+    assert.ok(people.includes(w.named.id));
+    assert.ok(!people.includes(confined.id));
+    assert.ok(
+      (await contractPeople(w.org.id, elsewhere.id))
+        .map((p) => p.id)
+        .includes(confined.id)
+    );
+
+    await assert.rejects(
+      contractIn(w, { ownerId: confined.id }),
+      refusedBy(/can see records in the entity/)
+    );
+    const c = await contractIn(w);
+    await assert.rejects(
+      setContractViewers({
+        id: c.id,
+        organisationId: w.org.id,
+        userIds: [w.named.id, confined.id],
+        viewer: { userId: w.adder.id, grants: ANALYST },
+        actor: actorFor(w.adder)
+      }),
+      refusedBy(/can see records in the entity/)
+    );
   });
 });

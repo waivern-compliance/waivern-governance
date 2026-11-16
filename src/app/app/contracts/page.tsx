@@ -10,8 +10,11 @@ import { entities, suppliers } from '@/db/schema';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
-import { contractRegister, type ContractRow } from '@/services/contracts';
-import { candidatesFor } from '@/services/handover';
+import {
+  contractPeople,
+  contractRegister,
+  type ContractRow
+} from '@/services/contracts';
 
 import { inputClass, Label } from '../requests/fields';
 import { createContractAction } from './actions';
@@ -36,7 +39,7 @@ export default async function ContractsPage({
   }
   const preselect = (await searchParams).supplier;
   const org = active.membership.organisationId;
-  const [rows, orgEntities, orgSuppliers, members] = await Promise.all([
+  const [rows, orgEntities, orgSuppliers] = await Promise.all([
     contractRegister(org, visibleEntityIds(active), {
       userId: active.userId,
       grants: active.membership.grants
@@ -54,13 +57,21 @@ export default async function ContractsPage({
         .from(suppliers)
         .where(eq(suppliers.organisationId, org))
         .orderBy(asc(suppliers.name))
-    ),
-    candidatesFor(org)
+    )
   ]);
-  const people = [...members].sort((a, b) => a.email.localeCompare(b.email));
   const writable = orgEntities.filter((e) =>
     can(active.membership.grants, 'record.write', e.id)
   );
+  // Anyone who can open records in an entity a contract could be added to.
+  // Which entity is chosen on the same form, so the service has the last
+  // word on whether the person named can see the one chosen.
+  const people = [
+    ...new Map(
+      (await Promise.all(writable.map((e) => contractPeople(org, e.id))))
+        .flat()
+        .map((p) => [p.id, p])
+    ).values()
+  ].sort((a, b) => a.email.localeCompare(b.email));
   const attention = rows.filter(
     (r) => r.notice === 'due_soon' || r.notice === 'passed'
   );
@@ -216,13 +227,15 @@ function Group({
                 </span>
                 <span
                   className={`text-xs ${
-                    r.notice === 'passed' || r.notice === 'due_soon'
+                    r.notice === 'passed' ||
+                    r.notice === 'due_soon' ||
+                    r.notice === 'renewed'
                       ? 'text-amber-900'
                       : 'text-ink-soft'
                   }`}
                 >
                   {NOTICE_WORDS[r.notice]}
-                  {r.noticeBy && !r.contract.endedAt
+                  {r.noticeBy && r.notice !== 'renewed' && !r.contract.endedAt
                     ? `: notice by ${day(r.noticeBy)}`
                     : ''}
                 </span>

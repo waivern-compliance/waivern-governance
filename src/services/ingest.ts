@@ -9,7 +9,6 @@ import {
   evidence,
   processingActivities,
   recordLinks,
-  referenceCounters,
   risks,
   scanFindings,
   suppliers
@@ -49,6 +48,7 @@ import {
   furtherFromWire,
   researchFromWire
 } from '@/lib/integration/duaa';
+import { nextReference } from '@/lib/references';
 
 import { createUseCase } from './ai-register';
 import {
@@ -167,22 +167,6 @@ async function resolveEntity(
   return match
     ? { ok: true, entityId: match.id, law: match.dataProtectionLaw }
     : { ok: false, reason: `Unknown entity "${named}"` };
-}
-
-export async function nextReference(
-  tx: Tx,
-  organisationId: string,
-  prefix: string,
-  year: number
-) {
-  const rows = await tx.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, ${prefix}, ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `${prefix}-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 /** Two spellings of one vendor should not become two suppliers. */

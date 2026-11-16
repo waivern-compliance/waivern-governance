@@ -7,7 +7,6 @@ import {
   assessments,
   documents,
   entities,
-  memberships,
   mitigations,
   notifications,
   organisations,
@@ -38,7 +37,7 @@ import { forgetExpiredConversations } from './assistant';
 import { breachesNeedingAttention } from './breaches';
 import { complaintsNeedingAttention } from './complaints';
 import { finishRunningScans } from './consent-analyser';
-import { contractsNeedingNotice } from './contracts';
+import { contractsNeedingNotice, retireContractReminders } from './contracts';
 import { countriesDueForReview } from './countries';
 import {
   objectionCounts,
@@ -1151,44 +1150,45 @@ async function raiseAssetReviews(organisationId: string): Promise<number> {
 async function raiseContractNotices(organisationId: string): Promise<number> {
   const due = await contractsNeedingNotice(organisationId);
   let raised = 0;
-  for (const { contract, noticeBy, notice } of due) {
-    const by = noticeBy!.toISOString().slice(0, 10);
-    const [ownerActive] = contract.ownerId
-      ? await db
-          .select({ id: memberships.id })
-          .from(memberships)
-          .where(
-            and(
-              eq(memberships.organisationId, organisationId),
-              eq(memberships.userId, contract.ownerId),
-              eq(memberships.isActive, true)
-            )
-          )
-      : [];
+  for (const { contract, key, noticeBy, notice, ownerMayAct } of due) {
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const renewed = notice === 'renewed';
+    const by = day(noticeBy!);
     await db.transaction(async (tx) => {
       const task = await raiseTask(tx, {
         organisationId,
         entityId: contract.entityId,
         type: 'reassess',
-        title:
-          notice === 'passed'
+        title: renewed
+          ? `${contract.reference} ${contract.title}: renewed on ${day(contract.endsAt!)}, record the new term`
+          : notice === 'passed'
             ? `${contract.reference} ${contract.title}: the notice date has passed`
             : `${contract.reference} ${contract.title}: notice due by ${by}`,
-        description:
-          (contract.autoRenews
-            ? `It renews automatically unless notice is given by ${by}. `
-            : `Notice must be given by ${by} to end it at the end of its term. `) +
-          'Decide whether to renew, renegotiate or end it, and record the outcome on the contract.',
+        description: renewed
+          ? `Its term ended on ${day(contract.endsAt!)} and it renews automatically. Record the new end date on the contract, or end it if notice was given.`
+          : (contract.autoRenews
+              ? `It renews automatically unless notice is given by ${by}. `
+              : `Notice must be given by ${by} to end it at the end of its term. `) +
+            'Decide whether to renew, renegotiate or end it, and record the outcome on the contract.',
         subjectType: 'supplier_contract',
         subjectId: contract.id,
-        ...(ownerActive
+        ...(ownerMayAct
           ? { assigneeUserId: contract.ownerId }
           : { assigneeRole: 'privacy_admin' as const }),
-        dueAt: noticeBy!,
-        idempotencyKey: `contract-notice:${contract.id}:${by}`,
+        // A renewal is due a new end date promptly; the default service level
+        // sets when.
+        ...(renewed ? {} : { dueAt: noticeBy! }),
+        idempotencyKey: key,
         actor: SYSTEM
       });
       if (task) raised += 1;
+      // Once a term has renewed, the reminder to give notice on it is spent.
+      await retireContractReminders(
+        tx,
+        organisationId,
+        contract,
+        SYSTEM.actorLabel
+      );
     });
   }
   return raised;

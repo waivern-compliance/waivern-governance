@@ -1,11 +1,10 @@
-import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
   documents,
   entities,
   processingActivities,
-  referenceCounters,
   sharingAgreementActivities,
   sharingAgreementParties,
   sharingAgreements,
@@ -29,6 +28,7 @@ import {
   type SharingDirection
 } from '@/lib/dpa2018/sharing';
 import { isLawfulBasis } from '@/lib/gdpr/lawful-basis';
+import { nextReference } from '@/lib/references';
 
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
@@ -78,17 +78,6 @@ function cleanBasis(input: {
     art10Condition: (input.art10Condition ||
       null) as PartyBasis['art10Condition']
   };
-}
-
-async function nextReference(tx: Tx, organisationId: string, year: number) {
-  const rows = await tx.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'DSA', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `DSA-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
 }
 
 async function loadForWrite(tx: Tx, id: string, organisationId: string) {
@@ -366,6 +355,7 @@ export async function createSharingAgreement(input: {
       const reference = await nextReference(
         tx,
         input.organisationId,
+        'DSA',
         new Date().getUTCFullYear()
       );
       const [row] = await tx

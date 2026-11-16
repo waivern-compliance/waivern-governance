@@ -916,13 +916,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'The notice date',
         body: [
           'The date that matters is the last day to give notice: the end date less the notice period. A contract that renews automatically commits you to another term if that day passes unnoticed.',
-          'From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no current owner. A task is raised once for each notice date; changing the dates raises a fresh one. Ending a contract stops its reminders.'
+          'From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no owner who can still open it. A task is raised once for each notice date. Changing the dates cancels the old task and raises a fresh one for the new date. Ending a contract closes its task and stops its reminders.',
+          'When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.'
         ]
       },
       {
         heading: 'Who sees the commercial terms',
         body: [
-          "A contract's value and signed copy are shown only to whoever added it, the members they named, and those who may see every contract's terms (owners and privacy administrators). Only current members can be named, so the terms never go to an outside address. Whoever added it, or an owner or privacy administrator, can change who is named.",
+          "A contract's value and signed copy are shown only to whoever added it, the members they named, and those who may see every contract's terms (owners and privacy administrators). Only current members who can open records in the entity that signed it can be named, as owner or to see the terms, so the terms never go to an outside address or to someone who cannot open the contract. Whoever added it, or an owner or privacy administrator, can change who is named.",
           'Everyone who can read records still sees that the contract exists, its third party and its dates, so renewals are never hidden from the people who must act on them. The audit log records that the terms changed, never what they are, and the contracts spreadsheet says "withheld" where you may not see a value.'
         ]
       }

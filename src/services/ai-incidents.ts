@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db, withOrganisation } from '@/db/client';
@@ -7,12 +7,12 @@ import {
   aiIncidents,
   aiUseCases,
   entities,
-  referenceCounters,
   risks,
   tasks,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { nextReference } from '@/lib/references';
 import type { RiskTier } from '@/lib/risk/scale';
 
 import type { Actor } from './templates';
@@ -77,17 +77,6 @@ export const OPEN: IncidentStatus[] = ['reported', 'triaged', 'investigating'];
 
 export class IncidentRefused extends Error {}
 
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'AIINC', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `AIINC-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 /**
  * Record a report.
  *
@@ -148,7 +137,9 @@ export async function reportIncident(input: {
     }
 
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'AIINC',
       new Date().getUTCFullYear()
     );
 

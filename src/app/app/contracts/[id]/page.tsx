@@ -8,9 +8,8 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
-import { loadContract } from '@/services/contracts';
+import { contractPeople, loadContract } from '@/services/contracts';
 import { documentsFor } from '@/services/documents';
-import { candidatesFor } from '@/services/handover';
 
 import { inputClass, Label } from '../../requests/fields';
 import {
@@ -51,20 +50,21 @@ export default async function ContractPage({
     !contract.endedAt;
 
   const [candidates, files] = await Promise.all([
-    candidatesFor(org),
+    contractPeople(org, contract.entityId),
     termsVisible
       ? documentsFor(org, 'supplier_contract', contract.id)
       : Promise.resolve([])
   ]);
-  // Active members, and the current owner even if they have since left, so
-  // saving the form does not quietly take the contract away from them.
+  // Those who can open the contract, and the current owner even if they have
+  // since left or lost access, so saving the form does not quietly take the
+  // contract away from them.
   const members = [
     ...candidates,
     ...(contract.ownerId && !candidates.some((m) => m.id === contract.ownerId)
       ? [
           {
             id: contract.ownerId,
-            email: `${ownerEmail ?? 'former member'} (left)`
+            email: `${ownerEmail ?? 'former member'} (no longer has access)`
           }
         ]
       : [])
@@ -104,7 +104,9 @@ export default async function ContractPage({
         </p>
         <p
           className={`text-xs ${
-            loaded.notice === 'passed' || loaded.notice === 'due_soon'
+            loaded.notice === 'passed' ||
+            loaded.notice === 'due_soon' ||
+            loaded.notice === 'renewed'
               ? 'text-amber-900'
               : 'text-ink-soft'
           }`}
@@ -112,7 +114,9 @@ export default async function ContractPage({
           {contract.endedAt
             ? `Ended ${day(contract.endedAt)}${contract.endedReason ? `: ${contract.endedReason}` : ''}. It is kept as it was.`
             : `${NOTICE_WORDS[loaded.notice]}${
-                loaded.noticeBy ? `: notice by ${day(loaded.noticeBy)}` : ''
+                loaded.noticeBy && loaded.notice !== 'renewed'
+                  ? `: notice by ${day(loaded.noticeBy)}`
+                  : ''
               }${contract.autoRenews ? '. Renews automatically.' : '.'}`}
         </p>
       </header>

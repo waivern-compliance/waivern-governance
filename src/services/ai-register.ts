@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db, withOrganisation, type Db } from '@/db/client';
@@ -10,7 +10,6 @@ import {
   entities,
   processingActivities,
   recordLinks,
-  referenceCounters,
   suppliers,
   templates,
   templateVersions,
@@ -25,6 +24,7 @@ import {
   type AdmGap
 } from '@/lib/gdpr/automated-decisions';
 import { unionOfLaws } from '@/lib/gdpr/regimes';
+import { nextReference } from '@/lib/references';
 
 import { assuranceByUseCase } from './ai-assurance';
 import { systemsWithUnresolvedHarm } from './ai-incidents';
@@ -227,21 +227,6 @@ export type RegisterEntry = {
   gaps: Gap[];
 };
 
-async function nextReference(
-  organisationId: string,
-  year: number,
-  executor: Executor = db
-) {
-  const rows = await executor.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'AI', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `AI-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 export async function createUseCase(
   input: {
     organisationId: string;
@@ -271,9 +256,10 @@ export async function createUseCase(
 ) {
   return withOrganisation(input.organisationId, async () => {
     const reference = await nextReference(
+      executor,
       input.organisationId,
-      new Date().getUTCFullYear(),
-      executor
+      'AI',
+      new Date().getUTCFullYear()
     );
     const stage = input.lifecycleStage ?? 'proposed';
 

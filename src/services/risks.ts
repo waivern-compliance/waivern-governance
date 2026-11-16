@@ -1,16 +1,16 @@
-import { and, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lte } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
   assessments,
   mitigations,
   organisations,
-  referenceCounters,
   riskAcceptances,
   risks
 } from '@/db/schema';
 import { suggestionByKey } from '@/lib/ai-frameworks';
 import { appendAuditEvent } from '@/lib/audit';
+import { nextReference } from '@/lib/references';
 import { judge } from '@/lib/risk/appetite';
 import {
   DEFAULT_SCALE,
@@ -52,17 +52,6 @@ export async function riskScaleOf(
   });
 }
 
-async function nextRiskReference(tx: Tx, organisationId: string, year: number) {
-  const rows = await tx.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'RISK', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `RISK-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 export async function createRisk(input: {
   organisationId: string;
   entityId: string;
@@ -93,9 +82,10 @@ export async function createRisk(input: {
           tx
         );
 
-      const reference = await nextRiskReference(
+      const reference = await nextReference(
         tx,
         input.organisationId,
+        'RISK',
         new Date().getUTCFullYear()
       );
 

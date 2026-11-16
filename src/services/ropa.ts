@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -6,7 +6,6 @@ import {
   assessments,
   entities,
   processingActivities,
-  referenceCounters,
   templates,
   templateVersions,
   users
@@ -86,6 +85,7 @@ import {
   TRANSFER_ASSESSMENT_GAP_WORDS,
   type TransferAssessmentGap
 } from '@/lib/gdpr/transfers';
+import { nextReference } from '@/lib/references';
 
 import { needingSafeguards } from './countries';
 import { policyCoverage } from './policy-documents';
@@ -881,17 +881,6 @@ export async function loadActivity(activityId: string, organisationId: string) {
   });
 }
 
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'ROPA', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `ROPA-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
-
 export async function createActivity(input: {
   organisationId: string;
   entityId: string;
@@ -949,7 +938,9 @@ export async function createActivity(input: {
       appliesUk(laws)
     );
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'ROPA',
       new Date().getUTCFullYear()
     );
 

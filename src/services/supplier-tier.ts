@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -18,7 +18,6 @@ import {
 } from '@/lib/thirdparty/tier';
 
 import type { Actor } from './templates';
-import { canonicalise } from './third-party';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Reader = Pick<typeof db, 'select'>;
@@ -63,41 +62,40 @@ async function factsFor(
         isNull(informationAssets.retiredAt)
       )
     );
-  const special = await reader
-    .select({
-      id: processingActivities.id,
-      recipients: processingActivities.recipients
-    })
+  // Counted in the database rather than by reading every special category
+  // activity: the recipient names are matched with the same folding as
+  // `canonicalise`, so "Acme Ltd." and "acme ltd" both name the supplier keyed
+  // `acme-ltd`.
+  const assetIds = assets.map((a) => a.id);
+  const heldOnAsset =
+    assetIds.length === 0
+      ? sql`false`
+      : sql`${processingActivities.id} in (
+          select ${informationAssetActivities.activityId}
+          from ${informationAssetActivities}
+          where ${inArray(informationAssetActivities.assetId, assetIds)}
+        )`;
+  const [{ count }] = await reader
+    .select({ count: sql<number>`count(*)::int` })
     .from(processingActivities)
     .where(
       and(
         eq(processingActivities.organisationId, organisationId),
-        eq(processingActivities.specialCategory, true)
+        eq(processingActivities.specialCategory, true),
+        or(
+          heldOnAsset,
+          sql`exists (
+            select 1 from jsonb_array_elements_text(${processingActivities.recipients}) as r(name)
+            where trim(both '-' from regexp_replace(lower(trim(r.name)), '[^a-z0-9]+', '-', 'g')) = ${supplier.canonicalKey}
+          )`
+        )
       )
     );
-  const onAssets =
-    assets.length === 0
-      ? []
-      : await reader
-          .select({ id: informationAssetActivities.activityId })
-          .from(informationAssetActivities)
-          .where(
-            inArray(
-              informationAssetActivities.assetId,
-              assets.map((a) => a.id)
-            )
-          );
-  const held = new Set(onAssets.map((a) => a.id));
-  const specialCategoryActivities = special.filter(
-    (a) =>
-      held.has(a.id) ||
-      a.recipients.some((r) => canonicalise(r) === supplier.canonicalKey)
-  ).length;
   return {
     assetClassifications: assets
       .map((a) => a.classification)
       .filter((c): c is NonNullable<typeof c> => c !== null),
-    specialCategoryActivities,
+    specialCategoryActivities: count,
     role: supplier.role,
     aiInvolvement: supplier.aiInvolvement
   };

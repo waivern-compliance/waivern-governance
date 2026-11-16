@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, like, ne, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db, withOrganisation } from '@/db/client';
@@ -6,18 +6,22 @@ import {
   documents,
   entities,
   memberships,
-  referenceCounters,
+  roleAssignments,
   supplierContracts,
   supplierContractViewers,
   suppliers,
+  tasks,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { can, type Grant } from '@/lib/rbac';
+import { nextReference } from '@/lib/references';
 import {
   isCurrency,
   noticeBy,
   noticeState,
+  reminderKey,
+  reminderKeyPatterns,
   type NoticeState
 } from '@/lib/thirdparty/contracts';
 
@@ -58,17 +62,6 @@ export type ContractDetails = {
   noticeDays: number | null;
   autoRenews: boolean;
 };
-
-async function nextReference(tx: Tx, organisationId: string, year: number) {
-  const rows = await tx.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'CON', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `CON-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
 
 /** Whether this viewer may see this contract's commercial terms. */
 export function mayReadTerms(
@@ -123,26 +116,128 @@ function cleanTerms(t: ContractTerms): ContractTerms {
   return { value: raw || null, currency };
 }
 
-/** Members of the organisation who may be named now: active ones. */
-async function assertActiveMembers(
+type Reader = Pick<typeof db, 'select'>;
+
+type MemberGrants = ReadonlyMap<string, { email: string; grants: Grant[] }>;
+
+/** Every active member's email and role grants, read once. */
+async function activeMemberGrants(
+  reader: Reader,
+  organisationId: string
+): Promise<MemberGrants> {
+  const rows = await reader
+    .select({
+      userId: memberships.userId,
+      email: users.email,
+      role: roleAssignments.role,
+      scope: roleAssignments.scope,
+      entityId: roleAssignments.entityId
+    })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .innerJoin(
+      roleAssignments,
+      eq(roleAssignments.membershipId, memberships.id)
+    )
+    .where(
+      and(
+        eq(memberships.organisationId, organisationId),
+        eq(memberships.isActive, true)
+      )
+    );
+  const held = new Map<string, { email: string; grants: Grant[] }>();
+  for (const r of rows) {
+    const member = held.get(r.userId) ?? { email: r.email, grants: [] };
+    member.grants.push(
+      r.scope === 'entity' && r.entityId
+        ? { role: r.role, scope: 'entity', entityId: r.entityId }
+        : { role: r.role, scope: 'organisation' }
+    );
+    held.set(r.userId, member);
+  }
+  return held;
+}
+
+/**
+ * Active members who can open records in this entity, by id, with their email.
+ *
+ * The owner is sent the notice reminder and named viewers are given the
+ * terms, so naming someone who cannot open the contract at all gives them a
+ * task they cannot act on, or terms they can never see.
+ */
+function readersIn(members: MemberGrants, entityId: string) {
+  return new Map(
+    [...members]
+      .filter(([, m]) => can(m.grants, 'record.read', entityId))
+      .map(([userId, m]) => [userId, m.email])
+  );
+}
+
+async function assertReaders(
   organisationId: string,
+  entityId: string,
   userIds: readonly string[],
   tx: Tx
 ) {
   if (userIds.length === 0) return;
-  const found = await tx
-    .select({ userId: memberships.userId })
-    .from(memberships)
+  const readers = readersIn(
+    await activeMemberGrants(tx, organisationId),
+    entityId
+  );
+  if (userIds.some((u) => !readers.has(u)))
+    throw new ContractRefused(
+      'Only current members who can see records in the entity that signed the contract can be named.'
+    );
+}
+
+/** Who may be named as a contract's owner or viewer in this entity. */
+export async function contractPeople(
+  organisationId: string,
+  entityId: string
+): Promise<Array<{ id: string; email: string }>> {
+  return withOrganisation(organisationId, async () => {
+    await assertEntityIn(organisationId, entityId, db);
+    const readers = readersIn(
+      await activeMemberGrants(db, organisationId),
+      entityId
+    );
+    return [...readers]
+      .map(([id, email]) => ({ id, email }))
+      .sort((a, b) => a.email.localeCompare(b.email));
+  });
+}
+
+/**
+ * Close a contract's open reminders that no longer apply: all of them when it
+ * has ended, otherwise any but the one its dates call for now. A reminder for
+ * a notice date that has moved would otherwise sit open and overdue.
+ */
+export async function retireContractReminders(
+  tx: Tx,
+  organisationId: string,
+  contract: Contract,
+  label: string,
+  now = new Date()
+) {
+  const keep = contract.endedAt ? null : reminderKey(contract, now);
+  await tx
+    .update(tasks)
+    .set({
+      status: contract.endedAt ? 'done' : 'cancelled',
+      completedAt: now,
+      completedByLabel: label
+    })
     .where(
       and(
-        eq(memberships.organisationId, organisationId),
-        eq(memberships.isActive, true),
-        inArray(memberships.userId, [...userIds])
+        eq(tasks.organisationId, organisationId),
+        or(
+          ...reminderKeyPatterns(contract.id).map((p) =>
+            like(tasks.idempotencyKey, p)
+          )
+        ),
+        inArray(tasks.status, ['open', 'in_progress']),
+        keep ? ne(tasks.idempotencyKey, keep) : undefined
       )
-    );
-  if (found.length !== new Set(userIds).size)
-    throw new ContractRefused(
-      'Only current members of this organisation can be named.'
     );
 }
 
@@ -342,12 +437,16 @@ export async function createContract(input: {
         input.organisationId,
         input.supplierId
       );
-      if (details.ownerId)
-        await assertActiveMembers(input.organisationId, [details.ownerId], tx);
-      await assertActiveMembers(input.organisationId, viewerIds, tx);
+      await assertReaders(
+        input.organisationId,
+        input.entityId,
+        [...(details.ownerId ? [details.ownerId] : []), ...viewerIds],
+        tx
+      );
       const reference = await nextReference(
         tx,
         input.organisationId,
+        'CON',
         new Date().getUTCFullYear()
       );
       const [row] = await tx
@@ -428,12 +527,23 @@ export async function updateContract(input: {
           );
       }
       if (details.ownerId && details.ownerId !== before.ownerId)
-        await assertActiveMembers(input.organisationId, [details.ownerId], tx);
+        await assertReaders(
+          input.organisationId,
+          before.entityId,
+          [details.ownerId],
+          tx
+        );
       const [after] = await tx
         .update(supplierContracts)
         .set({ ...details, ...(terms ?? {}), updatedAt: new Date() })
         .where(eq(supplierContracts.id, input.id))
         .returning();
+      await retireContractReminders(
+        tx,
+        input.organisationId,
+        after,
+        input.actor.actorLabel
+      );
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -475,8 +585,9 @@ export async function setContractViewers(input: {
       ];
       // Somebody already named stays named even if they have since left, so
       // saving the list unchanged does not fail; only new names must be current.
-      await assertActiveMembers(
+      await assertReaders(
         input.organisationId,
+        contract.entityId,
         userIds.filter((u) => !before.includes(u)),
         tx
       );
@@ -526,6 +637,13 @@ export async function endContract(input: {
         .set({ endedAt, endedReason: reason, updatedAt: endedAt })
         .where(eq(supplierContracts.id, input.id))
         .returning();
+      await retireContractReminders(
+        tx,
+        input.organisationId,
+        after,
+        input.actor.actorLabel,
+        endedAt
+      );
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -594,7 +712,12 @@ export async function mayReadContractTerms(
   });
 }
 
-/** Contracts in force whose notice date is near or past. For the sweep. */
+/**
+ * Contracts in force that call for a reminder now: notice near or past, or
+ * renewed with no new term recorded. For the sweep, with the reminder's key
+ * and whether the owner can still act on it (an active member who can open
+ * the contract).
+ */
 export async function contractsNeedingNotice(
   organisationId: string,
   now = new Date()
@@ -609,12 +732,31 @@ export async function contractsNeedingNotice(
           isNull(supplierContracts.endedAt)
         )
       );
-    return rows
-      .map((contract) => ({
-        contract,
-        noticeBy: noticeBy(contract),
-        notice: noticeState(contract, now)
-      }))
-      .filter((r) => r.notice === 'due_soon' || r.notice === 'passed');
+    const due = rows.flatMap((contract) => {
+      const key = reminderKey(contract, now);
+      return key
+        ? [
+            {
+              contract,
+              key,
+              noticeBy: noticeBy(contract),
+              notice: noticeState(contract, now)
+            }
+          ]
+        : [];
+    });
+    if (due.length === 0) return [];
+    const members = await activeMemberGrants(db, organisationId);
+    return due.map((d) => {
+      const owner = d.contract.ownerId
+        ? members.get(d.contract.ownerId)
+        : undefined;
+      return {
+        ...d,
+        ownerMayAct:
+          owner !== undefined &&
+          can(owner.grants, 'record.read', d.contract.entityId)
+      };
+    });
   });
 }

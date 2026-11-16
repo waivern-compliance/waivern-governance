@@ -1182,6 +1182,10 @@ describe("reading another organisation's records", () => {
         contractsSvc.mayReadContractDocument(A.org.id, B.document.id, aViewer())
     ],
     [
+      "contractPeople in B's entity",
+      () => contractsSvc.contractPeople(A.org.id, B.entity.id)
+    ],
+    [
       "supplierTier of B's partner",
       () => tierSvc.supplierTier(A.org.id, B.partner.id)
     ],
@@ -4182,6 +4186,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside a caller's transaction, with that caller's organisation",
   'workflow.raiseTask':
     "called inside a caller's transaction, with that caller's organisation",
+  'contracts.retireContractReminders':
+    "called inside a caller's transaction, with that caller's organisation and a contract it has loaded",
   'workflow.queueNotification':
     "called inside a caller's transaction, with that caller's organisation",
   'data-subject-requests.summaryDefaultJurisdiction':

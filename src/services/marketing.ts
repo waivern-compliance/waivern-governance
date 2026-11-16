@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -6,7 +6,6 @@ import {
   marketingActivities,
   marketingDecisions,
   processingActivities,
-  referenceCounters,
   tasks,
   users
 } from '@/db/schema';
@@ -42,6 +41,7 @@ import {
   type MarketingGap,
   type MarketingRecipients
 } from '@/lib/pecr/marketing';
+import { nextReference } from '@/lib/references';
 
 import { objectionCounts } from './data-subject-requests';
 import { eprivacyScopeFor } from './entities';
@@ -85,17 +85,6 @@ const STATUSES = ['active', 'paused', 'ended'] as const;
 export const TPS_LEAD_DAYS = 3;
 
 const DAY = 86_400_000;
-
-async function nextReference(organisationId: string, year: number) {
-  const rows = await db.execute<{ next_value: number | string }>(sql`
-    insert into ${referenceCounters} (organisation_id, prefix, year, next_value)
-    values (${organisationId}, 'MKT', ${year}, 1)
-    on conflict (organisation_id, prefix, year)
-      do update set next_value = ${referenceCounters}.next_value + 1
-    returning next_value
-  `);
-  return `MKT-${year}-${String(Number(rows[0]?.next_value ?? 1)).padStart(4, '0')}`;
-}
 
 const trimmed = (v: string | null | undefined) => v?.trim() || null;
 
@@ -155,7 +144,9 @@ export async function createMarketingActivity(input: {
         input.processingActivityId
       );
     const reference = await nextReference(
+      db,
       input.organisationId,
+      'MKT',
       new Date().getUTCFullYear()
     );
     return db.transaction(async (tx) => {

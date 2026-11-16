@@ -32,7 +32,7 @@ export function SupplierContracts({
                 {c.contract.title}{' '}
                 <span className="text-xs text-ink-soft">
                   {c.entityName} · {NOTICE_WORDS[c.notice]}
-                  {c.noticeBy && !c.contract.endedAt
+                  {c.noticeBy && c.notice !== 'renewed' && !c.contract.endedAt
                     ? `, notice by ${day(c.noticeBy)}`
                     : ''}
                 </span>
