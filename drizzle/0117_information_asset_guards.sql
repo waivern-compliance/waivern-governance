@@ -73,13 +73,15 @@ CREATE TRIGGER information_asset_risk_guard
   BEFORE INSERT OR UPDATE ON "information_asset_risk"
   FOR EACH ROW EXECUTE FUNCTION information_asset_link_guard();
 --> statement-breakpoint
--- The classification scheme cannot change under classified assets.
+-- The classification scheme cannot change under classified assets in use.
+-- A retired asset cannot be edited, so it keeps its label and does not count.
 CREATE FUNCTION asset_classification_scheme_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.asset_classification_scheme IS DISTINCT FROM OLD.asset_classification_scheme
      AND EXISTS (SELECT 1 FROM information_asset
-                 WHERE organisation_id = NEW.id AND classification IS NOT NULL) THEN
+                 WHERE organisation_id = NEW.id AND classification IS NOT NULL
+                   AND retired_at IS NULL) THEN
     RAISE EXCEPTION 'Assets are already classified on the current scheme'
       USING ERRCODE = 'check_violation';
   END IF;

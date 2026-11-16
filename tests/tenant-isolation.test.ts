@@ -3716,7 +3716,10 @@ describe('lists', () => {
           sharingSvc.sharingRegister(o, null)
         ] as const,
         ['sharingSvc.sharingCoverage', sharingSvc.sharingCoverage(o)] as const,
-        ['assetsSvc.assetRegister', assetsSvc.assetRegister(o, null)] as const,
+        [
+          'assetsSvc.assetRegister',
+          assetsSvc.assetRegister(o, null, { links: true })
+        ] as const,
         [
           'assetsSvc.assetsDueForReview',
           assetsSvc.assetsDueForReview(o, new Date(Date.now() + 3650 * DAY))

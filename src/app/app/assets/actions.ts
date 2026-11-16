@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
-import { can } from '@/lib/rbac';
 import { requireCapability, requireSession } from '@/lib/session';
 import {
   createAsset,
@@ -44,17 +43,19 @@ function detailsOf(formData: FormData): AssetDetails {
   };
 }
 
-/** The signed-in person, allowed to write in the entity the asset belongs to. */
+/**
+ * The signed-in person, allowed to write in the entity the asset belongs to.
+ * The asset is read first, under the person's organisation, so the check
+ * names the entity the write lands in.
+ */
 async function writerOf(id: string) {
   const active = await requireSession();
   const loaded = await loadAsset(id, active.membership.organisationId);
-  if (
-    !loaded ||
-    !can(active.membership.grants, 'record.write', loaded.asset.entityId)
-  ) {
-    throw new Error('You may not change this asset.');
-  }
-  return active;
+  if (!loaded) throw new Error('No such information asset.');
+  return requireCapability('record.write', {
+    organisationId: active.membership.organisationId,
+    entityId: loaded.asset.entityId
+  });
 }
 
 const refresh = (id?: string) => {

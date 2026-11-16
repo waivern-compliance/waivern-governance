@@ -6,7 +6,7 @@ import { EditForm } from '@/components/EditForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
-import { entities, memberships, users } from '@/db/schema';
+import { entities } from '@/db/schema';
 import {
   ASSET_GAP_WORDS,
   ASSET_TYPE_LABEL,
@@ -20,6 +20,7 @@ import {
 } from '@/lib/assets/register';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { candidatesFor } from '@/services/handover';
 import {
   assetRegister,
   classificationSchemeOf,
@@ -58,7 +59,7 @@ export default async function AssetsPage({
     retired: one(params.retired) === 'on'
   };
   const org = active.membership.organisationId;
-  const [rows, scheme, orgEntities, members] = await Promise.all([
+  const [rows, scheme, orgEntities, activeMembers] = await Promise.all([
     assetRegister(org, visibleEntityIds(active)),
     classificationSchemeOf(org),
     scoped(org, () =>
@@ -68,15 +69,24 @@ export default async function AssetsPage({
         .where(eq(entities.organisationId, org))
         .orderBy(asc(entities.name))
     ),
-    scoped(org, () =>
-      db
-        .select({ id: users.id, email: users.email })
-        .from(memberships)
-        .innerJoin(users, eq(users.id, memberships.userId))
-        .where(eq(memberships.organisationId, org))
-        .orderBy(asc(users.email))
-    )
+    candidatesFor(org)
   ]);
+  // Owners are offered from active members. The filter also offers anyone
+  // who still owns an asset after leaving, so their assets can be found.
+  const members = [...activeMembers].sort((a, b) =>
+    a.email.localeCompare(b.email)
+  );
+  const owners = [
+    ...members,
+    ...rows
+      .filter(
+        (r) =>
+          r.asset.ownerId &&
+          r.ownerEmail &&
+          !members.some((m) => m.id === r.asset.ownerId)
+      )
+      .map((r) => ({ id: r.asset.ownerId!, email: `${r.ownerEmail} (left)` }))
+  ].filter((o, i, all) => all.findIndex((x) => x.id === o.id) === i);
   const writable = orgEntities.filter((e) =>
     can(active.membership.grants, 'record.write', e.id)
   );
@@ -174,7 +184,7 @@ export default async function AssetsPage({
           >
             <option value="">Anyone</option>
             <option value="none">Nobody</option>
-            {members.map((m) => (
+            {owners.map((m) => (
               <option
                 key={m.id}
                 value={m.id}

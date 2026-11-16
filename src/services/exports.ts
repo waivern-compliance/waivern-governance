@@ -788,7 +788,9 @@ export async function exportAssets(
   organisationId: string,
   entityIds: string[] | null
 ) {
-  const rows = await assetRegister(organisationId, entityIds);
+  const rows = await assetRegister(organisationId, entityIds, {
+    links: true
+  });
   return {
     columns: [
       'Reference',

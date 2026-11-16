@@ -567,6 +567,58 @@ describe('classification scheme', () => {
   });
 });
 
+describe('classification scheme, under change', () => {
+  it('waits for a scheme change in flight, then classifies on the new scheme', async () => {
+    const w = await world('scheme-race');
+    let changed!: () => void;
+    let release!: () => void;
+    const locked = new Promise<void>((r) => (changed = r));
+    const gate = new Promise<void>((r) => (release = r));
+    const changing = pg.begin(async (t) => {
+      await t`update organisation set asset_classification_scheme = 'uk_government' where id = ${w.org.id}`;
+      changed();
+      await gate;
+    });
+    await locked;
+    const creating = createAsset({
+      organisationId: w.org.id,
+      entityId: w.main.id,
+      details: details({ classification: 'confidential' }),
+      actor: SYSTEM
+    });
+    setTimeout(release, 200);
+    await changing;
+    await assert.rejects(creating, /Government Security Classifications/);
+  });
+
+  it('is not fixed by a classified asset that has been retired', async () => {
+    const w = await world('scheme-retired');
+    const asset = await createAsset({
+      organisationId: w.org.id,
+      entityId: w.main.id,
+      details: details({ classification: 'restricted' }),
+      actor: SYSTEM
+    });
+    await retireAsset({
+      id: asset.id,
+      organisationId: w.org.id,
+      reason: 'Decommissioned',
+      actor: SYSTEM
+    });
+    await setClassificationScheme({
+      organisationId: w.org.id,
+      scheme: 'uk_government',
+      actor: SYSTEM
+    });
+    assert.equal(await classificationSchemeOf(w.org.id), 'uk_government');
+    const loaded = await loadAsset(asset.id, w.org.id);
+    assert.equal(
+      classificationLabel(loaded!.asset.classification),
+      'Restricted'
+    );
+  });
+});
+
 describe('reviews and retiring', () => {
   it('records a review only with a future date', async () => {
     const w = await world('review');

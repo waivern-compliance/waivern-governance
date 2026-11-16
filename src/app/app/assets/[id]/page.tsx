@@ -1,11 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
 
 import { EditForm } from '@/components/EditForm';
 import { NotPermitted } from '@/components/NotPermitted';
-import { db, scoped } from '@/db/client';
-import { memberships, users } from '@/db/schema';
 import {
   ASSET_GAP_WORDS,
   ASSET_TYPE_LABEL,
@@ -15,6 +12,7 @@ import {
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
+import { candidatesFor } from '@/services/handover';
 import {
   classificationSchemeOf,
   linkOptions,
@@ -72,18 +70,25 @@ export default async function AssetPage({
     can(active.membership.grants, 'record.write', asset.entityId) &&
     !asset.retiredAt;
 
-  const [scheme, options, members] = await Promise.all([
+  const [scheme, options, candidates] = await Promise.all([
     classificationSchemeOf(org),
     mayEdit ? linkOptions(org, asset.entityId) : null,
-    scoped(org, () =>
-      db
-        .select({ id: users.id, email: users.email })
-        .from(memberships)
-        .innerJoin(users, eq(users.id, memberships.userId))
-        .where(eq(memberships.organisationId, org))
-        .orderBy(asc(users.email))
-    )
+    candidatesFor(org)
   ]);
+
+  // Active members, and the current owner even if they have since left, so
+  // saving the form does not quietly take the asset away from them.
+  const members = [
+    ...candidates,
+    ...(asset.ownerId && !candidates.some((m) => m.id === asset.ownerId)
+      ? [
+          {
+            id: asset.ownerId,
+            email: `${ownerEmail ?? 'former member'} (left)`
+          }
+        ]
+      : [])
+  ].sort((a, b) => a.email.localeCompare(b.email));
 
   const linked: Record<
     LinkKind,

@@ -94,23 +94,32 @@ async function loadForWrite(tx: Tx, id: string, organisationId: string) {
   return row;
 }
 
-/** The scheme the organisation classifies on. */
+/**
+ * The scheme the organisation classifies on. Read with a share lock inside a
+ * transaction, so the scheme cannot change between reading it and writing an
+ * asset classified on it, as the risk scale is read (`riskScaleOf`).
+ */
 export async function classificationSchemeOf(
   organisationId: string,
-  executor: Pick<typeof db, 'select'> = db
+  tx?: Tx
 ): Promise<ClassificationScheme> {
   return withOrganisation(organisationId, async () => {
-    const [org] = await executor
+    const query = (tx ?? db)
       .select({ scheme: organisations.assetClassificationScheme })
       .from(organisations)
       .where(eq(organisations.id, organisationId));
+    const [org] = tx ? await query.for('share') : await query;
     return isClassificationScheme(org?.scheme)
       ? org.scheme
       : DEFAULT_CLASSIFICATION_SCHEME;
   });
 }
 
-/** How many assets carry a classification, which fixes the scheme. */
+/**
+ * How many assets in use carry a classification, which fixes the scheme. A
+ * retired asset cannot be edited, so counting it would fix the scheme for
+ * good; it keeps the label it was given, which reads from any scheme.
+ */
 export async function classifiedAssetCount(
   organisationId: string,
   executor: Pick<typeof db, 'select'> = db
@@ -122,7 +131,8 @@ export async function classifiedAssetCount(
       .where(
         and(
           eq(informationAssets.organisationId, organisationId),
-          isNotNull(informationAssets.classification)
+          isNotNull(informationAssets.classification),
+          isNull(informationAssets.retiredAt)
         )
       );
     return Number(row?.n ?? 0);
@@ -153,7 +163,7 @@ export async function setClassificationScheme(input: {
       const classified = await classifiedAssetCount(input.organisationId, tx);
       if (classified > 0)
         throw new AssetRefused(
-          `${classified} asset${classified === 1 ? ' is' : 's are'} already classified on the ${CLASSIFICATION_SCHEMES[org.assetClassificationScheme].inSentence}. Clear their classifications first if you mean to reclassify.`
+          `${classified} asset${classified === 1 ? ' is' : 's are'} already classified on the ${CLASSIFICATION_SCHEMES[org.assetClassificationScheme].inSentence}. Clear their classifications, or retire them, first if you mean to reclassify.`
         );
       const [updated] = await tx
         .update(organisations)
@@ -226,7 +236,11 @@ async function linksOf(ids: string[]) {
   };
 }
 
-async function rowsFor(where: ReturnType<typeof and>, now: Date) {
+async function rowsFor(
+  where: ReturnType<typeof and>,
+  now: Date,
+  withLinks = true
+) {
   const rows = await db
     .select({
       asset: informationAssets,
@@ -238,7 +252,7 @@ async function rowsFor(where: ReturnType<typeof and>, now: Date) {
     .leftJoin(users, eq(users.id, informationAssets.ownerId))
     .where(where)
     .orderBy(asc(informationAssets.reference));
-  const links = await linksOf(rows.map((r) => r.asset.id));
+  const links = await linksOf(withLinks ? rows.map((r) => r.asset.id) : []);
   return rows.map((r) => {
     const mine = <T extends { assetId: string }>(list: T[]) =>
       list.filter((l) => l.assetId === r.asset.id);
@@ -256,13 +270,14 @@ export type AssetRow = Awaited<ReturnType<typeof rowsFor>>[number];
 
 /**
  * Every asset the viewer can see, retired ones included; the page filters.
+ * Links are read only when asked for: the list shows none, the export all.
  *
  * @param entityIds the entities visible, or null for all of them
  */
 export async function assetRegister(
   organisationId: string,
   entityIds: string[] | null,
-  now = new Date()
+  { links = false, now = new Date() }: { links?: boolean; now?: Date } = {}
 ) {
   return withOrganisation(organisationId, async () => {
     if (entityIds !== null && entityIds.length === 0) return [];
@@ -273,7 +288,8 @@ export async function assetRegister(
             eq(informationAssets.organisationId, organisationId),
             inArray(informationAssets.entityId, entityIds)
           ),
-      now
+      now,
+      links
     );
   });
 }
@@ -306,36 +322,25 @@ export async function assetsFor(
 ) {
   return withOrganisation(organisationId, async () => {
     if (entityIds !== null && entityIds.length === 0) return [];
-    const linked =
+    const kind: LinkKind =
       'activityId' in about
-        ? db
-            .select({ id: informationAssetActivities.assetId })
-            .from(informationAssetActivities)
-            .where(
-              and(
-                eq(informationAssetActivities.organisationId, organisationId),
-                eq(informationAssetActivities.activityId, about.activityId)
-              )
-            )
+        ? 'activity'
         : 'supplierId' in about
-          ? db
-              .select({ id: informationAssetSuppliers.assetId })
-              .from(informationAssetSuppliers)
-              .where(
-                and(
-                  eq(informationAssetSuppliers.organisationId, organisationId),
-                  eq(informationAssetSuppliers.supplierId, about.supplierId)
-                )
-              )
-          : db
-              .select({ id: informationAssetRisks.assetId })
-              .from(informationAssetRisks)
-              .where(
-                and(
-                  eq(informationAssetRisks.organisationId, organisationId),
-                  eq(informationAssetRisks.riskId, about.riskId)
-                )
-              );
+          ? 'supplier'
+          : 'risk';
+    const { table, column } = linkTable(kind);
+    const targetId =
+      'activityId' in about
+        ? about.activityId
+        : 'supplierId' in about
+          ? about.supplierId
+          : about.riskId;
+    const linked = db
+      .select({ id: table.assetId })
+      .from(table)
+      .where(
+        and(eq(table.organisationId, organisationId), eq(column, targetId))
+      );
     return db
       .select({
         id: informationAssets.id,
