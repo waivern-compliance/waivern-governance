@@ -483,7 +483,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'How a review date is set',
         body: [
           "When an assessment is approved, the platform reads the review cycle from the template it ran on and sets the date. A DPIA comes round every twelve months, a screening every twenty-four. A template that declares no cycle produces no review - the platform does not invent one on the organisation's behalf.",
-          'The date is on the assessment and can be brought forward. A controller may have its own reason to revisit sooner than the cycle says.'
+          'The date is on the assessment and can be brought forward. A controller may have its own reason to revisit sooner than the cycle says.',
+          "A supplier's due diligence review is the exception: it comes round by the supplier's tier, and is listed under Supplier reviews by supplier rather than with the other assessments."
         ]
       },
       {
@@ -965,6 +966,15 @@ export const HELP_TOPICS: HelpTopic[] = [
           "Assess a supplier's security and data protection from its page with a due diligence questionnaire, under UK GDPR Articles 28 and 32. It comes in two depths, and the page puts first the one that suits the supplier's tier. Light, for medium and low tiers, asks what data the supplier gets, where it is processed, its sub-processors, the certifications it holds, how soon it reports a breach, and who to contact. Full, for critical and high tiers, adds access control, encryption, security updates and penetration testing, continuity, staff vetting, logging, international transfers, the Article 28 terms and what happens to your data when the contract ends.",
           "Invite someone at the supplier to answer it from the assessment, as with any assessment; they need no account. Where they say they hold a certificate or report - ISO/IEC 27001, Cyber Essentials, SOC 2 or a penetration test - they are asked for its details, and to send you a copy, which you can attach to the supplier's page. These are named as evidence, not required: Article 32 asks for security appropriate to the risk. The last section, whether the evidence arrived and your recommendation, is yours: it is never sent to the supplier, even on a link to the whole assessment. The assessment is approved through the supplier assessment workflow, and goes to Responsible AI review where the supplier says it uses AI.",
           "Whether a processor agreement is held is not asked again: the register reads it from the agreement on the supplier's page, and the questionnaire asks what that agreement says. The score rises with what is missing or not known, and reaches the accountable approver from the high band. A due diligence assessment is not read as an assessment of the supplier's AI: use the AI supplier assessment for that."
+        ]
+      },
+      {
+        heading: 'The review cycle',
+        body: [
+          'Each tiered supplier has a next review date, set by its tier: critical and high yearly, medium every two years, low every three. The organisation can change these on its organisation page, and the next review of every supplier already reviewed moves with them. A supplier is due for its first review as soon as it is tiered, and changing its tier re-dates its next review from the last one.',
+          "A review is a due diligence assessment started from the supplier's page. When it is approved, its recommendation becomes the outcome - approved, approved with conditions (which are shown), or exit - and the next review is dated from that approval by the tier's cycle. A supplier's earlier review is then marked superseded. The outcome and its date are shown on the register and on the supplier's page, and the third-party spreadsheet carries them.",
+          "An exit ends the cycle, and raises a task to give notice, end its contracts on the register and have the supplier return or delete the data. It goes to the supplier's owner, or to the privacy administrators if it has none.",
+          'Once a month, while any supplier is past its review date, the sweep raises one task naming how many: to the owner when only one supplier is due, otherwise to the privacy administrators. Supplier reviews are listed on the recurring reviews page by supplier, not again as assessments.'
         ]
       },
       {
@@ -3033,6 +3043,12 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Asset classification',
         body: [
           'The information asset register classifies on one scheme: a neutral set by default, or the Government Security Classifications. Like the risk scale, it can only be changed while no asset is classified.'
+        ]
+      },
+      {
+        heading: 'Supplier review cycle',
+        body: [
+          'How many months between supplier reviews for each tier: by default twelve for critical and high, twenty-four for medium and thirty-six for low. Saving a change re-dates the next review of every supplier at that tier from its last review.'
         ]
       },
       {

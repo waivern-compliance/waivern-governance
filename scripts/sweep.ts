@@ -39,6 +39,7 @@ async function main() {
       r.lapsedReviewsRaised +
       r.aiReviewsRaised +
       r.assetReviewsRaised +
+      r.supplierReviewsRaised +
       r.contractNoticesRaised +
       r.appetiteReviewsRaised +
       r.documentsScanned +
@@ -92,6 +93,8 @@ async function main() {
           r.aiReviewsRaised && `${r.aiReviewsRaised} AI system(s) past review`,
           r.assetReviewsRaised &&
             `${r.assetReviewsRaised} information asset(s) past review`,
+          r.supplierReviewsRaised &&
+            `${r.supplierReviewsRaised} supplier(s) due for review`,
           r.contractNoticesRaised &&
             `${r.contractNoticesRaised} contract notice date(s) coming up`,
           r.appetiteReviewsRaised &&

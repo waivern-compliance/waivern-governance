@@ -5,7 +5,10 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { OUTCOME_LABEL } from '@/lib/thirdparty/review';
+import { TIER_LABEL } from '@/lib/thirdparty/tier';
 import { reviewSchedule } from '@/services/assessments';
+import { supplierReviewSchedule } from '@/services/supplier-review';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -22,10 +25,14 @@ export default async function ReviewsPage() {
     );
   }
 
-  const { overdue, dueSoon, scheduled, unscheduled } = await reviewSchedule(
-    active.membership.organisationId,
-    visibleEntityIds(active)
-  );
+  const [{ overdue, dueSoon, scheduled, unscheduled }, supplierReviews] =
+    await Promise.all([
+      reviewSchedule(
+        active.membership.organisationId,
+        visibleEntityIds(active)
+      ),
+      supplierReviewSchedule(active.membership.organisationId)
+    ]);
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
@@ -90,12 +97,75 @@ export default async function ReviewsPage() {
         note=""
         items={scheduled}
       />
+      <SupplierReviews items={supplierReviews} />
+
       <Group
         title="No review date set"
         note="Either the template declares no cycle, or it was approved before review dates existed. Reassessing it manually sets one."
         items={unscheduled}
       />
     </main>
+  );
+}
+
+type SupplierItem = Awaited<ReturnType<typeof supplierReviewSchedule>>[number];
+
+/**
+ * Suppliers by when their review comes round, by their tier's cycle. Their
+ * review assessments are not listed again above: the supplier is what is due.
+ */
+function SupplierReviews({ items }: { items: SupplierItem[] }) {
+  if (items.length === 0) return null;
+  const overdue = items.filter((i) => i.state === 'overdue').length;
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold">
+        Supplier reviews ({items.length}
+        {overdue > 0 ? `, ${overdue} overdue` : ''})
+      </h2>
+      <p className="max-w-prose text-xs text-ink-soft">
+        Each supplier comes round by its tier&rsquo;s cycle, set on the
+        organisation page. A review is a due diligence assessment started from
+        the supplier&rsquo;s page.
+      </p>
+      <ul
+        className={`divide-y divide-line overflow-hidden rounded border bg-surface ${
+          overdue > 0 ? 'border-red-700' : 'border-line'
+        }`}
+      >
+        {items.map((i) => (
+          <li key={i.id}>
+            <Link
+              href={`/app/third-parties/${i.id}`}
+              className="block space-y-1 px-4 py-3 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <span className="text-sm font-medium">{i.name}</span>
+                <span
+                  className={`font-mono text-[11px] ${
+                    i.state === 'overdue'
+                      ? 'text-red-900'
+                      : i.state === 'due_soon'
+                        ? 'text-amber-900'
+                        : 'text-ink-soft'
+                  }`}
+                >
+                  {i.state === 'overdue' ? 'overdue · due ' : 'due '}
+                  {day(i.nextReviewAt)}
+                </span>
+              </div>
+              <p className="text-xs text-ink-soft">
+                {i.tier ? `${TIER_LABEL[i.tier]} tier` : 'No tier'}
+                {i.reviewOutcome && i.lastReviewedAt
+                  ? ` · ${OUTCOME_LABEL[i.reviewOutcome]} ${day(i.lastReviewedAt)}`
+                  : ' · not reviewed yet'}
+                {i.ownerEmail ? ` · owned by ${i.ownerEmail}` : ' · no owner'}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -7,6 +7,8 @@ import type { SupplierRole } from '@/lib/dpa2018/sharing';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { requireCapability } from '@/lib/session';
 import { isAiInvolvement } from '@/lib/thirdparty/ai-procurement';
+import { SUPPLIER_TIERS } from '@/lib/thirdparty/tier';
+import { setSupplierReviewCycle } from '@/services/supplier-review';
 import { setSupplierTier } from '@/services/supplier-tier';
 import {
   archiveDpa,
@@ -298,5 +300,28 @@ export async function setTierAction(
     });
     revalidatePath(`/app/third-parties/${supplierId}`);
     revalidatePath('/app/third-parties');
+  });
+}
+
+export async function setSupplierReviewCycleAction(
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await requireCapability('org.manage');
+    await setSupplierReviewCycle({
+      organisationId: active.membership.organisationId,
+      months: Object.fromEntries(
+        SUPPLIER_TIERS.map((t) => [t, Number(text(formData.get(t)))])
+      ),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    revalidatePath('/app/admin/organisation');
+    revalidatePath('/app/third-parties');
+    revalidatePath('/app/reviews');
   });
 }

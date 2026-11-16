@@ -1,4 +1,14 @@
-import { and, asc, eq, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  notExists,
+  sql
+} from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -15,6 +25,7 @@ import {
   risks,
   schedules,
   slaPolicies,
+  suppliers,
   tasks,
   templates,
   templateVersions
@@ -55,6 +66,7 @@ import {
 import { deliverNotifications } from './member-email';
 import { appetitesDueForReview } from './risk-policy';
 import { propertiesDueForRescan } from './storage-inventory';
+import { isActiveMember, suppliersDueForReview } from './supplier-review';
 import { dpasNeedingAttention, EXPIRING_WITHIN_LABEL } from './third-party';
 import { purgeEndedTrials } from './trials';
 import { deliverPending } from './webhooks';
@@ -104,6 +116,7 @@ export type SweepResult = {
   lapsedReviewsRaised: number;
   aiReviewsRaised: number;
   assetReviewsRaised: number;
+  supplierReviewsRaised: number;
   contractNoticesRaised: number;
   appetiteReviewsRaised: number;
   documentsScanned: number;
@@ -1012,7 +1025,15 @@ async function raiseLapsedReviews(organisationId: string): Promise<number> {
         eq(assessments.organisationId, organisationId),
         eq(assessments.status, 'approved'),
         isNull(assessments.supersedesId),
-        lte(assessments.reviewDueAt, new Date())
+        lte(assessments.reviewDueAt, new Date()),
+        // A supplier's current review comes round through the supplier review
+        // sweep instead, which follows its tier.
+        notExists(
+          db
+            .select({ id: suppliers.id })
+            .from(suppliers)
+            .where(eq(suppliers.reviewAssessmentId, assessments.id))
+        )
       )
     )
     .orderBy(asc(assessments.reviewDueAt));
@@ -1132,6 +1153,61 @@ async function raiseAssetReviews(organisationId: string): Promise<number> {
       subjectId: oldest.id,
       assigneeRole: 'privacy_admin',
       idempotencyKey: `asset-reviews:${period}`,
+      actor: SYSTEM
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
+/**
+ * Suppliers whose review has come round, by their tier's cycle.
+ *
+ * As for AI systems and information assets: one task naming the count, keyed
+ * on the month. It goes to the supplier's owner when there is one supplier
+ * due and its owner is still a member, and otherwise to the privacy
+ * administrators, who can share the work out from the register.
+ */
+async function raiseSupplierReviews(organisationId: string): Promise<number> {
+  const due = await suppliersDueForReview(organisationId);
+  if (due.length === 0) return 0;
+
+  const [entity] = await db
+    .select({ id: entities.id })
+    .from(entities)
+    .where(
+      and(
+        eq(entities.organisationId, organisationId),
+        eq(entities.isDefault, true)
+      )
+    );
+  if (!entity) return 0;
+
+  const period = new Date().toISOString().slice(0, 7);
+  const oldest = due[0];
+  let raised = 0;
+
+  await db.transaction(async (tx) => {
+    const toOwner =
+      due.length === 1 &&
+      (await isActiveMember(tx, organisationId, oldest.ownerId));
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId: entity.id,
+      type: 'reassess',
+      title:
+        due.length === 1
+          ? `${oldest.name} is due for its supplier review`
+          : `${due.length} suppliers are due for review`,
+      description:
+        `Oldest is ${oldest.name}, due ${oldest.nextReviewAt!.toISOString().slice(0, 10)}. ` +
+        "Start a due diligence assessment from each supplier's page, at the depth its tier needs, and send it to the supplier to answer.",
+      subjectType: 'supplier',
+      subjectId: oldest.id,
+      ...(toOwner
+        ? { assigneeUserId: oldest.ownerId }
+        : { assigneeRole: 'privacy_admin' as const }),
+      idempotencyKey: `supplier-reviews:${period}`,
       actor: SYSTEM
     });
     if (task) raised = due.length;
@@ -1415,6 +1491,7 @@ export async function sweepOrganisation(
     lapsedReviewsRaised: await raiseLapsedReviews(organisationId),
     aiReviewsRaised: await raiseAiReviews(organisationId),
     assetReviewsRaised: await raiseAssetReviews(organisationId),
+    supplierReviewsRaised: await raiseSupplierReviews(organisationId),
     contractNoticesRaised: await raiseContractNotices(organisationId),
     appetiteReviewsRaised: await raiseAppetiteReviews(organisationId),
     documentsScanned: 0,

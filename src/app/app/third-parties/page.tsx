@@ -8,6 +8,11 @@ import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
 import { AI_GAP_WORDS, SERIOUS_AI_GAPS } from '@/lib/thirdparty/ai-procurement';
+import {
+  OUTCOME_LABEL,
+  reviewState,
+  type ReviewOutcome
+} from '@/lib/thirdparty/review';
 import { SUPPLIER_TIERS, TIER_LABEL } from '@/lib/thirdparty/tier';
 import {
   EXPIRING_WITHIN_LABEL,
@@ -204,6 +209,11 @@ export default async function ThirdPartiesPage({
                   ) : null}
                 </span>
                 <span className="font-mono text-[11px] text-ink-soft">
+                  <ReviewNote
+                    outcome={supplier.reviewOutcome}
+                    lastReviewedAt={supplier.lastReviewedAt}
+                    nextReviewAt={supplier.nextReviewAt}
+                  />
                   {supplier.sourceConnectionId
                     ? 'found by a tool'
                     : 'recorded by a person'}
@@ -285,5 +295,34 @@ function Stat({
       </p>
       <p className="mt-0.5 text-xs text-ink-soft">{note}</p>
     </div>
+  );
+}
+
+/** The last review's outcome and date, and a review that is overdue. */
+function ReviewNote({
+  outcome,
+  lastReviewedAt,
+  nextReviewAt
+}: {
+  outcome: ReviewOutcome | null;
+  lastReviewedAt: Date | null;
+  nextReviewAt: Date | null;
+}) {
+  const overdue = reviewState(nextReviewAt) === 'overdue';
+  if (!outcome && !overdue) return null;
+  return (
+    <>
+      {outcome && lastReviewedAt ? (
+        <span className={outcome === 'exit' ? 'text-red-800' : undefined}>
+          {OUTCOME_LABEL[outcome]} {lastReviewedAt.toISOString().slice(0, 10)}
+        </span>
+      ) : null}
+      {overdue ? (
+        <span className="text-red-800">
+          {outcome ? ', ' : ''}review overdue
+        </span>
+      ) : null}
+      {' · '}
+    </>
   );
 }

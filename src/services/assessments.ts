@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, notExists, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -7,6 +7,7 @@ import {
   assessmentRevisions,
   assessments,
   entities,
+  suppliers,
   templates,
   templateVersions,
   users
@@ -600,7 +601,19 @@ export async function reviewSchedule(
       )
       .innerJoin(templates, eq(templates.id, templateVersions.templateId))
       .leftJoin(users, eq(users.id, assessments.ownerId))
-      .where(scope)
+      .where(
+        and(
+          scope,
+          // A supplier's current review is listed with the suppliers, by its
+          // tier's cycle, rather than here as well.
+          notExists(
+            db
+              .select({ id: suppliers.id })
+              .from(suppliers)
+              .where(eq(suppliers.reviewAssessmentId, assessments.id))
+          )
+        )
+      )
       .orderBy(asc(assessments.reviewDueAt));
 
     // Who signed each one off. Shown because a reassessment needs them back, and

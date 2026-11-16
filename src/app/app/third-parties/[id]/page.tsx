@@ -15,6 +15,7 @@ import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
 import { MechanismFields } from '@/components/thirdparty/MechanismFields';
 import { ReadAgreement } from '@/components/thirdparty/ReadAgreement';
 import { SupplierContracts } from '@/components/thirdparty/SupplierContracts';
+import { SupplierReview } from '@/components/thirdparty/SupplierReview';
 import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
 import { TierPanel } from '@/components/thirdparty/TierPanel';
 import { db, scoped } from '@/db/client';
@@ -348,12 +349,21 @@ export default async function SupplierPage({
       />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Due diligence</h2>
+        <h2 className="text-sm font-semibold">Review</h2>
+        <SupplierReview
+          tier={supplier.tier}
+          nextReviewAt={supplier.nextReviewAt}
+          lastReviewedAt={supplier.lastReviewedAt}
+          outcome={supplier.reviewOutcome}
+          conditions={supplier.reviewConditions}
+          assessmentId={supplier.reviewAssessmentId}
+        />
         <p className="max-w-prose text-xs text-ink-soft">
-          A security and privacy questionnaire under Articles 28 and 32: full
-          for critical and high tier suppliers, light for the rest. Invite the
-          supplier to answer it from the assessment, and it is approved like any
-          other supplier assessment.
+          A review is a security and privacy due diligence questionnaire under
+          Articles 28 and 32: full for critical and high tier suppliers, light
+          for the rest. Invite the supplier to answer it from the assessment.
+          When it is approved, its recommendation becomes the outcome here and
+          the next review is dated by the tier&rsquo;s cycle.
         </p>
         {mayEdit ? (
           <StartAssessment

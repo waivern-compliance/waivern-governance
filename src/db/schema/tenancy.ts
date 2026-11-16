@@ -21,6 +21,7 @@ import type {
   RepresentativeExemption
 } from '@/lib/gdpr/establishment';
 import { DEFAULT_LIFESPAN_THRESHOLD_MONTHS } from '@/lib/ie-eprivacy/storage';
+import type { SupplierTier } from '@/lib/thirdparty/tier';
 
 import {
   aiFramework,
@@ -114,6 +115,14 @@ export const organisations = pgTable('organisation', {
     .$type<ClassificationScheme>()
     .notNull()
     .default('neutral'),
+  /**
+   * Months between supplier reviews, by tier. Read through
+   * `reviewMonthsFrom`, which fills any tier missing with its default.
+   */
+  supplierReviewMonths: jsonb('supplier_review_months')
+    .$type<Partial<Record<SupplierTier, number>>>()
+    .notNull()
+    .default({}),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

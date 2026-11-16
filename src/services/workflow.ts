@@ -29,6 +29,7 @@ import { describe, matches, type RoutingContext } from '@/lib/workflow/routing';
 
 import { loadAssessment, submitAssessment } from './assessments';
 import { needingSafeguards } from './countries';
+import { isActiveMember, recordSupplierReview } from './supplier-review';
 import type { Actor } from './templates';
 import { queueEvent } from './webhooks';
 
@@ -555,13 +556,30 @@ export async function decideApproval(input: {
         if (intervalMonths) reviewDueAt = addMonths(now, intervalMonths);
       }
 
+      // A due diligence assessment about a supplier is that supplier's review:
+      // its outcome goes on the register, and its review date follows the
+      // supplier's tier rather than the template's own cycle.
+      const review =
+        assessmentStatus === 'approved'
+          ? await recordSupplierReview(tx, {
+              organisationId: input.organisationId,
+              assessment: row.assessment,
+              approvedAt: now,
+              actor: input.actor
+            })
+          : null;
+      if (review) {
+        reviewDueAt = review.nextReviewAt;
+        intervalMonths = review.intervalMonths;
+      }
+
       await tx
         .update(assessments)
         .set({
           status: assessmentStatus,
           updatedAt: now,
           completedAt: assessmentStatus === 'approved' ? now : null,
-          ...(reviewDueAt
+          ...(reviewDueAt || review
             ? { reviewDueAt, reviewIntervalMonths: intervalMonths }
             : {})
         })
@@ -586,7 +604,34 @@ export async function decideApproval(input: {
           );
       }
 
-      if (reviewDueAt && intervalMonths) {
+      // A supplier review comes round through the supplier review sweep, which
+      // follows the tier; a schedule of its own would raise it twice.
+      if (review?.outcome === 'exit') {
+        const { contracts, agreements } = review.inForce;
+        await raiseTask(tx, {
+          organisationId: input.organisationId,
+          entityId: row.assessment.entityId,
+          type: 'reassess',
+          title: `Exit ${review.supplier.name}: end its contracts and processor agreements`,
+          description:
+            `${row.assessment.reference} concluded that the organisation should not continue with ${review.supplier.name}. ` +
+            `It has ${contracts} contract${contracts === 1 ? '' : 's'} in force and ${agreements} processor agreement${agreements === 1 ? '' : 's'} on record. ` +
+            'Give notice, end each contract on the register, and have the supplier return or delete the data.',
+          subjectType: 'supplier',
+          subjectId: review.supplier.id,
+          ...((await isActiveMember(
+            tx,
+            input.organisationId,
+            review.supplier.ownerId
+          ))
+            ? { assigneeUserId: review.supplier.ownerId }
+            : { assigneeRole: 'privacy_admin' as const }),
+          idempotencyKey: `supplier-exit:${row.approval.assessmentId}`,
+          actor: input.actor
+        });
+      }
+
+      if (reviewDueAt && intervalMonths && !review) {
         await tx
           .insert(schedules)
           .values({
