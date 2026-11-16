@@ -242,6 +242,8 @@ export async function saveAnswers(input: {
   organisationId: string;
   answers: Record<string, AnswerValue>;
   allowedSection?: string | null;
+  /** Through a contributor link, which may not answer the organisation's own sections. */
+  byContributor?: boolean;
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
@@ -278,6 +280,11 @@ export async function saveAnswers(input: {
         problems.push({
           questionKey: key,
           message: 'Outside the section you were asked about'
+        });
+      } else if (input.byContributor && entry.section.organisationOnly) {
+        problems.push({
+          questionKey: key,
+          message: 'This section is for the organisation to answer'
         });
       }
     }

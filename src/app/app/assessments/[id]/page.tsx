@@ -173,10 +173,12 @@ export default async function AssessmentPage({
       ) : editable ? (
         <InviteContributor
           assessmentId={id}
-          sections={definition.schema.sections.map((s) => ({
-            key: s.key,
-            title: s.title
-          }))}
+          sections={definition.schema.sections
+            .filter((s) => !s.organisationOnly)
+            .map((s) => ({
+              key: s.key,
+              title: s.title
+            }))}
           existing={links.map((l) => ({
             id: l.id,
             email: l.email,

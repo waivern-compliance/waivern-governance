@@ -26,7 +26,7 @@ const SOUND: Answers = {
   supplier_name: 'Northwind Hosting',
   service: 'Hosting for the case management system',
   security_contact: 'Security team, security@northwind.example',
-  uses_ai: false,
+  ai_involvement: 'none',
   personal_data: true,
   data_categories: ['contact_details'],
   processing_locations: 'uk',
@@ -51,7 +51,6 @@ const SOUND_FULL: Answers = {
   staff_vetting: 'yes',
   logging: 'yes',
   international_transfers: 'none',
-  article_28_complete: 'complete',
   end_of_contract: 'deleted_certified'
 };
 
@@ -132,8 +131,7 @@ describe('supplier due diligence', () => {
     for (const key of [
       'data_categories',
       'international_transfers',
-      'article_28_terms',
-      'article_28_complete'
+      'article_28_terms'
     ])
       assert.equal(visible(FULL, noPersonal, key).visible, false, key);
   });
@@ -161,20 +159,52 @@ describe('supplier due diligence', () => {
     assert.equal(r.scored && r.band.tier, 'high');
   });
 
-  it('puts an unsigned processor agreement and an unprotected transfer beyond acceptable with weak controls', () => {
+  it('puts an unprotected transfer with weak controls beyond acceptable', () => {
     const r = scored(FULL, {
       ...SOUND_FULL,
-      article_28_complete: 'unsigned',
       international_transfers: 'unprotected',
       access_control: 'no',
       encryption_at_rest: 'no',
       logging: 'no',
       penetration_testing: 'never',
-      business_continuity: 'partly'
+      business_continuity: 'no',
+      end_of_contract: 'deleted'
     });
-    // 6 + 5 + 4 + 4 + 4 + 4 + 2
-    assert.equal(r.scored && r.score, 29);
-    assert.equal(r.scored && r.band.tier, 'critical');
+    // 5 + 4 + 4 + 4 + 4 + 4 + 1
+    assert.equal(r.scored && r.score, 26);
+    assert.equal(r.scored && r.band.tier, 'high');
+    const worse = scored(FULL, {
+      ...SOUND_FULL,
+      international_transfers: 'unprotected',
+      access_control: 'no',
+      encryption_at_rest: 'no',
+      logging: 'no',
+      penetration_testing: 'never',
+      business_continuity: 'no',
+      end_of_contract: 'kept'
+    });
+    assert.equal(worse.scored && worse.band.tier, 'critical');
+  });
+
+  it('sends a supplier using AI to Responsible AI review, without becoming an AI supplier assessment', () => {
+    for (const d of [LIGHT, FULL])
+      assert.ok(
+        questionsOf(d.schema).some(
+          ({ question }) => question.key === 'ai_involvement'
+        )
+      );
+    assert.equal(isAiSupplierDefinition(FULL), false);
+  });
+
+  it('keeps the conclusion to the organisation', () => {
+    for (const d of [LIGHT, FULL]) {
+      const conclusion = d.schema.sections.find((s) => s.key === 'conclusion');
+      assert.equal(conclusion?.organisationOnly, true);
+      assert.equal(
+        d.schema.sections.filter((s) => s.organisationOnly).length,
+        1
+      );
+    }
   });
 });
 

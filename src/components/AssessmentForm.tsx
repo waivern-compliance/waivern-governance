@@ -20,6 +20,8 @@ type Props = {
   initialAnswers: Answers;
   /** Restricts the form to one section, for a contributor working on their part. */
   onlySection?: string | null;
+  /** Answered through a contributor link, which never reaches the organisation's own sections. */
+  contributor?: boolean;
   readOnly?: boolean;
   legalRefs: Record<string, ResolvedRef>;
   /** The law the assessment's entity is under, which decides whether UK or EU GDPR articles are shown. */
@@ -39,6 +41,7 @@ export function AssessmentForm({
   definition,
   initialAnswers,
   onlySection,
+  contributor = false,
   readOnly = false,
   legalRefs,
   law,
@@ -63,6 +66,7 @@ export function AssessmentForm({
   const sections = definition.schema.sections.filter(
     (s) =>
       (!onlySection || s.key === onlySection) &&
+      !(contributor && s.organisationOnly) &&
       evaluation.sections[s.key]?.visible
   );
 
@@ -78,10 +82,11 @@ export function AssessmentForm({
     const keys = new Set<string>();
     for (const s of definition.schema.sections) {
       if (onlySection && s.key !== onlySection) continue;
+      if (contributor && s.organisationOnly) continue;
       for (const q of s.questions) keys.add(q.key);
     }
     return keys;
-  }, [definition.schema.sections, onlySection]);
+  }, [definition.schema.sections, onlySection, contributor]);
 
   const scoped = Object.entries(evaluation.questions).filter(
     ([key, q]) => q.visible && inScope.has(key)

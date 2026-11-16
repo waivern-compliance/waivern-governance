@@ -210,6 +210,12 @@ function Definition({
             {section.description ? (
               <p className="text-xs text-ink-soft">{section.description}</p>
             ) : null}
+            {section.organisationOnly ? (
+              <p className="text-xs text-ink-soft">
+                Answered by the organisation only, never through a contributor
+                link.
+              </p>
+            ) : null}
             {section.showWhen ? (
               <p className="text-xs text-amber-900">
                 Shown only when {describeCondition(section.showWhen, labels)}.

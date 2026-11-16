@@ -360,6 +360,8 @@ export default async function SupplierPage({
             organisationId={org}
             subjectType="supplier"
             subjectId={supplier.id}
+            only={Object.values(DUE_DILIGENCE_NAMES)}
+            missing="The due diligence questionnaires are not in your template library yet. Someone who may publish supplier templates can add them from the template library."
             prefer={
               DUE_DILIGENCE_NAMES[
                 dueDiligenceDepth(

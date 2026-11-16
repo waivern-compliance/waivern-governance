@@ -89,24 +89,29 @@ export async function featureEvidence(
     // Supplier records include security and privacy due diligence, which says
     // nothing about AI; only assessments built on the AI supplier questions
     // count towards it.
-    const approvedAiSupplierAssessments = async () =>
-      (
-        await db
-          .select({ definition: templateVersions.definition })
-          .from(assessments)
-          .innerJoin(
-            templateVersions,
-            eq(templateVersions.id, assessments.templateVersionId)
+    const approvedAiSupplierAssessments = async () => {
+      // One row per template version, so each definition is read once however
+      // many assessments ran against it.
+      const versions = await db
+        .select({ definition: templateVersions.definition, n: count() })
+        .from(assessments)
+        .innerJoin(
+          templateVersions,
+          eq(templateVersions.id, assessments.templateVersionId)
+        )
+        .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+        .where(
+          and(
+            eq(assessments.organisationId, organisationId),
+            eq(assessments.status, 'approved'),
+            eq(templates.kind, 'supplier_record')
           )
-          .innerJoin(templates, eq(templates.id, templateVersions.templateId))
-          .where(
-            and(
-              eq(assessments.organisationId, organisationId),
-              eq(assessments.status, 'approved'),
-              eq(templates.kind, 'supplier_record')
-            )
-          )
-      ).filter((r) => isAiSupplierDefinition(r.definition)).length;
+        )
+        .groupBy(templateVersions.id);
+      return versions
+        .filter((v) => isAiSupplierDefinition(v.definition))
+        .reduce((sum, v) => sum + Number(v.n), 0);
+    };
     const stagesOf = (
       stages: Array<'pilot' | 'production' | 'retiring' | 'retired'>
     ) =>

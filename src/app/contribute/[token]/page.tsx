@@ -79,6 +79,7 @@ export default async function ContributePage({
         definition={loaded.definition}
         initialAnswers={loaded.answers}
         onlySection={redeemed.link.sectionKey}
+        contributor
         legalRefs={refs}
         law={loaded.entityLaw}
         onSave={contributorSaveAction.bind(null, token)}

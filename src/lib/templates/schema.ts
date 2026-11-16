@@ -111,6 +111,13 @@ export const section = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   showWhen: condition.optional(),
+  /**
+   * Answered by the organisation, never through a contributor link: a
+   * supplier answering its own due diligence must not also record the
+   * verdict on it. Optional rather than defaulted, so templates published
+   * before it existed still compare equal to what Waivern ships.
+   */
+  organisationOnly: z.boolean().optional(),
   questions: z.array(question).min(1)
 });
 export type Section = z.infer<typeof section>;

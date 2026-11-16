@@ -21,9 +21,10 @@ import type {
  * named as evidence a supplier may offer, never as requirements: Article 32
  * asks for security appropriate to the risk, not for a particular badge.
  *
- * Kept clear of the keys the AI supplier assessment is recognised by
+ * Never carries every key the AI supplier assessment is recognised by
  * (`AI_SUPPLIER_KEYS`), so a due-diligence assessment is never read as an
- * assessment of a supplier's AI. Sent to the supplier through contributor
+ * assessment of a supplier's AI. It does ask `ai_involvement`, which the
+ * supplier assessment workflow reads to send it to Responsible AI review. Sent to the supplier through contributor
  * links and approved through the supplier assessment workflow like any other
  * `supplier_record`. The score rises with what is missing or unknown, not
  * with what the supplier does.
@@ -116,13 +117,27 @@ const ABOUT: Section = {
       evidence: 'none'
     },
     {
-      key: 'uses_ai',
-      label: 'Does the supplier use AI in providing the service to us?',
-      type: 'boolean',
+      // The key and values the supplier assessment workflow reads to send an
+      // assessment to Responsible AI review. On its own it does not make this
+      // an AI supplier assessment, which also asks about training on our data.
+      key: 'ai_involvement',
+      label: 'How does the supplier use AI?',
+      type: 'single_select',
       required: true,
-      help: 'If so, assess it with the AI supplier assessment as well.',
+      help: "If it does, the assessment goes to Responsible AI review before approval. Record it on the supplier's page as well, and assess the AI itself with the AI supplier assessment.",
       legalRefs: [],
-      evidence: 'none'
+      evidence: 'none',
+      options: [
+        {
+          value: 'in_delivery',
+          label: 'Uses AI in delivering the service to us'
+        },
+        {
+          value: 'ai_product',
+          label: 'Supplies an AI product, model or service'
+        },
+        { value: 'none', label: 'Does not use AI in what it provides' }
+      ]
     }
   ]
 };
@@ -570,28 +585,30 @@ const TERMS: Section = {
     {
       key: 'international_transfers',
       label:
-        'Is our personal data transferred outside the UK, and if so how is it protected?',
+        'Is our personal data sent to a country without an adequacy decision or regulations, and if so how is it protected?',
       type: 'single_select',
       required: false,
       showWhen: PERSONAL_DATA,
       requireWhen: PERSONAL_DATA,
+      help: 'Under UK law, a country without UK adequacy regulations; under EU law, one outside the EEA without an EU adequacy decision. Ask about both where both laws apply.',
       legalRefs: [...TRANSFERS, 'ico.idta'],
       evidence: 'optional',
       options: [
         {
           value: 'none',
-          label: 'Not transferred, or only where adequacy regulations apply',
+          label:
+            'No, it stays where adequacy decisions or regulations cover it',
           weight: 0
         },
         {
           value: 'safeguarded',
           label:
-            'Transferred under the IDTA, the UK Addendum to the EU clauses, or binding corporate rules',
+            'Yes, under standard contractual clauses (the EU clauses, with the UK Addendum for UK law, or the IDTA), binding corporate rules or another Article 46 safeguard',
           weight: 1
         },
         {
           value: 'unprotected',
-          label: 'Transferred with no safeguard',
+          label: 'Yes, with no safeguard',
           weight: 5
         },
         { value: 'unknown', label: 'Not established', weight: 3 }
@@ -604,7 +621,7 @@ const TERMS: Section = {
       required: false,
       showWhen: PERSONAL_DATA,
       requireWhen: PERSONAL_DATA,
-      help: 'Each is required in a contract with a processor. The third-party register checks separately that an agreement is held.',
+      help: "Each is required in a contract with a processor. Whether an agreement is held at all is recorded on the supplier's page, where the third-party register checks it; this asks what it says.",
       legalRefs: PROCESSOR,
       evidence: 'optional',
       options: [
@@ -643,21 +660,6 @@ const TERMS: Section = {
       ]
     },
     {
-      key: 'article_28_complete',
-      label: 'Is the agreement complete?',
-      type: 'single_select',
-      required: false,
-      showWhen: PERSONAL_DATA,
-      requireWhen: PERSONAL_DATA,
-      legalRefs: PROCESSOR,
-      evidence: 'none',
-      options: [
-        { value: 'complete', label: 'Signed, with every term', weight: 0 },
-        { value: 'gaps', label: 'Signed, with terms missing', weight: 3 },
-        { value: 'unsigned', label: 'Not signed', weight: 6 }
-      ]
-    },
-    {
       key: 'end_of_contract',
       label: 'What happens to our data when the contract ends?',
       type: 'single_select',
@@ -686,7 +688,9 @@ const TERMS: Section = {
 const CONCLUSION: Section = {
   key: 'conclusion',
   title: 'Conclusion',
-  description: 'For us to answer, not the supplier.',
+  description:
+    'For us to answer. It is never sent to the supplier, even on a link to the whole assessment.',
+  organisationOnly: true,
   questions: [
     {
       key: 'evidence_received',
@@ -757,7 +761,6 @@ const FULL_SCORED = [
   'staff_vetting',
   'logging',
   'international_transfers',
-  'article_28_complete',
   'end_of_contract'
 ];
 
@@ -806,9 +809,10 @@ export const SUPPLIER_DUE_DILIGENCE_FULL: TemplateDefinition = {
   scoring: {
     method: 'weighted_sum',
     questions: FULL_SCORED,
-    // The worst case sums to 65. Each control missing outright adds 4, an
-    // unsigned processor agreement 6 and an unprotected transfer 5, so two or
-    // three serious gaps reach the high band on their own.
+    // The worst case sums to 59. Each control missing outright adds 4 and an
+    // unprotected transfer 5, so three or four serious gaps reach the high
+    // band on their own. Whether a processor agreement is held is not scored
+    // here: the third-party register reads it from the agreement itself.
     bands: [
       { min: 0, max: 6, label: 'Low', tier: 'low' },
       { min: 7, max: 15, label: 'Moderate', tier: 'medium' },
