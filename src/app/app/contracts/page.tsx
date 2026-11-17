@@ -8,7 +8,7 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities, suppliers } from '@/db/schema';
 import { can } from '@/lib/rbac';
-import { NOTICE_WORDS } from '@/lib/renewals';
+import { needsAttention, NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import {
   contractPeople,
@@ -73,7 +73,8 @@ export default async function ContractsPage({
     ).values()
   ].sort((a, b) => a.email.localeCompare(b.email));
   const attention = rows.filter(
-    (r) => r.notice === 'due_soon' || r.notice === 'passed'
+    (r) =>
+      r.notice === 'due_soon' || r.notice === 'passed' || r.notice === 'expired'
   );
   const inForce = rows.filter(
     (r) => !r.contract.endedAt && !attention.includes(r)
@@ -227,15 +228,13 @@ function Group({
                 </span>
                 <span
                   className={`text-xs ${
-                    r.notice === 'passed' ||
-                    r.notice === 'due_soon' ||
-                    r.notice === 'renewed'
+                    needsAttention(r.notice)
                       ? 'text-amber-900'
                       : 'text-ink-soft'
                   }`}
                 >
                   {NOTICE_WORDS[r.notice]}
-                  {r.noticeBy && r.notice !== 'renewed' && !r.contract.endedAt
+                  {r.noticeBy && noticeStillOpen(r.notice)
                     ? `: notice by ${day(r.noticeBy)}`
                     : ''}
                 </span>

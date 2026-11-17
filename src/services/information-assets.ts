@@ -37,6 +37,7 @@ import {
   type HostingModel
 } from '@/lib/assets/register';
 import {
+  BUILT_IN_ASSET_TYPES,
   cleanDetails,
   isBuiltInAssetType,
   typeLabel,
@@ -375,31 +376,38 @@ export async function assetsFor(
       .where(
         and(eq(table.organisationId, organisationId), eq(column, targetId))
       );
-    const [types, rows] = await Promise.all([
-      assetTypology(organisationId),
-      db
-        .select({
-          id: informationAssets.id,
-          reference: informationAssets.reference,
-          name: informationAssets.name,
-          assetType: informationAssets.assetType,
-          retiredAt: informationAssets.retiredAt
-        })
-        .from(informationAssets)
-        .where(
-          and(
-            eq(informationAssets.organisationId, organisationId),
-            inArray(informationAssets.id, linked),
-            entityIds === null
-              ? undefined
-              : inArray(informationAssets.entityId, entityIds)
-          )
+    // The organisation's own type's name comes with the row; a built-in
+    // type's is in code.
+    const rows = await db
+      .select({
+        id: informationAssets.id,
+        reference: informationAssets.reference,
+        name: informationAssets.name,
+        assetType: informationAssets.assetType,
+        retiredAt: informationAssets.retiredAt,
+        ownTypeLabel: assetTypes.label
+      })
+      .from(informationAssets)
+      .leftJoin(
+        assetTypes,
+        and(
+          eq(assetTypes.organisationId, informationAssets.organisationId),
+          eq(assetTypes.key, informationAssets.assetType)
         )
-        .orderBy(asc(informationAssets.reference))
-    ]);
-    return rows.map((r) => ({
+      )
+      .where(
+        and(
+          eq(informationAssets.organisationId, organisationId),
+          inArray(informationAssets.id, linked),
+          entityIds === null
+            ? undefined
+            : inArray(informationAssets.entityId, entityIds)
+        )
+      )
+      .orderBy(asc(informationAssets.reference));
+    return rows.map(({ ownTypeLabel, ...r }) => ({
       ...r,
-      typeLabel: typeLabel(types, r.assetType)
+      typeLabel: ownTypeLabel ?? typeLabel(BUILT_IN_ASSET_TYPES, r.assetType)
     }));
   });
 }
@@ -528,7 +536,7 @@ async function clean(
         )
       )
       .for('share');
-  const type = (await assetTypology(organisationId, tx)).find(
+  const type = (await assetTypology(organisationId)).find(
     (t) => t.key === d.assetType
   );
   if (!type) throw new AssetRefused('Choose what kind of asset it is.');
