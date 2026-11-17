@@ -233,8 +233,14 @@ export default async function PoliciesPage() {
             The documents the Data Protection Act 2018 requires for most
             Schedule 1 conditions are kept in their own register, with the
             conditions each covers.{' '}
-            {appropriate.rows.filter((r) => !r.doc.withdrawnAt).length} in
-            force.{' '}
+            {
+              appropriate.rows.filter(
+                (r) =>
+                  !r.doc.withdrawnAt &&
+                  (!r.doc.importBatchId || r.doc.importConfirmedAt)
+              ).length
+            }{' '}
+            in force.{' '}
             <Link
               href="/app/policy-documents"
               className="text-brand underline"
@@ -289,7 +295,9 @@ function PolicyRow({
             ? ` · version ${inHand.label} ${inHand.status === 'submitted' ? 'waiting for approval' : 'in draft'}`
             : ''}
         </p>
-        {overdue ? (
+        {policy.importBatchId && !policy.importConfirmedAt ? (
+          <p className="text-xs text-amber-900">Imported, not yet confirmed</p>
+        ) : overdue ? (
           <p className="text-xs text-amber-900">Past its review date</p>
         ) : null}
       </Link>

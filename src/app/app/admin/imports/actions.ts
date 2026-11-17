@@ -17,7 +17,7 @@ import {
 } from '@/db/schema';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import type { RecordType } from '@/lib/import/fields';
-import { can, mayImport } from '@/lib/rbac';
+import { can, canInScope, mayImport } from '@/lib/rbac';
 import { NotPermitted, refusedUnless, requireCapability } from '@/lib/session';
 import {
   addImportFiles,
@@ -237,15 +237,16 @@ const ENTITY_TABLE = {
 } as const;
 
 /**
- * Whom an imported record is for: its entity, or nobody in particular for one
- * that is the organisation's (an agreement, or a policy for every entity).
- * Null where it is gone.
+ * Whom an imported record is for: its entity; null for a policy or policy
+ * document for every entity; undefined for an agreement, which is the
+ * organisation's and is confirmed by anyone who may write records.
+ * Gone, where it no longer exists.
  */
 async function scopeOf(
   type: Confirmable,
   id: string,
   organisationId: string
-): Promise<{ entityId: string | undefined } | null> {
+): Promise<{ entityId: string | null | undefined } | 'gone'> {
   if (type === 'dpa') return { entityId: undefined };
   return withOrganisation(organisationId, async () => {
     // A mitigation belongs to its risk's entity.
@@ -257,14 +258,14 @@ async function scopeOf(
         .where(
           and(eq(mitigations.id, id), eq(risks.organisationId, organisationId))
         );
-      return row ? { entityId: row.entityId } : null;
+      return row ? { entityId: row.entityId } : 'gone';
     }
     const table = ENTITY_TABLE[type];
     const [row] = await db
       .select({ entityId: table.entityId })
       .from(table)
       .where(and(eq(table.id, id), eq(table.organisationId, organisationId)));
-    return row ? { entityId: row.entityId ?? undefined } : null;
+    return row ? { entityId: row.entityId } : 'gone';
   });
 }
 
@@ -274,9 +275,16 @@ async function confirmer(type: Confirmable, id: string) {
   const organisationId = active.membership.organisationId;
   const scope = await scopeOf(type, id, organisationId);
   // Gone since the page was drawn, say an import undone meanwhile.
-  if (!scope) return null;
-  if (!can(active.membership.grants, 'record.write', scope.entityId))
-    throw new NotPermitted('record.write', scope.entityId);
+  if (scope === 'gone') return null;
+  const grants = active.membership.grants;
+  // A record for every entity binds them all: confirming it needs the
+  // capability across the organisation, as changing it does.
+  const allowed =
+    scope.entityId === undefined
+      ? can(grants, 'record.write')
+      : canInScope(grants, 'record.write', scope.entityId);
+  if (!allowed)
+    throw new NotPermitted('record.write', scope.entityId ?? undefined);
   return { active, organisationId };
 }
 

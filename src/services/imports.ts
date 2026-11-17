@@ -1389,17 +1389,25 @@ async function orgRecordsByName(
   batch: Batch,
   table: typeof processingActivities | typeof aiUseCases
 ) {
-  const rows = (await tx
-    .select()
-    .from(table)
-    .where(eq(table.organisationId, batch.organisationId))) as Array<{
+  const rows: Array<{
     id: string;
     entityId: string;
     name: string;
     reference?: string;
     externalRef: string | null;
     importSourceId: string | null;
-  }>;
+  }> = await tx
+    .select({
+      id: table.id,
+      entityId: table.entityId,
+      name: table.name,
+      externalRef: table.externalRef,
+      importSourceId: table.importSourceId,
+      // Only processing activities carry a Govern reference.
+      ...('reference' in table ? { reference: table.reference } : {})
+    })
+    .from(table)
+    .where(eq(table.organisationId, batch.organisationId));
   return (given: string, entityId: string | null): string[] => {
     const inScope = rows.filter((r) => !entityId || r.entityId === entityId);
     const ref = given.trim().toLowerCase();
@@ -1446,8 +1454,11 @@ async function policyResolver(tx: Tx, batch: Batch) {
           )
         ),
       membersByEmail(tx, batch.organisationId),
-      orgRecordsByName(tx, batch, processingActivities),
-      orgRecordsByName(tx, batch, aiUseCases)
+      // Only a policy names what it governs.
+      kind === 'policy'
+        ? orgRecordsByName(tx, batch, processingActivities)
+        : null,
+      kind === 'policy' ? orgRecordsByName(tx, batch, aiUseCases) : null
     ]);
   const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
   const nameOf = (id: string | null) =>
@@ -1490,10 +1501,10 @@ async function policyResolver(tx: Tx, batch: Batch) {
         [
           'activityIds',
           record.data.activities,
-          activityOf,
+          activityOf!,
           'processing activity'
         ],
-        ['aiSystemIds', record.data.aiSystems, systemOf, 'AI system']
+        ['aiSystemIds', record.data.aiSystems, systemOf!, 'AI system']
       ] as const;
       for (const [key, names, find, words] of lookups)
         for (const name of names) {
@@ -2984,17 +2995,29 @@ async function writePolicy(
   // approving here sets it: never a date counted from the import.
   const reviewedOrApproved =
     lastReviewedAt ?? (data.approvedAt ? new Date(data.approvedAt) : null);
+  // What the row says, or what the policy already is when it does not say.
+  const status = (data.status ??
+    (was?.status as PolicyStatus | undefined) ??
+    'draft') as PolicyStatus;
   const nextReviewAt = data.nextReviewAt
     ? new Date(data.nextReviewAt)
-    : data.status === 'in_force' && reviewedOrApproved
+    : status === 'in_force' && reviewedOrApproved
       ? addMonths(reviewedOrApproved, interval)
       : null;
+  // A status the row states brings the fields that go with it, as
+  // withdrawing or approving here does: a policy back in force is no longer
+  // withdrawn, and a withdrawn one has no review coming. These are written
+  // even when empty, which the file's other empty cells are not.
+  const settled: Partial<typeof policies.$inferInsert> =
+    data.status === 'withdrawn'
+      ? { nextReviewAt: null }
+      : data.status
+        ? { withdrawnAt: null, withdrawnReason: null }
+        : {};
   const cycle = versioned
     ? {}
     : {
-        status: (data.status ??
-          (was?.status as PolicyStatus | undefined) ??
-          'draft') as PolicyStatus,
+        status,
         nextReviewAt,
         lastReviewedAt,
         withdrawnAt: data.withdrawnAt ? new Date(data.withdrawnAt) : null,
@@ -3020,7 +3043,12 @@ async function writePolicy(
   if (c.decision.recordId) {
     await c.tx
       .update(policies)
-      .set({ ...said(described), ...owner, ...kept })
+      .set({
+        ...said(described),
+        ...(versioned ? {} : settled),
+        ...owner,
+        ...kept
+      })
       .where(eq(policies.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
