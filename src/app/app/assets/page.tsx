@@ -9,8 +9,6 @@ import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import {
   ASSET_GAP_WORDS,
-  ASSET_TYPE_LABEL,
-  ASSET_TYPES,
   classificationLabel,
   HOSTING_LABEL,
   levelsOf,
@@ -18,8 +16,11 @@ import {
   reviewOverdue,
   type AssetFilter
 } from '@/lib/assets/register';
+import { offeredTypes, typeLabel } from '@/lib/assets/types';
 import { can } from '@/lib/rbac';
+import { needsAttention, NOTICE_WORDS } from '@/lib/renewals';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { assetTypology } from '@/services/asset-types';
 import { candidatesFor } from '@/services/handover';
 import {
   assetRegister,
@@ -59,7 +60,7 @@ export default async function AssetsPage({
     retired: one(params.retired) === 'on'
   };
   const org = active.membership.organisationId;
-  const [rows, scheme, orgEntities, activeMembers] = await Promise.all([
+  const [rows, scheme, orgEntities, activeMembers, types] = await Promise.all([
     assetRegister(org, visibleEntityIds(active)),
     classificationSchemeOf(org),
     scoped(org, () =>
@@ -69,7 +70,8 @@ export default async function AssetsPage({
         .where(eq(entities.organisationId, org))
         .orderBy(asc(entities.name))
     ),
-    candidatesFor(org)
+    candidatesFor(org),
+    assetTypology(org)
   ]);
   // Owners are offered from active members. The filter also offers anyone
   // who still owns an asset after leaving, so their assets can be found.
@@ -94,6 +96,7 @@ export default async function AssetsPage({
   const shown = rows.filter((r) => matchesFilter({ ...r.asset }, filter, now));
   const inUse = rows.filter((r) => !r.asset.retiredAt);
   const overdue = inUse.filter((r) => reviewOverdue(r.asset, now));
+  const renewing = inUse.filter((r) => needsAttention(r.renewal));
   const filtered =
     filter.ownerId ||
     filter.classification ||
@@ -115,14 +118,26 @@ export default async function AssetsPage({
         </h1>
         <p className="max-w-prose text-sm text-ink-soft">
           The systems and repositories you hold information in - databases, file
-          shares, SaaS applications, paper archives, devices - with who owns
-          each, where it is hosted, how it is classified and how long what it
-          holds is kept. It describes the systems, not their contents, and links
-          to the processing, third parties and risks that concern them.
+          shares, SaaS applications, paper archives, devices - and the digital
+          assets that renew, such as domains, certificates and software
+          licences, with who owns each, where it is hosted, how it is classified
+          and how long what it holds is kept. It describes the systems, not
+          their contents, and links to the processing, third parties, risks and
+          contracts that concern them.
         </p>
         <p className="text-xs text-ink-soft">
           {inUse.length} in use
           {overdue.length > 0 ? ` · ${overdue.length} past review` : ''}
+          {renewing.length > 0
+            ? ` · ${renewing.length} renewal${renewing.length === 1 ? '' : 's'} due`
+            : ''}
+          {' · '}
+          <Link
+            href="/app/assets/types"
+            className="text-brand hover:underline"
+          >
+            Asset types
+          </Link>
         </p>
       </header>
 
@@ -159,6 +174,7 @@ export default async function AssetsPage({
             <AssetFields
               members={members}
               scheme={scheme}
+              types={offeredTypes(types)}
             />
             <button
               type="submit"
@@ -221,12 +237,13 @@ export default async function AssetsPage({
             className={inputClass}
           >
             <option value="">Any</option>
-            {ASSET_TYPES.map((t) => (
+            {types.map((t) => (
               <option
-                key={t}
-                value={t}
+                key={t.key}
+                value={t.key}
               >
-                {ASSET_TYPE_LABEL[t]}
+                {t.label}
+                {t.retiredAt ? ' (retired)' : ''}
               </option>
             ))}
           </select>
@@ -270,6 +287,7 @@ export default async function AssetsPage({
           <AssetRowItem
             key={r.asset.id}
             row={r}
+            typeName={typeLabel(types, r.asset.assetType)}
           />
         ))}
         {shown.length === 0 ? (
@@ -284,8 +302,8 @@ export default async function AssetsPage({
   );
 }
 
-function AssetRowItem({ row }: { row: AssetRow }) {
-  const { asset, entityName, ownerEmail, gaps } = row;
+function AssetRowItem({ row, typeName }: { row: AssetRow; typeName: string }) {
+  const { asset, entityName, ownerEmail, gaps, renewal } = row;
   return (
     <li>
       <Link
@@ -298,9 +316,7 @@ function AssetRowItem({ row }: { row: AssetRow }) {
               {asset.reference}
             </span>
             <span className="font-medium">{asset.name}</span>
-            <span className="text-xs text-ink-soft">
-              {ASSET_TYPE_LABEL[asset.assetType] ?? asset.assetType}
-            </span>
+            <span className="text-xs text-ink-soft">{typeName}</span>
           </span>
           <span className="flex items-center gap-2 text-xs text-ink-soft">
             {entityName}
@@ -323,7 +339,13 @@ function AssetRowItem({ row }: { row: AssetRow }) {
           {asset.nextReviewAt && !asset.retiredAt
             ? ` · review due ${day(asset.nextReviewAt)}`
             : ''}
+          {asset.expiresAt && !asset.retiredAt
+            ? ` · ${asset.autoRenews ? 'renews' : 'expires'} ${day(asset.expiresAt)}`
+            : ''}
         </p>
+        {needsAttention(renewal) ? (
+          <p className="text-xs text-amber-900">{NOTICE_WORDS[renewal]}</p>
+        ) : null}
         {gaps.length > 0 ? (
           <p className="text-xs text-amber-900">
             {gaps.map((g) => ASSET_GAP_WORDS[g]).join(' · ')}

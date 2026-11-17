@@ -48,7 +48,7 @@ import { forgetExpiredConversations } from './assistant';
 import { breachesNeedingAttention } from './breaches';
 import { complaintsNeedingAttention } from './complaints';
 import { finishRunningScans } from './consent-analyser';
-import { contractsNeedingNotice, retireContractReminders } from './contracts';
+import { contractsNeedingNotice } from './contracts';
 import { countriesDueForReview } from './countries';
 import {
   objectionCounts,
@@ -56,7 +56,7 @@ import {
   requestsNeedingAttention
 } from './data-subject-requests';
 import { pruneIntakeAttempts } from './dsr-intake';
-import { assetsDueForReview } from './information-assets';
+import { assetsDueForReview, assetsNeedingRenewal } from './information-assets';
 import { reviewsNeedingAttention } from './information-request-reviews';
 import { informationRequestsNeedingAttention } from './information-requests';
 import {
@@ -65,6 +65,7 @@ import {
 } from './marketing';
 import { deliverNotifications } from './member-email';
 import { canOpenRecordsIn } from './member-grants';
+import { assetRenewal, retireRenewalReminders } from './renewals';
 import { appetitesDueForReview } from './risk-policy';
 import { propertiesDueForRescan } from './storage-inventory';
 import { suppliersDueForReview } from './supplier-review';
@@ -119,6 +120,7 @@ export type SweepResult = {
   assetReviewsRaised: number;
   supplierReviewsRaised: number;
   contractNoticesRaised: number;
+  assetRenewalsRaised: number;
   appetiteReviewsRaised: number;
   documentsScanned: number;
   documentsQuarantined: number;
@@ -1261,10 +1263,64 @@ async function raiseContractNotices(organisationId: string): Promise<number> {
       });
       if (task) raised += 1;
       // Once a term has renewed, the reminder to give notice on it is spent.
-      await retireContractReminders(
+      await retireRenewalReminders(
         tx,
         organisationId,
+        'contract',
         contract,
+        SYSTEM.actorLabel
+      );
+    });
+  }
+  return raised;
+}
+
+/**
+ * Assets whose type carries an expiry date - a domain, a certificate, a
+ * licence - with the same reminders as a contract: one task per asset and
+ * notice date, to its owner where they can open it, otherwise to the privacy
+ * administrators. A lapsed domain can be taken by someone else and an
+ * expired certificate takes a service down, so each is raised on its own.
+ */
+async function raiseAssetRenewals(organisationId: string): Promise<number> {
+  const due = await assetsNeedingRenewal(organisationId);
+  let raised = 0;
+  for (const { asset, key, noticeBy, notice, ownerMayAct } of due) {
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    const renewed = notice === 'renewed';
+    const by = day(noticeBy);
+    const ends = day(asset.expiresAt!);
+    await db.transaction(async (tx) => {
+      const task = await raiseTask(tx, {
+        organisationId,
+        entityId: asset.entityId,
+        type: 'reassess',
+        title: renewed
+          ? `${asset.reference} ${asset.name}: renewed on ${ends}, record the new expiry date`
+          : notice === 'passed'
+            ? `${asset.reference} ${asset.name}: the date to act by has passed; it ${asset.autoRenews ? 'renews' : 'expires'} on ${ends}`
+            : `${asset.reference} ${asset.name}: renew or let it lapse by ${by}`,
+        description: renewed
+          ? `It was due to expire on ${ends} and renews automatically. Record the new expiry date on the asset, or retire it if it was not renewed.`
+          : (asset.autoRenews
+              ? `It renews automatically on ${ends} unless it is cancelled by ${by}. `
+              : `It expires on ${ends}; act by ${by} to renew it in time. `) +
+            'Decide whether to renew it, and record the new expiry date on the asset or retire it.',
+        subjectType: 'information_asset',
+        subjectId: asset.id,
+        ...(ownerMayAct
+          ? { assigneeUserId: asset.ownerId }
+          : { assigneeRole: 'privacy_admin' as const }),
+        ...(renewed ? {} : { dueAt: noticeBy }),
+        idempotencyKey: key,
+        actor: SYSTEM
+      });
+      if (task) raised += 1;
+      await retireRenewalReminders(
+        tx,
+        organisationId,
+        'asset',
+        assetRenewal(asset),
         SYSTEM.actorLabel
       );
     });
@@ -1495,6 +1551,7 @@ export async function sweepOrganisation(
     assetReviewsRaised: await raiseAssetReviews(organisationId),
     supplierReviewsRaised: await raiseSupplierReviews(organisationId),
     contractNoticesRaised: await raiseContractNotices(organisationId),
+    assetRenewalsRaised: await raiseAssetRenewals(organisationId),
     appetiteReviewsRaised: await raiseAppetiteReviews(organisationId),
     documentsScanned: 0,
     documentsQuarantined: 0,

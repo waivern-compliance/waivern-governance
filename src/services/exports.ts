@@ -19,10 +19,10 @@ import {
 import { categoryLabel } from '@/lib/ai-frameworks';
 import {
   ASSET_GAP_WORDS,
-  ASSET_TYPE_LABEL,
   classificationLabel,
   HOSTING_LABEL
 } from '@/lib/assets/register';
+import { describeDetails, typeLabel } from '@/lib/assets/types';
 import { appendAuditEvent, GENESIS_HASH } from '@/lib/audit';
 import { BOM, toCsv } from '@/lib/csv';
 import {
@@ -36,14 +36,15 @@ import { REGIME } from '@/lib/foi/statutory';
 import { describeBases, RECOGNISED_CONDITIONS } from '@/lib/gdpr/lawful-basis';
 import { legalRefMap } from '@/lib/legal-refs';
 import { PRODUCT_NAME } from '@/lib/product';
+import { NOTICE_WORDS } from '@/lib/renewals';
 import { questionsOf } from '@/lib/templates/logic';
 import { AI_STANDING_LABEL } from '@/lib/thirdparty/ai-procurement';
-import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
 import { OUTCOME_LABEL as REVIEW_OUTCOME_LABEL } from '@/lib/thirdparty/review';
 import { TIER_LABEL } from '@/lib/thirdparty/tier';
 
 import { gapsFor } from './ai-register';
 import { aiRiskLog, treatmentWords } from './ai-risk-profile';
+import { assetTypology } from './asset-types';
 import { breachRegister } from './breaches';
 import { contractRegister, type ContractViewer } from './contracts';
 import { libraryFor } from './countries';
@@ -801,9 +802,10 @@ export async function exportAssets(
   organisationId: string,
   entityIds: string[] | null
 ) {
-  const rows = await assetRegister(organisationId, entityIds, {
-    links: true
-  });
+  const [rows, types] = await Promise.all([
+    assetRegister(organisationId, entityIds, { links: true }),
+    assetTypology(organisationId)
+  ]);
   return {
     columns: [
       'Reference',
@@ -818,9 +820,15 @@ export async function exportAssets(
       'Countries',
       'Classification',
       'Retention',
+      'Details',
+      'Expires',
+      'Notice by',
+      'Renews automatically',
+      'Renewal',
       'Processing activities',
       'Third parties',
       'Risks',
+      'Contracts',
       'Last reviewed',
       'Next review',
       'Outstanding',
@@ -831,7 +839,7 @@ export async function exportAssets(
       r.asset.reference,
       r.entityName,
       r.asset.name,
-      ASSET_TYPE_LABEL[r.asset.assetType] ?? r.asset.assetType,
+      typeLabel(types, r.asset.assetType),
       r.asset.description,
       r.ownerEmail,
       r.asset.hosting ? HOSTING_LABEL[r.asset.hosting] : null,
@@ -840,9 +848,20 @@ export async function exportAssets(
       r.asset.countries.join('; '),
       classificationLabel(r.asset.classification),
       r.asset.retention,
+      describeDetails(
+        types.find((t) => t.key === r.asset.assetType),
+        r.asset.details
+      )
+        .map((d) => `${d.label}: ${d.value}`)
+        .join('; '),
+      r.asset.expiresAt,
+      r.asset.expiresAt ? r.noticeBy : null,
+      r.asset.expiresAt ? (r.asset.autoRenews ? 'yes' : 'no') : null,
+      r.asset.expiresAt ? NOTICE_WORDS[r.renewal] : null,
       r.activities.map((a) => `${a.reference} ${a.name}`).join('; '),
       r.suppliers.map((s) => s.name).join('; '),
       r.risks.map((k) => `${k.reference} ${k.title}`).join('; '),
+      r.contracts.map((c) => `${c.reference} ${c.title}`).join('; '),
       r.asset.lastReviewedAt,
       r.asset.nextReviewAt,
       r.gaps.map((g) => ASSET_GAP_WORDS[g]).join('; ') || 'nothing',

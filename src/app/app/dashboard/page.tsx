@@ -8,12 +8,14 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { rescanState } from '@/lib/pecr/rescan';
 import { mergeGapSummaries } from '@/lib/pecr/statutory';
 import { can } from '@/lib/rbac';
+import { NOTICE_WORDS } from '@/lib/renewals';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { complaintRegister } from '@/services/complaints';
 import { requestRegister } from '@/services/data-subject-requests';
 import { anyEntityUnderFoi, anyEntityUnderUkLaw } from '@/services/entities';
 import { foiAttention } from '@/services/foi-reporting';
 import { dashboardMetrics } from '@/services/metrics';
+import { upcomingRenewals } from '@/services/renewals';
 import { propertyRegister } from '@/services/storage-inventory';
 
 export default async function Dashboard() {
@@ -37,21 +39,25 @@ export default async function Dashboard() {
   // 30 days are the Data Protection Act 2018's (s.164A), so only where some
   // entity is subject to UK law; FOI tiles only where an FOI Act applies.
   // Cookies hold nobody's personal data, so anyone who may read records sees them.
-  const [m, requests, complaints, foi, allProperties] = await Promise.all([
-    dashboardMetrics(org, visibleEntityIds(active)),
-    can(grants, 'dsr.handle')
-      ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
-      : null,
-    (async () =>
-      can(grants, 'dsr.handle') && (await anyEntityUnderUkLaw(org))
-        ? complaintRegister(org, visibleEntityIds(active, 'dsr.handle'))
-        : null)(),
-    (async () =>
-      can(grants, 'foi.handle') && (await anyEntityUnderFoi(org))
-        ? foiAttention(org, visibleEntityIds(active, 'foi.handle'))
-        : null)(),
-    propertyRegister(org, visibleEntityIds(active))
-  ]);
+  // Renewals show dates only, never a contract's terms, so anyone who may
+  // read records sees them.
+  const [m, requests, complaints, foi, allProperties, renewals] =
+    await Promise.all([
+      dashboardMetrics(org, visibleEntityIds(active)),
+      can(grants, 'dsr.handle')
+        ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
+        : null,
+      (async () =>
+        can(grants, 'dsr.handle') && (await anyEntityUnderUkLaw(org))
+          ? complaintRegister(org, visibleEntityIds(active, 'dsr.handle'))
+          : null)(),
+      (async () =>
+        can(grants, 'foi.handle') && (await anyEntityUnderFoi(org))
+          ? foiAttention(org, visibleEntityIds(active, 'foi.handle'))
+          : null)(),
+      propertyRegister(org, visibleEntityIds(active)),
+      upcomingRenewals(org, visibleEntityIds(active))
+    ]);
   // Only sites some ePrivacy law reaches, as the register's navigation is.
   const properties = allProperties.filter((p) => p.eprivacy !== null);
   const cookieGaps = mergeGapSummaries(properties.map((p) => p.gapSummary));
@@ -345,6 +351,55 @@ export default async function Dashboard() {
           ) : null}
         </Panel>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+          Renewals
+        </h2>
+        <p className="text-xs text-ink-soft">
+          Contracts, and assets that expire, whose notice date is within 90 days
+          or has passed, or which have renewed without a new end date.
+        </p>
+        {renewals.length === 0 ? (
+          <p className="rounded border border-line bg-surface px-4 py-3 text-sm text-ink-soft">
+            Nothing coming up.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line rounded border border-line bg-surface">
+            {renewals.map((r) => (
+              <li key={`${r.subject}-${r.id}`}>
+                <Link
+                  href={
+                    r.subject === 'contract'
+                      ? `/app/contracts/${r.id}`
+                      : `/app/assets/${r.id}`
+                  }
+                  className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5 text-sm hover:bg-ground"
+                >
+                  <span>
+                    <span className="font-mono text-xs text-ink-soft">
+                      {r.reference}
+                    </span>{' '}
+                    {r.title}{' '}
+                    <span className="text-xs text-ink-soft">
+                      {r.subject === 'contract' ? 'contract' : 'asset'} ·{' '}
+                      {r.context}
+                    </span>
+                  </span>
+                  <span
+                    className={`text-xs ${r.notice === 'due_soon' ? 'text-amber-900' : 'text-red-800'}`}
+                  >
+                    {NOTICE_WORDS[r.notice]}
+                    {r.notice === 'renewed'
+                      ? ''
+                      : ` · by ${r.noticeBy.toISOString().slice(0, 10)}`}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">

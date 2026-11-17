@@ -12,28 +12,10 @@
  * NCSC's guidance and the Government Security Classifications, and other
  * organisations keep one to support their records under Article 30 and the
  * security they owe under Article 32. Nothing here calls it a legal duty.
+ *
+ * What kinds of asset it holds, the organisation's own among them, is the
+ * typology in `types.ts`.
  */
-
-export const ASSET_TYPES = [
-  'system',
-  'database',
-  'file_share',
-  'saas_application',
-  'paper_archive',
-  'device',
-  'other'
-] as const;
-export type AssetType = (typeof ASSET_TYPES)[number];
-
-export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
-  system: 'System',
-  database: 'Database',
-  file_share: 'File share',
-  saas_application: 'SaaS application',
-  paper_archive: 'Paper archive',
-  device: 'Device',
-  other: 'Other'
-};
 
 /** Who runs the infrastructure it sits on. */
 export const HOSTING_MODELS = [
@@ -93,10 +75,6 @@ export type AssetClassification = {
 }[ClassificationScheme];
 
 export const DEFAULT_CLASSIFICATION_SCHEME: ClassificationScheme = 'neutral';
-
-export function isAssetType(value: unknown): value is AssetType {
-  return (ASSET_TYPES as readonly unknown[]).includes(value);
-}
 
 export function isHostingModel(value: unknown): value is HostingModel {
   return (HOSTING_MODELS as readonly unknown[]).includes(value);

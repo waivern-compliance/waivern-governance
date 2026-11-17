@@ -3,13 +3,15 @@ import { notFound, redirect } from 'next/navigation';
 
 import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
+import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { can } from '@/lib/rbac';
+import { NOTICE_WORDS } from '@/lib/renewals';
 import { savedKey } from '@/lib/saved-key';
-import { getActiveSession } from '@/lib/session';
-import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { contractPeople, loadContract } from '@/services/contracts';
 import { documentsFor } from '@/services/documents';
+import { assetsFor } from '@/services/information-assets';
 
 import { inputClass, Label } from '../../requests/fields';
 import {
@@ -49,11 +51,12 @@ export default async function ContractPage({
     can(active.membership.grants, 'record.write', contract.entityId) &&
     !contract.endedAt;
 
-  const [candidates, files] = await Promise.all([
+  const [candidates, files, assets] = await Promise.all([
     contractPeople(org, contract.entityId),
     termsVisible
       ? documentsFor(org, 'supplier_contract', contract.id)
-      : Promise.resolve([])
+      : Promise.resolve([]),
+    assetsFor(org, { contractId: contract.id }, visibleEntityIds(active))
   ]);
   // Those who can open the contract, and the current owner even if they have
   // since left or lost access, so saving the form does not quietly take the
@@ -160,6 +163,11 @@ export default async function ContractPage({
           ) : null}
         </section>
       )}
+
+      <LinkedAssets
+        assets={assets}
+        empty="No asset is recorded as paid for by this contract. Link it from the asset's page."
+      />
 
       {termsVisible ? null : (
         <p className="rounded border-l-2 border-line px-3 py-2 text-xs text-ink-soft">

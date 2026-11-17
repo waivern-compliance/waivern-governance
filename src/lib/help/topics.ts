@@ -791,7 +791,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'information-assets',
     title: 'Information asset register',
     summary:
-      'The systems and repositories you hold information in: who owns each, where it is hosted, how it is classified, how long it keeps things, and what it links to.',
+      'The systems you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified and when it expires.',
     path: '/app/assets',
     keywords: [
       'iar',
@@ -805,7 +805,16 @@ export const HELP_TOPICS: HelpTopic[] = [
       'government security classifications',
       'official sensitive',
       'hosting',
-      'data location'
+      'data location',
+      'asset type',
+      'typology',
+      'digital asset',
+      'domain',
+      'certificate',
+      'tls certificate',
+      'software licence',
+      'licence renewal',
+      'expiry'
     ],
     sections: [
       {
@@ -824,6 +833,22 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Asset types',
+        body: [
+          'Every asset has a type. The built-in types are system, database, file share, SaaS application, paper archive, device, domain, certificate, software licence and other. Each has a definition, shown wherever the type is chosen and listed on the asset types page.',
+          'Owners and privacy administrators can add types of their own on the asset types page, reached from the register. A type cannot be added without a definition saying what belongs under it, and can say whether its assets expire or renew. A type can be renamed or redefined; it cannot stop expiring while any of its assets has an expiry date recorded.',
+          'A type no longer wanted is retired: it is offered for no new asset, and assets that have it keep it. A type can be deleted only while no asset has it, retired assets included. Adding, changing, retiring and deleting a type are all audited.'
+        ]
+      },
+      {
+        heading: 'Domains, certificates and licences',
+        body: [
+          "Some types carry fields of their own: a domain's registrar, a certificate's issuer and the names it covers, a licence's number of seats. These describe the asset, never what is in it.",
+          'A type that expires - domain, certificate, software licence, or one of your own that says so - records when the asset expires or renews, how many days before then to act, and whether it renews automatically. From ninety days before the date to act, it is listed as due and a task goes to its owner, or to the privacy administrators if it has no owner who can open records in its legal entity. A task is raised once for each date; changing the date cancels the old task, and retiring the asset closes it.',
+          'When an asset that renews automatically passes its date, it is listed as renewed, and its owner is asked to record the new date.'
+        ]
+      },
+      {
         heading: 'Classification',
         body: [
           'Assets are classified on one scheme for the whole organisation, chosen on the organisation settings page: a neutral set (public, internal, confidential, restricted) by default, or the Government Security Classifications (Official, Official-Sensitive, Secret, Top Secret). The scheme can be changed only while no asset is classified, so the register is never classified two ways at once.'
@@ -832,7 +857,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Links',
         body: [
-          "Link an asset to the processing activities whose data it holds, the third parties that host, run or support it, and the risks that concern it. Activities and risks must be its own legal entity's, so a link never shows one entity's records to people who may see only another's; any third party on the register can be linked. Each linked activity, third party and risk shows the asset on its own page."
+          "Link an asset to the processing activities whose data it holds, the third parties that host, run or support it, the risks that concern it, and the contracts that pay for it. Activities, risks and contracts must be its own legal entity's, so a link never shows one entity's records to people who may see only another's; any third party on the register can be linked. Each linked activity, third party, risk and contract shows the asset on its own page.",
+          "A linked contract shows on the asset with its end date and notice state, so a subscription's or licence's renewal is seen on the system it pays for. Its value is not shown there."
         ]
       },
       {
@@ -843,7 +869,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       }
     ],
-    related: ['ropa', 'third-parties', 'risks', 'organisation']
+    related: ['ropa', 'third-parties', 'risks', 'contracts', 'organisation']
   },
   {
     id: 'sharing-agreements',
@@ -918,7 +944,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           'The date that matters is the last day to give notice: the end date less the notice period. A contract that renews automatically commits you to another term if that day passes unnoticed.',
           'From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no owner who can still open it. A task is raised once for each notice date. Changing the dates cancels the old task and raises a fresh one for the new date. Ending a contract closes its task and stops its reminders.',
-          'When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.'
+          'When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.',
+          "Contract and asset renewals are listed together on the governance overview. Link a contract to the assets it pays for from each asset's page; the contract then lists them."
         ]
       },
       {
@@ -2132,11 +2159,12 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           'The attention tiles are the actionable part. Risk posture shows inherent against residual, so the gap between them is what treatment has actually achieved rather than what was planned.',
           'Everything is scoped to what you can see. Two people looking at the same dashboard with different grants will honestly see different totals.',
-          "Data subject requests, complaints and freedom of information requests appear only for people who handle them, because each carries somebody's name. The freedom of information tiles count requests within five working days of their deadline, those past it, and reviews past theirs."
+          "Data subject requests, complaints and freedom of information requests appear only for people who handle them, because each carries somebody's name. The freedom of information tiles count requests within five working days of their deadline, those past it, and reviews past theirs.",
+          'Renewals lists supplier contracts and expiring assets - domains, certificates, licences - whose date to act is within ninety days or has passed, or which have renewed without a new date recorded, soonest first. It shows dates only, never what a contract is worth.'
         ]
       }
     ],
-    related: ['trends', 'risks', 'service-levels']
+    related: ['trends', 'risks', 'service-levels', 'contracts']
   },
   {
     id: 'trends',

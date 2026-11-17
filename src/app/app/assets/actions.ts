@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { DETAIL_FIELDS, type DetailField } from '@/lib/assets/types';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { requireCapability, requireSession } from '@/lib/session';
 import {
@@ -39,8 +40,31 @@ function detailsOf(formData: FormData): AssetDetails {
     countries: text(formData.get('countries')).split(/[,;\n]/),
     classification: text(formData.get('classification')) || null,
     retention: text(formData.get('retention')) || null,
-    nextReviewAt: day(formData.get('nextReviewAt'))
+    nextReviewAt: day(formData.get('nextReviewAt')),
+    details: detailFieldsOf(formData),
+    expiresAt: day(formData.get('expiresAt')),
+    noticeDays: text(formData.get('noticeDays'))
+      ? Number(text(formData.get('noticeDays')))
+      : null,
+    autoRenews: formData.get('autoRenews') === 'on'
   };
+}
+
+/** The type's own fields, as `detail.<field>`; the service keeps only the type's. */
+function detailFieldsOf(formData: FormData): Record<string, unknown> {
+  const given: Record<string, unknown> = {};
+  for (const field of Object.keys(DETAIL_FIELDS) as DetailField[]) {
+    const raw = text(formData.get(`detail.${field}`));
+    if (!raw) continue;
+    const kind = DETAIL_FIELDS[field].kind;
+    given[field] =
+      kind === 'count'
+        ? Number(raw)
+        : kind === 'list'
+          ? raw.split(/[,;\n]/).map((v) => v.trim())
+          : raw;
+  }
+  return given;
 }
 
 /**

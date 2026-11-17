@@ -869,6 +869,20 @@
       "when": 1794905992358,
       "tag": "0123_supplier_review_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1794909378277,
+      "tag": "0124_asset_typology",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1794909380571,
+      "tag": "0125_asset_typology_guards",
+      "breakpoints": true
     }
   ]
 }

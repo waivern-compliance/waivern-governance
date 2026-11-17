@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, like, ne, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db, withOrganisation } from '@/db/client';
@@ -8,22 +8,21 @@ import {
   supplierContracts,
   supplierContractViewers,
   suppliers,
-  tasks,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { can, type Grant } from '@/lib/rbac';
 import { nextReference } from '@/lib/references';
 import {
-  isCurrency,
   noticeBy,
   noticeState,
   reminderKey,
-  reminderKeyPatterns,
   type NoticeState
-} from '@/lib/thirdparty/contracts';
+} from '@/lib/renewals';
+import { isCurrency } from '@/lib/thirdparty/contracts';
 
 import { activeMemberGrants, mayOpenIn, readersIn } from './member-grants';
+import { retireRenewalReminders } from './renewals';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
 
@@ -147,40 +146,6 @@ export async function contractPeople(
       .map(([id, email]) => ({ id, email }))
       .sort((a, b) => a.email.localeCompare(b.email));
   });
-}
-
-/**
- * Close a contract's open reminders that no longer apply: all of them when it
- * has ended, otherwise any but the one its dates call for now. A reminder for
- * a notice date that has moved would otherwise sit open and overdue.
- */
-export async function retireContractReminders(
-  tx: Tx,
-  organisationId: string,
-  contract: Contract,
-  label: string,
-  now = new Date()
-) {
-  const keep = contract.endedAt ? null : reminderKey(contract, now);
-  await tx
-    .update(tasks)
-    .set({
-      status: contract.endedAt ? 'done' : 'cancelled',
-      completedAt: now,
-      completedByLabel: label
-    })
-    .where(
-      and(
-        eq(tasks.organisationId, organisationId),
-        or(
-          ...reminderKeyPatterns(contract.id).map((p) =>
-            like(tasks.idempotencyKey, p)
-          )
-        ),
-        inArray(tasks.status, ['open', 'in_progress']),
-        keep ? ne(tasks.idempotencyKey, keep) : undefined
-      )
-    );
 }
 
 async function supplierOf(tx: Tx, organisationId: string, supplierId: string) {
@@ -480,9 +445,10 @@ export async function updateContract(input: {
         .set({ ...details, ...(terms ?? {}), updatedAt: new Date() })
         .where(eq(supplierContracts.id, input.id))
         .returning();
-      await retireContractReminders(
+      await retireRenewalReminders(
         tx,
         input.organisationId,
+        'contract',
         after,
         input.actor.actorLabel
       );
@@ -579,9 +545,10 @@ export async function endContract(input: {
         .set({ endedAt, endedReason: reason, updatedAt: endedAt })
         .where(eq(supplierContracts.id, input.id))
         .returning();
-      await retireContractReminders(
+      await retireRenewalReminders(
         tx,
         input.organisationId,
+        'contract',
         after,
         input.actor.actorLabel,
         endedAt
@@ -675,7 +642,7 @@ export async function contractsNeedingNotice(
         )
       );
     const due = rows.flatMap((contract) => {
-      const key = reminderKey(contract, now);
+      const key = reminderKey('contract', contract, now);
       return key
         ? [
             {
