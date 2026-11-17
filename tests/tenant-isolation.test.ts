@@ -86,6 +86,7 @@ import * as risksSvc from '@/services/risks';
 import * as ropa from '@/services/ropa';
 import * as sharingSvc from '@/services/sharing-agreements';
 import * as inventory from '@/services/storage-inventory';
+import * as reviewSvc from '@/services/supplier-review';
 import * as tierSvc from '@/services/supplier-tier';
 import * as sweep from '@/services/sweep';
 import * as templatesSvc from '@/services/templates';
@@ -3907,6 +3908,14 @@ describe('lists', () => {
         [
           'exportsSvc.exportContracts',
           exportsSvc.exportContracts(o, null, aViewer())
+        ] as const,
+        [
+          'reviewSvc.suppliersDueForReview',
+          reviewSvc.suppliersDueForReview(o, new Date(Date.now() + 3650 * DAY))
+        ] as const,
+        [
+          'reviewSvc.supplierReviewSchedule',
+          reviewSvc.supplierReviewSchedule(o)
         ] as const
       ].map(async ([n, r]) => [n, await r] as [string, unknown])
     );
@@ -4186,6 +4195,14 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside a caller's transaction, with that caller's organisation",
   'workflow.raiseTask':
     "called inside a caller's transaction, with that caller's organisation",
+  'supplier-review.recordSupplierReview':
+    "called inside an approval's transaction, with the assessment it has loaded and that caller's organisation",
+  'supplier-review.nextReviewOnTier':
+    "called inside setSupplierTier's transaction with the supplier it has loaded and locked",
+  'member-grants.activeMemberGrants':
+    "called inside a caller's transaction, with that caller's organisation",
+  'member-grants.canOpenRecordsIn':
+    "called inside a caller's transaction, with that caller's organisation",
   'contracts.retireContractReminders':
     "called inside a caller's transaction, with that caller's organisation and a contract it has loaded",
   'workflow.queueNotification':
@@ -4454,6 +4471,30 @@ describe('the classification scheme', () => {
       scheme: 'neutral',
       actor: as()
     });
+  });
+});
+
+describe('the supplier review cycle', () => {
+  it("is each organisation's own, and re-dates only its own suppliers", async () => {
+    const reviewed = new Date('2026-01-15T00:00:00Z');
+    await db
+      .update(suppliers)
+      .set({ tier: 'medium', lastReviewedAt: reviewed, nextReviewAt: reviewed })
+      .where(eq(suppliers.id, B.partner.id));
+    const before = await bSnapshot();
+    await reviewSvc.setSupplierReviewCycle({
+      organisationId: A.org.id,
+      months: { critical: 6, high: 6, medium: 6, low: 6 },
+      actor: as()
+    });
+    assert.equal((await reviewSvc.supplierReviewCycle(A.org.id)).medium, 6);
+    assert.equal((await reviewSvc.supplierReviewCycle(B.org.id)).medium, 24);
+    assert.deepEqual(changed(before, await bSnapshot()), []);
+    const [theirs] = await db
+      .select({ next: suppliers.nextReviewAt })
+      .from(suppliers)
+      .where(eq(suppliers.id, B.partner.id));
+    assert.equal(theirs.next?.getTime(), reviewed.getTime());
   });
 });
 

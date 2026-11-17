@@ -42,8 +42,10 @@ import type {
 } from '@/lib/gdpr/further-processing';
 import type { LawfulBasis, RecognisedCondition } from '@/lib/gdpr/lawful-basis';
 import type { RecordedMechanism } from '@/lib/gdpr/transfers';
+import type { ReviewOutcome } from '@/lib/thirdparty/review';
 import type { SupplierTier } from '@/lib/thirdparty/tier';
 
+import { assessments } from './assessments';
 import {
   deliveryStatus,
   evidenceKind,
@@ -422,6 +424,20 @@ export const suppliers = pgTable(
      */
     tier: text('tier').$type<SupplierTier>(),
     tierReason: text('tier_reason'),
+    /**
+     * The review cycle (`lib/thirdparty/review.ts`). The next review is dated
+     * by the tier's cycle from the last one, and moves when either changes.
+     * The outcome and its conditions come from the approved due diligence
+     * assessment that was the review, which is kept beside them.
+     */
+    nextReviewAt: timestamp('next_review_at', { withTimezone: true }),
+    lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
+    reviewOutcome: text('review_outcome').$type<ReviewOutcome>(),
+    reviewConditions: text('review_conditions'),
+    reviewAssessmentId: uuid('review_assessment_id').references(
+      (): AnyPgColumn => assessments.id,
+      { onDelete: 'set null' }
+    ),
     sourceConnectionId: uuid('source_connection_id').references(
       () => integrationConnections.id,
       { onDelete: 'set null' }
@@ -447,7 +463,10 @@ export const suppliers = pgTable(
       .defaultNow()
   },
   (t) => [
-    uniqueIndex('supplier_canonical_key').on(t.organisationId, t.canonicalKey)
+    uniqueIndex('supplier_canonical_key').on(t.organisationId, t.canonicalKey),
+    index('supplier_review_idx').on(t.organisationId, t.nextReviewAt),
+    // Read for every approved assessment, to leave out current supplier reviews.
+    index('supplier_review_assessment_idx').on(t.reviewAssessmentId)
   ]
 );
 

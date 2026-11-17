@@ -17,6 +17,7 @@ import {
   type TierRecommendation
 } from '@/lib/thirdparty/tier';
 
+import { nextReviewOnTier } from './supplier-review';
 import type { Actor } from './templates';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -176,11 +177,19 @@ export async function setSupplierTier(input: {
         throw new TierRefused(
           `The register suggests ${TIER_LABEL[recommendation.tier].toLowerCase()}. Say why ${TIER_LABEL[tier].toLowerCase()} is right instead.`
         );
+      // The review cycle follows the tier, so the next review moves with it.
+      const nextReviewAt = await nextReviewOnTier(
+        tx,
+        input.organisationId,
+        before,
+        tier
+      );
       const [after] = await tx
         .update(suppliers)
         .set({
           tier,
           tierReason: tier === recommendation.tier ? null : reason,
+          nextReviewAt,
           updatedAt: new Date()
         })
         .where(eq(suppliers.id, input.supplierId))
@@ -191,12 +200,17 @@ export async function setSupplierTier(input: {
         action: 'supplier.tier_set',
         subjectType: 'supplier',
         subjectId: input.supplierId,
-        before: { tier: before.tier, reason: before.tierReason },
+        before: {
+          tier: before.tier,
+          reason: before.tierReason,
+          nextReviewAt: before.nextReviewAt
+        },
         after: {
           tier,
           reason: after.tierReason,
           recommended: recommendation.tier,
-          grounds: recommendation.reasons
+          grounds: recommendation.reasons,
+          nextReviewAt
         }
       });
       return after;

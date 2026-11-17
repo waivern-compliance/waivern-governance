@@ -39,6 +39,7 @@ import { PRODUCT_NAME } from '@/lib/product';
 import { questionsOf } from '@/lib/templates/logic';
 import { AI_STANDING_LABEL } from '@/lib/thirdparty/ai-procurement';
 import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
+import { OUTCOME_LABEL as REVIEW_OUTCOME_LABEL } from '@/lib/thirdparty/review';
 import { TIER_LABEL } from '@/lib/thirdparty/tier';
 
 import { gapsFor } from './ai-register';
@@ -867,6 +868,10 @@ export async function exportThirdParties(organisationId: string) {
         'Third party',
         'Tier',
         'Why the tier differs from the suggestion',
+        'Last review',
+        'Review outcome',
+        'Review conditions',
+        'Next review',
         'Categories',
         'Description',
         'Owner',
@@ -889,6 +894,12 @@ export async function exportThirdParties(organisationId: string) {
           supplier.name,
           supplier.tier ? TIER_LABEL[supplier.tier] : null,
           supplier.tierReason,
+          supplier.lastReviewedAt,
+          supplier.reviewOutcome
+            ? REVIEW_OUTCOME_LABEL[supplier.reviewOutcome]
+            : null,
+          supplier.reviewConditions,
+          supplier.nextReviewAt,
           (supplier.categories ?? []).join('; '),
           supplier.description,
           ownerEmail,

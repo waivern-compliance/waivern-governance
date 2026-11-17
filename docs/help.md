@@ -684,6 +684,16 @@ Invite someone at the supplier to answer it from the assessment, as with any ass
 
 Whether a processor agreement is held is not asked again: the register reads it from the agreement on the supplier's page, and the questionnaire asks what that agreement says. The score rises with what is missing or not known, and reaches the accountable approver from the high band. A due diligence assessment is not read as an assessment of the supplier's AI: use the AI supplier assessment for that.
 
+### The review cycle
+
+Each tiered supplier has a next review date, set by its tier: critical and high yearly, medium every two years, low every three. The organisation can change these on its organisation page, and the next review of every supplier already reviewed moves with them. A supplier is due for its first review as soon as it is tiered, and changing its tier re-dates its next review from the last one.
+
+A review is a due diligence assessment started from the supplier's page. When it is approved, its recommendation becomes the outcome - approved, approved with conditions (which are shown), or exit - and the next review is dated from that approval by the tier's cycle. A supplier's earlier review is then marked superseded, and its history says so. If an older review is approved after a newer one, the newer one stands and the older is superseded at once. Due diligence approved before the cycle existed counts as a review. The outcome and its date are shown on the register and on the supplier's page, and the third-party spreadsheet carries them.
+
+An exit ends the cycle, and raises a task to give notice, end its contracts on the register and have the supplier return or delete the data. It goes to the supplier's owner, or to the privacy administrators if it has none or the owner cannot open records in the review's legal entity.
+
+Once a month, while any supplier is past its review date, the sweep raises one task naming how many: to the owner when only one supplier is due and the owner can open records in the default legal entity, otherwise to the privacy administrators. Supplier reviews are listed on the recurring reviews page by supplier, not again as assessments.
+
 ### Where these come from
 
 Some you record. Others arrive from a connected scanner, because a tracker seen on a page is a third party whether or not procurement knew about it.
@@ -1689,6 +1699,8 @@ When an assessment is approved, the platform reads the review cycle from the tem
 
 The date is on the assessment and can be brought forward. A controller may have its own reason to revisit sooner than the cycle says.
 
+A supplier's due diligence review is the exception: it comes round by the supplier's tier, and is listed under Supplier reviews by supplier rather than with the other assessments.
+
 ### Who is reminded
 
 Two different people, because reassessing and reapproving are different jobs. The owner is asked to redo the work. Everybody who decided an approval gate is asked to decide again, and they are found from the approvals themselves rather than guessed at when the date was set - membership changes over a year, and the record of who actually signed it off does not.
@@ -1918,6 +1930,10 @@ UK law applies whichever is followed. The NIST template still asks about the DPI
 ### Asset classification
 
 The information asset register classifies on one scheme: a neutral set by default, or the Government Security Classifications. Like the risk scale, it can only be changed while no asset is classified.
+
+### Supplier review cycle
+
+How many months between supplier reviews for each tier: by default twelve for critical and high, twenty-four for medium and thirty-six for low. Saving a change re-dates the next review of every supplier at that tier from its last review.
 
 ### Who can change it
 

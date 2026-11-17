@@ -827,3 +827,18 @@ export const SUPPLIER_DUE_DILIGENCE_FULL: TemplateDefinition = {
   },
   reviewIntervalMonths: 12
 };
+
+/**
+ * Whether a definition is a due diligence questionnaire, recognised by the
+ * questions it asks so that an organisation's own copy counts as a review.
+ */
+export function isDueDiligenceDefinition(definition: {
+  schema: { sections: Array<{ questions: Array<{ key: string }> }> };
+}): boolean {
+  const keys = new Set(
+    definition.schema.sections.flatMap((s) => s.questions.map((q) => q.key))
+  );
+  return ['certifications', 'breach_notification', 'recommendation'].every(
+    (k) => keys.has(k)
+  );
+}

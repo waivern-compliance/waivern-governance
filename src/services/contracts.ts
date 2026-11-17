@@ -5,8 +5,6 @@ import { db, withOrganisation } from '@/db/client';
 import {
   documents,
   entities,
-  memberships,
-  roleAssignments,
   supplierContracts,
   supplierContractViewers,
   suppliers,
@@ -25,6 +23,7 @@ import {
   type NoticeState
 } from '@/lib/thirdparty/contracts';
 
+import { activeMemberGrants, mayOpenIn, readersIn } from './member-grants';
 import type { Actor } from './templates';
 import { assertEntityIn } from './tenancy-guards';
 
@@ -114,63 +113,6 @@ function cleanTerms(t: ContractTerms): ContractTerms {
   if (raw && !currency)
     throw new ContractRefused('Say which currency the value is in.');
   return { value: raw || null, currency };
-}
-
-type Reader = Pick<typeof db, 'select'>;
-
-type MemberGrants = ReadonlyMap<string, { email: string; grants: Grant[] }>;
-
-/** Every active member's email and role grants, read once. */
-async function activeMemberGrants(
-  reader: Reader,
-  organisationId: string
-): Promise<MemberGrants> {
-  const rows = await reader
-    .select({
-      userId: memberships.userId,
-      email: users.email,
-      role: roleAssignments.role,
-      scope: roleAssignments.scope,
-      entityId: roleAssignments.entityId
-    })
-    .from(memberships)
-    .innerJoin(users, eq(users.id, memberships.userId))
-    .innerJoin(
-      roleAssignments,
-      eq(roleAssignments.membershipId, memberships.id)
-    )
-    .where(
-      and(
-        eq(memberships.organisationId, organisationId),
-        eq(memberships.isActive, true)
-      )
-    );
-  const held = new Map<string, { email: string; grants: Grant[] }>();
-  for (const r of rows) {
-    const member = held.get(r.userId) ?? { email: r.email, grants: [] };
-    member.grants.push(
-      r.scope === 'entity' && r.entityId
-        ? { role: r.role, scope: 'entity', entityId: r.entityId }
-        : { role: r.role, scope: 'organisation' }
-    );
-    held.set(r.userId, member);
-  }
-  return held;
-}
-
-/**
- * Active members who can open records in this entity, by id, with their email.
- *
- * The owner is sent the notice reminder and named viewers are given the
- * terms, so naming someone who cannot open the contract at all gives them a
- * task they cannot act on, or terms they can never see.
- */
-function readersIn(members: MemberGrants, entityId: string) {
-  return new Map(
-    [...members]
-      .filter(([, m]) => can(m.grants, 'record.read', entityId))
-      .map(([userId, m]) => [userId, m.email])
-  );
 }
 
 async function assertReaders(
@@ -748,14 +690,9 @@ export async function contractsNeedingNotice(
     if (due.length === 0) return [];
     const members = await activeMemberGrants(db, organisationId);
     return due.map((d) => {
-      const owner = d.contract.ownerId
-        ? members.get(d.contract.ownerId)
-        : undefined;
       return {
         ...d,
-        ownerMayAct:
-          owner !== undefined &&
-          can(owner.grants, 'record.read', d.contract.entityId)
+        ownerMayAct: mayOpenIn(members, d.contract.ownerId, d.contract.entityId)
       };
     });
   });

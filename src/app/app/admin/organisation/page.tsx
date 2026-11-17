@@ -24,12 +24,14 @@ import {
   classifiedAssetCount
 } from '@/services/information-assets';
 import { riskCount, riskScaleOf } from '@/services/risk-policy';
+import { supplierReviewCycle } from '@/services/supplier-review';
 
 import { ClassificationForm } from './ClassificationForm';
 import { DomainsPanel } from './DomainsPanel';
 import { DpoPanel } from './DpoPanel';
 import { EntitiesPanel } from './EntitiesPanel';
 import { RenameForm } from './RenameForm';
+import { ReviewCycleForm } from './ReviewCycleForm';
 import { ScaleForm } from './ScaleForm';
 
 export default async function OrganisationPage() {
@@ -58,7 +60,8 @@ export default async function OrganisationPage() {
     members,
     agreements,
     scheme,
-    classified
+    classified,
+    reviewMonths
   ] = await Promise.all([
     entitiesOf(org.id),
     riskScaleOf(org.id),
@@ -80,7 +83,8 @@ export default async function OrganisationPage() {
     ),
     hosted ? agreementsOf(org.id) : Promise.resolve([]),
     classificationSchemeOf(org.id),
-    classifiedAssetCount(org.id)
+    classifiedAssetCount(org.id),
+    supplierReviewCycle(org.id)
   ]);
   // The latest acceptance for each entity, for the record beside it.
   const latestAgreement = new Map<string, (typeof agreements)[number]>();
@@ -195,6 +199,8 @@ export default async function OrganisationPage() {
         current={scheme}
         classified={classified}
       />
+
+      <ReviewCycleForm current={reviewMonths} />
 
       {can(active.membership.grants, 'member.manage') ? (
         <DomainsPanel
