@@ -1298,7 +1298,7 @@ async function raiseAssetRenewals(organisationId: string): Promise<number> {
         title: renewed
           ? `${asset.reference} ${asset.name}: renewed on ${ends}, record the new expiry date`
           : notice === 'passed'
-            ? `${asset.reference} ${asset.name}: the renewal date has passed`
+            ? `${asset.reference} ${asset.name}: the date to act by has passed; it ${asset.autoRenews ? 'renews' : 'expires'} on ${ends}`
             : `${asset.reference} ${asset.name}: renew or let it lapse by ${by}`,
         description: renewed
           ? `It was due to expire on ${ends} and renews automatically. Record the new expiry date on the asset, or retire it if it was not renewed.`

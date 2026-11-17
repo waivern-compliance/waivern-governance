@@ -44,7 +44,6 @@ export function AssetTypeFields({
   const [key, setKey] = useState(values?.assetType ?? 'system');
   const type = types.find((t) => t.key === key) ?? types[0];
   const details = values?.assetType === type.key ? values.details : {};
-  const dated = values?.assetType === type.key ? values : undefined;
   return (
     <>
       <label className="block space-y-1">
@@ -100,10 +99,9 @@ export function AssetTypeFields({
         </fieldset>
       ) : null}
       {type.hasExpiry ? (
-        <fieldset
-          key={type.key}
-          className="grid gap-3 sm:grid-cols-3"
-        >
+        // Not keyed on the type: moving between two types that expire keeps
+        // the dates, rather than clearing them and the reminder with them.
+        <fieldset className="grid gap-3 sm:grid-cols-3">
           <legend className="sr-only">Expiry and renewal</legend>
           <label className="block space-y-1">
             <Label
@@ -113,7 +111,7 @@ export function AssetTypeFields({
             <input
               type="date"
               name="expiresAt"
-              defaultValue={day(dated?.expiresAt ?? null)}
+              defaultValue={day(values?.expiresAt ?? null)}
               className={inputClass}
             />
           </label>
@@ -126,7 +124,7 @@ export function AssetTypeFields({
               type="number"
               min={0}
               name="noticeDays"
-              defaultValue={dated?.noticeDays ?? ''}
+              defaultValue={values?.noticeDays ?? ''}
               className={inputClass}
             />
           </label>
@@ -134,7 +132,7 @@ export function AssetTypeFields({
             <input
               type="checkbox"
               name="autoRenews"
-              defaultChecked={dated?.autoRenews ?? false}
+              defaultChecked={values?.autoRenews ?? false}
             />
             Renews automatically
           </label>

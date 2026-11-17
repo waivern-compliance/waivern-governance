@@ -121,33 +121,47 @@ const audited = (t: typeof assetTypes.$inferSelect) => ({
   retiredAt: t.retiredAt
 });
 
+/** The key, or with the first numeric suffix no other type holds. */
+function freeKey(base: string, taken: ReadonlySet<string>): string {
+  for (let n = 1; ; n += 1) {
+    const suffix = n === 1 ? '' : `_${n}`;
+    const key = `${base.slice(0, 40 - suffix.length).replace(/_+$/, '')}${suffix}`;
+    if (!taken.has(key)) return key;
+  }
+}
+
 export async function createAssetType(input: {
   organisationId: string;
   type: AssetTypeInput;
   actor: Actor;
 }) {
   const type = cleanInput(input.type);
-  const key = assetTypeKeyFrom(type.label);
-  if (!key)
+  const base = assetTypeKeyFrom(type.label);
+  if (!base)
     throw new AssetTypeRefused('Give the type a name with letters in it.');
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       await assertNameFree(tx, input.organisationId, type.label);
-      const [clash] = isBuiltInAssetType(key)
-        ? [true]
-        : await tx
-            .select({ id: assetTypes.id })
-            .from(assetTypes)
-            .where(
-              and(
-                eq(assetTypes.organisationId, input.organisationId),
-                eq(assetTypes.key, key)
-              )
-            );
-      if (clash)
+      const own = await ownTypes(tx, input.organisationId);
+      // A name that differs from another type's only by punctuation or case
+      // reads as the same type, so it is refused.
+      if (
+        [...BUILT_IN_ASSET_TYPES, ...own].some(
+          (t) => assetTypeKeyFrom(t.label) === base
+        )
+      )
         throw new AssetTypeRefused(
           `A type with a name too like ${type.label} already exists. Choose a name that differs by more than punctuation.`
         );
+      // A type keeps its key when renamed, so a key can be held by a type
+      // that is now called something else: the new one takes the next free.
+      const key = freeKey(
+        base,
+        new Set([
+          ...BUILT_IN_ASSET_TYPES.map((t) => t.key),
+          ...own.map((t) => t.key)
+        ])
+      );
       const [row] = await tx
         .insert(assetTypes)
         .values({ organisationId: input.organisationId, key, ...type })

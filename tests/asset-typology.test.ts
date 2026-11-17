@@ -272,6 +272,26 @@ describe("the organisation's own types", () => {
     await assert.rejects(add('Ledger!'), /too like/);
   });
 
+  it('gives a new type a fresh key when a renamed type still holds the one its name makes', async () => {
+    const w = await world('rekey');
+    const add = (label: string) =>
+      createAssetType({
+        organisationId: w.org.id,
+        type: { label, definition: 'Defined.', hasExpiry: false },
+        actor: SYSTEM
+      });
+    const first = await add('Mobile app');
+    await updateAssetType({
+      organisationId: w.org.id,
+      key: first.key,
+      type: { label: 'Web app', definition: 'Defined.', hasExpiry: false },
+      actor: SYSTEM
+    });
+    const second = await add('Mobile app');
+    assert.equal(first.key, 'mobile_app');
+    assert.equal(second.key, 'mobile_app_2');
+  });
+
   it('gives assets the type, refuses a retired type to new ones, and lets existing ones keep it', async () => {
     const w = await world('retire');
     const t = await createAssetType({

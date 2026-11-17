@@ -791,7 +791,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'information-assets',
     title: 'Information asset register',
     summary:
-      'The systems and repositories you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified, when it expires, and what it links to.',
+      'The systems you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified and when it expires.',
     path: '/app/assets',
     keywords: [
       'iar',

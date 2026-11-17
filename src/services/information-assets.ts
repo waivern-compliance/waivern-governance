@@ -11,6 +11,7 @@ import {
 
 import { db, withOrganisation } from '@/db/client';
 import {
+  assetTypes,
   entities,
   informationAssetActivities,
   informationAssetContracts,
@@ -37,6 +38,7 @@ import {
 } from '@/lib/assets/register';
 import {
   cleanDetails,
+  isBuiltInAssetType,
   typeLabel,
   type AssetDetailValues
 } from '@/lib/assets/types';
@@ -512,6 +514,20 @@ async function clean(
 }> {
   const name = d.name.trim();
   if (!name) throw new AssetRefused('Give the asset a name.');
+  // Hold the organisation's type until the asset is saved, so it cannot be
+  // deleted, or stop expiring, between this check and the write: both of
+  // those take the row for update and count the assets that have it.
+  if (!isBuiltInAssetType(d.assetType))
+    await tx
+      .select({ id: assetTypes.id })
+      .from(assetTypes)
+      .where(
+        and(
+          eq(assetTypes.organisationId, organisationId),
+          eq(assetTypes.key, d.assetType)
+        )
+      )
+      .for('share');
   const type = (await assetTypology(organisationId, tx)).find(
     (t) => t.key === d.assetType
   );

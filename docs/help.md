@@ -30,7 +30,7 @@ Every help topic the application carries, in the order it presents them.
 **The registers**
 
 - [The processing register (Article 30)](#the-processing-register-article-30) - Every processing activity, checked against what Article 30 actually requires rather than against whether the form was filled in.
-- [Information asset register](#information-asset-register) - The systems and repositories you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified, when it expires, and what it links to.
+- [Information asset register](#information-asset-register) - The systems you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified and when it expires.
 - [Appropriate policy documents (Schedule 1)](#appropriate-policy-documents-schedule-1) - Which Schedule 1 conditions each appropriate policy document covers, and which processing relies on a condition no current document covers.
 - [Third parties and processor agreements (Article 28)](#third-parties-and-processor-agreements-article-28) - Every processor you rely on, whether or not anybody procured it, and whether a contract actually covers them.
 - [Supplier contracts](#supplier-contracts) - Commercial contracts with third parties: who owns each, when it ends, the last day to give notice, and who may see what it is worth.
@@ -600,7 +600,7 @@ A competent authority's law enforcement transfers are assessed with the 'Transfe
 
 ## Information asset register
 
-*The systems and repositories you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified, when it expires, and what it links to.*
+*The systems you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified and when it expires.*
 
 **Screen:** `/app/assets`
 
