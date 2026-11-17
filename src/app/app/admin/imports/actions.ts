@@ -92,8 +92,14 @@ export async function previewImportAction(
   const fields: Record<string, string> = {};
   // "value:<field>:<as written>" is what a person said a rating is here.
   const values: Record<string, Record<string, string>> = {};
+  // "every:<value>" in a field's choice is one value for every row.
+  const everyRow: Record<string, string> = {};
   for (const [name, value] of formData.entries()) {
-    if (name.startsWith('field:') && text(value))
+    if (name.startsWith('field:') && text(value).startsWith('every:'))
+      everyRow[name.slice('field:'.length)] = text(value).slice(
+        'every:'.length
+      );
+    else if (name.startsWith('field:') && text(value))
       fields[name.slice('field:'.length)] = text(value);
     if (name.startsWith('value:') && text(value)) {
       const [field, ...given] = name.slice('value:'.length).split(':');
@@ -107,7 +113,8 @@ export async function previewImportAction(
       mapping: {
         fields,
         keepUnmapped: formData.get('keepUnmapped') === 'on',
-        values
+        values,
+        everyRow
       },
       actor
     })

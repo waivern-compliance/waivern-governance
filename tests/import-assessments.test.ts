@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
 import { and, eq } from 'drizzle-orm';
 
-import { db, sql as pg } from '@/db/client';
+import { db, sql as pg, withOrganisation } from '@/db/client';
 import {
   assessments,
   entities,
@@ -26,6 +26,8 @@ import {
   undoImport,
   uploadImport
 } from '@/services/imports';
+import { childrenDpiaStates } from '@/services/ropa';
+import { sweepOrganisation } from '@/services/sweep';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -63,7 +65,9 @@ async function world(label: string) {
 async function imported(
   organisationId: string,
   recordType: RecordType,
-  text: string
+  text: string,
+  /** One value for every row, as a person chooses on the matching step. */
+  everyRow?: Record<string, string>
 ) {
   const batch = await uploadImport({
     organisationId,
@@ -78,7 +82,7 @@ async function imported(
   const preview = await previewImport({
     organisationId,
     batchId: batch.id,
-    mapping,
+    mapping: everyRow ? { ...mapping, everyRow } : mapping,
     actor: SYSTEM
   });
   await commitImport({ organisationId, batchId: batch.id, actor: SYSTEM });
@@ -270,6 +274,56 @@ describe('importing assessments', () => {
     assert.match(
       third.rows[0].reason ?? '',
       /superseded here since it was imported/
+    );
+  });
+
+  it('counts as no assessment where cover is checked until confirmed', async () => {
+    const w = await world('import-assessments-cover');
+    await imported(
+      w.org.id,
+      'assessment',
+      'ID,Title,Type,Status,Processing activity,Review due\nA-1,Payroll DPIA,DPIA,Completed,Payroll,2020-01-01\n'
+    );
+    const states = () =>
+      withOrganisation(w.org.id, () => childrenDpiaStates(w.org.id));
+    // Not relied on yet: no DPIA, as far as the children check goes, and its
+    // long-past review raises nothing.
+    assert.equal((await states()).get(w.payroll.id), undefined);
+    assert.equal((await sweepOrganisation(w.org.id)).lapsedReviewsRaised, 0);
+
+    const [dpia] = await assessmentsOf(w.org.id);
+    await confirmImportedRecord({
+      organisationId: w.org.id,
+      type: 'assessment',
+      id: dpia.id,
+      actor: SYSTEM
+    });
+    assert.equal((await states()).get(w.payroll.id), 'unanswered');
+    assert.equal((await sweepOrganisation(w.org.id)).lapsedReviewsRaised, 1);
+  });
+
+  it('takes one kind for every row, and refuses a kind changed later', async () => {
+    const w = await world('import-assessments-kind');
+    const first = await imported(
+      w.org.id,
+      'assessment',
+      'ID,Title,Status\nA-1,Payroll DPIA,Completed\n',
+      { kind: 'dpia' }
+    );
+    assert.deepEqual(first.preview, { create: 1 });
+    const [dpia] = await assessmentsOf(w.org.id);
+    assert.match(dpia.reference, /^DPIA-/);
+
+    const changed = await imported(
+      w.org.id,
+      'assessment',
+      'ID,Title,Status\nA-1,Payroll DPIA,Completed\n',
+      { kind: 'screening' }
+    );
+    assert.deepEqual(changed.preview, { refuse: 1 });
+    assert.match(
+      changed.rows[0].reason ?? '',
+      /was imported as a DPIA, and this row says Screening/
     );
   });
 });

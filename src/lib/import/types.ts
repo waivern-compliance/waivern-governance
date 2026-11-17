@@ -22,6 +22,11 @@ export type ImportMapping = {
    * chose it. Keyed by field, then by the value as written, in lower case.
    */
   values?: Record<string, Record<string, string>>;
+  /**
+   * A choice made once for every row, where the file has no column for it:
+   * the kind of every assessment in an export of DPIAs, say. Keyed by field.
+   */
+  everyRow?: Record<string, string>;
 };
 
 /**

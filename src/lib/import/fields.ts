@@ -75,6 +75,8 @@ export type FieldDef = {
   kind: FieldKind;
   required?: boolean;
   hint?: string;
+  /** A choice that may be made once for every row instead of from a column. */
+  everyRow?: boolean;
   /** Header names that usually mean this field, to match a column at first. */
   aliases: string[];
   /** For a choice: the values it accepts. */
@@ -1147,7 +1149,8 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       label: 'Kind',
       kind: 'choice',
       required: true,
-      hint: 'Match it for the whole file by matching a column that says it, such as "Template".',
+      hint: 'From a column that says it, such as "Template", or the same for every row where the file holds one kind.',
+      everyRow: true,
       aliases: ['kind', 'type', 'assessment type', 'template'],
       choices: [
         choice(
@@ -1506,7 +1509,9 @@ export function convertRow(
   const defs = FIELDS[recordType];
   const valueOf = (key: string) => {
     const column = mapping.fields[key];
-    return column ? (row[column] ?? '').trim() : '';
+    return column
+      ? (row[column] ?? '').trim()
+      : (mapping.everyRow?.[key] ?? '');
   };
   const sourceRef = refOf(recordType, valueOf);
   try {

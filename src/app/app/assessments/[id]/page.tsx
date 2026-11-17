@@ -23,7 +23,11 @@ import {
 import { SCALES } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { aiFrameworkPackOf } from '@/services/ai-framework';
-import { assessmentHistory, loadAssessment } from '@/services/assessments';
+import {
+  assessmentHistory,
+  loadAssessment,
+  type LoadedAssessment
+} from '@/services/assessments';
 import { providerFor } from '@/services/assistant';
 import { linksForAssessment } from '@/services/contributor-links';
 import { documentsFor } from '@/services/documents';
@@ -366,7 +370,8 @@ export default async function AssessmentPage({
         </section>
       ) : null}
 
-      {assistant ? (
+      {/* An imported assessment has no questions here to be stuck on. */}
+      {assistant && !assessment.importSourceId ? (
         <section className="space-y-2 rounded border border-line bg-surface p-4">
           <h2 className="text-sm font-semibold">Stuck on a question?</h2>
           <Chat
@@ -403,11 +408,7 @@ function ImportedAssessment({
   confirm
 }: {
   sourceName: string;
-  assessment: Awaited<ReturnType<typeof loadAssessment>> extends infer L
-    ? L extends { assessment: infer A }
-      ? A
-      : never
-    : never;
+  assessment: LoadedAssessment['assessment'];
   files: Awaited<ReturnType<typeof documentsFor>>;
   confirm: React.ReactNode;
 }) {

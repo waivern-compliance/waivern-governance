@@ -346,7 +346,8 @@ export async function loadImport(batchId: string, organisationId: string) {
             )
           ),
           keepUnmapped: offered.keepUnmapped,
-          ...(offered.values ? { values: offered.values } : {})
+          ...(offered.values ? { values: offered.values } : {}),
+          ...(offered.everyRow ? { everyRow: offered.everyRow } : {})
         }
       : guessMapping(batch.recordType, batch.columns);
     return { batch, rows, mapping, files };
@@ -1605,10 +1606,16 @@ async function assessmentResolver(tx: Tx, batch: Batch) {
           entityName: entities.name,
           status: assessments.status,
           importedOutcome: assessments.importedOutcome,
-          reference: assessments.reference
+          reference: assessments.reference,
+          kind: templates.kind
         })
         .from(assessments)
         .innerJoin(entities, eq(entities.id, assessments.entityId))
+        .innerJoin(
+          templateVersions,
+          eq(templateVersions.id, assessments.templateVersionId)
+        )
+        .innerJoin(templates, eq(templates.id, templateVersions.templateId))
         .where(
           and(
             eq(assessments.organisationId, batch.organisationId),
@@ -1658,6 +1665,13 @@ async function assessmentResolver(tx: Tx, batch: Batch) {
         action: 'refuse',
         reason: `Imported before into ${found.entityName}. Import it into that entity.`
       };
+    // Its kind decides what it counts as, and its reference says it: a
+    // different kind is a different assessment.
+    if (found.kind !== data.kind)
+      return {
+        action: 'refuse',
+        reason: `${found.reference} was imported as a ${TEMPLATE_KIND_NAME[found.kind as Of<'assessment'>['data']['kind']] ?? found.kind}, and this row says ${TEMPLATE_KIND_NAME[data.kind]}. Give it a new identifier to import it as that kind.`
+      };
     if (found.status !== 'imported' && found.status !== found.importedOutcome)
       return {
         action: 'refuse',
@@ -1701,8 +1715,20 @@ export async function previewImport(input: {
             batch.columns.includes(column)
         )
       );
+      // A choice made for every row, only for a field that allows it, only
+      // where no column is matched, and only one of its own values.
+      const everyRow = Object.fromEntries(
+        Object.entries(input.mapping.everyRow ?? {}).filter(([key, value]) => {
+          const f = defs.find((d) => d.key === key);
+          return (
+            f?.everyRow &&
+            !fields[key] &&
+            (f.choices ?? []).some((c) => c.value === value)
+          );
+        })
+      );
       for (const f of defs.filter((d) => d.required))
-        if (!fields[f.key])
+        if (!fields[f.key] && !everyRow[f.key])
           throw new ImportRefused(
             `Choose the column that holds ${f.label.toLowerCase()}.`
           );
@@ -1731,7 +1757,8 @@ export async function previewImport(input: {
       const mapping: ImportMapping = {
         fields,
         keepUnmapped: input.mapping.keepUnmapped,
-        ...(Object.keys(values).length ? { values } : {})
+        ...(Object.keys(values).length ? { values } : {}),
+        ...(Object.keys(everyRow).length ? { everyRow } : {})
       };
 
       const table = await readFile(batch.file);
@@ -2155,6 +2182,8 @@ type WriteContext = {
   regime?: (typeof processingActivities.$inferInsert)['regime'] | null;
   /** The entity's data protection law: a new activity takes it, and bases are read under it. */
   law?: (typeof processingActivities.$inferInsert)['laws'] | null;
+  /** Imported templates found or made in this import, by kind. */
+  importedTemplates?: Map<string, string>;
 };
 
 /** The current row of a record, before the import changes it. */
@@ -3039,6 +3068,8 @@ async function importedTemplateVersion(
   c: WriteContext,
   kind: Of<'assessment'>['data']['kind']
 ): Promise<string> {
+  const known = c.importedTemplates?.get(kind);
+  if (known) return known;
   const name = `Imported from another platform: ${TEMPLATE_KIND_NAME[kind]}`;
   await c.tx
     .insert(templates)
@@ -3104,6 +3135,7 @@ async function importedTemplateVersion(
         eq(templateVersions.version, 1)
       )
     );
+  c.importedTemplates?.set(kind, version.id);
   return version.id;
 }
 
@@ -3665,6 +3697,7 @@ export async function commitImport(input: {
       const at = new Date();
       const actions: Action[] = [];
       const decide = await matcher(tx, batch);
+      const importedTemplates = new Map<string, string>();
       const [source] = await tx
         .select({ name: importSources.name })
         .from(importSources)
@@ -3695,7 +3728,8 @@ export async function commitImport(input: {
             decision,
             sourceName: source.name,
             regime: entity?.defaultRegime,
-            law: entity?.dataProtectionLaw
+            law: entity?.dataProtectionLaw,
+            importedTemplates
           },
           row.record
         );
