@@ -214,19 +214,38 @@ export default async function ImportBatchPage({
                   ) : null}
                   <select
                     name={`field:${f.key}`}
-                    defaultValue={mapping.fields[f.key] ?? ''}
+                    defaultValue={
+                      mapping.fields[f.key] ??
+                      (mapping.everyRow?.[f.key]
+                        ? `every:${mapping.everyRow[f.key]}`
+                        : '')
+                    }
                     required={f.required}
                     className={inputClass}
                   >
                     <option value="">Not in this file</option>
-                    {batch.columns.map((c) => (
-                      <option
-                        key={c}
-                        value={c}
-                      >
-                        {c}
-                      </option>
-                    ))}
+                    <optgroup label="Columns in the file">
+                      {batch.columns.map((c) => (
+                        <option
+                          key={c}
+                          value={c}
+                        >
+                          {c}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {f.everyRow && f.choices ? (
+                      <optgroup label="The same for every row">
+                        {f.choices.map((ch) => (
+                          <option
+                            key={ch.value}
+                            value={`every:${ch.value}`}
+                          >
+                            {ch.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
                   </select>
                 </label>
               ))}

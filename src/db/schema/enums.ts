@@ -211,7 +211,14 @@ export const assessmentStatus = pgEnum('assessment_status', [
   'rejected',
   /** Replaced by a later reassessment. Kept readable, never edited again. */
   'superseded',
-  'withdrawn'
+  'withdrawn',
+  /**
+   * Moved in from another platform and not yet confirmed by a person here. It
+   * takes the outcome the source gave it once confirmed; until then it is no
+   * assessment's outcome, so nothing counts it as cover (decision 2 of the
+   * migration plan).
+   */
+  'imported'
 ]);
 
 /** Why a snapshot was taken. */

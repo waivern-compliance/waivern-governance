@@ -1,4 +1,13 @@
-import { and, asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  notInArray,
+  or
+} from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -608,7 +617,13 @@ export async function childrenDpiaStates(
         eq(assessments.organisationId, organisationId),
         eq(assessments.subjectType, 'processing_activity'),
         eq(templates.kind, 'dpia'),
-        notInArray(assessments.status, ['superseded', 'rejected'])
+        // One imported and not yet confirmed is not yet relied on, and one
+        // unfinished in another platform is only its history.
+        notInArray(assessments.status, ['superseded', 'rejected', 'imported']),
+        or(
+          isNull(assessments.importSourceId),
+          notInArray(assessments.status, ['withdrawn'])
+        )
       )
     );
   const states = new Map<string, ChildrenDpiaState>();

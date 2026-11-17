@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -10,6 +10,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { SourceAnswer, SourceEvent } from '@/lib/import/types';
 import type { AnswerValue, EvaluationResult } from '@/lib/templates/logic';
 import type { ScoreResult } from '@/lib/templates/scoring';
 
@@ -19,6 +20,7 @@ import {
   revisionReason,
   riskTier
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { templateVersions } from './templates';
 import { entities, organisations, users } from './tenancy';
 
@@ -86,9 +88,35 @@ export const assessments = pgTable(
       .notNull()
       .defaultNow(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
-    completedAt: timestamp('completed_at', { withTimezone: true })
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+
+    /**
+     * Moved in from another platform (docs/migration-plan.md). Its questions
+     * were that platform's, so its answers are kept as that platform asked
+     * them, read only, on an "imported" template with none of its own. The
+     * outcome the source gave it waits in `importedOutcome`, and becomes its
+     * status when a person here confirms it.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    sourceHistory: jsonb('source_history').$type<SourceEvent[]>(),
+    sourceAnswers: jsonb('source_answers').$type<SourceAnswer[]>(),
+    importedOutcome: assessmentStatus('imported_outcome'),
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true })
   },
   (t) => [
+    uniqueIndex('assessment_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     uniqueIndex('assessment_reference_key').on(t.organisationId, t.reference),
     index('assessment_status_idx').on(t.organisationId, t.status),
     index('assessment_entity_idx').on(t.organisationId, t.entityId),

@@ -29,6 +29,8 @@ import {
   recordLinks,
   risks,
   suppliers,
+  templates,
+  templateVersions,
   users
 } from '@/db/schema';
 import { AI_FRAMEWORKS } from '@/lib/ai-frameworks';
@@ -62,12 +64,14 @@ import type {
   ImportLink,
   ImportMapping,
   ImportRecord,
+  SourceAnswer,
   SourceEvent
 } from '@/lib/import/types';
 import { nextReference } from '@/lib/references';
 import { rate, SCALES, type RiskScaleId } from '@/lib/risk/scale';
 
 import { createUseCase } from './ai-register';
+import { referencePrefixFor } from './assessments';
 import { assetTypology } from './asset-types';
 import { checkFile, insertDocument, UploadRefused } from './documents';
 import { ExtractionUnavailable, runExtraction } from './extraction';
@@ -342,7 +346,8 @@ export async function loadImport(batchId: string, organisationId: string) {
             )
           ),
           keepUnmapped: offered.keepUnmapped,
-          ...(offered.values ? { values: offered.values } : {})
+          ...(offered.values ? { values: offered.values } : {}),
+          ...(offered.everyRow ? { everyRow: offered.everyRow } : {})
         }
       : guessMapping(batch.recordType, batch.columns);
     return { batch, rows, mapping, files };
@@ -623,6 +628,8 @@ type RiskResolved = {
     id: string;
   }>;
   assetIds: string[];
+  /** The assessment it came out of, where that has been imported already. */
+  assessmentId: string | null;
 };
 
 /** A mitigation's risk, and its owner here, where they are a member. */
@@ -641,6 +648,15 @@ type PolicyResolved = {
   aiSystemIds: string[];
 };
 
+/** An assessment's subject and owner, read into this organisation's terms. */
+type AssessmentResolved = {
+  subject: {
+    type: 'processing_activity' | 'supplier' | 'ai_use_case';
+    id: string;
+  } | null;
+  ownerId: string | null;
+};
+
 type Resolved = {
   /** The supplier an agreement belongs to, or an AI system is linked to. */
   supplierId?: string | null;
@@ -650,6 +666,7 @@ type Resolved = {
   risk?: RiskResolved;
   mitigation?: MitigationResolved;
   policy?: PolicyResolved;
+  assessment?: AssessmentResolved;
 };
 
 type Decision =
@@ -930,6 +947,13 @@ async function matcher(
           : decide(sourceRef, { risk });
       };
     }
+    case 'assessment': {
+      const resolve = await assessmentResolver(tx, batch);
+      return (record, sourceRef) => {
+        const { data } = record as Of<'assessment'>;
+        return missingFile(data.file) ?? resolve(data, sourceRef);
+      };
+    }
     case 'policy_document':
     case 'policy': {
       const resolve = await policyResolver(tx, batch);
@@ -1120,15 +1144,28 @@ function ratingReader(
  * who is not a member is kept to read, as for assets.
  */
 async function riskResolver(tx: Tx, batch: Batch) {
-  const [scale, memberOf, activityOf, supplierOf, systemOf, assetOf] =
+  const [scale, memberOf, activityOf, supplierOf, systemOf, assetOf, assessed] =
     await Promise.all([
       riskScaleOf(batch.organisationId, tx),
       membersByEmail(tx, batch.organisationId),
       activitiesByName(tx, batch),
       suppliersByKey(tx, batch.organisationId),
       entityRecordsByName(tx, batch, aiUseCases),
-      entityRecordsByName(tx, batch, informationAssets)
+      entityRecordsByName(tx, batch, informationAssets),
+      tx
+        .select({ id: assessments.id, ref: assessments.externalRef })
+        .from(assessments)
+        .where(
+          and(
+            eq(assessments.organisationId, batch.organisationId),
+            eq(assessments.entityId, batch.entityId!),
+            eq(assessments.importSourceId, batch.sourceId)
+          )
+        )
     ]);
+  const assessmentOf = new Map(
+    assessed.map((a) => [a.ref?.toLowerCase(), a.id])
+  );
   const read = ratingReader(scale, batch.mapping?.values);
   return (data: Of<'risk'>['data']): RiskResolved | { reason: string } => {
     const likelihood = read(
@@ -1207,7 +1244,10 @@ async function riskResolver(tx: Tx, batch: Batch) {
       ownerId: data.owner ? memberOf(data.owner) : null,
       category: categoryOf(data.category),
       concerns,
-      assetIds
+      assetIds,
+      assessmentId: data.assessment
+        ? (assessmentOf.get(data.assessment.trim().toLowerCase()) ?? null)
+        : null
     };
   };
 }
@@ -1545,6 +1585,102 @@ async function policyResolver(tx: Tx, batch: Batch) {
   };
 }
 
+/**
+ * An assessment's subject, found as a risk's links are, and the assessment
+ * imported before from this source. One changed here since it was imported,
+ * superseded by a reassessment say, is history here now: an import does not
+ * write over it.
+ */
+async function assessmentResolver(tx: Tx, batch: Batch) {
+  const [activityOf, supplierOf, systemOf, memberOf, earlier] =
+    await Promise.all([
+      activitiesByName(tx, batch),
+      suppliersByKey(tx, batch.organisationId),
+      entityRecordsByName(tx, batch, aiUseCases),
+      membersByEmail(tx, batch.organisationId),
+      tx
+        .select({
+          id: assessments.id,
+          ref: assessments.externalRef,
+          entityId: assessments.entityId,
+          entityName: entities.name,
+          status: assessments.status,
+          importedOutcome: assessments.importedOutcome,
+          reference: assessments.reference,
+          kind: templates.kind
+        })
+        .from(assessments)
+        .innerJoin(entities, eq(entities.id, assessments.entityId))
+        .innerJoin(
+          templateVersions,
+          eq(templateVersions.id, assessments.templateVersionId)
+        )
+        .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+        .where(
+          and(
+            eq(assessments.organisationId, batch.organisationId),
+            eq(assessments.importSourceId, batch.sourceId)
+          )
+        )
+    ]);
+  const own = new Map(earlier.map((a) => [a.ref?.toLowerCase(), a]));
+  return (data: Of<'assessment'>['data'], sourceRef: string): Decision => {
+    const named = (
+      [
+        [
+          'processing_activity',
+          data.activity,
+          activityOf,
+          'processing activity'
+        ],
+        ['supplier', data.supplier, supplierOf, 'supplier'],
+        ['ai_use_case', data.aiSystem, systemOf, 'AI system']
+      ] as const
+    ).filter(([, given]) => given);
+    if (named.length > 1)
+      return {
+        action: 'refuse',
+        reason:
+          'It names more than one of a processing activity, a supplier and an AI system. An assessment here is of one.'
+      };
+    let subject: AssessmentResolved['subject'] = null;
+    if (named.length) {
+      const [type, given, find, words] = named[0];
+      const id = find(given!);
+      if (!id)
+        return {
+          action: 'refuse',
+          reason: `No ${words} "${given}" is recorded${type === 'supplier' ? '' : ' in this entity'}. Import or add it first.`
+        };
+      subject = { type, id };
+    }
+    const assessment = {
+      subject,
+      ownerId: data.owner ? memberOf(data.owner) : null
+    };
+    const found = own.get(sourceRef.toLowerCase());
+    if (!found) return { action: 'create', recordId: null, assessment };
+    if (found.entityId !== batch.entityId)
+      return {
+        action: 'refuse',
+        reason: `Imported before into ${found.entityName}. Import it into that entity.`
+      };
+    // Its kind decides what it counts as, and its reference says it: a
+    // different kind is a different assessment.
+    if (found.kind !== data.kind)
+      return {
+        action: 'refuse',
+        reason: `${found.reference} was imported as a ${TEMPLATE_KIND_NAME[found.kind as Of<'assessment'>['data']['kind']] ?? found.kind}, and this row says ${TEMPLATE_KIND_NAME[data.kind]}. Give it a new identifier to import it as that kind.`
+      };
+    if (found.status !== 'imported' && found.status !== found.importedOutcome)
+      return {
+        action: 'refuse',
+        reason: `${found.reference} has been ${found.status.replace(/_/g, ' ')} here since it was imported, so it is history here now and is not written over.`
+      };
+    return { action: 'update', recordId: found.id, assessment };
+  };
+}
+
 /** What makes two rows of one file the same record. */
 function sameRecordKeys(record: ImportRecord, sourceRef: string) {
   const keys = [`ref:${sourceRef.toLowerCase()}`];
@@ -1579,8 +1715,20 @@ export async function previewImport(input: {
             batch.columns.includes(column)
         )
       );
+      // A choice made for every row, only for a field that allows it, only
+      // where no column is matched, and only one of its own values.
+      const everyRow = Object.fromEntries(
+        Object.entries(input.mapping.everyRow ?? {}).filter(([key, value]) => {
+          const f = defs.find((d) => d.key === key);
+          return (
+            f?.everyRow &&
+            !fields[key] &&
+            (f.choices ?? []).some((c) => c.value === value)
+          );
+        })
+      );
       for (const f of defs.filter((d) => d.required))
-        if (!fields[f.key])
+        if (!fields[f.key] && !everyRow[f.key])
           throw new ImportRefused(
             `Choose the column that holds ${f.label.toLowerCase()}.`
           );
@@ -1609,7 +1757,8 @@ export async function previewImport(input: {
       const mapping: ImportMapping = {
         fields,
         keepUnmapped: input.mapping.keepUnmapped,
-        ...(Object.keys(values).length ? { values } : {})
+        ...(Object.keys(values).length ? { values } : {}),
+        ...(Object.keys(everyRow).length ? { everyRow } : {})
       };
 
       const table = await readFile(batch.file);
@@ -1885,6 +2034,21 @@ const KEYS: Record<RecordType, string[]> = {
     'closedAt',
     'nextReviewAt',
     'sourceHistory',
+    'assessmentId',
+    ...IMPORT_KEYS
+  ],
+  assessment: [
+    'title',
+    'subjectType',
+    'subjectId',
+    'ownerId',
+    'status',
+    'importedOutcome',
+    'submittedAt',
+    'completedAt',
+    'reviewDueAt',
+    'sourceHistory',
+    'sourceAnswers',
     ...IMPORT_KEYS
   ],
   policy_document: [
@@ -1937,7 +2101,9 @@ const DATE_KEYS = new Set([
   'dueAt',
   'implementedAt',
   'lastReviewedAt',
-  'withdrawnAt'
+  'withdrawnAt',
+  'submittedAt',
+  'completedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -1970,7 +2136,8 @@ const TABLE = {
   risk: risks,
   mitigation: mitigations,
   policy_document: policyDocuments,
-  policy: policies
+  policy: policies,
+  assessment: assessments
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -2015,6 +2182,8 @@ type WriteContext = {
   regime?: (typeof processingActivities.$inferInsert)['regime'] | null;
   /** The entity's data protection law: a new activity takes it, and bases are read under it. */
   law?: (typeof processingActivities.$inferInsert)['laws'] | null;
+  /** Imported templates found or made in this import, by kind. */
+  importedTemplates?: Map<string, string>;
 };
 
 /** The current row of a record, before the import changes it. */
@@ -2038,7 +2207,7 @@ async function attachImportFile(
   c: WriteContext,
   name: string | undefined,
   subject: {
-    type: 'dpa' | 'evidence' | 'policy_document' | 'policy';
+    type: 'dpa' | 'evidence' | 'policy_document' | 'policy' | 'assessment';
     id: string;
     /** The entity the file is for, where the record has one. */
     entityId?: string | null;
@@ -2477,6 +2646,8 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writePolicyDocument(c, record);
     case 'policy':
       return writePolicy(c, record);
+    case 'assessment':
+      return writeAssessment(c, record);
   }
 }
 
@@ -2628,6 +2799,13 @@ async function removeLinks(tx: Tx, links: ImportLink[]) {
       await tx.delete(recordLinks).where(eq(recordLinks.id, link.id));
       continue;
     }
+    if (link.kind === 'risk_assessment') {
+      await tx
+        .update(risks)
+        .set({ assessmentId: null })
+        .where(and(eq(risks.id, link.from), eq(risks.assessmentId, link.to)));
+      continue;
+    }
     if (link.kind === 'policy_activity') {
       await tx
         .delete(policyActivities)
@@ -2681,6 +2859,9 @@ function statusFor(
   if (!given || given === 'accepted') return current ?? 'identified';
   return given;
 }
+
+/** Where a risk keeps the assessment it named there, until that is imported. */
+const RISK_ASSESSMENT_KEY = 'Assessment there';
 
 function riskHistory(
   data: Of<'risk'>['data'],
@@ -2753,6 +2934,12 @@ async function writeRisk(
     nextReviewAt: data.nextReviewAt ? new Date(data.nextReviewAt) : null,
     sourceHistory: riskHistory(data, c.sourceName)
   };
+  // Linked to the assessment it named there, where that is imported and
+  // nothing here has linked it to another.
+  const raisedFrom =
+    resolved.assessmentId && !was?.assessmentId
+      ? { assessmentId: resolved.assessmentId }
+      : {};
   const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
   // A rating read through a translation keeps what the source said, so the
   // translation can be checked against it.
@@ -2780,7 +2967,8 @@ async function writeRisk(
     ...record.legacy,
     ...Object.fromEntries(asWritten.map(([label, given]) => [label, given!])),
     ...(data.owner && !resolved.ownerId ? { Owner: data.owner } : {}),
-    ...(data.status === 'accepted' ? { Status: 'Accepted' } : {})
+    ...(data.status === 'accepted' ? { Status: 'Accepted' } : {}),
+    ...(data.assessment ? { [RISK_ASSESSMENT_KEY]: data.assessment } : {})
   };
   const kept = provenance(c, { ...record, legacy });
   let id: string;
@@ -2788,7 +2976,7 @@ async function writeRisk(
     // What the file leaves out stays as recorded, its history included.
     await c.tx
       .update(risks)
-      .set({ ...said(described), ...owner, ...kept })
+      .set({ ...said(described), ...owner, ...raisedFrom, ...kept })
       .where(eq(risks.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
@@ -2811,6 +2999,7 @@ async function writeRisk(
         createdAt: c.at,
         ...described,
         ...owner,
+        ...raisedFrom,
         ...kept
       })
       .returning({ id: risks.id });
@@ -2857,6 +3046,240 @@ async function writeRisk(
     }
   });
   return { id, before: was && snapshot(was, KEYS.risk), links };
+}
+
+const TEMPLATE_KIND_NAME: Record<Of<'assessment'>['data']['kind'], string> = {
+  dpia: 'DPIA',
+  lia: 'Legitimate interests assessment',
+  tia: 'Transfer impact assessment',
+  tra: 'Transfer risk assessment',
+  ai_risk: 'AI risk assessment',
+  screening: 'Screening',
+  eia: 'Equality impact assessment',
+  custom: 'Assessment'
+};
+
+/**
+ * The template an imported assessment of a kind sits on: one per kind, with
+ * no questions of its own, made the first time it is needed. Its one version
+ * is retired from the start, so nothing new is ever started from it.
+ */
+async function importedTemplateVersion(
+  c: WriteContext,
+  kind: Of<'assessment'>['data']['kind']
+): Promise<string> {
+  const known = c.importedTemplates?.get(kind);
+  if (known) return known;
+  const name = `Imported from another platform: ${TEMPLATE_KIND_NAME[kind]}`;
+  await c.tx
+    .insert(templates)
+    .values({
+      organisationId: c.batch.organisationId,
+      kind,
+      name,
+      description:
+        "Holds assessments done in another platform, with that platform's questions and answers kept as they were asked. Not for new assessments.",
+      isSystem: true
+    })
+    .onConflictDoNothing();
+  const [template] = await c.tx
+    .select({ id: templates.id })
+    .from(templates)
+    .where(
+      and(
+        eq(templates.organisationId, c.batch.organisationId),
+        eq(templates.name, name)
+      )
+    );
+  await c.tx
+    .insert(templateVersions)
+    .values({
+      templateId: template.id,
+      version: 1,
+      status: 'retired',
+      definition: {
+        schema: {
+          sections: [
+            {
+              key: 'imported',
+              title: 'Asked in another platform',
+              description:
+                'The questions and answers are kept with each assessment, as that platform asked them.',
+              questions: [
+                {
+                  key: 'imported',
+                  label: 'Kept with the assessment',
+                  type: 'long_text',
+                  required: false,
+                  legalRefs: [],
+                  evidence: 'none'
+                }
+              ]
+            }
+          ]
+        },
+        scoring: { method: 'none' }
+      },
+      notes: 'Made by the importer.',
+      // Published and retired together: frozen, and never offered.
+      publishedAt: c.at,
+      retiredAt: c.at
+    })
+    .onConflictDoNothing();
+  const [version] = await c.tx
+    .select({ id: templateVersions.id })
+    .from(templateVersions)
+    .where(
+      and(
+        eq(templateVersions.templateId, template.id),
+        eq(templateVersions.version, 1)
+      )
+    );
+  c.importedTemplates?.set(kind, version.id);
+  return version.id;
+}
+
+type AssessmentStatus = (typeof assessments.$inferSelect)['status'];
+
+/** What the old platform recorded of an assessment's outcome: its account. */
+function assessmentHistory(
+  data: Of<'assessment'>['data'],
+  source: string
+): SourceEvent[] {
+  if (data.outcome === 'unfinished')
+    return [{ at: data.submittedAt ?? null, what: `Unfinished in ${source}` }];
+  const what = {
+    approved: 'Approved',
+    rejected: 'Rejected',
+    superseded: 'Superseded',
+    withdrawn: 'Withdrawn'
+  }[data.outcome];
+  return [
+    {
+      at: data.completedAt ?? null,
+      what: `${what} in ${source}`,
+      ...(data.approvedBy ? { by: data.approvedBy } : {})
+    }
+  ];
+}
+
+/**
+ * An assessment done in another platform, from a checked row: read only, on
+ * the imported template of its kind, with its questions and answers kept as
+ * that platform asked them (the columns no field reads). It waits, as
+ * "imported", for a person here to confirm it; then it takes the outcome the
+ * source gave it, and only then counts as an approved assessment anywhere.
+ */
+async function writeAssessment(
+  c: WriteContext,
+  record: Of<'assessment'>
+): Promise<Written> {
+  const resolved = c.decision.assessment!;
+  const { data } = record;
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'assessment', c.decision.recordId)
+    : null;
+  const outcome: AssessmentStatus =
+    data.outcome === 'unfinished' ? 'withdrawn' : data.outcome;
+  const sourceAnswers: SourceAnswer[] = data.answers;
+  const described = {
+    title: data.title,
+    subjectType: resolved.subject?.type ?? null,
+    subjectId: resolved.subject?.id ?? null,
+    status: 'imported' as const,
+    importedOutcome: outcome,
+    submittedAt: data.submittedAt ? new Date(data.submittedAt) : null,
+    completedAt: data.completedAt ? new Date(data.completedAt) : null,
+    reviewDueAt: data.reviewDueAt ? new Date(data.reviewDueAt) : null,
+    sourceHistory: assessmentHistory(data, c.sourceName),
+    sourceAnswers: sourceAnswers.length ? sourceAnswers : null
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const kept = provenance(c, {
+    ...record,
+    legacy: data.owner && !resolved.ownerId ? { Owner: data.owner } : {}
+  });
+  let id: string;
+  if (c.decision.recordId) {
+    await c.tx
+      .update(assessments)
+      .set({ ...said(described), ...owner, ...kept })
+      .where(eq(assessments.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const templateVersionId = await importedTemplateVersion(c, data.kind);
+    const reference = await nextReference(
+      c.tx,
+      c.batch.organisationId,
+      referencePrefixFor(data.kind),
+      c.at.getUTCFullYear()
+    );
+    const [created] = await c.tx
+      .insert(assessments)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId!,
+        templateVersionId,
+        reference,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...described,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: assessments.id });
+    id = created.id;
+  }
+  // Risks imported from this source that named this assessment there now
+  // point at it, where nothing here has said otherwise.
+  const named = await c.tx
+    .update(risks)
+    .set({ assessmentId: id })
+    .where(
+      and(
+        eq(risks.organisationId, c.batch.organisationId),
+        eq(risks.entityId, c.batch.entityId!),
+        eq(risks.importSourceId, c.batch.sourceId),
+        isNull(risks.assessmentId),
+        sql`lower(${risks.legacy} ->> ${RISK_ASSESSMENT_KEY}) = lower(${c.sourceRef})`
+      )
+    )
+    .returning({ id: risks.id });
+  const links: ImportLink[] = named.map((r) => ({
+    kind: 'risk_assessment',
+    from: r.id,
+    to: id
+  }));
+  const earlier = was ? await earlierImports(c, 'assessment', id) : null;
+  const { documentId } = await attachImportFile(
+    c,
+    data.file,
+    { type: 'assessment', id, entityId: c.batch.entityId },
+    earlier?.documentIds
+  );
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: c.batch.entityId ?? undefined,
+    action: was ? 'assessment.updated' : 'assessment.created',
+    subjectType: 'assessment',
+    subjectId: id,
+    after: {
+      title: data.title,
+      status: 'imported',
+      outcome,
+      answers: sourceAnswers.length,
+      risksLinked: links.length,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return {
+    id,
+    before: was && snapshot(was, KEYS.assessment),
+    documentId,
+    links
+  };
 }
 
 /** An appropriate policy document, from a checked row. */
@@ -3274,6 +3697,7 @@ export async function commitImport(input: {
       const at = new Date();
       const actions: Action[] = [];
       const decide = await matcher(tx, batch);
+      const importedTemplates = new Map<string, string>();
       const [source] = await tx
         .select({ name: importSources.name })
         .from(importSources)
@@ -3304,7 +3728,8 @@ export async function commitImport(input: {
             decision,
             sourceName: source.name,
             regime: entity?.defaultRegime,
-            law: entity?.dataProtectionLaw
+            law: entity?.dataProtectionLaw,
+            importedTemplates
           },
           row.record
         );
@@ -3554,7 +3979,8 @@ export type Confirmable =
   | 'risk'
   | 'mitigation'
   | 'policy_document'
-  | 'policy';
+  | 'policy'
+  | 'assessment';
 
 /**
  * A mitigation has no organisation of its own: it is its risk's. Confirmed
@@ -3615,7 +4041,17 @@ export async function confirmImportedRecord(input: {
       const table = TABLE[input.type];
       const [row] = (await tx
         .update(table)
-        .set({ importConfirmedAt: at, updatedAt: at })
+        .set({
+          importConfirmedAt: at,
+          updatedAt: at,
+          // An assessment takes the outcome the source gave it, and from now
+          // counts as that outcome everywhere.
+          ...(input.type === 'assessment'
+            ? {
+                status: sql`coalesce(${assessments.importedOutcome}, ${assessments.status})`
+              }
+            : {})
+        })
         .where(
           and(
             eq(table.id, input.id),
