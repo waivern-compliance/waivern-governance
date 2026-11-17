@@ -8,6 +8,7 @@ import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
   assessments,
+  dataSubjectRequests,
   evidence,
   informationAssets,
   mitigations,
@@ -114,7 +115,8 @@ export async function previewImportAction(
         fields,
         keepUnmapped: formData.get('keepUnmapped') === 'on',
         values,
-        everyRow
+        everyRow,
+        closedBefore: text(formData.get('closedBefore')) || undefined
       },
       actor
     })
@@ -242,7 +244,8 @@ const ENTITY_TABLE = {
   risk: risks,
   policy: policies,
   policy_document: policyDocuments,
-  assessment: assessments
+  assessment: assessments,
+  data_subject_request: dataSubjectRequests
 } as const;
 
 /**

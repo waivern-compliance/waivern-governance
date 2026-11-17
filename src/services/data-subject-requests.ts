@@ -1888,7 +1888,8 @@ export async function requestMetrics(
         clockState: r.clock.state,
         extended: r.extended,
         status: r.request.status,
-        closedAt: r.request.closedAt
+        closedAt: r.request.closedAt,
+        imported: r.request.importBatchId !== null
       })),
       over
     );
@@ -1963,7 +1964,7 @@ export async function requestsSummary(input: {
 
     const m = await requestMetrics(input.organisationId, entityIds, months);
     return {
-      summaryVersion: '1.1',
+      summaryVersion: '1.2',
       generatedAt: new Date().toISOString(),
       organisation: {
         name: org.name,

@@ -471,14 +471,14 @@ first N requests, would read as a summary of everything.
 
 ```json
 {
-  "summaryVersion": "1.1",
+  "summaryVersion": "1.2",
   "generatedAt": "2026-10-30T09:14:02.881Z",
   "organisation": { "name": "BBC Group", "slug": "bbc-group", "defaultJurisdiction": "uk" },
   "scope": { "entities": null, "months": 12, "from": "2025-11-01T00:00:00.000Z", "to": "2026-10-30T09:14:02.881Z" },
   "totals": {
     "received": 41, "answered": 37, "onTime": 35, "late": 2,
     "extended": 4, "refused": 3, "withdrawn": 1, "open": 3, "overdue": 0,
-    "medianDaysToRespond": 19
+    "medianDaysToRespond": 19, "imported": 12
   },
   "byRight": [
     { "right": "access", "label": "Access", "article": "Article 15",
@@ -518,6 +518,10 @@ first N requests, would read as a summary of everything.
   writes a document, not something this endpoint decides by hiding it.
 - `byLaw` (from 1.1) splits `totals` by the law each was handled under, with
   `uk`, `eu` and `uk_eu` (both laws) as keys, each with the same counts as `totals`.
+- `imported` (from 1.2) is how many of `received` were brought in from another
+  platform. They count by their real dates, like any other request, so a
+  migration can change the figures for months already reported. One imported
+  as closed with no response date is neither on time nor late.
   A law with nothing in the window is present with zeros.
 - `summaryVersion` versions this shape; additive changes bump the minor version.
 

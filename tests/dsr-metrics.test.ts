@@ -77,7 +77,8 @@ describe('request timeliness', () => {
       open: 1,
       overdue: 1,
       // 22 and 34 days, rounded.
-      medianDaysToRespond: 28
+      medianDaysToRespond: 28,
+      imported: 0
     });
   });
 

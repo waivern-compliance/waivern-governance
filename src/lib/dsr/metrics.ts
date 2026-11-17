@@ -19,6 +19,8 @@ export type TimelinessInput = {
   extended: boolean;
   status: string;
   closedAt: Date | null;
+  /** Brought in from another platform, with its real dates. */
+  imported?: boolean;
 };
 
 export type Period = { key: string; start: Date; end: Date };
@@ -41,6 +43,8 @@ export type Timeliness = {
     overdue: number;
     /** Median calendar days from receipt to response, or null if none answered. */
     medianDaysToRespond: number | null;
+    /** Of `received`, how many were imported from another platform. */
+    imported: number;
   };
   byRight: Array<Tally & { right: Right; label: string; article: string }>;
   byMonth: Array<Tally & { period: string; extended: number }>;
@@ -89,6 +93,7 @@ export function requestTimeliness(
       withdrawn: rows.filter((r) => r.status === 'withdrawn').length,
       open: rows.filter((r) => !r.respondedAt && !r.closedAt).length,
       overdue: rows.filter((r) => r.clockState === 'overdue').length,
+      imported: rows.filter((r) => r.imported).length,
       medianDaysToRespond: median(
         answered.map((r) =>
           Math.max(

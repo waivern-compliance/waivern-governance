@@ -318,7 +318,7 @@ describe('agreements and summaries', () => {
       actor: SYSTEM
     });
     const requests = await requestsSummary({ organisationId: w.org.id });
-    assert.equal(requests.summaryVersion, '1.1');
+    assert.equal(requests.summaryVersion, '1.2');
     assert.equal(requests.byLaw.uk.received, 1);
     assert.equal(requests.byLaw.uk_eu.received, 2);
     assert.equal(requests.byLaw.eu.received, 0);

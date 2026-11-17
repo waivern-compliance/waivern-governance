@@ -38,7 +38,8 @@ export const importRecordType = pgEnum('import_record_type', [
   'mitigation',
   'policy_document',
   'policy',
-  'assessment'
+  'assessment',
+  'data_subject_request'
 ]);
 
 export const importBatchStatus = pgEnum('import_batch_status', [
@@ -109,6 +110,12 @@ export const importBatches = pgTable(
      * to say what each is here: kept so the page need not read the file again.
      */
     valuesFound: jsonb('values_found').$type<Record<string, string[]>>(),
+    /**
+     * What the last preview found that a person should know before importing:
+     * how many open cases are already past their statutory deadline, and so
+     * will raise tasks as soon as they are in.
+     */
+    previewNotes: jsonb('preview_notes').$type<{ overdue?: number }>(),
     status: importBatchStatus('status').notNull().default('uploaded'),
     counts: jsonb('counts')
       .$type<

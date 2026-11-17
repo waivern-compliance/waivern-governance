@@ -70,7 +70,7 @@ Every help topic the application carries, in the order it presents them.
 - [Who approves what, and changing it](#who-approves-what-and-changing-it) - Approvers are named by role rather than by person, so a departure is handled by moving the role - and both are managed on one screen.
 - [AI governance framework](#ai-governance-framework) - Whether AI risk follows the UK framework or NIST AI RMF, and what changes when the organisation moves from one to the other.
 - [Connected tools](#connected-tools) - Signed endpoints that let the Compliance Portal and scanning tools push records in and pull current state out.
-- [Importing records from another platform](#importing-records-from-another-platform) - Bring records, files, AI systems, assets, risks, mitigations, policies and assessments in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
+- [Importing records from another platform](#importing-records-from-another-platform) - Bring records, files, assets, risks, policies, assessments and request history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
 - [The organisation and its legal entities](#the-organisation-and-its-legal-entities) - What this organisation is called, the legal entities within it, and who may add them.
 - [Deleting a legal entity](#deleting-a-legal-entity) - Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.
 - [Accepting Waivern's terms and Data Processing Agreement](#accepting-waiverns-terms-and-data-processing-agreement) - On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.
@@ -2034,7 +2034,7 @@ The Portal reads the register back, with each system's gaps and its latest appro
 
 ## Importing records from another platform
 
-*Bring records, files, AI systems, assets, risks, mitigations, policies and assessments in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
+*Bring records, files, assets, risks, policies, assessments and request history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
 
 **Screen:** `/app/admin/imports`
 
@@ -2092,6 +2092,14 @@ Its questions were the old platform's, so it is kept as it was answered there: t
 
 Until it is confirmed it shows as imported, and counts as no outcome: an activity that needs a DPIA still shows the gap. Confirming it gives it the outcome it had there. One not finished there comes in withdrawn, as history, so a fresh one is started here. Risks imported from the same platform that named it, in an Assessment column, are linked to it, before or after.
 
+### Data subject requests
+
+Each request needs who asked, the rights they used and when it arrived. Its dates are kept as the old platform recorded them, so its month runs here as it would have had it been recorded here. Asking for proof of identity, asking for clarification and extending the time come in with their dates, said to have been done in the old platform, so the deadline is the one it had there. An extension with no date is not imported, because the deadline cannot be worked out without it.
+
+A closed request needs the date it was responded to, or closed: with it, no deadline runs and no task is raised, however old it is. An open request already past its deadline is overdue here too; the preview says how many there are before anything is written, and they raise tasks once imported. Nothing is sent to the requester and no search scope is built. A request under EU law to an entity under UK law only is not imported.
+
+Set a retention cut-off on the matching step to leave out closed requests that ended before it, so they are not kept longer than your policy allows. Imported requests count in the requests summary by their real dates, marked as imported. Importing again updates a request's details but leaves its clock decisions as they came in, and a request worked on here since it was imported is not written over.
+
 ### Information assets
 
 Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.
@@ -2110,7 +2118,7 @@ The matching of columns is remembered for each platform and kind of record, and 
 
 Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.
 
-An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document or assessment shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
+An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment or data subject request shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
 
 ### Undoing an import
 

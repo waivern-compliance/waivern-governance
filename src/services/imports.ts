@@ -4,6 +4,8 @@ import { db, withOrganisation, type Db } from '@/db/client';
 import {
   aiUseCases,
   assessments,
+  dataSubjectRequestDecisions,
+  dataSubjectRequests,
   documents,
   dpas,
   entities,
@@ -40,11 +42,19 @@ import {
 } from '@/lib/assets/register';
 import { appendAuditEvent } from '@/lib/audit';
 import { ACCEPTED } from '@/lib/documents/limits';
-import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { jurisdictionRefusal, ukLawApplies } from '@/lib/dpa2018/applies';
+import { PART3_RIGHTS } from '@/lib/dpa2018/part3-rights';
 import { policyKeyFrom, type PolicyKey } from '@/lib/dpa2018/policy-keys';
+import {
+  requestClock,
+  RIGHT_KEYS,
+  RIGHTS,
+  type Right
+} from '@/lib/dsr/statutory';
 import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
 import {
   CARRIES_FILES,
+  CASE_HISTORY,
   convertRow,
   ENTITY_SCOPED,
   FIELDS,
@@ -242,6 +252,7 @@ const batchColumns = {
   mapping: importBatches.mapping,
   status: importBatches.status,
   counts: importBatches.counts,
+  previewNotes: importBatches.previewNotes,
   createdByLabel: importBatches.createdByLabel,
   createdAt: importBatches.createdAt,
   committedAt: importBatches.committedAt,
@@ -347,7 +358,10 @@ export async function loadImport(batchId: string, organisationId: string) {
           ),
           keepUnmapped: offered.keepUnmapped,
           ...(offered.values ? { values: offered.values } : {}),
-          ...(offered.everyRow ? { everyRow: offered.everyRow } : {})
+          ...(offered.everyRow ? { everyRow: offered.everyRow } : {}),
+          ...(offered.closedBefore
+            ? { closedBefore: offered.closedBefore }
+            : {})
         }
       : guessMapping(batch.recordType, batch.columns);
     return { batch, rows, mapping, files };
@@ -657,6 +671,17 @@ type AssessmentResolved = {
   ownerId: string | null;
 };
 
+/** A request read into this organisation's terms, with where its clock stands. */
+type RequestResolved = {
+  jurisdiction: 'uk' | 'eu' | 'uk_eu';
+  regime: 'gdpr' | 'dpa_part3';
+  rights: Right[];
+  status: (typeof dataSubjectRequests.$inferSelect)['status'];
+  ownerId: string | null;
+  /** Open, and already past its deadline: it raises a task once imported. */
+  overdue: boolean;
+};
+
 type Resolved = {
   /** The supplier an agreement belongs to, or an AI system is linked to. */
   supplierId?: string | null;
@@ -667,12 +692,15 @@ type Resolved = {
   mitigation?: MitigationResolved;
   policy?: PolicyResolved;
   assessment?: AssessmentResolved;
+  request?: RequestResolved;
 };
 
 type Decision =
   | ({ action: 'create'; recordId: null } & Resolved)
   | ({ action: 'update' | 'merge'; recordId: string } & Resolved)
-  | { action: 'refuse'; reason: string };
+  | { action: 'refuse'; reason: string }
+  /** Left out on purpose, with why: a closed case past the retention cut-off. */
+  | { action: 'skip'; reason: string };
 
 type Batch = {
   id: string;
@@ -945,6 +973,13 @@ async function matcher(
         return 'reason' in risk
           ? { action: 'refuse', reason: risk.reason }
           : decide(sourceRef, { risk });
+      };
+    }
+    case 'data_subject_request': {
+      const resolve = await requestResolver(tx, batch);
+      return (record, sourceRef) => {
+        const { data } = record as Of<'data_subject_request'>;
+        return missingFile(data.file) ?? resolve(data, sourceRef);
       };
     }
     case 'assessment': {
@@ -1681,6 +1716,219 @@ async function assessmentResolver(tx: Tx, batch: Batch) {
   };
 }
 
+/** A right as another platform names it: its key, its name, its Article, or a usual word. */
+const RIGHT_WORDS: Record<Right, string[]> = {
+  access: [
+    'sar',
+    'dsar',
+    'subject access',
+    'access request',
+    'right of access'
+  ],
+  rectification: ['correction', 'correct', 'rectify', 'amend'],
+  erasure: ['deletion', 'delete', 'right to be forgotten', 'forget', 'erase'],
+  restriction: ['restrict', 'restriction of processing'],
+  portability: ['data portability', 'port'],
+  objection: ['object', 'objection to processing', 'opt out of processing'],
+  automated_decision: [
+    'automated decision',
+    'automated decision making',
+    'profiling'
+  ],
+  withdraw_consent: [
+    'withdraw consent',
+    'consent withdrawal',
+    'consent withdrawn'
+  ]
+};
+
+function rightFrom(given: string): Right | null {
+  const v = loose(given);
+  return (
+    RIGHT_KEYS.find(
+      (k) =>
+        loose(k) === v ||
+        loose(RIGHTS[k].label) === v ||
+        loose(RIGHTS[k].article) === v ||
+        RIGHT_WORDS[k].some((w) => loose(w) === v)
+    ) ?? null
+  );
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * A request's rights, law, regime and status read into this organisation's
+ * terms, its dates checked for what each status needs, and its clock worked
+ * out as it would be had it been recorded here. A closed one that ended
+ * before the batch's retention cut-off is left out (decision 10). One worked
+ * on here since it was imported is not written over: that work is a
+ * person's, here.
+ */
+async function requestResolver(tx: Tx, batch: Batch) {
+  const [[entity], memberOf, earlier] = await Promise.all([
+    tx
+      .select({
+        name: entities.name,
+        law: entities.dataProtectionLaw,
+        competentAuthority: entities.competentAuthority
+      })
+      .from(entities)
+      .where(eq(entities.id, batch.entityId!)),
+    membersByEmail(tx, batch.organisationId),
+    tx
+      .select({
+        id: dataSubjectRequests.id,
+        ref: dataSubjectRequests.externalRef,
+        entityId: dataSubjectRequests.entityId,
+        entityName: entities.name,
+        reference: dataSubjectRequests.reference,
+        updatedAt: dataSubjectRequests.updatedAt,
+        importedAt: importBatches.committedAt
+      })
+      .from(dataSubjectRequests)
+      .innerJoin(entities, eq(entities.id, dataSubjectRequests.entityId))
+      .leftJoin(
+        importBatches,
+        eq(importBatches.id, dataSubjectRequests.importBatchId)
+      )
+      .where(
+        and(
+          eq(dataSubjectRequests.organisationId, batch.organisationId),
+          eq(dataSubjectRequests.importSourceId, batch.sourceId)
+        )
+      )
+  ]);
+  const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
+  const cutOff = batch.mapping?.closedBefore
+    ? new Date(batch.mapping.closedBefore)
+    : null;
+  const now = new Date();
+  return (
+    data: Of<'data_subject_request'>['data'],
+    sourceRef: string
+  ): Decision => {
+    const refuse = (reason: string): Decision => ({ action: 'refuse', reason });
+    const rights: Right[] = [];
+    for (const given of data.rights) {
+      const right = rightFrom(given);
+      if (!right)
+        return refuse(
+          `"${given}" is not a right Govern knows. Use one of: ${RIGHT_KEYS.map((k) => RIGHTS[k].label).join(', ')}.`
+        );
+      if (!rights.includes(right)) rights.push(right);
+    }
+    let jurisdiction = data.jurisdiction ?? entity.law;
+    const outsideLaw = jurisdictionRefusal(entity, jurisdiction, 'request');
+    if (outsideLaw) return refuse(outsideLaw);
+    const regime = data.regime ?? 'gdpr';
+    if (regime === 'dpa_part3') {
+      if (!entity.competentAuthority)
+        return refuse(
+          `Part 3 is for a competent authority, and ${entity.name} is not marked as one.`
+        );
+      if (jurisdiction === 'eu')
+        return refuse('Part 3 of the Data Protection Act 2018 is UK law.');
+      const outside = rights.filter((r) => !PART3_RIGHTS.includes(r));
+      if (outside.length)
+        return refuse(
+          `Part 3 gives no right of ${outside.map((r) => RIGHTS[r].label.toLowerCase()).join(' or ')}.`
+        );
+      jurisdiction = 'uk';
+    }
+    const at = (iso?: string) => (iso ? new Date(iso) : null);
+    const receivedAt = new Date(data.receivedAt);
+    if (receivedAt > now)
+      return refuse('It cannot have arrived in the future.');
+    if (data.clarificationReceivedAt && !data.clarificationRequestedAt)
+      return refuse(
+        'It says clarification was received, but not when it was asked for. Both dates are needed to work out the deadline.'
+      );
+    if (data.extended && !data.extendedAt)
+      return refuse(
+        'It says the time was extended, but not when. The deadline cannot be worked out without that date.'
+      );
+    const status =
+      data.status ??
+      (data.closedAt
+        ? 'closed'
+        : data.respondedAt
+          ? 'responded'
+          : data.identityRequestedAt && !data.identityVerifiedAt
+            ? 'verifying'
+            : data.clarificationRequestedAt && !data.clarificationReceivedAt
+              ? 'paused'
+              : 'in_progress');
+    // Each status needs the dates that make it true; nothing is assumed.
+    if ((status === 'responded' || status === 'refused') && !data.respondedAt)
+      return refuse(
+        `It is ${status} there, but gives no date it was responded to.`
+      );
+    if ((status === 'withdrawn' || status === 'closed') && !data.closedAt)
+      return refuse(`It is ${status} there, but gives no date it was closed.`);
+    if (
+      status === 'verifying' &&
+      (!data.identityRequestedAt || data.identityVerifiedAt)
+    )
+      return refuse(
+        'Waiting for proof of identity needs the date it was asked for, and no date it arrived.'
+      );
+    if (
+      status === 'paused' &&
+      (!data.clarificationRequestedAt || data.clarificationReceivedAt)
+    )
+      return refuse(
+        'Waiting for clarification needs the date it was asked for, and no date it arrived.'
+      );
+    const ended = at(data.closedAt) ?? at(data.respondedAt);
+    if (cutOff && ended && ended < cutOff)
+      return {
+        action: 'skip',
+        reason: `Ended on ${ended.toISOString().slice(0, 10)}, before the retention cut-off of ${cutOff.toISOString().slice(0, 10)}.`
+      };
+    const clock = requestClock({
+      jurisdiction,
+      receivedAt,
+      identityRequestedAt: at(data.identityRequestedAt),
+      identityVerifiedAt: at(data.identityVerifiedAt),
+      pauses: data.clarificationRequestedAt
+        ? [
+            {
+              from: new Date(data.clarificationRequestedAt),
+              to: at(data.clarificationReceivedAt)
+            }
+          ]
+        : [],
+      extended: Boolean(data.extendedAt),
+      respondedAt: at(data.respondedAt),
+      closedWithoutResponse: Boolean(data.closedAt),
+      now
+    });
+    const request: RequestResolved = {
+      jurisdiction,
+      regime,
+      rights,
+      status,
+      ownerId: data.owner ? memberOf(data.owner) : null,
+      overdue: clock.state === 'overdue'
+    };
+    const found = own.get(sourceRef.toLowerCase());
+    if (!found) return { action: 'create', recordId: null, request };
+    if (found.entityId !== batch.entityId)
+      return refuse(
+        `Imported before into ${found.entityName}. Import it into that entity.`
+      );
+    if (
+      found.importedAt &&
+      found.updatedAt.getTime() > found.importedAt.getTime() + DAY_MS / 24 / 60
+    )
+      return refuse(
+        `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
+      );
+    return { action: 'update', recordId: found.id, request };
+  };
+}
+
 /** What makes two rows of one file the same record. */
 function sameRecordKeys(record: ImportRecord, sourceRef: string) {
   const keys = [`ref:${sourceRef.toLowerCase()}`];
@@ -1758,12 +2006,19 @@ export async function previewImport(input: {
         fields,
         keepUnmapped: input.mapping.keepUnmapped,
         ...(Object.keys(values).length ? { values } : {}),
-        ...(Object.keys(everyRow).length ? { everyRow } : {})
+        ...(Object.keys(everyRow).length ? { everyRow } : {}),
+        ...(CASE_HISTORY.has(batch.recordType) &&
+        input.mapping.closedBefore &&
+        /^\d{4}-\d{2}-\d{2}$/.test(input.mapping.closedBefore)
+          ? { closedBefore: input.mapping.closedBefore }
+          : {})
       };
 
       const table = await readFile(batch.file);
       const decide = await matcher(tx, { ...batch, mapping });
       const seen = new Map<string, number>();
+      // Open cases already past their deadline, to say before importing.
+      let overdue = 0;
       const rows: Array<typeof importRows.$inferInsert> = [];
       for (const [i, cells] of table.rows.entries()) {
         const rowNumber = i + 2;
@@ -1780,7 +2035,10 @@ export async function previewImport(input: {
             sourceRef:
               converted.action === 'refuse' ? converted.sourceRef : null,
             action: converted.action,
-            reason: converted.action === 'refuse' ? converted.reason : null
+            reason:
+              converted.action === 'refuse'
+                ? converted.reason
+                : 'The row is empty.'
           });
           continue;
         }
@@ -1802,13 +2060,14 @@ export async function previewImport(input: {
         }
         for (const k of keys) seen.set(k, rowNumber);
         const decision = decide(converted.record, converted.sourceRef);
+        if ('request' in decision && decision.request?.overdue) overdue += 1;
         rows.push({
           organisationId: input.organisationId,
           batchId: batch.id,
           rowNumber,
           sourceRef: converted.sourceRef,
-          ...(decision.action === 'refuse'
-            ? { action: 'refuse', reason: decision.reason }
+          ...(decision.action === 'refuse' || decision.action === 'skip'
+            ? { action: decision.action, reason: decision.reason }
             : {
                 action: decision.action,
                 record: converted.record,
@@ -1827,7 +2086,8 @@ export async function previewImport(input: {
           status: 'previewed',
           mapping,
           counts,
-          valuesFound: valuesIn(table, batch.recordType, mapping)
+          valuesFound: valuesIn(table, batch.recordType, mapping),
+          previewNotes: CASE_HISTORY.has(batch.recordType) ? { overdue } : null
         })
         .where(eq(importBatches.id, batch.id));
       await tx
@@ -2037,6 +2297,27 @@ const KEYS: Record<RecordType, string[]> = {
     'assessmentId',
     ...IMPORT_KEYS
   ],
+  data_subject_request: [
+    'jurisdiction',
+    'regime',
+    'rights',
+    'channel',
+    'receivedAt',
+    'description',
+    'requesterName',
+    'requesterContact',
+    'representative',
+    'identityRequestedAt',
+    'identityVerifiedAt',
+    'identityMethod',
+    'status',
+    'ownerId',
+    'respondedAt',
+    'responseSummary',
+    'closedAt',
+    'closureRationale',
+    ...IMPORT_KEYS
+  ],
   assessment: [
     'title',
     'subjectType',
@@ -2103,7 +2384,11 @@ const DATE_KEYS = new Set([
   'lastReviewedAt',
   'withdrawnAt',
   'submittedAt',
-  'completedAt'
+  'completedAt',
+  'receivedAt',
+  'identityRequestedAt',
+  'identityVerifiedAt',
+  'respondedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -2137,7 +2422,8 @@ const TABLE = {
   mitigation: mitigations,
   policy_document: policyDocuments,
   policy: policies,
-  assessment: assessments
+  assessment: assessments,
+  data_subject_request: dataSubjectRequests
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -2175,7 +2461,7 @@ type WriteContext = {
   actor: Actor;
   at: Date;
   sourceRef: string;
-  decision: Exclude<Decision, { action: 'refuse' }>;
+  decision: Exclude<Decision, { action: 'refuse' | 'skip' }>;
   /** The platform the batch came from, as named here. */
   sourceName: string;
   /** The entity's default regime, for a new processing activity. */
@@ -2207,7 +2493,13 @@ async function attachImportFile(
   c: WriteContext,
   name: string | undefined,
   subject: {
-    type: 'dpa' | 'evidence' | 'policy_document' | 'policy' | 'assessment';
+    type:
+      | 'dpa'
+      | 'evidence'
+      | 'policy_document'
+      | 'policy'
+      | 'assessment'
+      | 'data_subject_request';
     id: string;
     /** The entity the file is for, where the record has one. */
     entityId?: string | null;
@@ -2648,6 +2940,8 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writePolicy(c, record);
     case 'assessment':
       return writeAssessment(c, record);
+    case 'data_subject_request':
+      return writeRequest(c, record);
   }
 }
 
@@ -3046,6 +3340,173 @@ async function writeRisk(
     }
   });
   return { id, before: was && snapshot(was, KEYS.risk), links };
+}
+
+/**
+ * A data subject request handled in another platform, from a checked row,
+ * with its real dates. Written directly, as every import is: no
+ * acknowledgement goes to the requester, no webhook or notification is sent,
+ * and no search scope is seeded. What moved its clock there comes in as
+ * decisions, dated when they took effect, said to have been made there, and
+ * marked with this import; they are written when the request first comes in,
+ * and a later import leaves them as they are.
+ */
+async function writeRequest(
+  c: WriteContext,
+  record: Of<'data_subject_request'>
+): Promise<Written> {
+  const resolved = c.decision.request!;
+  const { data } = record;
+  const at = (iso?: string) => (iso ? new Date(iso) : null);
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'data_subject_request', c.decision.recordId)
+    : null;
+  const described = {
+    jurisdiction: resolved.jurisdiction,
+    regime: resolved.regime,
+    rights: resolved.rights,
+    channel: data.channel,
+    receivedAt: new Date(data.receivedAt),
+    description: data.description,
+    requesterName: data.requesterName,
+    requesterContact: data.requesterContact ?? null,
+    representative: data.representative ?? null,
+    identityRequestedAt: at(data.identityRequestedAt),
+    identityVerifiedAt: at(data.identityVerifiedAt),
+    identityMethod: data.identityMethod ?? null,
+    status: resolved.status,
+    respondedAt: at(data.respondedAt),
+    responseSummary: data.responseSummary ?? null,
+    closedAt: at(data.closedAt),
+    closureRationale: data.closureRationale ?? null
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const kept = provenance(c, {
+    ...record,
+    legacy: {
+      ...record.legacy,
+      ...(data.owner && !resolved.ownerId ? { Handler: data.owner } : {})
+    }
+  });
+  let id: string;
+  if (c.decision.recordId) {
+    await c.tx
+      .update(dataSubjectRequests)
+      .set({ ...said(described), ...owner, ...kept })
+      .where(eq(dataSubjectRequests.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const reference = await nextReference(
+      c.tx,
+      c.batch.organisationId,
+      'DSR',
+      c.at.getUTCFullYear()
+    );
+    const [created] = await c.tx
+      .insert(dataSubjectRequests)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId!,
+        reference,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...described,
+        // Required here; a source that kept neither still had a request.
+        // Read as "received on <date> by <channel>".
+        channel:
+          described.channel ?? `a channel ${c.sourceName} did not record`,
+        description:
+          described.description ??
+          `Imported from ${c.sourceName}, which did not export what was asked.`,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: dataSubjectRequests.id });
+    id = created.id;
+    const made = (
+      kind: 'clarification_requested' | 'clarification_received' | 'extension',
+      effectiveAt: Date,
+      rationale: string,
+      statutoryBasis: string
+    ) => ({
+      organisationId: c.batch.organisationId,
+      requestId: id,
+      kind,
+      rationale,
+      statutoryBasis,
+      effectiveAt,
+      decidedByLabel: `In ${c.sourceName}`,
+      decidedAt: c.at,
+      importBatchId: c.batch.id
+    });
+    const decisions = [
+      ...(data.clarificationRequestedAt
+        ? [
+            made(
+              'clarification_requested',
+              new Date(data.clarificationRequestedAt),
+              `Clarification asked for, as ${c.sourceName} recorded it.`,
+              'Article 12(3A)'
+            )
+          ]
+        : []),
+      ...(data.clarificationReceivedAt
+        ? [
+            made(
+              'clarification_received',
+              new Date(data.clarificationReceivedAt),
+              `Clarification received, as ${c.sourceName} recorded it.`,
+              'Article 12(3A)'
+            )
+          ]
+        : []),
+      ...(data.extendedAt
+        ? [
+            made(
+              'extension',
+              new Date(data.extendedAt),
+              data.extensionReason ??
+                `Extended, as ${c.sourceName} recorded it; it gave no reason.`,
+              'Article 12(3)'
+            )
+          ]
+        : [])
+    ];
+    if (decisions.length)
+      await c.tx.insert(dataSubjectRequestDecisions).values(decisions);
+  }
+  const earlier = was
+    ? await earlierImports(c, 'data_subject_request', id)
+    : null;
+  const { documentId } = await attachImportFile(
+    c,
+    data.file,
+    { type: 'data_subject_request', id, entityId: c.batch.entityId },
+    earlier?.documentIds
+  );
+  // The requester's name and contact stay out of the audit chain, as for a
+  // request recorded here.
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: c.batch.entityId ?? undefined,
+    action: was ? 'dsr.updated' : 'dsr.recorded',
+    subjectType: 'data_subject_request',
+    subjectId: id,
+    after: {
+      rights: resolved.rights,
+      receivedAt: data.receivedAt,
+      jurisdiction: resolved.jurisdiction,
+      status: resolved.status,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return {
+    id,
+    before: was && snapshot(was, KEYS.data_subject_request),
+    documentId
+  };
 }
 
 const TEMPLATE_KIND_NAME: Record<Of<'assessment'>['data']['kind'], string> = {
@@ -3709,12 +4170,16 @@ export async function commitImport(input: {
           continue;
         }
         const decision = decide(row.record, row.sourceRef);
-        if (decision.action === 'refuse') {
+        if (decision.action === 'refuse' || decision.action === 'skip') {
           // Changed since the preview: say so on the row, write nothing.
-          actions.push('refuse');
+          actions.push(decision.action);
           await tx
             .update(importRows)
-            .set({ action: 'refuse', reason: decision.reason, recordId: null })
+            .set({
+              action: decision.action,
+              reason: decision.reason,
+              recordId: null
+            })
             .where(eq(importRows.id, row.id));
           continue;
         }
@@ -3877,6 +4342,12 @@ export async function undoImport(input: {
         tx,
         rows.flatMap((r) => r.links ?? [])
       );
+      // Decisions the import brought in with its cases are its own, not work
+      // done since; one recorded here since still counts below.
+      if (kind === 'data_subject_request')
+        await tx
+          .delete(dataSubjectRequestDecisions)
+          .where(eq(dataSubjectRequestDecisions.importBatchId, batch.id));
       const created = rows
         .filter((r) => r.action === 'create')
         .map((r) => r.recordId!);
@@ -3980,7 +4451,8 @@ export type Confirmable =
   | 'mitigation'
   | 'policy_document'
   | 'policy'
-  | 'assessment';
+  | 'assessment'
+  | 'data_subject_request';
 
 /**
  * A mitigation has no organisation of its own: it is its risk's. Confirmed

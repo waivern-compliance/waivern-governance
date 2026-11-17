@@ -1,6 +1,7 @@
 import {
   aiUseCaseIn,
   assessmentIn,
+  dataSubjectRequestIn,
   dpaIn,
   evidenceIn,
   informationAssetIn,
@@ -31,7 +32,8 @@ export type RecordType =
   | 'mitigation'
   | 'policy_document'
   | 'policy'
-  | 'assessment';
+  | 'assessment'
+  | 'data_subject_request';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -41,7 +43,8 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'information_asset',
   'risk',
   'mitigation',
-  'assessment'
+  'assessment',
+  'data_subject_request'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -50,7 +53,13 @@ export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
   'evidence',
   'policy_document',
   'policy',
-  'assessment'
+  'assessment',
+  'data_subject_request'
+]);
+
+/** Kinds of record with a statutory clock, imported with their history. */
+export const CASE_HISTORY: ReadonlySet<RecordType> = new Set([
+  'data_subject_request'
 ]);
 
 type FieldKind =
@@ -1285,6 +1294,272 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['review due', 'next review', 'review date', 'reassess by']
     },
     FILE
+  ],
+  data_subject_request: [
+    ID,
+    {
+      key: 'requesterName',
+      label: 'Requester',
+      kind: 'text',
+      required: true,
+      aliases: [
+        'requester',
+        'requester name',
+        'data subject',
+        'name',
+        'full name',
+        'subject name'
+      ]
+    },
+    {
+      key: 'requesterContact',
+      label: 'Requester contact',
+      kind: 'text',
+      aliases: [
+        'email',
+        'contact',
+        'requester email',
+        'email address',
+        'contact details'
+      ]
+    },
+    {
+      key: 'representative',
+      label: 'Acting for them',
+      kind: 'text',
+      aliases: ['representative', 'agent', 'on behalf of', 'authorised agent']
+    },
+    {
+      key: 'rights',
+      label: 'Rights',
+      kind: 'list',
+      required: true,
+      hint: 'Access, erasure, rectification, restriction, portability, objection, automated decisions, or withdrawing consent, by name or Article. Separate several with ";".',
+      aliases: ['rights', 'right', 'request type', 'type', 'request types']
+    },
+    {
+      key: 'channel',
+      label: 'How it arrived',
+      kind: 'text',
+      aliases: ['channel', 'received via', 'source', 'submitted via']
+    },
+    {
+      key: 'receivedAt',
+      label: 'Received on',
+      kind: 'date',
+      aliases: [
+        'received',
+        'received on',
+        'date received',
+        'submitted',
+        'submitted on',
+        'created',
+        'created on',
+        'opened'
+      ]
+    },
+    {
+      key: 'description',
+      label: 'What was asked',
+      kind: 'text',
+      aliases: ['description', 'request', 'details', 'request details', 'notes']
+    },
+    {
+      key: 'jurisdiction',
+      label: 'Law',
+      kind: 'choice',
+      hint: "Empty: the entity's. A request under EU law to an entity under UK law only is not imported.",
+      aliases: ['jurisdiction', 'law', 'regulation', 'regime law'],
+      choices: [
+        choice('uk', 'UK law', 'uk', 'uk gdpr', 'united kingdom'),
+        choice(
+          'eu',
+          'EU law',
+          'eu',
+          'eu gdpr',
+          'gdpr',
+          'ireland',
+          'european union'
+        ),
+        choice('uk_eu', 'Both', 'uk and eu', 'both', 'uk_eu')
+      ]
+    },
+    {
+      key: 'regime',
+      label: 'Regime',
+      kind: 'choice',
+      hint: 'Part 3 of the Data Protection Act 2018 is for law enforcement processing by a competent authority.',
+      aliases: ['regime', 'processing regime'],
+      choices: [
+        choice('gdpr', 'UK GDPR', 'gdpr', 'general processing'),
+        choice('dpa_part3', 'Part 3', 'law enforcement', 'part 3', 'dpa part 3')
+      ]
+    },
+    {
+      key: 'owner',
+      label: 'Handler',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no handler.',
+      aliases: ['owner', 'handler', 'assignee', 'assigned to', 'owner email']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'Waiting for proof of identity, or for clarification, needs the date it was asked for. A closed one needs its date.',
+      aliases: ['status', 'state', 'stage'],
+      choices: [
+        choice('received', 'Received', 'new', 'open', 'submitted'),
+        choice(
+          'verifying',
+          'Verifying identity',
+          'verifying',
+          'awaiting identity',
+          'id verification',
+          'identity pending'
+        ),
+        choice(
+          'in_progress',
+          'In progress',
+          'in progress',
+          'processing',
+          'assigned',
+          'working'
+        ),
+        choice(
+          'paused',
+          'Waiting for clarification',
+          'paused',
+          'on hold',
+          'awaiting clarification',
+          'awaiting information'
+        ),
+        choice(
+          'responded',
+          'Responded',
+          'responded',
+          'completed',
+          'complete',
+          'fulfilled',
+          'done'
+        ),
+        choice(
+          'refused',
+          'Refused',
+          'refused',
+          'rejected',
+          'declined',
+          'denied'
+        ),
+        choice('withdrawn', 'Withdrawn', 'withdrawn', 'cancelled', 'canceled'),
+        choice('closed', 'Closed', 'closed', 'archived')
+      ]
+    },
+    {
+      key: 'identityRequestedAt',
+      label: 'Proof of identity asked for on',
+      kind: 'date',
+      aliases: [
+        'identity requested',
+        'id requested',
+        'verification requested',
+        'identity requested on'
+      ]
+    },
+    {
+      key: 'identityVerifiedAt',
+      label: 'Identity verified on',
+      kind: 'date',
+      aliases: [
+        'identity verified',
+        'id verified',
+        'verified on',
+        'identity verified on',
+        'verified'
+      ]
+    },
+    {
+      key: 'identityMethod',
+      label: 'How identity was checked',
+      kind: 'text',
+      aliases: ['identity method', 'verification method', 'id method']
+    },
+    {
+      key: 'clarificationRequestedAt',
+      label: 'Clarification asked for on',
+      kind: 'date',
+      aliases: [
+        'clarification requested',
+        'clarification requested on',
+        'information requested'
+      ]
+    },
+    {
+      key: 'clarificationReceivedAt',
+      label: 'Clarification received on',
+      kind: 'date',
+      aliases: [
+        'clarification received',
+        'clarification received on',
+        'information received'
+      ]
+    },
+    {
+      key: 'extended',
+      label: 'Time extended',
+      kind: 'yesno',
+      hint: 'An extension needs the date it was decided, or the deadline cannot be worked out.',
+      aliases: ['extended', 'extension', 'time extended']
+    },
+    {
+      key: 'extendedAt',
+      label: 'Extended on',
+      kind: 'date',
+      aliases: [
+        'extended on',
+        'extension date',
+        'extension decided on',
+        'date extended'
+      ]
+    },
+    {
+      key: 'extensionReason',
+      label: 'Why it was extended',
+      kind: 'text',
+      aliases: ['extension reason', 'reason for extension']
+    },
+    {
+      key: 'respondedAt',
+      label: 'Responded on',
+      kind: 'date',
+      aliases: [
+        'responded',
+        'responded on',
+        'response date',
+        'completed on',
+        'date completed',
+        'fulfilled on'
+      ]
+    },
+    {
+      key: 'responseSummary',
+      label: 'Response',
+      kind: 'text',
+      aliases: ['response', 'response summary', 'outcome', 'resolution']
+    },
+    {
+      key: 'closedAt',
+      label: 'Closed on',
+      kind: 'date',
+      aliases: ['closed', 'closed on', 'date closed', 'withdrawn on']
+    },
+    {
+      key: 'closureRationale',
+      label: 'Why it was closed',
+      kind: 'text',
+      aliases: ['closure reason', 'reason closed', 'closure rationale']
+    },
+    FILE
   ]
 };
 
@@ -1438,6 +1713,12 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
     recordType === 'assessment'
   )
     return valueOf('title') || null;
+  if (recordType === 'data_subject_request') {
+    // Who and when tell two requests apart where the source gave no ID.
+    const name = valueOf('requesterName');
+    const received = valueOf('receivedAt');
+    return name && received ? `${name} / ${received}` : null;
+  }
   if (recordType === 'mitigation') {
     const risk = valueOf('risk');
     const description = valueOf('description');
@@ -1483,6 +1764,10 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
     case 'assessment': {
       const { file: _file, ...rest } = data;
       return assessmentIn.safeParse(rest);
+    }
+    case 'data_subject_request': {
+      const { file: _file, ...rest } = data;
+      return dataSubjectRequestIn.safeParse(rest);
     }
   }
 }

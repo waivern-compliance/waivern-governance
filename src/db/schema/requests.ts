@@ -30,6 +30,7 @@ import {
   dsrStatus,
   intakeFormKind
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { processingActivities, suppliers } from './integration';
 import { entities, organisations, users } from './tenancy';
 
@@ -270,6 +271,23 @@ export const dataSubjectRequests = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closureRationale: text('closure_rationale'),
 
+    /**
+     * Moved in from another platform, with its real dates, so its month reads
+     * as it would have here (decision 6 of issue #64): an open one already
+     * past its deadline is overdue now. What moved the clock there came in as
+     * decisions, each marked with the import that made it.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -278,6 +296,11 @@ export const dataSubjectRequests = pgTable(
       .defaultNow()
   },
   (t) => [
+    uniqueIndex('data_subject_request_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     uniqueIndex('data_subject_request_reference_key').on(
       t.organisationId,
       t.reference
@@ -361,7 +384,15 @@ export const dataSubjectRequestDecisions = pgTable(
     decidedByLabel: text('decided_by_label').notNull(),
     decidedAt: timestamp('decided_at', { withTimezone: true })
       .notNull()
-      .defaultNow()
+      .defaultNow(),
+    /**
+     * The import that brought this decision in from another platform, where
+     * one did: so undoing it removes the decisions it made, and a decision
+     * made here since still stops the undo.
+     */
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    })
   },
   (t) => [
     index('data_subject_request_decision_request_idx').on(
