@@ -1,5 +1,6 @@
 import type {
   AiUseCaseIn,
+  InformationAssetIn,
   ProcessingActivityIn,
   VendorIn
 } from '@/lib/integration/contracts';
@@ -13,6 +14,14 @@ export type ImportMapping = {
 };
 
 type Legacy = Record<string, string>;
+
+/** A link between registers an import made, kept on its row for undo. */
+export type ImportLink = {
+  kind: 'asset_activity' | 'asset_supplier';
+  /** The record the row wrote. */
+  from: string;
+  to: string;
+};
 
 /** One row, converted and checked, ready to write. */
 export type ImportRecord =
@@ -58,5 +67,10 @@ export type ImportRecord =
   | {
       kind: 'ai_use_case';
       data: Omit<AiUseCaseIn, 'entity' | 'automatedDecisions'>;
+      legacy: Legacy;
+    }
+  | {
+      kind: 'information_asset';
+      data: InformationAssetIn;
       legacy: Legacy;
     };

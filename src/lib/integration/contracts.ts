@@ -235,6 +235,37 @@ export const vendorBatch = z.object({
 export const dpaBatch = z.object({
   records: z.array(dpaIn).min(1).max(MAX_BATCH)
 });
+/**
+ * An information asset. Read by the importer only: no ingest route takes it
+ * (decision 8 of the plan in issue #64). Its type and classification are
+ * checked against the organisation's own typology and scheme when it is
+ * matched, since those differ between organisations.
+ */
+export const informationAssetIn = z.object({
+  externalRef,
+  name: shortText,
+  description: longText.optional(),
+  /** A type's key or label, built in or the organisation's own. */
+  assetType: shortText,
+  /** The owner's email address, matched to a member. */
+  owner: z.string().max(320).optional(),
+  hosting: z.enum(['on_premises', 'saas', 'cloud', 'hybrid']).optional(),
+  hostedBy: z.string().max(200).optional(),
+  region: z.string().max(200).optional(),
+  countries: z.array(z.string().max(100)).max(100).default([]),
+  /** A level's key or label in the organisation's scheme. */
+  classification: z.string().max(100).optional(),
+  retention: z.string().max(2000).optional(),
+  nextReviewAt: z.iso.datetime().optional(),
+  expiresAt: z.iso.datetime().optional(),
+  noticeDays: z.number().int().min(0).max(3650).optional(),
+  autoRenews: z.boolean().optional(),
+  /** Processing activities that use it, by reference or name. */
+  activities: z.array(z.string().max(500)).max(100).default([]),
+  /** Suppliers that host, run or support it, by name. */
+  suppliers: z.array(z.string().max(500)).max(100).default([])
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -248,6 +279,7 @@ export type DpaIn = z.infer<typeof dpaIn>;
 export type EvidenceIn = z.infer<typeof evidenceIn>;
 export type ScanBatchIn = z.infer<typeof scanBatchIn>;
 export type AiUseCaseIn = z.infer<typeof aiUseCaseIn>;
+export type InformationAssetIn = z.infer<typeof informationAssetIn>;
 
 export type IngestOutcome = {
   received: number;

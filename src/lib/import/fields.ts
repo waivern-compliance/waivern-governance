@@ -2,6 +2,7 @@ import {
   aiUseCaseIn,
   dpaIn,
   evidenceIn,
+  informationAssetIn,
   processingActivityIn,
   vendorIn
 } from '@/lib/integration/contracts';
@@ -15,13 +16,19 @@ import type { ImportMapping, ImportRecord } from './types';
  */
 
 export type RecordType =
-  'supplier' | 'processing_activity' | 'dpa' | 'evidence' | 'ai_use_case';
+  | 'supplier'
+  | 'processing_activity'
+  | 'dpa'
+  | 'evidence'
+  | 'ai_use_case'
+  | 'information_asset';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'processing_activity',
   'evidence',
-  'ai_use_case'
+  'ai_use_case',
+  'information_asset'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -31,7 +38,15 @@ export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
 ]);
 
 type FieldKind =
-  'text' | 'list' | 'date' | 'role' | 'transfers' | 'choice' | 'yesno' | 'file';
+  | 'text'
+  | 'list'
+  | 'date'
+  | 'role'
+  | 'transfers'
+  | 'choice'
+  | 'yesno'
+  | 'number'
+  | 'file';
 
 /** A value a choice field accepts, and the words that mean it. */
 type Choice = { value: string; label: string; words: string[] };
@@ -497,6 +512,131 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       kind: 'list',
       aliases: ['data categories', 'categories of data', 'data types']
     }
+  ],
+  information_asset: [
+    ID,
+    {
+      key: 'name',
+      label: 'Name',
+      kind: 'text',
+      required: true,
+      aliases: ['name', 'asset', 'asset name', 'system', 'system name']
+    },
+    {
+      key: 'assetType',
+      label: 'Type',
+      kind: 'text',
+      required: true,
+      hint: "One of this organisation's asset types, by name: Application, Database, Domain name, or one of its own.",
+      aliases: ['type', 'asset type', 'category', 'kind']
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      kind: 'text',
+      aliases: ['description', 'details', 'notes']
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with the asset, and the asset shows no owner.',
+      aliases: [
+        'owner',
+        'asset owner',
+        'owner email',
+        'information asset owner'
+      ]
+    },
+    {
+      key: 'hosting',
+      label: 'Hosting',
+      kind: 'choice',
+      aliases: ['hosting', 'hosting model', 'deployment'],
+      choices: [
+        choice(
+          'on_premises',
+          'On premises',
+          'on prem',
+          'on-prem',
+          'onsite',
+          'in house'
+        ),
+        choice('saas', 'SaaS', 'software as a service', 'vendor hosted'),
+        choice('cloud', 'Cloud', 'iaas', 'paas', 'public cloud'),
+        choice('hybrid', 'Hybrid', 'mixed')
+      ]
+    },
+    {
+      key: 'hostedBy',
+      label: 'Hosted by',
+      kind: 'text',
+      aliases: ['hosted by', 'host', 'provider', 'hosting provider', 'location']
+    },
+    {
+      key: 'region',
+      label: 'Region',
+      kind: 'text',
+      aliases: ['region', 'data centre region', 'data center region']
+    },
+    {
+      key: 'countries',
+      label: 'Countries held in',
+      kind: 'list',
+      aliases: ['countries', 'country', 'storage countries', 'data location']
+    },
+    {
+      key: 'classification',
+      label: 'Classification',
+      kind: 'text',
+      hint: "A level of this organisation's classification scheme, by name.",
+      aliases: ['classification', 'data classification', 'sensitivity']
+    },
+    {
+      key: 'retention',
+      label: 'Retention',
+      kind: 'text',
+      aliases: ['retention', 'retention period']
+    },
+    {
+      key: 'nextReviewAt',
+      label: 'Next review',
+      kind: 'date',
+      aliases: ['next review', 'review date', 'review due']
+    },
+    {
+      key: 'expiresAt',
+      label: 'Expires or renews',
+      kind: 'date',
+      hint: 'Kept only for a type that expires, such as a domain name or a licence.',
+      aliases: ['expires', 'expiry', 'expiry date', 'renewal date', 'renews']
+    },
+    {
+      key: 'noticeDays',
+      label: 'Notice (days)',
+      kind: 'number',
+      aliases: ['notice', 'notice days', 'notice period']
+    },
+    {
+      key: 'autoRenews',
+      label: 'Renews automatically',
+      kind: 'yesno',
+      aliases: ['auto renews', 'auto renew', 'automatic renewal']
+    },
+    {
+      key: 'activities',
+      label: 'Processing activities',
+      kind: 'list',
+      hint: 'By reference (ROPA-2026-0004), their identifier in the platform, or name. Each must already be recorded in this entity.',
+      aliases: ['processing activities', 'activities', 'ropa', 'processes']
+    },
+    {
+      key: 'suppliers',
+      label: 'Suppliers',
+      kind: 'list',
+      hint: 'By name. Each must already be recorded.',
+      aliases: ['suppliers', 'vendors', 'third parties']
+    }
   ]
 };
 
@@ -598,6 +738,15 @@ export function readChoice(field: FieldDef, value: string): string {
   return found.value;
 }
 
+export function readNumber(field: FieldDef, value: string): number {
+  const v = value.trim();
+  if (!/^\d+$/.test(v))
+    throw new RowRefused(
+      `"${value}" is not a whole number, for ${field.label.toLowerCase()}.`
+    );
+  return Number(v);
+}
+
 export function readYesNo(field: FieldDef, value: string): boolean {
   const v = words(value);
   if (['yes', 'y', 'true', '1'].includes(v)) return true;
@@ -649,6 +798,8 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
     }
     case 'ai_use_case':
       return aiUseCaseIn.safeParse(data);
+    case 'information_asset':
+      return informationAssetIn.safeParse(data);
   }
 }
 
@@ -698,7 +849,9 @@ export function convertRow(
                   ? readChoice(f, raw)
                   : f.kind === 'yesno'
                     ? readYesNo(f, raw)
-                    : raw;
+                    : f.kind === 'number'
+                      ? readNumber(f, raw)
+                      : raw;
     }
     data.externalRef = sourceRef!;
     // Evidence is a document unless the row only gives a link.

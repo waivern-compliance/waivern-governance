@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -15,6 +16,7 @@ import type { AssetClassification, HostingModel } from '@/lib/assets/register';
 import type { AssetDetailValues } from '@/lib/assets/types';
 
 import { supplierContracts } from './contracts';
+import { importBatches, importSources } from './imports';
 import { processingActivities, suppliers } from './integration';
 import { risks } from './risks';
 import { entities, organisations, users } from './tenancy';
@@ -73,6 +75,21 @@ export const informationAssets = pgTable(
     /** No longer in use: kept, with its links, and owes nothing. */
     retiredAt: timestamp('retired_at', { withTimezone: true }),
     retiredReason: text('retired_reason'),
+    /**
+     * Moved in from another platform (docs/migration-plan.md): its identifier
+     * there, the batch, and the source's fields with no home here, kept to read.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -85,6 +102,11 @@ export const informationAssets = pgTable(
       t.organisationId,
       t.reference
     ),
+    uniqueIndex('information_asset_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     index('information_asset_entity_idx').on(t.organisationId, t.entityId),
     index('information_asset_review_idx').on(t.organisationId, t.nextReviewAt),
     index('information_asset_type_idx').on(t.organisationId, t.assetType),

@@ -69,7 +69,7 @@ Every help topic the application carries, in the order it presents them.
 - [Who approves what, and changing it](#who-approves-what-and-changing-it) - Approvers are named by role rather than by person, so a departure is handled by moving the role - and both are managed on one screen.
 - [AI governance framework](#ai-governance-framework) - Whether AI risk follows the UK framework or NIST AI RMF, and what changes when the organisation moves from one to the other.
 - [Connected tools](#connected-tools) - Signed endpoints that let the Compliance Portal and scanning tools push records in and pull current state out.
-- [Importing records from another platform](#importing-records-from-another-platform) - Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files: match the columns, preview every row, then import.
+- [Importing records from another platform](#importing-records-from-another-platform) - Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files, AI systems and information assets: match the columns, preview every row, then import.
 - [The organisation and its legal entities](#the-organisation-and-its-legal-entities) - What this organisation is called, the legal entities within it, and who may add them.
 - [Deleting a legal entity](#deleting-a-legal-entity) - Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.
 - [Accepting Waivern's terms and Data Processing Agreement](#accepting-waiverns-terms-and-data-processing-agreement) - On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.
@@ -2005,7 +2005,7 @@ The Portal reads the register back, with each system's gaps and its latest appro
 
 ## Importing records from another platform
 
-*Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files: match the columns, preview every row, then import.*
+*Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files, AI systems and information assets: match the columns, preview every row, then import.*
 
 **Screen:** `/app/admin/imports`
 
@@ -2031,6 +2031,14 @@ A piece of evidence can say which record it supports, by that record's reference
 
 Each AI system needs a name, a purpose, its type (predictive, generative, agentic or hybrid) and where it comes from (built in house, fine-tuned, a third-party API, or inside a product bought for something else). Common words for these, such as "LLM" or "in house", are understood; anything else stops that row. A stage, such as live or pilot, is used when a system is first recorded; importing again never moves its stage, which is a decision with its own checks here. A system an import registers stays on the register for good, as every registered system does, so an import that registered AI systems cannot be undone: retire one registered in error from its page.
 
+### Information assets
+
+Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.
+
+An asset can name the processing activities that use it, by reference, ID in the platform or name, and the suppliers that host or run it, by name. Each must already be recorded, so import those first; a row naming one Govern does not know is not imported, with the reason. Importing again adds links the file names and never removes one.
+
+An imported asset raises no review or renewal reminders until it is confirmed, so an inventory moved in with old dates does not bury the reminders that matter.
+
 ### Importing again
 
 Give a column with each record's ID in the other platform. Importing the same platform's file again then updates the records it brought in before; it never duplicates them. Without an ID column, the name is used instead: for an agreement, its supplier and title; for evidence, its title, date and file, so a new year's report of the same name is a new record. IDs are compared without regard to capitals. An agreement imported before against another supplier, or archived since, is not changed by importing it again; the row says why. A supplier whose name is already recorded is added to, not duplicated: what the file says about it joins what is known. Importing again never erases: a column the file leaves out, or a cell left empty, keeps what is recorded, and a vendor recorded on an AI system stays. An agreement whose transfer mechanisms were ticked on its supplier's page is not changed by a row describing them differently; the row says why.
@@ -2041,13 +2049,13 @@ The matching of columns is remembered for each platform and kind of record, and 
 
 Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.
 
-An imported processing activity, agreement, piece of evidence or AI system shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
+An imported processing activity, agreement, piece of evidence, AI system or information asset shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
 
 ### Undoing an import
 
 An import can be undone as a whole while nobody has worked on its records since: undoing removes the records it created, with the files and links it made, and puts back what it changed. Once any of them has been edited or confirmed, or is linked to an assessment, an agreement or another record, it can no longer be undone as a whole; change or remove them one by one.
 
-**See also:** Third parties and processor agreements (Article 28) · The processing register (Article 30) · Evidence · Exports
+**See also:** Third parties and processor agreements (Article 28) · The processing register (Article 30) · Evidence · Information asset register · Exports
 
 <sub>Also searchable as: import, migrate, migration, OneTrust, Vanta, CSV, Excel, spreadsheet, upload</sub>
 
