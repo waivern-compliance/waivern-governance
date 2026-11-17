@@ -266,6 +266,40 @@ export const informationAssetIn = z.object({
   suppliers: z.array(z.string().max(500)).max(100).default([])
 });
 
+/**
+ * A risk on the register. Read by the importer only, like an asset. Ratings
+ * are as written in the source; they are read onto the organisation's scale
+ * when matched, with the translations a person chose for that source.
+ */
+export const riskIn = z.object({
+  externalRef,
+  title: shortText,
+  description: longText.min(1),
+  category: z.string().max(200).optional(),
+  /** The owner's email address, matched to a member. */
+  owner: z.string().max(320).optional(),
+  inherentLikelihood: z.string().min(1).max(100),
+  inherentImpact: z.string().min(1).max(100),
+  residualLikelihood: z.string().max(100).optional(),
+  residualImpact: z.string().max(100).optional(),
+  status: z
+    .enum(['identified', 'treating', 'mitigated', 'accepted', 'closed'])
+    .optional(),
+  openedAt: z.iso.datetime().optional(),
+  closedAt: z.iso.datetime().optional(),
+  nextReviewAt: z.iso.datetime().optional(),
+  /** An acceptance given in the source: kept as its history, not as one given here. */
+  acceptedBy: z.string().max(320).optional(),
+  acceptedAt: z.iso.datetime().optional(),
+  acceptanceExpiresAt: z.iso.datetime().optional(),
+  acceptanceRationale: longText.optional(),
+  /** What it concerns, by reference, identifier in the source, or name. */
+  activities: z.array(z.string().max(500)).max(100).default([]),
+  suppliers: z.array(z.string().max(500)).max(100).default([]),
+  aiSystems: z.array(z.string().max(500)).max(100).default([]),
+  assets: z.array(z.string().max(500)).max(100).default([])
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -280,6 +314,7 @@ export type EvidenceIn = z.infer<typeof evidenceIn>;
 export type ScanBatchIn = z.infer<typeof scanBatchIn>;
 export type AiUseCaseIn = z.infer<typeof aiUseCaseIn>;
 export type InformationAssetIn = z.infer<typeof informationAssetIn>;
+export type RiskIn = z.infer<typeof riskIn>;
 
 export type IngestOutcome = {
   received: number;

@@ -15,6 +15,7 @@ import {
   importRows,
   importSources,
   informationAssetActivities,
+  informationAssetRisks,
   informationAssets,
   informationAssetSuppliers,
   memberships,
@@ -24,6 +25,7 @@ import {
   suppliers,
   users
 } from '@/db/schema';
+import { AI_FRAMEWORKS } from '@/lib/ai-frameworks';
 import {
   CLASSIFICATION_SCHEMES,
   type AssetClassification
@@ -38,6 +40,7 @@ import {
   ENTITY_SCOPED,
   FIELDS,
   guessMapping,
+  TRANSLATED,
   type RecordType
 } from '@/lib/import/fields';
 import {
@@ -51,9 +54,11 @@ import {
 import type {
   ImportLink,
   ImportMapping,
-  ImportRecord
+  ImportRecord,
+  SourceEvent
 } from '@/lib/import/types';
 import { nextReference } from '@/lib/references';
+import { rate, SCALES, type RiskScaleId } from '@/lib/risk/scale';
 
 import { createUseCase } from './ai-register';
 import { assetTypology } from './asset-types';
@@ -61,6 +66,7 @@ import { checkFile, insertDocument, UploadRefused } from './documents';
 import { ExtractionUnavailable, runExtraction } from './extraction';
 import { classificationSchemeOf } from './information-assets';
 import { canonicalise as canonicaliseByPush } from './ingest';
+import { riskScaleOf } from './risks';
 import { cleanLawfulBases } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise } from './third-party';
@@ -319,10 +325,69 @@ export async function loadImport(batchId: string, organisationId: string) {
               batch.columns.includes(c)
             )
           ),
-          keepUnmapped: offered.keepUnmapped
+          keepUnmapped: offered.keepUnmapped,
+          ...(offered.values ? { values: offered.values } : {})
         }
       : guessMapping(batch.recordType, batch.columns);
     return { batch, rows, mapping, files };
+  });
+}
+
+/** At most this many values are offered for translation per field. */
+const TRANSLATION_LIMIT = 40;
+
+/** The values each translated field's column holds, as written, without repeats. */
+function valuesIn(
+  table: Table,
+  recordType: RecordType,
+  mapping: ImportMapping
+): Record<string, string[]> {
+  const found: Record<string, string[]> = {};
+  for (const f of FIELDS[recordType]) {
+    if (!TRANSLATED.has(f.key) || !mapping.fields[f.key]) continue;
+    const at = table.columns.indexOf(mapping.fields[f.key]);
+    const seen = new Map<string, string>();
+    for (const cells of table.rows) {
+      const v = String(cells[at] ?? '').trim();
+      if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+      if (seen.size >= TRANSLATION_LIMIT) break;
+    }
+    found[f.key] = [...seen.values()].sort((a, b) =>
+      a.localeCompare(b, 'en', { numeric: true })
+    );
+  }
+  return found;
+}
+
+/**
+ * The values each translated field's column held at the last preview, for a
+ * person to say what each is on this organisation's scale. With the scale,
+ * for the choices.
+ */
+export async function valuesToTranslate(
+  organisationId: string,
+  batchId: string
+): Promise<{
+  scale: RiskScaleId;
+  fields: Array<{ key: string; values: string[] }>;
+}> {
+  return withOrganisation(organisationId, async () => {
+    const [batch] = await db
+      .select({ found: importBatches.valuesFound })
+      .from(importBatches)
+      .where(
+        and(
+          eq(importBatches.id, batchId),
+          eq(importBatches.organisationId, organisationId)
+        )
+      );
+    const scale = await riskScaleOf(organisationId);
+    return {
+      scale,
+      fields: Object.entries(batch?.found ?? {})
+        .filter(([, values]) => values.length > 0)
+        .map(([key, values]) => ({ key, values }))
+    };
   });
 }
 
@@ -530,12 +595,27 @@ type AssetResolved = {
   supplierIds: string[];
 };
 
+/** A risk's row read onto this organisation's scale and registers. */
+type RiskResolved = {
+  scale: RiskScaleId;
+  inherent: { likelihood: number; impact: number };
+  residual: { likelihood: number; impact: number } | null;
+  ownerId: string | null;
+  category: string | null;
+  concerns: Array<{
+    type: 'processing_activity' | 'supplier' | 'ai_use_case';
+    id: string;
+  }>;
+  assetIds: string[];
+};
+
 type Resolved = {
   /** The supplier an agreement belongs to, or an AI system is linked to. */
   supplierId?: string | null;
   /** The record a piece of evidence supports. */
   attach?: Attachment | null;
   asset?: AssetResolved;
+  risk?: RiskResolved;
 };
 
 type Decision =
@@ -549,13 +629,19 @@ type Batch = {
   sourceId: string;
   recordType: RecordType;
   entityId: string | null;
+  mapping?: ImportMapping | null;
 };
 
 /** Records of one entity-scoped kind imported from this source, by their identifier there. */
 async function importedBy(
   tx: Tx,
   batch: Batch,
-  kind: 'processing_activity' | 'evidence' | 'ai_use_case' | 'information_asset'
+  kind:
+    | 'processing_activity'
+    | 'evidence'
+    | 'ai_use_case'
+    | 'information_asset'
+    | 'risk'
 ) {
   const table = TABLE[kind];
   const rows = await tx
@@ -800,6 +886,16 @@ async function matcher(
         return decide(sourceRef, { supplierId });
       };
     }
+    case 'risk': {
+      const decide = await importedBy(tx, batch, 'risk');
+      const resolve = await riskResolver(tx, batch);
+      return (record, sourceRef) => {
+        const risk = resolve((record as Of<'risk'>).data);
+        return 'reason' in risk
+          ? { action: 'refuse', reason: risk.reason }
+          : decide(sourceRef, { risk });
+      };
+    }
     case 'information_asset': {
       const decide = await importedBy(tx, batch, 'information_asset');
       const resolve = await assetResolver(tx, batch);
@@ -883,6 +979,190 @@ async function activitiesByName(tx: Tx, batch: Batch) {
     byKey.get(`ref:${given.trim().toLowerCase()}`) ??
     byKey.get(`name:${loose(given)}`) ??
     null;
+}
+
+/** Records of the batch's entity by Govern reference, ID in this source, or name. */
+async function entityRecordsByName(
+  tx: Tx,
+  batch: Batch,
+  table: typeof aiUseCases | typeof informationAssets
+) {
+  const rows = (await tx
+    .select()
+    .from(table)
+    .where(
+      and(
+        eq(table.organisationId, batch.organisationId),
+        eq(table.entityId, batch.entityId!)
+      )
+    )) as Array<{
+    id: string;
+    name: string;
+    reference?: string;
+    externalRef: string | null;
+    importSourceId: string | null;
+  }>;
+  const byKey = new Map<string, string>();
+  for (const r of rows) byKey.set(`name:${loose(r.name)}`, r.id);
+  for (const r of rows)
+    if (r.importSourceId === batch.sourceId && r.externalRef)
+      byKey.set(`ref:${r.externalRef.toLowerCase()}`, r.id);
+  for (const r of rows)
+    if (r.reference) byKey.set(`ref:${r.reference.toLowerCase()}`, r.id);
+  return (given: string) =>
+    byKey.get(`ref:${given.trim().toLowerCase()}`) ??
+    byKey.get(`name:${loose(given)}`) ??
+    null;
+}
+
+/** An AI risk category by its key or label, or the category as written. */
+function categoryOf(given: string | undefined): string | null {
+  const v = given?.trim();
+  if (!v) return null;
+  for (const pack of Object.values(AI_FRAMEWORKS))
+    for (const c of pack.categories)
+      if (c.value === v.toLowerCase() || loose(c.label) === loose(v))
+        return c.value;
+  return v;
+}
+
+/**
+ * A rating read onto the organisation's scale: a number on it, one of its
+ * words ("Likely"), or the value a person said it is for this source. Nothing
+ * else is guessed, so a rating of "High" waits for a person to say what high
+ * means here.
+ */
+function ratingReader(
+  scale: RiskScaleId,
+  values: ImportMapping['values'] = {}
+) {
+  const points = {
+    likelihood: SCALES[scale].likelihood,
+    impact: SCALES[scale].impact
+  };
+  return (
+    field: string,
+    axis: 'likelihood' | 'impact',
+    label: string,
+    given: string
+  ): number | { reason: string } => {
+    const v = given.trim();
+    const chosen = values[field]?.[v.toLowerCase()];
+    if (chosen) {
+      // Saved for this source on another scale, before the scale changed.
+      if (points[axis].some((p) => p.value === Number(chosen)))
+        return Number(chosen);
+      return {
+        reason: `${label} "${v}" was translated as ${chosen}, which is not on the ${SCALES[scale].inSentence} scale this organisation now uses. Say again what it is on the matching step.`
+      };
+    }
+    const n = Number(v);
+    if (Number.isInteger(n) && points[axis].some((p) => p.value === n))
+      return n;
+    const word = points[axis].find((p) => loose(p.label) === loose(v));
+    if (word) return word.value;
+    return {
+      reason: `${label} "${v}" is not on the ${SCALES[scale].inSentence} scale this organisation uses. Say what it is on the matching step.`
+    };
+  };
+}
+
+/**
+ * A risk's ratings, owner, category and links read into this organisation's
+ * terms. What it concerns must already be recorded in the entity; an owner
+ * who is not a member is kept to read, as for assets.
+ */
+async function riskResolver(tx: Tx, batch: Batch) {
+  const [scale, memberOf, activityOf, supplierOf, systemOf, assetOf] =
+    await Promise.all([
+      riskScaleOf(batch.organisationId, tx),
+      membersByEmail(tx, batch.organisationId),
+      activitiesByName(tx, batch),
+      suppliersByKey(tx, batch.organisationId),
+      entityRecordsByName(tx, batch, aiUseCases),
+      entityRecordsByName(tx, batch, informationAssets)
+    ]);
+  const read = ratingReader(scale, batch.mapping?.values);
+  return (data: Of<'risk'>['data']): RiskResolved | { reason: string } => {
+    const likelihood = read(
+      'inherentLikelihood',
+      'likelihood',
+      'Likelihood',
+      data.inherentLikelihood
+    );
+    if (typeof likelihood !== 'number') return likelihood;
+    const impact = read(
+      'inherentImpact',
+      'impact',
+      'Impact',
+      data.inherentImpact
+    );
+    if (typeof impact !== 'number') return impact;
+    let residual: RiskResolved['residual'] = null;
+    if (data.residualLikelihood || data.residualImpact) {
+      if (!data.residualLikelihood || !data.residualImpact)
+        return {
+          reason:
+            'A residual rating needs both its likelihood and its impact, or neither.'
+        };
+      const rl = read(
+        'residualLikelihood',
+        'likelihood',
+        'Residual likelihood',
+        data.residualLikelihood
+      );
+      if (typeof rl !== 'number') return rl;
+      const ri = read(
+        'residualImpact',
+        'impact',
+        'Residual impact',
+        data.residualImpact
+      );
+      if (typeof ri !== 'number') return ri;
+      residual = { likelihood: rl, impact: ri };
+    }
+    if (data.status === 'closed' && !data.closedAt)
+      return { reason: 'A closed risk needs the date it was closed.' };
+    const concerns: RiskResolved['concerns'] = [];
+    const lookups = [
+      [
+        'processing_activity',
+        data.activities,
+        activityOf,
+        'processing activity'
+      ],
+      ['supplier', data.suppliers, supplierOf, 'supplier'],
+      ['ai_use_case', data.aiSystems, systemOf, 'AI system']
+    ] as const;
+    for (const [type, names, find, words] of lookups)
+      for (const name of names) {
+        const id = find(name);
+        if (!id)
+          return {
+            reason: `No ${words} "${name}" is recorded${type === 'supplier' ? '' : ' in this entity'}. Import or add it first.`
+          };
+        if (!concerns.some((c) => c.type === type && c.id === id))
+          concerns.push({ type, id });
+      }
+    const assetIds: string[] = [];
+    for (const name of data.assets) {
+      const id = assetOf(name);
+      if (!id)
+        return {
+          reason: `No information asset "${name}" is recorded in this entity. Import or add it first.`
+        };
+      if (!assetIds.includes(id)) assetIds.push(id);
+    }
+    return {
+      scale,
+      inherent: { likelihood, impact },
+      residual,
+      ownerId: data.owner ? memberOf(data.owner) : null,
+      category: categoryOf(data.category),
+      concerns,
+      assetIds
+    };
+  };
 }
 
 /**
@@ -1002,19 +1282,36 @@ export async function previewImport(input: {
           throw new ImportRefused(
             `Choose the column that holds ${f.label.toLowerCase()}.`
           );
-      const used = Object.values(fields);
+      // Ratings may share a column: a source that gives one rating ("High")
+      // has it read as both likelihood and impact, each translated.
+      const used = Object.entries(fields)
+        .filter(([key]) => !TRANSLATED.has(key))
+        .map(([, column]) => column);
       const twice = used.find((c, i) => used.indexOf(c) !== i);
       if (twice)
         throw new ImportRefused(
           `"${twice}" is matched to two fields. Match each column to one.`
         );
+      const values = Object.fromEntries(
+        Object.entries(input.mapping.values ?? {})
+          .filter(([key]) => TRANSLATED.has(key) && fields[key])
+          .map(([key, table]) => [
+            key,
+            Object.fromEntries(
+              Object.entries(table)
+                .filter(([, v]) => /^\d$/.test(v))
+                .map(([k, v]) => [k.trim().toLowerCase(), v])
+            )
+          ])
+      );
       const mapping: ImportMapping = {
         fields,
-        keepUnmapped: input.mapping.keepUnmapped
+        keepUnmapped: input.mapping.keepUnmapped,
+        ...(Object.keys(values).length ? { values } : {})
       };
 
       const table = await readFile(batch.file);
-      const decide = await matcher(tx, batch);
+      const decide = await matcher(tx, { ...batch, mapping });
       const seen = new Map<string, number>();
       const rows: Array<typeof importRows.$inferInsert> = [];
       for (const [i, cells] of table.rows.entries()) {
@@ -1075,7 +1372,12 @@ export async function previewImport(input: {
       const counts = tally(rows.map((r) => r.action as Action));
       await tx
         .update(importBatches)
-        .set({ status: 'previewed', mapping, counts })
+        .set({
+          status: 'previewed',
+          mapping,
+          counts,
+          valuesFound: valuesIn(table, batch.recordType, mapping)
+        })
         .where(eq(importBatches.id, batch.id));
       await tx
         .insert(importMappings)
@@ -1261,6 +1563,27 @@ const KEYS: Record<RecordType, string[]> = {
     'noticeDays',
     'autoRenews',
     ...IMPORT_KEYS
+  ],
+  risk: [
+    'title',
+    'description',
+    'category',
+    'ownerId',
+    'scale',
+    'inherentLikelihood',
+    'inherentImpact',
+    'inherentScore',
+    'inherentTier',
+    'residualLikelihood',
+    'residualImpact',
+    'residualScore',
+    'residualTier',
+    'status',
+    'openedAt',
+    'closedAt',
+    'nextReviewAt',
+    'sourceHistory',
+    ...IMPORT_KEYS
   ]
 };
 
@@ -1272,7 +1595,9 @@ const DATE_KEYS = new Set([
   'signedAt',
   'expiresAt',
   'collectedAt',
-  'nextReviewAt'
+  'nextReviewAt',
+  'openedAt',
+  'closedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -1301,7 +1626,8 @@ const TABLE = {
   dpa: dpas,
   evidence,
   ai_use_case: aiUseCases,
-  information_asset: informationAssets
+  information_asset: informationAssets,
+  risk: risks
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -1340,6 +1666,8 @@ type WriteContext = {
   at: Date;
   sourceRef: string;
   decision: Exclude<Decision, { action: 'refuse' }>;
+  /** The platform the batch came from, as named here. */
+  sourceName: string;
   /** The entity's default regime, for a new processing activity. */
   regime?: (typeof processingActivities.$inferInsert)['regime'] | null;
   /** The entity's data protection law: a new activity takes it, and bases are read under it. */
@@ -1790,6 +2118,8 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writeUseCase(c, record);
     case 'information_asset':
       return writeAsset(c, record);
+    case 'risk':
+      return writeRisk(c, record);
   }
 }
 
@@ -1822,6 +2152,11 @@ const ASSET_LINK = {
     table: informationAssetSuppliers,
     target: informationAssetSuppliers.supplierId,
     key: 'supplierId'
+  },
+  asset_risk: {
+    table: informationAssetRisks,
+    target: informationAssetRisks.riskId,
+    key: 'riskId'
   }
 } as const;
 
@@ -1932,11 +2267,217 @@ async function writeAsset(
 /** Remove the links an import made, and only those. */
 async function removeLinks(tx: Tx, links: ImportLink[]) {
   for (const link of links) {
+    if (link.kind === 'record_link') {
+      await tx.delete(recordLinks).where(eq(recordLinks.id, link.id));
+      continue;
+    }
     const { table, target } = ASSET_LINK[link.kind];
     await tx
       .delete(table)
       .where(and(eq(table.assetId, link.from), eq(target, link.to)));
   }
+}
+
+const day = (iso: string | undefined) => iso?.slice(0, 10);
+
+/**
+ * What the old platform recorded about a risk that was not done here: an
+ * acceptance above all. Kept as that platform's account, so the risk waits
+ * to be accepted again here rather than being treated as accepted.
+ */
+type RiskStatus = (typeof risks.$inferSelect)['status'];
+
+/**
+ * The status a risk takes from a row. Accepted there is not accepted here:
+ * a new risk waits for somebody here to take responsibility for it (decision
+ * 2 of the migration plan). On a re-import, a file that does not say, or says
+ * accepted, leaves the status as recorded, and an acceptance given here
+ * stands whatever the file says: that was a person's decision here.
+ */
+function statusFor(
+  given: Of<'risk'>['data']['status'],
+  current: RiskStatus | undefined
+): RiskStatus {
+  if (current === 'accepted') return current;
+  if (!given || given === 'accepted') return current ?? 'identified';
+  return given;
+}
+
+function riskHistory(
+  data: Of<'risk'>['data'],
+  source: string
+): SourceEvent[] | null {
+  const accepted =
+    data.status === 'accepted' ||
+    data.acceptedBy ||
+    data.acceptedAt ||
+    data.acceptanceRationale;
+  if (!accepted) return null;
+  const until = day(data.acceptanceExpiresAt);
+  return [
+    {
+      at: data.acceptedAt ?? null,
+      what: `Accepted in ${source}`,
+      ...(data.acceptedBy ? { by: data.acceptedBy } : {}),
+      ...(data.acceptanceRationale || until
+        ? {
+            detail: [
+              data.acceptanceRationale,
+              until ? `Accepted until ${until}.` : null
+            ]
+              .filter(Boolean)
+              .join(' ')
+          }
+        : {})
+    }
+  ];
+}
+
+async function writeRisk(
+  c: WriteContext,
+  record: Of<'risk'>
+): Promise<Written> {
+  const resolved = c.decision.risk!;
+  const { data } = record;
+  const inherent = rate(
+    resolved.inherent.likelihood,
+    resolved.inherent.impact,
+    resolved.scale
+  );
+  const residual = resolved.residual
+    ? rate(
+        resolved.residual.likelihood,
+        resolved.residual.impact,
+        resolved.scale
+      )
+    : null;
+  // The scale can change only while the register is empty, so a risk
+  // imported before is on the scale read now.
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'risk', c.decision.recordId)
+    : null;
+  const described = {
+    title: data.title,
+    description: data.description,
+    category: resolved.category,
+    scale: resolved.scale,
+    inherentLikelihood: resolved.inherent.likelihood,
+    inherentImpact: resolved.inherent.impact,
+    inherentScore: inherent.score,
+    inherentTier: inherent.tier,
+    residualLikelihood: resolved.residual?.likelihood ?? null,
+    residualImpact: resolved.residual?.impact ?? null,
+    residualScore: residual?.score ?? null,
+    residualTier: residual?.tier ?? null,
+    status: statusFor(data.status, was?.status as RiskStatus | undefined),
+    closedAt: data.closedAt ? new Date(data.closedAt) : null,
+    nextReviewAt: data.nextReviewAt ? new Date(data.nextReviewAt) : null,
+    sourceHistory: riskHistory(data, c.sourceName)
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  // A rating read through a translation keeps what the source said, so the
+  // translation can be checked against it.
+  const asWritten = (
+    [
+      [
+        'Likelihood as rated there',
+        data.inherentLikelihood,
+        resolved.inherent.likelihood
+      ],
+      ['Impact as rated there', data.inherentImpact, resolved.inherent.impact],
+      [
+        'Residual likelihood as rated there',
+        data.residualLikelihood,
+        resolved.residual?.likelihood
+      ],
+      [
+        'Residual impact as rated there',
+        data.residualImpact,
+        resolved.residual?.impact
+      ]
+    ] as const
+  ).filter(([, given, read]) => given && given.trim() !== String(read));
+  const legacy = {
+    ...record.legacy,
+    ...Object.fromEntries(asWritten.map(([label, given]) => [label, given!])),
+    ...(data.owner && !resolved.ownerId ? { Owner: data.owner } : {}),
+    ...(data.status === 'accepted' ? { Status: 'Accepted' } : {})
+  };
+  const kept = provenance(c, { ...record, legacy });
+  let id: string;
+  if (c.decision.recordId) {
+    // What the file leaves out stays as recorded, its history included.
+    await c.tx
+      .update(risks)
+      .set({ ...said(described), ...owner, ...kept })
+      .where(eq(risks.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const reference = await nextReference(
+      c.tx,
+      c.batch.organisationId,
+      'RISK',
+      c.at.getUTCFullYear()
+    );
+    const [created] = await c.tx
+      .insert(risks)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId!,
+        reference,
+        source: 'integration',
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        openedAt: data.openedAt ? new Date(data.openedAt) : c.at,
+        createdAt: c.at,
+        ...described,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: risks.id });
+    id = created.id;
+  }
+  // Links are added, never taken away, as for assets.
+  const links: ImportLink[] = [];
+  for (const target of resolved.concerns) {
+    const [made] = await c.tx
+      .insert(recordLinks)
+      .values({
+        organisationId: c.batch.organisationId,
+        fromType: 'risk',
+        fromId: id,
+        toType: target.type,
+        toId: target.id,
+        relation: 'concerns'
+      })
+      .onConflictDoNothing()
+      .returning({ id: recordLinks.id });
+    if (made) links.push({ kind: 'record_link', id: made.id });
+  }
+  for (const assetId of resolved.assetIds) {
+    const made = await c.tx
+      .insert(informationAssetRisks)
+      .values({ organisationId: c.batch.organisationId, assetId, riskId: id })
+      .onConflictDoNothing()
+      .returning();
+    if (made.length) links.push({ kind: 'asset_risk', from: assetId, to: id });
+  }
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: c.batch.entityId ?? undefined,
+    action: was ? 'risk.updated' : 'risk.created',
+    subjectType: 'risk',
+    subjectId: id,
+    after: {
+      title: data.title,
+      inherentTier: inherent.tier,
+      residualTier: residual?.tier ?? null,
+      linked: links.length,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return { id, before: was && snapshot(was, KEYS.risk), links };
 }
 
 /**
@@ -1975,6 +2516,10 @@ export async function commitImport(input: {
       const at = new Date();
       const actions: Action[] = [];
       const decide = await matcher(tx, batch);
+      const [source] = await tx
+        .select({ name: importSources.name })
+        .from(importSources)
+        .where(eq(importSources.id, batch.sourceId));
 
       for (const row of rows) {
         if (!row.record || !row.sourceRef) {
@@ -1999,6 +2544,7 @@ export async function commitImport(input: {
             at,
             sourceRef: row.sourceRef,
             decision,
+            sourceName: source.name,
             regime: entity?.defaultRegime,
             law: entity?.dataProtectionLaw
           },
@@ -2246,7 +2792,8 @@ export type Confirmable =
   | 'dpa'
   | 'evidence'
   | 'ai_use_case'
-  | 'information_asset';
+  | 'information_asset'
+  | 'risk';
 
 /** A person confirms an imported record, which then counts as current. */
 export async function confirmImportedRecord(input: {

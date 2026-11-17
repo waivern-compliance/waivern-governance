@@ -2,11 +2,15 @@ import { and, desc, eq, inArray, isNull, lte } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
+  aiUseCases,
   assessments,
   mitigations,
   organisations,
+  processingActivities,
+  recordLinks,
   riskAcceptances,
-  risks
+  risks,
+  suppliers
 } from '@/db/schema';
 import { suggestionByKey } from '@/lib/ai-frameworks';
 import { appendAuditEvent } from '@/lib/audit';
@@ -701,6 +705,67 @@ export async function risksForAssessment(
   });
 }
 
+/**
+ * The processing activities, suppliers and AI systems a risk concerns, where
+ * it says so directly rather than through the assessment that raised it.
+ * Read inside the organisation's scope.
+ */
+async function concernsOf(riskId: string) {
+  const links = await db
+    .select({ toType: recordLinks.toType, toId: recordLinks.toId })
+    .from(recordLinks)
+    .where(
+      and(
+        eq(recordLinks.fromType, 'risk'),
+        eq(recordLinks.fromId, riskId),
+        eq(recordLinks.relation, 'concerns')
+      )
+    );
+  const ids = (type: string) =>
+    links.filter((l) => l.toType === type).map((l) => l.toId);
+  const [activities, partners, systems] = await Promise.all([
+    ids('processing_activity').length
+      ? db
+          .select({
+            id: processingActivities.id,
+            name: processingActivities.name,
+            reference: processingActivities.reference
+          })
+          .from(processingActivities)
+          .where(inArray(processingActivities.id, ids('processing_activity')))
+      : [],
+    ids('supplier').length
+      ? db
+          .select({ id: suppliers.id, name: suppliers.name })
+          .from(suppliers)
+          .where(inArray(suppliers.id, ids('supplier')))
+      : [],
+    ids('ai_use_case').length
+      ? db
+          .select({ id: aiUseCases.id, name: aiUseCases.name })
+          .from(aiUseCases)
+          .where(inArray(aiUseCases.id, ids('ai_use_case')))
+      : []
+  ]);
+  return [
+    ...activities.map((a) => ({
+      href: `/app/ropa/${a.id}`,
+      label: `${a.reference} ${a.name}`,
+      kind: 'Processing activity'
+    })),
+    ...partners.map((p) => ({
+      href: `/app/third-parties/${p.id}`,
+      label: p.name,
+      kind: 'Supplier'
+    })),
+    ...systems.map((s) => ({
+      href: `/app/ai/${s.id}`,
+      label: s.name,
+      kind: 'AI system'
+    }))
+  ];
+}
+
 export async function loadRisk(riskId: string, organisationId: string) {
   return withOrganisation(organisationId, async () => {
     const [risk] = await db
@@ -734,7 +799,8 @@ export async function loadRisk(riskId: string, organisationId: string) {
       risk,
       mitigations: treatments,
       acceptances,
-      assessment: assessment[0] ?? null
+      assessment: assessment[0] ?? null,
+      concerns: await concernsOf(riskId)
     };
   });
 }

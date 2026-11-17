@@ -4,6 +4,7 @@ import {
   evidenceIn,
   informationAssetIn,
   processingActivityIn,
+  riskIn,
   vendorIn
 } from '@/lib/integration/contracts';
 
@@ -21,14 +22,16 @@ export type RecordType =
   | 'dpa'
   | 'evidence'
   | 'ai_use_case'
-  | 'information_asset';
+  | 'information_asset'
+  | 'risk';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'processing_activity',
   'evidence',
   'ai_use_case',
-  'information_asset'
+  'information_asset',
+  'risk'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -46,6 +49,8 @@ type FieldKind =
   | 'choice'
   | 'yesno'
   | 'number'
+  /** A rating on the source's own scale, read onto this organisation's when matched. */
+  | 'rating'
   | 'file';
 
 /** A value a choice field accepts, and the words that mean it. */
@@ -637,8 +642,172 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       hint: 'By name. Each must already be recorded.',
       aliases: ['suppliers', 'vendors', 'third parties']
     }
+  ],
+  risk: [
+    ID,
+    {
+      key: 'title',
+      label: 'Title',
+      kind: 'text',
+      required: true,
+      aliases: ['title', 'risk', 'risk name', 'name', 'risk title']
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      kind: 'text',
+      required: true,
+      aliases: ['description', 'risk description', 'details']
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      kind: 'text',
+      hint: 'Kept as written, or filed under the matching AI risk category.',
+      aliases: ['category', 'risk category', 'type']
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with the risk, and the risk shows no owner.',
+      aliases: ['owner', 'risk owner', 'owner email']
+    },
+    {
+      key: 'inherentLikelihood',
+      label: 'Likelihood (inherent)',
+      kind: 'rating',
+      required: true,
+      hint: "A number or a word on the source's scale. After the first preview, say what each value is on this organisation's scale.",
+      aliases: ['likelihood', 'inherent likelihood', 'probability']
+    },
+    {
+      key: 'inherentImpact',
+      label: 'Impact (inherent)',
+      kind: 'rating',
+      required: true,
+      hint: 'May be the same column as likelihood, where the source gives one rating.',
+      aliases: ['impact', 'inherent impact', 'severity', 'consequence']
+    },
+    {
+      key: 'residualLikelihood',
+      label: 'Likelihood (residual)',
+      kind: 'rating',
+      aliases: ['residual likelihood']
+    },
+    {
+      key: 'residualImpact',
+      label: 'Impact (residual)',
+      kind: 'rating',
+      aliases: ['residual impact', 'residual severity']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'A risk accepted in the source comes in waiting to be accepted here; the acceptance is kept as its history.',
+      aliases: ['status', 'state', 'risk status'],
+      choices: [
+        choice('identified', 'Identified', 'open', 'new', 'draft', 'raised'),
+        choice(
+          'treating',
+          'Being treated',
+          'treating',
+          'in progress',
+          'mitigating',
+          'in treatment'
+        ),
+        choice('mitigated', 'Mitigated', 'reduced', 'treated', 'controlled'),
+        choice('accepted', 'Accepted', 'tolerated', 'risk accepted'),
+        choice('closed', 'Closed', 'resolved', 'retired', 'archived')
+      ]
+    },
+    {
+      key: 'openedAt',
+      label: 'Raised on',
+      kind: 'date',
+      aliases: [
+        'created',
+        'created on',
+        'date raised',
+        'identified on',
+        'opened'
+      ]
+    },
+    {
+      key: 'closedAt',
+      label: 'Closed on',
+      kind: 'date',
+      aliases: ['closed', 'closed on', 'date closed', 'resolved on']
+    },
+    {
+      key: 'nextReviewAt',
+      label: 'Next review',
+      kind: 'date',
+      aliases: ['next review', 'review date', 'review due']
+    },
+    {
+      key: 'acceptedBy',
+      label: 'Accepted by',
+      kind: 'text',
+      aliases: ['accepted by', 'risk accepted by', 'approver']
+    },
+    {
+      key: 'acceptedAt',
+      label: 'Accepted on',
+      kind: 'date',
+      aliases: ['accepted on', 'acceptance date', 'date accepted']
+    },
+    {
+      key: 'acceptanceExpiresAt',
+      label: 'Acceptance expires',
+      kind: 'date',
+      aliases: ['acceptance expiry', 'acceptance expires', 'accepted until']
+    },
+    {
+      key: 'acceptanceRationale',
+      label: 'Why it was accepted',
+      kind: 'text',
+      aliases: ['acceptance rationale', 'acceptance reason', 'justification']
+    },
+    {
+      key: 'activities',
+      label: 'Processing activities',
+      kind: 'list',
+      hint: 'By reference, ID in the platform, or name, in this entity.',
+      aliases: ['processing activities', 'activities', 'ropa', 'processes']
+    },
+    {
+      key: 'suppliers',
+      label: 'Suppliers',
+      kind: 'list',
+      hint: 'By name.',
+      aliases: ['suppliers', 'vendors', 'third parties']
+    },
+    {
+      key: 'aiSystems',
+      label: 'AI systems',
+      kind: 'list',
+      hint: 'By ID in the platform or name, in this entity.',
+      aliases: ['ai systems', 'ai system', 'ai use cases', 'models']
+    },
+    {
+      key: 'assets',
+      label: 'Information assets',
+      kind: 'list',
+      hint: 'By reference, ID in the platform, or name, in this entity.',
+      aliases: ['assets', 'information assets', 'systems', 'asset']
+    }
   ]
 };
+
+/** Fields whose values a person translates onto this organisation's scale. */
+export const TRANSLATED: ReadonlySet<string> = new Set(
+  Object.values(FIELDS)
+    .flat()
+    .filter((f) => f.kind === 'rating')
+    .map((f) => f.key)
+);
 
 const norm = (s: string) =>
   s
@@ -775,6 +944,7 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
           .join(' / ')
       : null;
   }
+  if (recordType === 'risk') return valueOf('title') || null;
   return valueOf('name') || null;
 }
 
@@ -800,6 +970,8 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
       return aiUseCaseIn.safeParse(data);
     case 'information_asset':
       return informationAssetIn.safeParse(data);
+    case 'risk':
+      return riskIn.safeParse(data);
   }
 }
 

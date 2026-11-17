@@ -6,7 +6,8 @@ export const RECORD_TYPE_LABEL: Record<string, string> = {
   dpa: 'Processor agreements (DPAs)',
   evidence: 'Evidence',
   ai_use_case: 'AI systems',
-  information_asset: 'Information assets'
+  information_asset: 'Information assets',
+  risk: 'Risks'
 };
 
 /** Where a record of each kind is opened. */
@@ -26,6 +27,8 @@ export function recordHref(
       return `/app/evidence#${id}`;
     case 'information_asset':
       return `/app/assets/${id}`;
+    case 'risk':
+      return `/app/risks/${id}`;
     default:
       return `/app/ropa/${id}`;
   }

@@ -2,12 +2,15 @@ import { relations, sql } from 'drizzle-orm';
 import {
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid
 } from 'drizzle-orm/pg-core';
+
+import type { SourceEvent } from '@/lib/import/types';
 
 import { assessments } from './assessments';
 import {
@@ -20,6 +23,7 @@ import {
   riskTier,
   treatmentType
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { entities, organisations, users } from './tenancy';
 
 /**
@@ -82,6 +86,25 @@ export const risks = pgTable(
     /** Driven by the acceptance expiry, or set directly. */
     nextReviewAt: timestamp('next_review_at', { withTimezone: true }),
 
+    /**
+     * Moved in from another platform (docs/migration-plan.md): its identifier
+     * there, the batch, the source's fields with no home here, and what the
+     * old platform recorded happening to it, such as an acceptance. That
+     * history is the source's account, shown as such; it was not done here.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    sourceHistory: jsonb('source_history').$type<SourceEvent[]>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -95,7 +118,12 @@ export const risks = pgTable(
     index('risk_entity_idx').on(t.organisationId, t.entityId),
     index('risk_residual_idx').on(t.organisationId, t.residualTier),
     index('risk_review_idx').on(t.organisationId, t.nextReviewAt),
-    index('risk_assessment_idx').on(t.assessmentId)
+    index('risk_assessment_idx').on(t.assessmentId),
+    uniqueIndex('risk_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      )
   ]
 );
 
