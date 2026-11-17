@@ -64,9 +64,10 @@ import {
   activitiesDueTpsScreening
 } from './marketing';
 import { deliverNotifications } from './member-email';
+import { canOpenRecordsIn } from './member-grants';
 import { appetitesDueForReview } from './risk-policy';
 import { propertiesDueForRescan } from './storage-inventory';
-import { isActiveMember, suppliersDueForReview } from './supplier-review';
+import { suppliersDueForReview } from './supplier-review';
 import { dpasNeedingAttention, EXPIRING_WITHIN_LABEL } from './third-party';
 import { purgeEndedTrials } from './trials';
 import { deliverPending } from './webhooks';
@@ -1165,7 +1166,8 @@ async function raiseAssetReviews(organisationId: string): Promise<number> {
  *
  * As for AI systems and information assets: one task naming the count, keyed
  * on the month. It goes to the supplier's owner when there is one supplier
- * due and its owner is still a member, and otherwise to the privacy
+ * due and its owner is still a member who can open records in the entity
+ * the task is filed under, and otherwise to the privacy
  * administrators, who can share the work out from the register.
  */
 async function raiseSupplierReviews(organisationId: string): Promise<number> {
@@ -1190,7 +1192,7 @@ async function raiseSupplierReviews(organisationId: string): Promise<number> {
   await db.transaction(async (tx) => {
     const toOwner =
       due.length === 1 &&
-      (await isActiveMember(tx, organisationId, oldest.ownerId));
+      (await canOpenRecordsIn(tx, organisationId, oldest.ownerId, entity.id));
     const task = await raiseTask(tx, {
       organisationId,
       entityId: entity.id,

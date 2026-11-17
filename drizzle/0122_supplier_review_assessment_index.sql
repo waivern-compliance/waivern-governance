@@ -1,0 +1,1 @@
+CREATE INDEX "supplier_review_assessment_idx" ON "supplier" USING btree ("review_assessment_id");

@@ -4,15 +4,19 @@ import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import {
+  assessmentRevisions,
   assessments,
   auditEvents,
   entities,
+  memberships,
   organisations,
+  roleAssignments,
   schedules,
   suppliers,
   tasks,
   templates,
-  templateVersions
+  templateVersions,
+  users
 } from '@/db/schema';
 import { addMonths } from '@/lib/dates';
 import { DUE_DILIGENCE_NAMES } from '@/lib/templates/library/supplier-due-diligence';
@@ -128,8 +132,8 @@ async function tier(w: World, t: string) {
   });
 }
 
-/** Run an assessment of the supplier through every approval stage. */
-async function approve(
+/** Start an assessment of the supplier and submit it for approval. */
+async function submit(
   w: World,
   versionId: string,
   given: Record<string, unknown>
@@ -154,6 +158,11 @@ async function approve(
     organisationId: w.org.id,
     actor: SYSTEM
   });
+  return a;
+}
+
+/** Take a submitted assessment through every approval stage. */
+async function signOff<A extends { id: string }>(w: World, a: A) {
   for (const gate of await approvalsFor(a.id)) {
     if (gate.status !== 'pending') continue;
     await decideApproval({
@@ -166,6 +175,40 @@ async function approve(
     });
   }
   return a;
+}
+
+/** Run an assessment of the supplier through every approval stage. */
+async function approve(
+  w: World,
+  versionId: string,
+  given: Record<string, unknown>
+) {
+  return signOff(w, await submit(w, versionId, given));
+}
+
+/** A member of the organisation, holding a role across it or in one entity. */
+async function member(w: World, entityId?: string) {
+  const [user] = await db
+    .insert(users)
+    .values({ email: `owner-${crypto.randomUUID().slice(0, 8)}@example.com` })
+    .returning();
+  const [membership] = await db
+    .insert(memberships)
+    .values({ organisationId: w.org.id, userId: user.id })
+    .returning();
+  await db.insert(roleAssignments).values({
+    membershipId: membership.id,
+    role: 'privacy_analyst',
+    ...(entityId ? { scope: 'entity', entityId } : { scope: 'organisation' })
+  });
+  return user;
+}
+
+async function ownedBy(w: World, userId: string) {
+  await db
+    .update(suppliers)
+    .set({ ownerId: userId })
+    .where(eq(suppliers.id, w.supplier.id));
 }
 
 async function supplierNow(w: World) {
@@ -303,9 +346,67 @@ describe('reviewing a supplier', () => {
     await tier(w, 'medium');
     const first = await approve(w, w.light, answers('proceed'));
     const second = await approve(w, w.light, answers('proceed'));
-    assert.equal((await assessmentNow(first.id)).status, 'superseded');
+    const was = await assessmentNow(first.id);
+    assert.equal(was.status, 'superseded');
+    assert.equal(was.reviewDueAt, null);
     assert.equal((await assessmentNow(second.id)).status, 'approved');
     assert.equal((await supplierNow(w)).reviewAssessmentId, second.id);
+    // The earlier assessment's own history says why it stopped counting.
+    const history = await db
+      .select({ reason: assessmentRevisions.reason })
+      .from(assessmentRevisions)
+      .where(eq(assessmentRevisions.assessmentId, first.id))
+      .orderBy(assessmentRevisions.revision);
+    assert.deepEqual(
+      history.map((r) => r.reason),
+      ['submitted', 'superseded']
+    );
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.subjectId, first.id),
+          eq(auditEvents.action, 'assessment.superseded')
+        )
+      );
+    assert.equal(
+      (event.after as { supersededBy: string }).supersededBy,
+      second.reference
+    );
+  });
+
+  it('keeps the later review when an earlier one is approved after it', async () => {
+    const w = await world('late');
+    await tier(w, 'medium');
+    const earlier = await submit(w, w.light, answers('do_not_proceed'));
+    const later = await approve(w, w.light, answers('proceed'));
+    const reviewed = await supplierNow(w);
+    await signOff(w, earlier);
+
+    const s = await supplierNow(w);
+    assert.equal(s.reviewAssessmentId, later.id);
+    assert.equal(s.reviewOutcome, 'approved');
+    assert.ok(sameDay(s.nextReviewAt, reviewed.nextReviewAt));
+    assert.equal((await assessmentNow(later.id)).status, 'approved');
+    const stale = await assessmentNow(earlier.id);
+    assert.equal(stale.status, 'superseded');
+    assert.equal(stale.reviewDueAt, null);
+    // Its exit was overtaken, so nobody is asked to end the contracts.
+    const exits = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.idempotencyKey, `supplier-exit:${earlier.id}`));
+    assert.equal(exits.length, 0);
+    assert.equal(
+      (
+        await db
+          .select()
+          .from(schedules)
+          .where(eq(schedules.subjectId, earlier.id))
+      ).length,
+      0
+    );
   });
 
   it('ends the cycle on an exit and asks for the contracts and agreements to be ended', async () => {
@@ -439,6 +540,54 @@ describe('bringing reviews round', () => {
     assert.equal(raised[0].title, '2 suppliers are due for review');
     assert.equal(raised[0].assigneeRole, 'privacy_admin');
     assert.equal((await sweepOrganisation(w.org.id)).supplierReviewsRaised, 0);
+  });
+
+  it("sends a single supplier's review to its owner only if they can open records in the entity it is filed under", async () => {
+    const w = await world('owner');
+    await tier(w, 'low');
+    const [elsewhere] = await db
+      .insert(entities)
+      .values({ organisationId: w.org.id, name: 'Elsewhere' })
+      .returning();
+    await ownedBy(w, (await member(w, elsewhere.id)).id);
+    await sweepOrganisation(w.org.id);
+    const due = () =>
+      db
+        .select()
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.organisationId, w.org.id),
+            eq(tasks.subjectType, 'supplier')
+          )
+        );
+    const [toAdmins] = await due();
+    assert.equal(toAdmins.assigneeUserId, null);
+    assert.equal(toAdmins.assigneeRole, 'privacy_admin');
+
+    await db.delete(tasks).where(eq(tasks.id, toAdmins.id));
+    const owner = await member(w);
+    await ownedBy(w, owner.id);
+    await sweepOrganisation(w.org.id);
+    const [toOwner] = await due();
+    assert.equal(toOwner.assigneeUserId, owner.id);
+  });
+
+  it("sends an exit to the supplier's owner only if they can open records in the review's entity", async () => {
+    const w = await world('exit-owner');
+    await tier(w, 'medium');
+    const [elsewhere] = await db
+      .insert(entities)
+      .values({ organisationId: w.org.id, name: 'Elsewhere' })
+      .returning();
+    await ownedBy(w, (await member(w, elsewhere.id)).id);
+    const a = await approve(w, w.light, answers('do_not_proceed'));
+    const [exit] = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.idempotencyKey, `supplier-exit:${a.id}`));
+    assert.equal(exit.assigneeUserId, null);
+    assert.equal(exit.assigneeRole, 'privacy_admin');
   });
 
   it('brings a supplier review round as the supplier, not also as a lapsed assessment', async () => {

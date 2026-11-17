@@ -1,11 +1,20 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lte
+} from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
   assessmentAnswers,
+  assessmentRevisions,
   assessments,
   dpas,
-  memberships,
   organisations,
   supplierContracts,
   suppliers,
@@ -166,7 +175,15 @@ export async function nextReviewOnTier(
   return next;
 }
 
-export type RecordedReview = {
+export type RecordedReview =
+  | ({ current: true } & CurrentReview)
+  /**
+   * Approved after a review that was started later: the later one stands,
+   * and this one is superseded by it as soon as it is approved.
+   */
+  | { current: false; supersededBy: string };
+
+type CurrentReview = {
   outcome: ReviewOutcome;
   /** When the supplier and its review assessment are next due, or null after an exit. */
   nextReviewAt: Date | null;
@@ -179,12 +196,18 @@ export type RecordedReview = {
 /**
  * Record a supplier review from an approved due diligence assessment.
  *
- * Called inside the approval's transaction. Returns null for anything that is
- * not a due diligence assessment about a supplier, which the approval then
- * dates as usual. The recommendation becomes the outcome; the next review is
- * dated from this approval by the supplier's tier, or by the template's own
- * cycle where the supplier has no tier yet. The supplier's previous review is
- * superseded by this one, so nothing brings it round again.
+ * Called inside the approval's transaction, once the assessment is marked
+ * approved. Returns null for anything that is not a due diligence assessment
+ * about a supplier, which the approval then dates as usual. The
+ * recommendation becomes the outcome; the next review is dated from this
+ * approval by the supplier's tier, or by the template's own cycle where the
+ * supplier has no tier yet, and the assessment is dated to match. The
+ * supplier's previous review is superseded by this one, so nothing brings it
+ * round again.
+ *
+ * Reviews can be approved out of the order they were started in. The one
+ * started last is the supplier's current position, so an older review
+ * approved after it is superseded at once rather than overwriting it.
  */
 export async function recordSupplierReview(
   tx: Tx,
@@ -243,6 +266,27 @@ export async function recordSupplierReview(
     .for('update');
   if (!supplier) return null;
 
+  const [previous] = supplier.reviewAssessmentId
+    ? await tx
+        .select({
+          id: assessments.id,
+          reference: assessments.reference,
+          createdAt: assessments.createdAt
+        })
+        .from(assessments)
+        .where(eq(assessments.id, supplier.reviewAssessmentId))
+    : [];
+  if (previous && previous.id !== a.id && previous.createdAt > a.createdAt) {
+    await supersede(tx, {
+      organisationId: input.organisationId,
+      assessmentId: a.id,
+      by: previous.reference,
+      actor: input.actor,
+      at: input.approvedAt
+    });
+    return { current: false, supersededBy: previous.reference };
+  }
+
   const months = await monthsOf(tx, input.organisationId);
   const intervalMonths =
     outcome === 'exit'
@@ -254,19 +298,18 @@ export async function recordSupplierReview(
     ? addMonths(input.approvedAt, intervalMonths)
     : null;
 
-  if (supplier.reviewAssessmentId && supplier.reviewAssessmentId !== a.id)
-    await tx
-      .update(assessments)
-      .set({
-        status: 'superseded',
-        reviewDueAt: null
-      })
-      .where(
-        and(
-          eq(assessments.id, supplier.reviewAssessmentId),
-          eq(assessments.status, 'approved')
-        )
-      );
+  if (previous && previous.id !== a.id)
+    await supersede(tx, {
+      organisationId: input.organisationId,
+      assessmentId: previous.id,
+      by: a.reference,
+      actor: input.actor,
+      at: input.approvedAt
+    });
+  await tx
+    .update(assessments)
+    .set({ reviewDueAt: next, reviewIntervalMonths: intervalMonths })
+    .where(eq(assessments.id, a.id));
 
   await tx
     .update(suppliers)
@@ -325,6 +368,7 @@ export async function recordSupplierReview(
       : { contracts: 0, agreements: 0 };
 
   return {
+    current: true,
     outcome,
     nextReviewAt: next,
     intervalMonths,
@@ -337,24 +381,64 @@ export async function recordSupplierReview(
   };
 }
 
-/** Whether this user is an active member, so a task can go to them. */
-export async function isActiveMember(
+/**
+ * Mark an approved review superseded, with a snapshot in its history and an
+ * audit event of its own, so the assessment says why it stopped counting.
+ */
+async function supersede(
   tx: Tx,
-  organisationId: string,
-  userId: string | null
-): Promise<boolean> {
-  if (!userId) return false;
-  const [m] = await tx
-    .select({ id: memberships.id })
-    .from(memberships)
+  input: {
+    organisationId: string;
+    assessmentId: string;
+    /** The reference of the review that replaces it. */
+    by: string;
+    actor: Actor;
+    at: Date;
+  }
+) {
+  const [row] = await tx
+    .update(assessments)
+    .set({ status: 'superseded', reviewDueAt: null, updatedAt: input.at })
     .where(
       and(
-        eq(memberships.organisationId, organisationId),
-        eq(memberships.userId, userId),
-        eq(memberships.isActive, true)
+        eq(assessments.id, input.assessmentId),
+        eq(assessments.status, 'approved')
       )
-    );
-  return Boolean(m);
+    )
+    .returning({ entityId: assessments.entityId });
+  if (!row) return;
+
+  // An approved assessment was submitted first, so it has a snapshot of the
+  // answers it was approved on; the supersession repeats it with its reason.
+  const [latest] = await tx
+    .select()
+    .from(assessmentRevisions)
+    .where(eq(assessmentRevisions.assessmentId, input.assessmentId))
+    .orderBy(desc(assessmentRevisions.revision))
+    .limit(1);
+  if (latest)
+    await tx.insert(assessmentRevisions).values({
+      assessmentId: input.assessmentId,
+      revision: latest.revision + 1,
+      reason: 'superseded',
+      answers: latest.answers,
+      evaluation: latest.evaluation,
+      score: latest.score,
+      createdByUserId: input.actor.actorUserId ?? null,
+      createdByLabel: input.actor.actorLabel,
+      createdAt: input.at
+    });
+
+  await appendAuditEvent(tx, {
+    ...input.actor,
+    organisationId: input.organisationId,
+    action: 'assessment.superseded',
+    subjectType: 'assessment',
+    subjectId: input.assessmentId,
+    entityId: row.entityId,
+    before: { status: 'approved' },
+    after: { status: 'superseded', supersededBy: input.by }
+  });
 }
 
 /** Tiered suppliers whose next review has come. For the sweep. */

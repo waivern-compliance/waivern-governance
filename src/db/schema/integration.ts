@@ -464,7 +464,9 @@ export const suppliers = pgTable(
   },
   (t) => [
     uniqueIndex('supplier_canonical_key').on(t.organisationId, t.canonicalKey),
-    index('supplier_review_idx').on(t.organisationId, t.nextReviewAt)
+    index('supplier_review_idx').on(t.organisationId, t.nextReviewAt),
+    // Read for every approved assessment, to leave out current supplier reviews.
+    index('supplier_review_assessment_idx').on(t.reviewAssessmentId)
   ]
 );
 

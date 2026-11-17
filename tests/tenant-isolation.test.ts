@@ -4199,7 +4199,9 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside an approval's transaction, with the assessment it has loaded and that caller's organisation",
   'supplier-review.nextReviewOnTier':
     "called inside setSupplierTier's transaction with the supplier it has loaded and locked",
-  'supplier-review.isActiveMember':
+  'member-grants.activeMemberGrants':
+    "called inside a caller's transaction, with that caller's organisation",
+  'member-grants.canOpenRecordsIn':
     "called inside a caller's transaction, with that caller's organisation",
   'contracts.retireContractReminders':
     "called inside a caller's transaction, with that caller's organisation and a contract it has loaded",
