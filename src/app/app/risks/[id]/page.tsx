@@ -72,6 +72,27 @@ export default async function RiskPage({
   const live = acceptances.find((a) => !a.supersededAt && !a.revokedAt) ?? null;
   const lapsed = live ? hasPassed(live.expiresAt) : false;
   const ownsIt = risk.ownerId !== null && risk.ownerId === active.userId;
+  // The platforms its imported mitigations came from, which may not be the risk's.
+  const sourceNames = new Map(
+    await Promise.all(
+      [
+        ...new Set(
+          mitigations.flatMap((m) =>
+            m.importSourceId ? [m.importSourceId] : []
+          )
+        )
+      ].map(
+        async (sourceId) =>
+          [
+            sourceId,
+            (await importSourceName(
+              active.membership.organisationId,
+              sourceId
+            )) ?? 'another platform'
+          ] as const
+      )
+    )
+  );
   const assets = await assetsFor(
     active.membership.organisationId,
     { riskId: risk.id },
@@ -263,6 +284,24 @@ export default async function RiskPage({
                   ownedByViewer:
                     m.ownerId !== null && m.ownerId === active.userId
                 }}
+                imported={
+                  m.importSourceId
+                    ? {
+                        sourceName: sourceNames.get(m.importSourceId)!,
+                        confirmed: m.importConfirmedAt !== null,
+                        history: m.sourceHistory,
+                        legacy: m.legacy,
+                        confirm: can(grants, 'risk.manage', risk.entityId) ? (
+                          <ConfirmImported
+                            type="mitigation"
+                            id={m.id}
+                            revalidate={`/app/risks/${risk.id}`}
+                            what="this mitigation"
+                          />
+                        ) : null
+                      }
+                    : null
+                }
                 editable={mayManage}
               />
             ))}

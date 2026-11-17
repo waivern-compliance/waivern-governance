@@ -300,6 +300,30 @@ export const riskIn = z.object({
   assets: z.array(z.string().max(500)).max(100).default([])
 });
 
+/**
+ * Something being done about an imported risk. Read by the importer only. A
+ * verification given in the source is kept as its history, not as one given
+ * here, where verifying is a second member's act.
+ */
+export const mitigationIn = z.object({
+  externalRef,
+  /** The risk it treats: its identifier in the source, or its reference here. */
+  risk: z.string().min(1).max(500),
+  description: longText.min(1),
+  controlRef: z.string().max(200).optional(),
+  treatmentType: z.enum(['avoidance', 'limitation', 'transference']).optional(),
+  /** The owner's email address, matched to a member. */
+  owner: z.string().max(320).optional(),
+  dueAt: z.iso.datetime().optional(),
+  status: z
+    .enum(['planned', 'in_progress', 'implemented', 'verified', 'abandoned'])
+    .optional(),
+  implementedAt: z.iso.datetime().optional(),
+  verifiedBy: z.string().max(320).optional(),
+  verifiedAt: z.iso.datetime().optional(),
+  evidenceRef: z.string().max(500).optional()
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -315,6 +339,7 @@ export type ScanBatchIn = z.infer<typeof scanBatchIn>;
 export type AiUseCaseIn = z.infer<typeof aiUseCaseIn>;
 export type InformationAssetIn = z.infer<typeof informationAssetIn>;
 export type RiskIn = z.infer<typeof riskIn>;
+export type MitigationIn = z.infer<typeof mitigationIn>;
 
 export type IngestOutcome = {
   received: number;

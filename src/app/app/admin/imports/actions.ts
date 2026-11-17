@@ -9,6 +9,7 @@ import {
   aiUseCases,
   evidence,
   informationAssets,
+  mitigations,
   processingActivities,
   risks
 } from '@/db/schema';
@@ -223,33 +224,49 @@ export async function readImportedAgreementsAction(
   };
 }
 
+/** The entity an imported record belongs to; null where it is gone. */
+async function entityOf(
+  type: Exclude<Confirmable, 'dpa'>,
+  id: string,
+  organisationId: string
+) {
+  return withOrganisation(organisationId, async () => {
+    // A mitigation belongs to its risk's entity.
+    if (type === 'mitigation') {
+      const [row] = await db
+        .select({ entityId: risks.entityId })
+        .from(mitigations)
+        .innerJoin(risks, eq(risks.id, mitigations.riskId))
+        .where(
+          and(eq(mitigations.id, id), eq(risks.organisationId, organisationId))
+        );
+      return row?.entityId ?? null;
+    }
+    const table =
+      type === 'processing_activity'
+        ? processingActivities
+        : type === 'evidence'
+          ? evidence
+          : type === 'information_asset'
+            ? informationAssets
+            : type === 'risk'
+              ? risks
+              : aiUseCases;
+    const [row] = await db
+      .select({ entityId: table.entityId })
+      .from(table)
+      .where(and(eq(table.id, id), eq(table.organisationId, organisationId)));
+    return row?.entityId ?? null;
+  });
+}
+
 /** Confirming an imported record is for whoever may change it. */
 async function confirmer(type: Confirmable, id: string) {
   const active = await requireCapability('record.write');
   const organisationId = active.membership.organisationId;
   // An agreement belongs to the organisation; the rest to an entity.
   const entityId =
-    type === 'dpa'
-      ? undefined
-      : await withOrganisation(organisationId, async () => {
-          const table =
-            type === 'processing_activity'
-              ? processingActivities
-              : type === 'evidence'
-                ? evidence
-                : type === 'information_asset'
-                  ? informationAssets
-                  : type === 'risk'
-                    ? risks
-                    : aiUseCases;
-          const [row] = await db
-            .select({ entityId: table.entityId })
-            .from(table)
-            .where(
-              and(eq(table.id, id), eq(table.organisationId, organisationId))
-            );
-          return row?.entityId ?? null;
-        });
+    type === 'dpa' ? undefined : await entityOf(type, id, organisationId);
   // Gone since the page was drawn, say an import undone meanwhile.
   if (entityId === null) return null;
   if (!can(active.membership.grants, 'record.write', entityId))

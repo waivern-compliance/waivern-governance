@@ -3,10 +3,12 @@ import {
   asc,
   eq,
   inArray,
+  isNotNull,
   isNull,
   lte,
   ne,
   notExists,
+  or,
   sql
 } from 'drizzle-orm';
 
@@ -296,7 +298,14 @@ async function remindOverdueMitigations(
       and(
         eq(risks.organisationId, organisationId),
         inArray(mitigations.status, ['planned', 'in_progress']),
-        lte(mitigations.dueAt, new Date())
+        lte(mitigations.dueAt, new Date()),
+        // One imported reminds nobody until a person has confirmed it: a
+        // register moved in with years of stale target dates would otherwise
+        // bury the real ones on its first night (decision 5 of issue #64).
+        or(
+          isNull(mitigations.importBatchId),
+          isNotNull(mitigations.importConfirmedAt)
+        )
       )
     );
 

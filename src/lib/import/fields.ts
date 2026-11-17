@@ -3,6 +3,7 @@ import {
   dpaIn,
   evidenceIn,
   informationAssetIn,
+  mitigationIn,
   processingActivityIn,
   riskIn,
   vendorIn
@@ -23,7 +24,8 @@ export type RecordType =
   | 'evidence'
   | 'ai_use_case'
   | 'information_asset'
-  | 'risk';
+  | 'risk'
+  | 'mitigation';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -31,7 +33,8 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'evidence',
   'ai_use_case',
   'information_asset',
-  'risk'
+  'risk',
+  'mitigation'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -798,6 +801,118 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       hint: 'By reference, ID in the platform, or name, in this entity.',
       aliases: ['assets', 'information assets', 'systems', 'asset']
     }
+  ],
+  mitigation: [
+    ID,
+    {
+      key: 'risk',
+      label: 'Risk',
+      kind: 'text',
+      required: true,
+      hint: "The risk's ID in the platform, as imported, or its reference here. It must already be recorded in this entity.",
+      aliases: ['risk', 'risk id', 'risk ref', 'risk reference', 'parent risk']
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      kind: 'text',
+      required: true,
+      aliases: [
+        'description',
+        'mitigation',
+        'action',
+        'control description',
+        'title'
+      ]
+    },
+    {
+      key: 'controlRef',
+      label: 'Control reference',
+      kind: 'text',
+      aliases: ['control', 'control ref', 'control reference', 'control id']
+    },
+    {
+      key: 'treatmentType',
+      label: 'Treatment',
+      kind: 'choice',
+      hint: 'Accepting a risk is not a mitigation here: accept the risk itself on its page.',
+      aliases: [
+        'treatment',
+        'treatment type',
+        'treatment option',
+        'response',
+        'strategy'
+      ],
+      choices: [
+        choice('avoidance', 'Avoid', 'avoid', 'terminate', 'eliminate'),
+        choice(
+          'limitation',
+          'Limit',
+          'limit',
+          'reduce',
+          'mitigate',
+          'treat',
+          'control'
+        ),
+        choice('transference', 'Transfer', 'transfer', 'share', 'insure')
+      ]
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with the mitigation, and it shows no owner.',
+      aliases: ['owner', 'action owner', 'owner email', 'assignee']
+    },
+    {
+      key: 'dueAt',
+      label: 'Due on',
+      kind: 'date',
+      aliases: ['due', 'due date', 'due on', 'target date', 'deadline']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'One verified in the source comes in implemented, waiting for somebody here to verify it; the verification is kept as its history.',
+      aliases: ['status', 'state', 'progress'],
+      choices: [
+        choice('planned', 'Planned', 'not started', 'open', 'new', 'to do'),
+        choice('in_progress', 'In progress', 'started', 'ongoing', 'doing'),
+        choice('implemented', 'Implemented', 'done', 'complete', 'completed'),
+        choice('verified', 'Verified', 'tested', 'effective', 'validated'),
+        choice('abandoned', 'Abandoned', 'cancelled', 'canceled', 'dropped')
+      ]
+    },
+    {
+      key: 'implementedAt',
+      label: 'Implemented on',
+      kind: 'date',
+      aliases: [
+        'implemented',
+        'implemented on',
+        'completed on',
+        'date completed'
+      ]
+    },
+    {
+      key: 'verifiedBy',
+      label: 'Verified by',
+      kind: 'text',
+      aliases: ['verified by', 'tested by', 'validated by']
+    },
+    {
+      key: 'verifiedAt',
+      label: 'Verified on',
+      kind: 'date',
+      aliases: ['verified on', 'verified', 'date verified', 'tested on']
+    },
+    {
+      key: 'evidenceRef',
+      label: 'Evidence reference',
+      kind: 'text',
+      aliases: ['evidence', 'evidence ref', 'evidence reference']
+    }
   ]
 };
 
@@ -945,6 +1060,11 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
       : null;
   }
   if (recordType === 'risk') return valueOf('title') || null;
+  if (recordType === 'mitigation') {
+    const risk = valueOf('risk');
+    const description = valueOf('description');
+    return risk && description ? `${risk} / ${description}` : null;
+  }
   return valueOf('name') || null;
 }
 
@@ -972,6 +1092,8 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
       return informationAssetIn.safeParse(data);
     case 'risk':
       return riskIn.safeParse(data);
+    case 'mitigation':
+      return mitigationIn.safeParse(data);
   }
 }
 
