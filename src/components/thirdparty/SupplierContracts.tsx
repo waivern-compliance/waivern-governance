@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
+import { NOTICE_WORDS } from '@/lib/renewals';
 import type { ContractRow } from '@/services/contracts';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);

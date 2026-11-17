@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import { ASSET_TYPE_LABEL } from '@/lib/assets/register';
 import type { assetsFor } from '@/services/information-assets';
 
 /** The information assets a record is linked to, as shown on that record. */
@@ -27,7 +26,7 @@ export function LinkedAssets({
                 </span>{' '}
                 {a.name}{' '}
                 <span className="text-xs text-ink-soft">
-                  {ASSET_TYPE_LABEL[a.assetType] ?? a.assetType}
+                  {a.typeLabel}
                   {a.retiredAt ? ' (retired)' : ''}
                 </span>
               </Link>

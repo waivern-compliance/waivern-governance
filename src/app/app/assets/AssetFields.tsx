@@ -1,14 +1,14 @@
 import {
-  ASSET_TYPE_LABEL,
-  ASSET_TYPES,
   CLASSIFICATION_SCHEMES,
   HOSTING_LABEL,
   HOSTING_MODELS,
   levelsOf,
   type ClassificationScheme
 } from '@/lib/assets/register';
+import type { AssetDetailValues } from '@/lib/assets/types';
 
 import { inputClass, Label } from '../requests/fields';
+import { AssetTypeFields, type TypeOption } from './AssetTypeFields';
 
 type Values = {
   name: string;
@@ -22,6 +22,10 @@ type Values = {
   classification: string | null;
   retention: string | null;
   nextReviewAt: Date | null;
+  details: AssetDetailValues;
+  expiresAt: Date | null;
+  noticeDays: number | null;
+  autoRenews: boolean;
 };
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
@@ -30,43 +34,31 @@ const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : '');
 export function AssetFields({
   values,
   members,
-  scheme
+  scheme,
+  types
 }: {
   values?: Values;
   members: Array<{ id: string; email: string }>;
   scheme: ClassificationScheme;
+  /** The types that may be chosen: those in use, and the asset's own. */
+  types: TypeOption[];
 }) {
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1">
-          <Label text="Name" />
-          <input
-            name="name"
-            required
-            defaultValue={values?.name ?? ''}
-            placeholder="HR system"
-            className={inputClass}
-          />
-        </label>
-        <label className="block space-y-1">
-          <Label text="Type" />
-          <select
-            name="assetType"
-            defaultValue={values?.assetType ?? 'system'}
-            className={inputClass}
-          >
-            {ASSET_TYPES.map((t) => (
-              <option
-                key={t}
-                value={t}
-              >
-                {ASSET_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <label className="block space-y-1">
+        <Label text="Name" />
+        <input
+          name="name"
+          required
+          defaultValue={values?.name ?? ''}
+          placeholder="HR system"
+          className={inputClass}
+        />
+      </label>
+      <AssetTypeFields
+        types={types}
+        values={values}
+      />
       <label className="block space-y-1">
         <Label
           text="What it is for"

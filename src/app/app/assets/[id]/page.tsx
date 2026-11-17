@@ -5,13 +5,15 @@ import { EditForm } from '@/components/EditForm';
 import { NotPermitted } from '@/components/NotPermitted';
 import {
   ASSET_GAP_WORDS,
-  ASSET_TYPE_LABEL,
   classificationLabel,
   HOSTING_LABEL
 } from '@/lib/assets/register';
+import { describeDetails, offeredTypes } from '@/lib/assets/types';
 import { can } from '@/lib/rbac';
+import { needsAttention, NOTICE_WORDS } from '@/lib/renewals';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
+import { assetTypology } from '@/services/asset-types';
 import { candidatesFor } from '@/services/handover';
 import {
   classificationSchemeOf,
@@ -37,13 +39,22 @@ const button =
 const LINK_HEADING: Record<LinkKind, string> = {
   activity: 'Processing activities',
   supplier: 'Third parties',
-  risk: 'Risks'
+  risk: 'Risks',
+  contract: 'Contracts'
+};
+const LINK_ONE: Record<LinkKind, string> = {
+  activity: 'an activity',
+  supplier: 'a third party',
+  risk: 'a risk',
+  contract: 'a contract'
 };
 const LINK_EMPTY: Record<LinkKind, string> = {
   activity:
     'No processing activity linked. Link the activities whose data it holds.',
   supplier: 'No third party linked. Link whoever hosts, runs or supports it.',
-  risk: 'No risk linked.'
+  risk: 'No risk linked.',
+  contract:
+    'No contract linked. Link the subscription, licence or agreement that pays for it, so its renewal shows here.'
 };
 
 export default async function AssetPage({
@@ -57,7 +68,7 @@ export default async function AssetPage({
   const org = active.membership.organisationId;
   const loaded = await loadAsset(id, org);
   if (!loaded) notFound();
-  const { asset, entityName, ownerEmail, gaps } = loaded;
+  const { asset, entityName, ownerEmail, gaps, renewal, noticeBy } = loaded;
   if (!can(active.membership.grants, 'record.read', asset.entityId)) {
     return (
       <NotPermitted
@@ -70,11 +81,14 @@ export default async function AssetPage({
     can(active.membership.grants, 'record.write', asset.entityId) &&
     !asset.retiredAt;
 
-  const [scheme, options, candidates] = await Promise.all([
+  const [scheme, options, candidates, types] = await Promise.all([
     classificationSchemeOf(org),
     mayEdit ? linkOptions(org, asset.entityId) : null,
-    candidatesFor(org)
+    candidatesFor(org),
+    assetTypology(org)
   ]);
+  const type = types.find((t) => t.key === asset.assetType);
+  const details = describeDetails(type, asset.details);
 
   // Active members, and the current owner even if they have since left, so
   // saving the form does not quietly take the asset away from them.
@@ -111,6 +125,14 @@ export default async function AssetPage({
       note: [k.status, k.residualTier ?? k.inherentTier]
         .filter(Boolean)
         .join(' · ')
+    })),
+    contract: loaded.contracts.map((c) => ({
+      id: c.id,
+      href: `/app/contracts/${c.id}`,
+      label: `${c.reference} ${c.title}`,
+      note: [c.endsAt ? `ends ${day(c.endsAt)}` : null, NOTICE_WORDS[c.notice]]
+        .filter(Boolean)
+        .join(' · ')
     }))
   };
 
@@ -132,8 +154,8 @@ export default async function AssetPage({
           </h1>
         </div>
         <p className="text-xs text-ink-soft">
-          {entityName} · {ASSET_TYPE_LABEL[asset.assetType] ?? asset.assetType}{' '}
-          · {ownerEmail ?? 'no owner'}
+          {entityName} · {type?.label ?? asset.assetType} ·{' '}
+          {ownerEmail ?? 'no owner'}
           {asset.lastReviewedAt
             ? ` · last reviewed ${day(asset.lastReviewedAt)}`
             : ''}
@@ -154,6 +176,16 @@ export default async function AssetPage({
         ) : (
           <p className="text-xs text-emerald-900">Nothing missing</p>
         )}
+        {asset.expiresAt && !asset.retiredAt ? (
+          <p
+            className={`text-xs ${needsAttention(renewal) ? 'text-amber-900' : 'text-ink-soft'}`}
+          >
+            {asset.autoRenews ? 'Renews' : 'Expires'} {day(asset.expiresAt)}
+            {noticeBy && asset.noticeDays
+              ? ` · act by ${day(noticeBy)}`
+              : ''} · {NOTICE_WORDS[renewal]}
+          </p>
+        ) : null}
       </header>
 
       {mayEdit ? (
@@ -167,6 +199,7 @@ export default async function AssetPage({
             values={asset}
             members={members}
             scheme={scheme}
+            types={offeredTypes(types, asset.assetType)}
           />
           <button
             type="submit"
@@ -200,10 +233,15 @@ export default async function AssetPage({
             <span className="text-ink-soft">Retention:</span>{' '}
             {asset.retention ?? 'Not recorded'}
           </p>
+          {details.map((d) => (
+            <p key={d.label}>
+              <span className="text-ink-soft">{d.label}:</span> {d.value}
+            </p>
+          ))}
         </section>
       )}
 
-      {(['activity', 'supplier', 'risk'] as const).map((kind) => {
+      {(['activity', 'supplier', 'risk', 'contract'] as const).map((kind) => {
         const choices = (options?.[kind] ?? []).filter(
           (o) => !linked[kind].some((l) => l.id === o.id)
         );
@@ -262,9 +300,7 @@ export default async function AssetPage({
                 className="flex flex-wrap items-end gap-2"
               >
                 <label className="block space-y-1">
-                  <Label
-                    text={`Link ${kind === 'activity' ? 'an activity' : kind === 'supplier' ? 'a third party' : 'a risk'}`}
-                  />
+                  <Label text={`Link ${LINK_ONE[kind]}`} />
                   <select
                     name="targetId"
                     className={inputClass}

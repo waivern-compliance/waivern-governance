@@ -13,12 +13,14 @@ import { db, withOrganisation } from '@/db/client';
 import {
   entities,
   informationAssetActivities,
+  informationAssetContracts,
   informationAssetRisks,
   informationAssets,
   informationAssetSuppliers,
   organisations,
   processingActivities,
   risks,
+  supplierContracts,
   suppliers,
   users
 } from '@/db/schema';
@@ -26,18 +28,30 @@ import {
   assetGaps,
   CLASSIFICATION_SCHEMES,
   DEFAULT_CLASSIFICATION_SCHEME,
-  isAssetType,
   isClassificationIn,
   isClassificationScheme,
   isHostingModel,
   type AssetClassification,
-  type AssetType,
   type ClassificationScheme,
   type HostingModel
 } from '@/lib/assets/register';
+import {
+  cleanDetails,
+  typeLabel,
+  type AssetDetailValues
+} from '@/lib/assets/types';
 import { appendAuditEvent } from '@/lib/audit';
 import { nextReference } from '@/lib/references';
+import {
+  noticeBy,
+  noticeState,
+  reminderKey,
+  type NoticeState
+} from '@/lib/renewals';
 
+import { assetTypology } from './asset-types';
+import { activeMemberGrants, mayOpenIn } from './member-grants';
+import { assetRenewal, retireRenewalReminders } from './renewals';
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 
@@ -57,7 +71,7 @@ export class AssetRefused extends Error {
 }
 
 /** What an asset can be linked to. */
-export const LINK_KINDS = ['activity', 'supplier', 'risk'] as const;
+export const LINK_KINDS = ['activity', 'supplier', 'risk', 'contract'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 export function isLinkKind(value: unknown): value is LinkKind {
@@ -174,54 +188,80 @@ export async function setClassificationScheme(input: {
 }
 
 async function linksOf(ids: string[]) {
-  if (ids.length === 0) return { activities: [], suppliers: [], risks: [] };
-  const [activityRows, supplierRows, riskRows] = await Promise.all([
-    db
-      .select({
-        assetId: informationAssetActivities.assetId,
-        id: processingActivities.id,
-        reference: processingActivities.reference,
-        name: processingActivities.name
-      })
-      .from(informationAssetActivities)
-      .innerJoin(
-        processingActivities,
-        eq(processingActivities.id, informationAssetActivities.activityId)
-      )
-      .where(inArray(informationAssetActivities.assetId, ids))
-      .orderBy(asc(processingActivities.reference)),
-    db
-      .select({
-        assetId: informationAssetSuppliers.assetId,
-        id: suppliers.id,
-        name: suppliers.name
-      })
-      .from(informationAssetSuppliers)
-      .innerJoin(
-        suppliers,
-        eq(suppliers.id, informationAssetSuppliers.supplierId)
-      )
-      .where(inArray(informationAssetSuppliers.assetId, ids))
-      .orderBy(asc(suppliers.name)),
-    db
-      .select({
-        assetId: informationAssetRisks.assetId,
-        id: risks.id,
-        reference: risks.reference,
-        title: risks.title,
-        status: risks.status,
-        residualTier: risks.residualTier,
-        inherentTier: risks.inherentTier
-      })
-      .from(informationAssetRisks)
-      .innerJoin(risks, eq(risks.id, informationAssetRisks.riskId))
-      .where(inArray(informationAssetRisks.assetId, ids))
-      .orderBy(asc(risks.reference))
-  ]);
+  if (ids.length === 0)
+    return { activities: [], suppliers: [], risks: [], contracts: [] };
+  const [activityRows, supplierRows, riskRows, contractRows] =
+    await Promise.all([
+      db
+        .select({
+          assetId: informationAssetActivities.assetId,
+          id: processingActivities.id,
+          reference: processingActivities.reference,
+          name: processingActivities.name
+        })
+        .from(informationAssetActivities)
+        .innerJoin(
+          processingActivities,
+          eq(processingActivities.id, informationAssetActivities.activityId)
+        )
+        .where(inArray(informationAssetActivities.assetId, ids))
+        .orderBy(asc(processingActivities.reference)),
+      db
+        .select({
+          assetId: informationAssetSuppliers.assetId,
+          id: suppliers.id,
+          name: suppliers.name
+        })
+        .from(informationAssetSuppliers)
+        .innerJoin(
+          suppliers,
+          eq(suppliers.id, informationAssetSuppliers.supplierId)
+        )
+        .where(inArray(informationAssetSuppliers.assetId, ids))
+        .orderBy(asc(suppliers.name)),
+      db
+        .select({
+          assetId: informationAssetRisks.assetId,
+          id: risks.id,
+          reference: risks.reference,
+          title: risks.title,
+          status: risks.status,
+          residualTier: risks.residualTier,
+          inherentTier: risks.inherentTier
+        })
+        .from(informationAssetRisks)
+        .innerJoin(risks, eq(risks.id, informationAssetRisks.riskId))
+        .where(inArray(informationAssetRisks.assetId, ids))
+        .orderBy(asc(risks.reference)),
+      // Dates only: a contract's terms are not the asset's to show.
+      db
+        .select({
+          assetId: informationAssetContracts.assetId,
+          id: supplierContracts.id,
+          reference: supplierContracts.reference,
+          title: supplierContracts.title,
+          endsAt: supplierContracts.endsAt,
+          noticeDays: supplierContracts.noticeDays,
+          autoRenews: supplierContracts.autoRenews,
+          endedAt: supplierContracts.endedAt
+        })
+        .from(informationAssetContracts)
+        .innerJoin(
+          supplierContracts,
+          eq(supplierContracts.id, informationAssetContracts.contractId)
+        )
+        .where(inArray(informationAssetContracts.assetId, ids))
+        .orderBy(asc(supplierContracts.reference))
+    ]);
   return {
     activities: activityRows,
     suppliers: supplierRows,
-    risks: riskRows
+    risks: riskRows,
+    contracts: contractRows.map((c) => ({
+      ...c,
+      noticeBy: noticeBy(c),
+      notice: noticeState(c) as NoticeState
+    }))
   };
 }
 
@@ -250,7 +290,10 @@ async function rowsFor(
       activities: mine(links.activities),
       suppliers: mine(links.suppliers),
       risks: mine(links.risks),
-      gaps: assetGaps(r.asset, now)
+      contracts: mine(links.contracts),
+      gaps: assetGaps(r.asset, now),
+      noticeBy: noticeBy(assetRenewal(r.asset)),
+      renewal: noticeState(assetRenewal(r.asset), now) as NoticeState
     };
   });
 }
@@ -306,92 +349,115 @@ export async function loadAsset(
  */
 export async function assetsFor(
   organisationId: string,
-  about: { activityId: string } | { supplierId: string } | { riskId: string },
+  about:
+    | { activityId: string }
+    | { supplierId: string }
+    | { riskId: string }
+    | { contractId: string },
   entityIds: string[] | null
 ) {
   return withOrganisation(organisationId, async () => {
     if (entityIds !== null && entityIds.length === 0) return [];
-    const kind: LinkKind =
+    const [kind, targetId]: [LinkKind, string] =
       'activityId' in about
-        ? 'activity'
+        ? ['activity', about.activityId]
         : 'supplierId' in about
-          ? 'supplier'
-          : 'risk';
+          ? ['supplier', about.supplierId]
+          : 'riskId' in about
+            ? ['risk', about.riskId]
+            : ['contract', about.contractId];
     const { table, column } = linkTable(kind);
-    const targetId =
-      'activityId' in about
-        ? about.activityId
-        : 'supplierId' in about
-          ? about.supplierId
-          : about.riskId;
     const linked = db
       .select({ id: table.assetId })
       .from(table)
       .where(
         and(eq(table.organisationId, organisationId), eq(column, targetId))
       );
-    return db
-      .select({
-        id: informationAssets.id,
-        reference: informationAssets.reference,
-        name: informationAssets.name,
-        assetType: informationAssets.assetType,
-        retiredAt: informationAssets.retiredAt
-      })
-      .from(informationAssets)
-      .where(
-        and(
-          eq(informationAssets.organisationId, organisationId),
-          inArray(informationAssets.id, linked),
-          entityIds === null
-            ? undefined
-            : inArray(informationAssets.entityId, entityIds)
+    const [types, rows] = await Promise.all([
+      assetTypology(organisationId),
+      db
+        .select({
+          id: informationAssets.id,
+          reference: informationAssets.reference,
+          name: informationAssets.name,
+          assetType: informationAssets.assetType,
+          retiredAt: informationAssets.retiredAt
+        })
+        .from(informationAssets)
+        .where(
+          and(
+            eq(informationAssets.organisationId, organisationId),
+            inArray(informationAssets.id, linked),
+            entityIds === null
+              ? undefined
+              : inArray(informationAssets.entityId, entityIds)
+          )
         )
-      )
-      .orderBy(asc(informationAssets.reference));
+        .orderBy(asc(informationAssets.reference))
+    ]);
+    return rows.map((r) => ({
+      ...r,
+      typeLabel: typeLabel(types, r.assetType)
+    }));
   });
 }
 
-/** What can be linked to an asset: its entity's activities and risks, and any supplier. */
+/** What can be linked to an asset: its entity's activities, risks and contracts in force, and any supplier. */
 export async function linkOptions(organisationId: string, entityId: string) {
   return withOrganisation(organisationId, async () => {
-    const [activityRows, supplierRows, riskRows] = await Promise.all([
-      db
-        .select({
-          id: processingActivities.id,
-          label: sql<string>`${processingActivities.reference} || ' ' || ${processingActivities.name}`
-        })
-        .from(processingActivities)
-        .where(
-          and(
-            eq(processingActivities.organisationId, organisationId),
-            eq(processingActivities.entityId, entityId)
+    const [activityRows, supplierRows, riskRows, contractRows] =
+      await Promise.all([
+        db
+          .select({
+            id: processingActivities.id,
+            label: sql<string>`${processingActivities.reference} || ' ' || ${processingActivities.name}`
+          })
+          .from(processingActivities)
+          .where(
+            and(
+              eq(processingActivities.organisationId, organisationId),
+              eq(processingActivities.entityId, entityId)
+            )
           )
-        )
-        .orderBy(asc(processingActivities.reference)),
-      db
-        .select({ id: suppliers.id, label: suppliers.name })
-        .from(suppliers)
-        .where(eq(suppliers.organisationId, organisationId))
-        .orderBy(asc(suppliers.name)),
-      db
-        .select({
-          id: risks.id,
-          label: sql<string>`${risks.reference} || ' ' || ${risks.title}`
-        })
-        .from(risks)
-        .where(
-          and(
-            eq(risks.organisationId, organisationId),
-            eq(risks.entityId, entityId)
+          .orderBy(asc(processingActivities.reference)),
+        db
+          .select({ id: suppliers.id, label: suppliers.name })
+          .from(suppliers)
+          .where(eq(suppliers.organisationId, organisationId))
+          .orderBy(asc(suppliers.name)),
+        db
+          .select({
+            id: risks.id,
+            label: sql<string>`${risks.reference} || ' ' || ${risks.title}`
+          })
+          .from(risks)
+          .where(
+            and(
+              eq(risks.organisationId, organisationId),
+              eq(risks.entityId, entityId)
+            )
           )
-        )
-        .orderBy(asc(risks.reference))
-    ]);
+          .orderBy(asc(risks.reference)),
+        db
+          .select({
+            id: supplierContracts.id,
+            label: sql<string>`${supplierContracts.reference} || ' ' || ${supplierContracts.title}`
+          })
+          .from(supplierContracts)
+          .where(
+            and(
+              eq(supplierContracts.organisationId, organisationId),
+              eq(supplierContracts.entityId, entityId),
+              isNull(supplierContracts.endedAt)
+            )
+          )
+          .orderBy(asc(supplierContracts.reference))
+      ]);
     return {
       activity: activityRows,
       supplier: supplierRows,
-      risk: riskRows
+      risk: riskRows,
+      contract: contractRows
     } satisfies Record<LinkKind, Array<{ id: string; label: string }>>;
   });
 }
@@ -408,17 +474,29 @@ export type AssetDetails = {
   classification: string | null;
   retention: string | null;
   nextReviewAt: Date | null;
+  /** The fields particular to the type, as given; only the type's own are kept. */
+  details?: Record<string, unknown>;
+  /** For a type that carries an expiry date; ignored for any other. */
+  expiresAt?: Date | null;
+  noticeDays?: number | null;
+  autoRenews?: boolean;
 };
 
-/** The details as they will be stored, or a refusal saying what is wrong. */
+/**
+ * The details as they will be stored, or a refusal saying what is wrong.
+ *
+ * @param current the type the asset has now, which it may keep although the
+ *   type has since been retired
+ */
 async function clean(
   organisationId: string,
   d: AssetDetails,
-  tx: Tx
+  tx: Tx,
+  current?: string
 ): Promise<{
   name: string;
   description: string | null;
-  assetType: AssetType;
+  assetType: string;
   ownerId: string | null;
   hosting: HostingModel | null;
   hostedBy: string | null;
@@ -427,11 +505,29 @@ async function clean(
   classification: AssetClassification | null;
   retention: string | null;
   nextReviewAt: Date | null;
+  details: AssetDetailValues;
+  expiresAt: Date | null;
+  noticeDays: number | null;
+  autoRenews: boolean;
 }> {
   const name = d.name.trim();
   if (!name) throw new AssetRefused('Give the asset a name.');
-  if (!isAssetType(d.assetType))
-    throw new AssetRefused('Choose what kind of asset it is.');
+  const type = (await assetTypology(organisationId, tx)).find(
+    (t) => t.key === d.assetType
+  );
+  if (!type) throw new AssetRefused('Choose what kind of asset it is.');
+  if (type.retiredAt && d.assetType !== current)
+    throw new AssetRefused(
+      `The ${type.label} type has been retired. Choose another.`
+    );
+  const details = cleanDetails(type, d.details ?? {});
+  if (!details.ok) throw new AssetRefused(details.message);
+  if (
+    type.hasExpiry &&
+    d.noticeDays != null &&
+    (!Number.isInteger(d.noticeDays) || d.noticeDays < 0 || d.noticeDays > 3650)
+  )
+    throw new AssetRefused('The notice period is a whole number of days.');
   if (d.hosting && !isHostingModel(d.hosting))
     throw new AssetRefused('Choose where it is hosted from the list.');
   if (d.ownerId) await assertMemberOf(organisationId, d.ownerId, tx);
@@ -455,7 +551,13 @@ async function clean(
     countries: [...new Set(d.countries.map((c) => c.trim()).filter(Boolean))],
     classification,
     retention: d.retention?.trim() || null,
-    nextReviewAt: d.nextReviewAt
+    nextReviewAt: d.nextReviewAt,
+    details: details.details,
+    // Only a type that expires carries the dates, so none is left behind
+    // to raise reminders for a type that does not.
+    expiresAt: type.hasExpiry ? (d.expiresAt ?? null) : null,
+    noticeDays: type.hasExpiry ? (d.noticeDays ?? null) : null,
+    autoRenews: type.hasExpiry ? Boolean(d.autoRenews) : false
   };
 }
 
@@ -469,7 +571,11 @@ const AUDITED = [
   'countries',
   'classification',
   'retention',
-  'nextReviewAt'
+  'nextReviewAt',
+  'details',
+  'expiresAt',
+  'noticeDays',
+  'autoRenews'
 ] as const;
 
 function audited(row: Partial<InformationAsset>) {
@@ -524,12 +630,24 @@ export async function updateAsset(input: {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const before = await loadForWrite(tx, input.id, input.organisationId);
-      const details = await clean(input.organisationId, input.details, tx);
+      const details = await clean(
+        input.organisationId,
+        input.details,
+        tx,
+        before.assetType
+      );
       const [after] = await tx
         .update(informationAssets)
         .set({ ...details, updatedAt: new Date() })
         .where(eq(informationAssets.id, input.id))
         .returning();
+      await retireRenewalReminders(
+        tx,
+        input.organisationId,
+        'asset',
+        assetRenewal(after),
+        input.actor.actorLabel
+      );
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -603,6 +721,14 @@ export async function retireAsset(input: {
         .set({ retiredAt, retiredReason: reason, updatedAt: retiredAt })
         .where(eq(informationAssets.id, input.id))
         .returning();
+      await retireRenewalReminders(
+        tx,
+        input.organisationId,
+        'asset',
+        assetRenewal(after),
+        input.actor.actorLabel,
+        retiredAt
+      );
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -630,6 +756,27 @@ async function target(
   kind: LinkKind,
   id: string
 ): Promise<{ id: string; label: string }> {
+  if (kind === 'contract') {
+    const [row] = await tx
+      .select({
+        id: supplierContracts.id,
+        entityId: supplierContracts.entityId,
+        label: supplierContracts.reference
+      })
+      .from(supplierContracts)
+      .where(
+        and(
+          eq(supplierContracts.id, id),
+          eq(supplierContracts.organisationId, organisationId)
+        )
+      );
+    if (!row) throw new AssetRefused('No such contract in this organisation.');
+    if (row.entityId !== entityId)
+      throw new AssetRefused(
+        "That contract was signed by another legal entity. Link an asset only to its own entity's contracts."
+      );
+    return row;
+  }
   if (kind === 'supplier') {
     const [row] = await tx
       .select({ id: suppliers.id, label: suppliers.name })
@@ -660,23 +807,32 @@ async function target(
 }
 
 function linkTable(kind: LinkKind) {
-  return kind === 'activity'
-    ? {
+  switch (kind) {
+    case 'activity':
+      return {
         table: informationAssetActivities,
         column: informationAssetActivities.activityId,
         key: 'activityId' as const
-      }
-    : kind === 'supplier'
-      ? {
-          table: informationAssetSuppliers,
-          column: informationAssetSuppliers.supplierId,
-          key: 'supplierId' as const
-        }
-      : {
-          table: informationAssetRisks,
-          column: informationAssetRisks.riskId,
-          key: 'riskId' as const
-        };
+      };
+    case 'supplier':
+      return {
+        table: informationAssetSuppliers,
+        column: informationAssetSuppliers.supplierId,
+        key: 'supplierId' as const
+      };
+    case 'risk':
+      return {
+        table: informationAssetRisks,
+        column: informationAssetRisks.riskId,
+        key: 'riskId' as const
+      };
+    case 'contract':
+      return {
+        table: informationAssetContracts,
+        column: informationAssetContracts.contractId,
+        key: 'contractId' as const
+      };
+  }
 }
 
 export async function linkAsset(input: {
@@ -776,4 +932,48 @@ export async function assetsDueForReview(
       )
       .orderBy(asc(informationAssets.nextReviewAt))
   );
+}
+
+/**
+ * Assets in use whose renewal needs somebody now, with the one reminder each
+ * should have open, and whether its owner can open records in its entity to
+ * act on it. For the sweep.
+ */
+export async function assetsNeedingRenewal(
+  organisationId: string,
+  now = new Date()
+) {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select()
+      .from(informationAssets)
+      .where(
+        and(
+          eq(informationAssets.organisationId, organisationId),
+          isNull(informationAssets.retiredAt),
+          isNotNull(informationAssets.expiresAt)
+        )
+      )
+      .orderBy(asc(informationAssets.expiresAt));
+    const due = rows.flatMap((asset) => {
+      const dates = assetRenewal(asset);
+      const key = reminderKey('asset', dates, now);
+      return key
+        ? [
+            {
+              asset,
+              key,
+              noticeBy: noticeBy(dates)!,
+              notice: noticeState(dates, now)
+            }
+          ]
+        : [];
+    });
+    if (due.length === 0) return [];
+    const members = await activeMemberGrants(db, organisationId);
+    return due.map((d) => ({
+      ...d,
+      ownerMayAct: mayOpenIn(members, d.asset.ownerId, d.asset.entityId)
+    }));
+  });
 }

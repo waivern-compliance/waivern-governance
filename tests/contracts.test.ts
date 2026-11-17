@@ -17,7 +17,7 @@ import {
 } from '@/db/schema';
 import type { Grant } from '@/lib/rbac';
 import { pathFor } from '@/lib/records';
-import { noticeBy, noticeState } from '@/lib/thirdparty/contracts';
+import { noticeBy, noticeState } from '@/lib/renewals';
 import { recommendTier } from '@/lib/thirdparty/tier';
 import {
   contractPeople,

@@ -30,7 +30,7 @@ Every help topic the application carries, in the order it presents them.
 **The registers**
 
 - [The processing register (Article 30)](#the-processing-register-article-30) - Every processing activity, checked against what Article 30 actually requires rather than against whether the form was filled in.
-- [Information asset register](#information-asset-register) - The systems and repositories you hold information in: who owns each, where it is hosted, how it is classified, how long it keeps things, and what it links to.
+- [Information asset register](#information-asset-register) - The systems and repositories you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified, when it expires, and what it links to.
 - [Appropriate policy documents (Schedule 1)](#appropriate-policy-documents-schedule-1) - Which Schedule 1 conditions each appropriate policy document covers, and which processing relies on a condition no current document covers.
 - [Third parties and processor agreements (Article 28)](#third-parties-and-processor-agreements-article-28) - Every processor you rely on, whether or not anybody procured it, and whether a contract actually covers them.
 - [Supplier contracts](#supplier-contracts) - Commercial contracts with third parties: who owns each, when it ends, the last day to give notice, and who may see what it is worth.
@@ -600,7 +600,7 @@ A competent authority's law enforcement transfers are assessed with the 'Transfe
 
 ## Information asset register
 
-*The systems and repositories you hold information in: who owns each, where it is hosted, how it is classified, how long it keeps things, and what it links to.*
+*The systems and repositories you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified, when it expires, and what it links to.*
 
 **Screen:** `/app/assets`
 
@@ -618,13 +618,31 @@ An asset belongs to one legal entity and gets a reference such as IA-2026-0001. 
 
 Where it is: whether it is on premises, SaaS run by the supplier, in your own cloud on a provider, or a mix; who hosts it or which building it is in; the region; and the countries it is held in. Retention is written as you would say it, with the schedule reference or the rule.
 
+### Asset types
+
+Every asset has a type. The built-in types are system, database, file share, SaaS application, paper archive, device, domain, certificate, software licence and other. Each has a definition, shown wherever the type is chosen and listed on the asset types page.
+
+Owners and privacy administrators can add types of their own on the asset types page, reached from the register. A type cannot be added without a definition saying what belongs under it, and can say whether its assets expire or renew. A type can be renamed or redefined; it cannot stop expiring while any of its assets has an expiry date recorded.
+
+A type no longer wanted is retired: it is offered for no new asset, and assets that have it keep it. A type can be deleted only while no asset has it, retired assets included. Adding, changing, retiring and deleting a type are all audited.
+
+### Domains, certificates and licences
+
+Some types carry fields of their own: a domain's registrar, a certificate's issuer and the names it covers, a licence's number of seats. These describe the asset, never what is in it.
+
+A type that expires - domain, certificate, software licence, or one of your own that says so - records when the asset expires or renews, how many days before then to act, and whether it renews automatically. From ninety days before the date to act, it is listed as due and a task goes to its owner, or to the privacy administrators if it has no owner who can open records in its legal entity. A task is raised once for each date; changing the date cancels the old task, and retiring the asset closes it.
+
+When an asset that renews automatically passes its date, it is listed as renewed, and its owner is asked to record the new date.
+
 ### Classification
 
 Assets are classified on one scheme for the whole organisation, chosen on the organisation settings page: a neutral set (public, internal, confidential, restricted) by default, or the Government Security Classifications (Official, Official-Sensitive, Secret, Top Secret). The scheme can be changed only while no asset is classified, so the register is never classified two ways at once.
 
 ### Links
 
-Link an asset to the processing activities whose data it holds, the third parties that host, run or support it, and the risks that concern it. Activities and risks must be its own legal entity's, so a link never shows one entity's records to people who may see only another's; any third party on the register can be linked. Each linked activity, third party and risk shows the asset on its own page.
+Link an asset to the processing activities whose data it holds, the third parties that host, run or support it, the risks that concern it, and the contracts that pay for it. Activities, risks and contracts must be its own legal entity's, so a link never shows one entity's records to people who may see only another's; any third party on the register can be linked. Each linked activity, third party, risk and contract shows the asset on its own page.
+
+A linked contract shows on the asset with its end date and notice state, so a subscription's or licence's renewal is seen on the system it pays for. Its value is not shown there.
 
 ### Reviews and retiring
 
@@ -632,9 +650,9 @@ Give each asset a review date. Record a review with the date the next is due. On
 
 When an asset is decommissioned or replaced, retire it with a reason. It is kept with its links, owes no more reviews, and can no longer be edited. The register hides retired assets unless you ask for them.
 
-**See also:** The processing register (Article 30) · Third parties and processor agreements (Article 28) · The risk register · The organisation and its legal entities
+**See also:** The processing register (Article 30) · Third parties and processor agreements (Article 28) · The risk register · Supplier contracts · The organisation and its legal entities
 
-<sub>Also searchable as: iar, information asset, asset register, information asset owner, iao, system inventory, data inventory, classification, government security classifications, official sensitive, hosting, data location</sub>
+<sub>Also searchable as: iar, information asset, asset register, information asset owner, iao, system inventory, data inventory, classification, government security classifications, official sensitive, hosting, data location, asset type, typology, digital asset, domain, certificate, tls certificate, software licence, licence renewal, expiry</sub>
 
 ## Appropriate policy documents (Schedule 1)
 
@@ -805,6 +823,8 @@ The date that matters is the last day to give notice: the end date less the noti
 From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no owner who can still open it. A task is raised once for each notice date. Changing the dates cancels the old task and raises a fresh one for the new date. Ending a contract closes its task and stops its reminders.
 
 When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.
+
+Contract and asset renewals are listed together on the governance overview. Link a contract to the assets it pays for from each asset's page; the contract then lists them.
 
 ### Who sees the commercial terms
 
@@ -1661,7 +1681,9 @@ Everything is scoped to what you can see. Two people looking at the same dashboa
 
 Data subject requests, complaints and freedom of information requests appear only for people who handle them, because each carries somebody's name. The freedom of information tiles count requests within five working days of their deadline, those past it, and reviews past theirs.
 
-**See also:** Trends · The risk register · Service levels and things that come round again
+Renewals lists supplier contracts and expiring assets - domains, certificates, licences - whose date to act is within ninety days or has passed, or which have renewed without a new date recorded, soonest first. It shows dates only, never what a contract is worth.
+
+**See also:** Trends · The risk register · Service levels and things that come round again · Supplier contracts
 
 <sub>Also searchable as: dashboard, overview, posture, pipeline, metrics, attention</sub>
 

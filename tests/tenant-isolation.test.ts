@@ -47,6 +47,7 @@ import * as aiRiskProfile from '@/services/ai-risk-profile';
 import * as appetite from '@/services/appetite-in-force';
 import * as routing from '@/services/approval-routing';
 import * as assessmentsSvc from '@/services/assessments';
+import * as assetTypesSvc from '@/services/asset-types';
 import * as assistant from '@/services/assistant';
 import * as atrs from '@/services/atrs';
 import * as adm from '@/services/automated-decisions';
@@ -81,6 +82,7 @@ import * as ingest from '@/services/ingest';
 import * as marketingSvc from '@/services/marketing';
 import * as metrics from '@/services/metrics';
 import * as policyDocs from '@/services/policy-documents';
+import * as renewalsSvc from '@/services/renewals';
 import * as riskPolicy from '@/services/risk-policy';
 import * as risksSvc from '@/services/risks';
 import * as ropa from '@/services/ropa';
@@ -477,10 +479,40 @@ async function populated() {
     viewerIds: [],
     actor: o.owner.actor
   });
+  const assetType = await assetTypesSvc.createAssetType({
+    organisationId: id,
+    type: {
+      label: "B's ledger book",
+      definition: "B's secret ledgers.",
+      hasExpiry: true
+    },
+    actor: SYSTEM
+  });
+  const datedAsset = await assetsSvc.createAsset({
+    organisationId: id,
+    entityId: o.entity.id,
+    details: {
+      name: "B's ledger",
+      description: null,
+      assetType: assetType.key,
+      ownerId: null,
+      hosting: null,
+      hostedBy: null,
+      region: null,
+      countries: [],
+      classification: null,
+      retention: null,
+      nextReviewAt: null,
+      expiresAt: new Date(Date.now() + 10 * DAY),
+      noticeDays: 0
+    },
+    actor: SYSTEM
+  });
   for (const [kind, targetId] of [
     ['activity', activity.id],
     ['supplier', partner.id],
-    ['risk', risk.id]
+    ['risk', risk.id],
+    ['contract', contract.id]
   ] as const) {
     await assetsSvc.linkAsset({
       assetId: asset.id,
@@ -716,6 +748,8 @@ async function populated() {
     sharingParty,
     asset,
     contract,
+    assetType,
+    datedAsset,
     intakeLink,
     importBatch,
     useCase,
@@ -1203,11 +1237,22 @@ describe("reading another organisation's records", () => {
       () => assetsSvc.assetsFor(A.org.id, { riskId: B.risk.id }, null)
     ],
     [
+      "assetsFor B's contract",
+      () => assetsSvc.assetsFor(A.org.id, { contractId: B.contract.id }, null)
+    ],
+    [
       "linkOptions for B's entity",
       () =>
         assetsSvc
           .linkOptions(A.org.id, B.entity.id)
-          .then((o) => [...o.activity, ...o.risk])
+          .then((o) => [...o.activity, ...o.risk, ...o.contract])
+    ],
+    [
+      "B's types among A's own",
+      () =>
+        assetTypesSvc
+          .assetTypology(A.org.id)
+          .then((types) => types.filter((t) => t.key === B.assetType.key))
     ]
   ];
   for (const [name, read] of reads) {
@@ -2662,6 +2707,35 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      "updateAssetType (B's type)",
+      () =>
+        assetTypesSvc.updateAssetType({
+          organisationId: A.org.id,
+          key: B.assetType.key,
+          type: { label: 'taken', definition: 'taken', hasExpiry: false },
+          actor: as()
+        })
+    ],
+    [
+      "setAssetTypeRetired (B's type)",
+      () =>
+        assetTypesSvc.setAssetTypeRetired({
+          organisationId: A.org.id,
+          key: B.assetType.key,
+          retired: true,
+          actor: as()
+        })
+    ],
+    [
+      "deleteAssetType (B's type)",
+      () =>
+        assetTypesSvc.deleteAssetType({
+          organisationId: A.org.id,
+          key: B.assetType.key,
+          actor: as()
+        })
+    ],
+    [
       'recordAssetReview',
       () =>
         assetsSvc.recordAssetReview({
@@ -3107,7 +3181,7 @@ describe("linking one's own records to another organisation's", () => {
           actor: as()
         })
     ],
-    ...(['activity', 'supplier', 'risk'] as const).map(
+    ...(['activity', 'supplier', 'risk', 'contract'] as const).map(
       (kind) =>
         [
           `my asset linked to B's ${kind}`,
@@ -3116,16 +3190,38 @@ describe("linking one's own records to another organisation's", () => {
               assetId: mine.asset.id,
               organisationId: A.org.id,
               kind,
-              targetId:
-                kind === 'activity'
-                  ? B.activity.id
-                  : kind === 'supplier'
-                    ? B.partner.id
-                    : B.risk.id,
+              targetId: {
+                activity: B.activity.id,
+                supplier: B.partner.id,
+                risk: B.risk.id,
+                contract: B.contract.id
+              }[kind],
               actor: as()
             })
         ] as [string, () => Promise<unknown>]
     ),
+    [
+      "an asset of B's own type",
+      () =>
+        assetsSvc.createAsset({
+          organisationId: A.org.id,
+          entityId: A.entity.id,
+          details: {
+            name: 'x',
+            description: null,
+            assetType: B.assetType.key,
+            ownerId: null,
+            hosting: null,
+            hostedBy: null,
+            region: null,
+            countries: [],
+            classification: null,
+            retention: null,
+            nextReviewAt: null
+          },
+          actor: as()
+        })
+    ],
     [
       "a sharing agreement for B's entity",
       () =>
@@ -3886,6 +3982,22 @@ describe('lists', () => {
         ] as const,
         ['sharingSvc.sharingCoverage', sharingSvc.sharingCoverage(o)] as const,
         [
+          'assetsSvc.assetsNeedingRenewal',
+          assetsSvc.assetsNeedingRenewal(o, new Date(Date.now() + 3650 * DAY))
+        ] as const,
+        [
+          'renewalsSvc.upcomingRenewals',
+          renewalsSvc.upcomingRenewals(
+            o,
+            null,
+            new Date(Date.now() + 3650 * DAY)
+          )
+        ] as const,
+        [
+          'assetTypesSvc.ownAssetTypes',
+          assetTypesSvc.ownAssetTypes(o)
+        ] as const,
+        [
           'assetsSvc.assetRegister',
           assetsSvc.assetRegister(o, null, { links: true })
         ] as const,
@@ -3951,6 +4063,9 @@ describe('lists', () => {
       B.sharingParty.id,
       B.asset.id,
       B.contract.id,
+      B.assetType.id,
+      B.assetType.label,
+      B.datedAsset.id,
       '424242',
       B.template,
       B.dpiaVersion,
@@ -4203,7 +4318,7 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside a caller's transaction, with that caller's organisation",
   'member-grants.canOpenRecordsIn':
     "called inside a caller's transaction, with that caller's organisation",
-  'contracts.retireContractReminders':
+  'renewals.retireRenewalReminders':
     "called inside a caller's transaction, with that caller's organisation and a contract it has loaded",
   'workflow.queueNotification':
     "called inside a caller's transaction, with that caller's organisation",

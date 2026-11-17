@@ -8,8 +8,8 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities, suppliers } from '@/db/schema';
 import { can } from '@/lib/rbac';
+import { NOTICE_WORDS } from '@/lib/renewals';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
-import { NOTICE_WORDS } from '@/lib/thirdparty/contracts';
 import {
   contractPeople,
   contractRegister,

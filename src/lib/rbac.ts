@@ -55,6 +55,13 @@ export const CAPABILITIES = [
   'entity.delete',
   'member.manage',
   'retention.manage',
+  /**
+   * Add, define, retire and delete the organisation's own asset types. The
+   * typology decides what every asset on the register is called, so it sits
+   * with the people who set the organisation up, not with whoever adds an
+   * asset (`services/asset-types.ts`).
+   */
+  'asset_type.manage',
   'template.author',
   'template.publish',
   'workflow.configure',
@@ -117,6 +124,7 @@ const ROLE_CAPABILITIES: Record<AppRole, readonly Capability[]> = {
     'entity.manage',
     'member.manage',
     'retention.manage',
+    'asset_type.manage',
     'template.author',
     'template.publish',
     'workflow.configure',
