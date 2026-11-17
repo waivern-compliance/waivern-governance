@@ -14,11 +14,20 @@ import {
   importMappings,
   importRows,
   importSources,
+  informationAssetActivities,
+  informationAssets,
+  informationAssetSuppliers,
+  memberships,
   processingActivities,
   recordLinks,
   risks,
-  suppliers
+  suppliers,
+  users
 } from '@/db/schema';
+import {
+  CLASSIFICATION_SCHEMES,
+  type AssetClassification
+} from '@/lib/assets/register';
 import { appendAuditEvent } from '@/lib/audit';
 import { ACCEPTED } from '@/lib/documents/limits';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
@@ -39,12 +48,18 @@ import {
   toTable,
   type Table
 } from '@/lib/import/parse';
-import type { ImportMapping, ImportRecord } from '@/lib/import/types';
+import type {
+  ImportLink,
+  ImportMapping,
+  ImportRecord
+} from '@/lib/import/types';
 import { nextReference } from '@/lib/references';
 
 import { createUseCase } from './ai-register';
+import { assetTypology } from './asset-types';
 import { checkFile, insertDocument, UploadRefused } from './documents';
 import { ExtractionUnavailable, runExtraction } from './extraction';
+import { classificationSchemeOf } from './information-assets';
 import { canonicalise as canonicaliseByPush } from './ingest';
 import { cleanLawfulBases } from './ropa';
 import type { Actor } from './templates';
@@ -505,21 +520,27 @@ type Attachment = {
   id: string;
 };
 
+/** An asset's row read into this organisation's terms. */
+type AssetResolved = {
+  assetType: string;
+  hasExpiry: boolean;
+  classification: AssetClassification | null;
+  ownerId: string | null;
+  activityIds: string[];
+  supplierIds: string[];
+};
+
+type Resolved = {
+  /** The supplier an agreement belongs to, or an AI system is linked to. */
+  supplierId?: string | null;
+  /** The record a piece of evidence supports. */
+  attach?: Attachment | null;
+  asset?: AssetResolved;
+};
+
 type Decision =
-  | {
-      action: 'create';
-      recordId: null;
-      /** The supplier an agreement belongs to, or an AI system is linked to. */
-      supplierId?: string | null;
-      /** The record a piece of evidence supports. */
-      attach?: Attachment | null;
-    }
-  | {
-      action: 'update' | 'merge';
-      recordId: string;
-      supplierId?: string | null;
-      attach?: Attachment | null;
-    }
+  | ({ action: 'create'; recordId: null } & Resolved)
+  | ({ action: 'update' | 'merge'; recordId: string } & Resolved)
   | { action: 'refuse'; reason: string };
 
 type Batch = {
@@ -534,14 +555,9 @@ type Batch = {
 async function importedBy(
   tx: Tx,
   batch: Batch,
-  kind: 'processing_activity' | 'evidence' | 'ai_use_case'
+  kind: 'processing_activity' | 'evidence' | 'ai_use_case' | 'information_asset'
 ) {
-  const table =
-    kind === 'processing_activity'
-      ? processingActivities
-      : kind === 'evidence'
-        ? evidence
-        : aiUseCases;
+  const table = TABLE[kind];
   const rows = await tx
     .select({
       id: table.id,
@@ -561,10 +577,7 @@ async function importedBy(
   const byRef = new Map(rows.map((r) => [r.ref?.toLowerCase(), r]));
   // Moving a record between entities changes who answers for it: not an
   // import's call.
-  return (
-    sourceRef: string,
-    extra: { supplierId?: string | null; attach?: Attachment | null } = {}
-  ): Decision => {
+  return (sourceRef: string, extra: Resolved = {}): Decision => {
     const found = byRef.get(sourceRef.toLowerCase());
     if (!found) return { ...extra, action: 'create', recordId: null };
     if (batch.entityId && found.entityId !== batch.entityId)
@@ -787,7 +800,167 @@ async function matcher(
         return decide(sourceRef, { supplierId });
       };
     }
+    case 'information_asset': {
+      const decide = await importedBy(tx, batch, 'information_asset');
+      const resolve = await assetResolver(tx, batch);
+      // The type each asset imported before from this source has now: one
+      // since retired may stay on the asset that has it, as when edited here.
+      const typeNow = new Map(
+        (
+          await tx
+            .select({
+              ref: informationAssets.externalRef,
+              assetType: informationAssets.assetType
+            })
+            .from(informationAssets)
+            .where(
+              and(
+                eq(informationAssets.organisationId, batch.organisationId),
+                eq(informationAssets.importSourceId, batch.sourceId)
+              )
+            )
+        ).map((a) => [a.ref?.toLowerCase(), a.assetType])
+      );
+      return (record, sourceRef) => {
+        const asset = resolve(
+          (record as Of<'information_asset'>).data,
+          typeNow.get(sourceRef.toLowerCase())
+        );
+        return 'reason' in asset
+          ? { action: 'refuse', reason: asset.reason }
+          : decide(sourceRef, { asset });
+      };
+    }
   }
+}
+
+/** Compared without case, spacing or punctuation: "Domain name", "domain-name". */
+const loose = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+/** Members by email address, compared without case. */
+async function membersByEmail(tx: Tx, organisationId: string) {
+  const rows = await tx
+    .select({ id: users.id, email: users.email })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(eq(memberships.organisationId, organisationId));
+  const byEmail = new Map(rows.map((r) => [r.email.toLowerCase(), r.id]));
+  return (email: string) => byEmail.get(email.trim().toLowerCase()) ?? null;
+}
+
+/**
+ * Processing activities of the batch's entity by the reference Govern gave
+ * them, their identifier in this source, or their name.
+ */
+async function activitiesByName(tx: Tx, batch: Batch) {
+  const rows = await tx
+    .select({
+      id: processingActivities.id,
+      reference: processingActivities.reference,
+      ref: processingActivities.externalRef,
+      sourceId: processingActivities.importSourceId,
+      name: processingActivities.name
+    })
+    .from(processingActivities)
+    .where(
+      and(
+        eq(processingActivities.organisationId, batch.organisationId),
+        eq(processingActivities.entityId, batch.entityId!)
+      )
+    );
+  const byKey = new Map<string, string>();
+  // Weakest first, so a reference or an identifier wins over a name.
+  for (const r of rows) byKey.set(`name:${loose(r.name)}`, r.id);
+  for (const r of rows)
+    if (r.sourceId === batch.sourceId && r.ref)
+      byKey.set(`ref:${r.ref.toLowerCase()}`, r.id);
+  for (const r of rows) byKey.set(`ref:${r.reference.toLowerCase()}`, r.id);
+  return (given: string) =>
+    byKey.get(`ref:${given.trim().toLowerCase()}`) ??
+    byKey.get(`name:${loose(given)}`) ??
+    null;
+}
+
+/**
+ * An asset's type, classification, owner and links read into this
+ * organisation's terms: its own typology and scheme, its members, and the
+ * activities and suppliers already recorded. What cannot be found refuses
+ * the row, except an owner, who may simply not be a member here.
+ */
+async function assetResolver(tx: Tx, batch: Batch) {
+  const [types, scheme, memberOf, activityOf, supplierOf] = await Promise.all([
+    assetTypology(batch.organisationId),
+    classificationSchemeOf(batch.organisationId, tx),
+    membersByEmail(tx, batch.organisationId),
+    activitiesByName(tx, batch),
+    suppliersByKey(tx, batch.organisationId)
+  ]);
+  const levels: Record<string, string> = CLASSIFICATION_SCHEMES[scheme].levels;
+  return (
+    data: Of<'information_asset'>['data'],
+    /** The type the matching asset has now, where there is one. */
+    current?: string
+  ): AssetResolved | { reason: string } => {
+    const type = types.find(
+      (t) =>
+        t.key === data.assetType.trim().toLowerCase() ||
+        loose(t.label) === loose(data.assetType)
+    );
+    if (!type)
+      return {
+        reason: `"${data.assetType}" is not an asset type here. Use one of: ${types
+          .filter((t) => !t.retiredAt)
+          .map((t) => t.label)
+          .join(', ')}, or add it as a type first.`
+      };
+    if (type.retiredAt && type.key !== current)
+      return {
+        reason: `The ${type.label} type has been retired. Choose another.`
+      };
+    let classification: AssetClassification | null = null;
+    if (data.classification) {
+      const level = Object.entries(levels).find(
+        ([key, label]) =>
+          key === data.classification!.trim().toLowerCase() ||
+          loose(label) === loose(data.classification!)
+      );
+      if (!level)
+        return {
+          reason: `"${data.classification}" is not a level of the ${CLASSIFICATION_SCHEMES[scheme].inSentence}, which this organisation uses. Use one of: ${Object.values(levels).join(', ')}.`
+        };
+      classification = level[0] as AssetClassification;
+    }
+    const activityIds: string[] = [];
+    for (const name of data.activities) {
+      const id = activityOf(name);
+      if (!id)
+        return {
+          reason: `No processing activity "${name}" is recorded in this entity. Import or add it first.`
+        };
+      activityIds.push(id);
+    }
+    const supplierIds: string[] = [];
+    for (const name of data.suppliers) {
+      const id = supplierOf(name);
+      if (!id)
+        return {
+          reason: `No supplier called "${name}" is recorded. Import or add the supplier first.`
+        };
+      supplierIds.push(id);
+    }
+    return {
+      assetType: type.key,
+      hasExpiry: type.hasExpiry,
+      classification,
+      ownerId: data.owner ? memberOf(data.owner) : null,
+      activityIds: [...new Set(activityIds)],
+      supplierIds: [...new Set(supplierIds)]
+    };
+  };
 }
 
 /** What makes two rows of one file the same record. */
@@ -1071,6 +1244,23 @@ const KEYS: Record<RecordType, string[]> = {
     'dataCategories',
     'supplierId',
     ...IMPORT_KEYS
+  ],
+  information_asset: [
+    'name',
+    'description',
+    'assetType',
+    'ownerId',
+    'hosting',
+    'hostedBy',
+    'region',
+    'countries',
+    'classification',
+    'retention',
+    'nextReviewAt',
+    'expiresAt',
+    'noticeDays',
+    'autoRenews',
+    ...IMPORT_KEYS
   ]
 };
 
@@ -1081,7 +1271,8 @@ const DATE_KEYS = new Set([
   'updatedAt',
   'signedAt',
   'expiresAt',
-  'collectedAt'
+  'collectedAt',
+  'nextReviewAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -1109,7 +1300,8 @@ const TABLE = {
   supplier: suppliers,
   dpa: dpas,
   evidence,
-  ai_use_case: aiUseCases
+  ai_use_case: aiUseCases,
+  information_asset: informationAssets
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -1118,6 +1310,7 @@ type Written = {
   before: Record<string, unknown> | null;
   documentId?: string | null;
   linkId?: string | null;
+  links?: ImportLink[];
 };
 
 /** The files and links earlier imports, still standing, made for a record. */
@@ -1595,6 +1788,154 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writeEvidence(c, record);
     case 'ai_use_case':
       return writeUseCase(c, record);
+    case 'information_asset':
+      return writeAsset(c, record);
+  }
+}
+
+/** What an asset is, from a checked row read into this organisation's terms. */
+function assetValues(data: Of<'information_asset'>['data'], a: AssetResolved) {
+  return {
+    name: data.name,
+    description: data.description ?? null,
+    assetType: a.assetType,
+    hosting: data.hosting ?? null,
+    hostedBy: data.hostedBy ?? null,
+    region: data.region ?? null,
+    countries: [...new Set(data.countries)],
+    classification: a.classification,
+    retention: data.retention ?? null,
+    nextReviewAt: data.nextReviewAt ? new Date(data.nextReviewAt) : null,
+    // Only a type that expires carries the dates, as when typed in.
+    expiresAt: a.hasExpiry && data.expiresAt ? new Date(data.expiresAt) : null,
+    noticeDays: a.hasExpiry ? (data.noticeDays ?? null) : null
+  };
+}
+
+const ASSET_LINK = {
+  asset_activity: {
+    table: informationAssetActivities,
+    target: informationAssetActivities.activityId,
+    key: 'activityId'
+  },
+  asset_supplier: {
+    table: informationAssetSuppliers,
+    target: informationAssetSuppliers.supplierId,
+    key: 'supplierId'
+  }
+} as const;
+
+async function writeAsset(
+  c: WriteContext,
+  record: Of<'information_asset'>
+): Promise<Written> {
+  const resolved = c.decision.asset!;
+  const described = assetValues(record.data, resolved);
+  // An owner nobody here matches stays empty, as a gap, and the name stays
+  // with the asset to read; one chosen here is a person's call to change.
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const autoRenews =
+    resolved.hasExpiry && record.data.autoRenews !== undefined
+      ? { autoRenews: record.data.autoRenews }
+      : {};
+  const legacy =
+    record.data.owner && !resolved.ownerId
+      ? { ...record.legacy, Owner: record.data.owner }
+      : record.legacy;
+  const kept = provenance(c, { ...record, legacy });
+  let id: string;
+  let was: Record<string, unknown> | null = null;
+  if (c.decision.recordId) {
+    was = await rowBefore(c, 'information_asset', c.decision.recordId);
+    // A type that does not expire carries no renewal dates, so a change of
+    // type leaves none behind to raise reminders, as when edited here.
+    const noExpiry = resolved.hasExpiry
+      ? {}
+      : { expiresAt: null, noticeDays: null, autoRenews: false };
+    await c.tx
+      .update(informationAssets)
+      .set({
+        ...said(described),
+        ...noExpiry,
+        ...owner,
+        ...autoRenews,
+        ...kept
+      })
+      .where(eq(informationAssets.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const reference = await nextReference(
+      c.tx,
+      c.batch.organisationId,
+      'IA',
+      c.at.getUTCFullYear()
+    );
+    const [created] = await c.tx
+      .insert(informationAssets)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId!,
+        reference,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...described,
+        ...owner,
+        ...autoRenews,
+        ...kept
+      })
+      .returning({ id: informationAssets.id });
+    id = created.id;
+  }
+  // Links are added, never taken away: one a person removed here and the
+  // platform still names comes back, but one a person made is never undone
+  // by a file.
+  const links: ImportLink[] = [];
+  const wanted = [
+    ...resolved.activityIds.map((to) => ['asset_activity', to] as const),
+    ...resolved.supplierIds.map((to) => ['asset_supplier', to] as const)
+  ];
+  for (const [kind, to] of wanted) {
+    const { table, key } = ASSET_LINK[kind];
+    const made = await c.tx
+      .insert(table)
+      .values({
+        organisationId: c.batch.organisationId,
+        assetId: id,
+        [key]: to
+      } as typeof table.$inferInsert)
+      .onConflictDoNothing()
+      .returning();
+    if (made.length) links.push({ kind, from: id, to });
+  }
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: c.batch.entityId ?? undefined,
+    action: was ? 'information_asset.updated' : 'information_asset.created',
+    subjectType: 'information_asset',
+    subjectId: id,
+    after: {
+      name: record.data.name,
+      assetType: resolved.assetType,
+      linked: links.length,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return {
+    id,
+    before: was && snapshot(was, KEYS.information_asset),
+    links
+  };
+}
+
+/** Remove the links an import made, and only those. */
+async function removeLinks(tx: Tx, links: ImportLink[]) {
+  for (const link of links) {
+    const { table, target } = ASSET_LINK[link.kind];
+    await tx
+      .delete(table)
+      .where(and(eq(table.assetId, link.from), eq(target, link.to)));
   }
 }
 
@@ -1671,7 +2012,8 @@ export async function commitImport(input: {
             recordId: written.id,
             before: written.before,
             documentId: written.documentId ?? null,
-            linkId: written.linkId ?? null
+            linkId: written.linkId ?? null,
+            links: written.links?.length ? written.links : null
           })
           .where(eq(importRows.id, row.id));
       }
@@ -1802,6 +2144,10 @@ export async function undoImport(input: {
       const madeLinks = rows.flatMap((r) => (r.linkId ? [r.linkId] : []));
       if (madeLinks.length)
         await tx.delete(recordLinks).where(inArray(recordLinks.id, madeLinks));
+      await removeLinks(
+        tx,
+        rows.flatMap((r) => r.links ?? [])
+      );
       const created = rows
         .filter((r) => r.action === 'create')
         .map((r) => r.recordId!);
@@ -1896,7 +2242,11 @@ export async function undoImport(input: {
 
 /** Kinds of imported record a person confirms here. Suppliers use their own review. */
 export type Confirmable =
-  'processing_activity' | 'dpa' | 'evidence' | 'ai_use_case';
+  | 'processing_activity'
+  | 'dpa'
+  | 'evidence'
+  | 'ai_use_case'
+  | 'information_asset';
 
 /** A person confirms an imported record, which then counts as current. */
 export async function confirmImportedRecord(input: {

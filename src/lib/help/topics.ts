@@ -2235,7 +2235,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files: match the columns, preview every row, then import.',
+      'Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files, AI systems and information assets: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2273,6 +2273,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Information assets',
+        body: [
+          "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
+          'An asset can name the processing activities that use it, by reference, ID in the platform or name, and the suppliers that host or run it, by name. Each must already be recorded, so import those first; a row naming one Govern does not know is not imported, with the reason. Importing again adds links the file names and never removes one.',
+          'An imported asset raises no review or renewal reminders until it is confirmed, so an inventory moved in with old dates does not bury the reminders that matter.'
+        ]
+      },
+      {
         heading: 'Importing again',
         body: [
           "Give a column with each record's ID in the other platform. Importing the same platform's file again then updates the records it brought in before; it never duplicates them. Without an ID column, the name is used instead: for an agreement, its supplier and title; for evidence, its title, date and file, so a new year's report of the same name is a new record. IDs are compared without regard to capitals. An agreement imported before against another supplier, or archived since, is not changed by importing it again; the row says why. A supplier whose name is already recorded is added to, not duplicated: what the file says about it joins what is known. Importing again never erases: a column the file leaves out, or a cell left empty, keeps what is recorded, and a vendor recorded on an AI system stays. An agreement whose transfer mechanisms were ticked on its supplier's page is not changed by a row describing them differently; the row says why.",
@@ -2283,7 +2291,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence or AI system shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system or information asset shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {
@@ -2293,7 +2301,13 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       }
     ],
-    related: ['third-parties', 'ropa', 'evidence', 'exports']
+    related: [
+      'third-parties',
+      'ropa',
+      'evidence',
+      'information-assets',
+      'exports'
+    ]
   },
   {
     id: 'evidence',

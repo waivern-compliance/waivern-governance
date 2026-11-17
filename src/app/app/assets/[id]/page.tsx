@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import {
   ASSET_GAP_WORDS,
@@ -15,6 +17,7 @@ import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { assetTypology } from '@/services/asset-types';
 import { candidatesFor } from '@/services/handover';
+import { importSourceName } from '@/services/imports';
 import {
   classificationSchemeOf,
   linkOptions,
@@ -81,11 +84,12 @@ export default async function AssetPage({
     can(active.membership.grants, 'record.write', asset.entityId) &&
     !asset.retiredAt;
 
-  const [scheme, options, candidates, types] = await Promise.all([
+  const [scheme, options, candidates, types, sourceName] = await Promise.all([
     classificationSchemeOf(org),
     mayEdit ? linkOptions(org, asset.entityId) : null,
     candidatesFor(org),
-    assetTypology(org)
+    assetTypology(org),
+    asset.importSourceId ? importSourceName(org, asset.importSourceId) : null
   ]);
   const type = types.find((t) => t.key === asset.assetType);
   const details = describeDetails(type, asset.details);
@@ -188,6 +192,25 @@ export default async function AssetPage({
           </p>
         ) : null}
       </header>
+
+      {asset.importSourceId ? (
+        <ImportedFrom
+          sourceName={sourceName ?? 'another platform'}
+          batchId={asset.importBatchId}
+          confirmed={asset.importConfirmedAt !== null}
+          legacy={asset.legacy}
+          confirm={
+            mayEdit ? (
+              <ConfirmImported
+                type="information_asset"
+                id={asset.id}
+                revalidate={`/app/assets/${asset.id}`}
+                what="this asset"
+              />
+            ) : null
+          }
+        />
+      ) : null}
 
       {mayEdit ? (
         <EditForm

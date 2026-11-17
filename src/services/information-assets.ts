@@ -6,6 +6,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  or,
   sql
 } from 'drizzle-orm';
 
@@ -938,6 +939,17 @@ export async function unlinkAsset(input: {
   );
 }
 
+/**
+ * An asset imported from another platform raises no reminders until a person
+ * has confirmed it: an inventory moved in with years of stale review and
+ * renewal dates would otherwise bury the real ones on its first night
+ * (decision 5 of the plan in issue #64).
+ */
+const relied = or(
+  isNull(informationAssets.importBatchId),
+  isNotNull(informationAssets.importConfirmedAt)
+);
+
 /** Assets in use whose review date has passed, oldest first. For the sweep. */
 export async function assetsDueForReview(
   organisationId: string,
@@ -951,7 +963,8 @@ export async function assetsDueForReview(
         and(
           eq(informationAssets.organisationId, organisationId),
           isNull(informationAssets.retiredAt),
-          lte(informationAssets.nextReviewAt, now)
+          lte(informationAssets.nextReviewAt, now),
+          relied
         )
       )
       .orderBy(asc(informationAssets.nextReviewAt))
@@ -975,7 +988,8 @@ export async function assetsNeedingRenewal(
         and(
           eq(informationAssets.organisationId, organisationId),
           isNull(informationAssets.retiredAt),
-          isNotNull(informationAssets.expiresAt)
+          isNotNull(informationAssets.expiresAt),
+          relied
         )
       )
       .orderBy(asc(informationAssets.expiresAt));

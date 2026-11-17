@@ -11,7 +11,11 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
-import type { ImportMapping, ImportRecord } from '@/lib/import/types';
+import type {
+  ImportLink,
+  ImportMapping,
+  ImportRecord
+} from '@/lib/import/types';
 
 import { bytea } from '../columns';
 import { entities, organisations, users } from './tenancy';
@@ -28,7 +32,8 @@ export const importRecordType = pgEnum('import_record_type', [
   'processing_activity',
   'dpa',
   'evidence',
-  'ai_use_case'
+  'ai_use_case',
+  'information_asset'
 ]);
 
 export const importBatchStatus = pgEnum('import_batch_status', [
@@ -142,7 +147,13 @@ export const importRows = pgTable(
     /** The file the import attached to the record, removed again on undo. */
     documentId: uuid('document_id'),
     /** The link to the record it supports, made by the import (evidence). */
-    linkId: uuid('link_id')
+    linkId: uuid('link_id'),
+    /**
+     * Links between registers the import made (an asset to an activity), so
+     * undo removes those and no others, and they are not counted as work done
+     * on the record since.
+     */
+    links: jsonb('links').$type<ImportLink[]>()
   },
   (t) => [index('import_row_batch_idx').on(t.batchId, t.rowNumber)]
 );

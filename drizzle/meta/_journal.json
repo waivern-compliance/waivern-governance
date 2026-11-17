@@ -883,6 +883,13 @@
       "when": 1794909380571,
       "tag": "0125_asset_typology_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1794932878317,
+      "tag": "0126_import_information_assets",
+      "breakpoints": true
     }
   ]
 }

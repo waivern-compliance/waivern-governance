@@ -5,7 +5,12 @@ import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
-import { aiUseCases, evidence, processingActivities } from '@/db/schema';
+import {
+  aiUseCases,
+  evidence,
+  informationAssets,
+  processingActivities
+} from '@/db/schema';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import type { RecordType } from '@/lib/import/fields';
 import { can, mayImport } from '@/lib/rbac';
@@ -223,7 +228,9 @@ async function confirmer(type: Confirmable, id: string) {
               ? processingActivities
               : type === 'evidence'
                 ? evidence
-                : aiUseCases;
+                : type === 'information_asset'
+                  ? informationAssets
+                  : aiUseCases;
           const [row] = await db
             .select({ entityId: table.entityId })
             .from(table)
