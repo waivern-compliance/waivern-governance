@@ -619,7 +619,7 @@ describe('contracts and assets', () => {
         noticeDays: 10,
         autoRenews: false
       },
-      terms: { value: '999', currency: 'GBP' },
+      terms: { value: '987654.32', currency: 'GBP' },
       viewerIds: [],
       actor: actorFor(w.admin)
     });
@@ -646,7 +646,21 @@ describe('contracts and assets', () => {
         ['contract', 'Hosting']
       ]
     );
-    assert.ok(!JSON.stringify(renewals).includes('999'));
+    // Dates only: no field carries the contract's terms. Searching the JSON
+    // for the value would also match random ids and timestamps.
+    for (const r of renewals) {
+      assert.deepEqual(Object.keys(r).sort(), [
+        'context',
+        'endsAt',
+        'id',
+        'notice',
+        'noticeBy',
+        'reference',
+        'subject',
+        'title'
+      ]);
+      assert.ok(!Object.values(r).map(String).includes('987654.32'));
+    }
     assert.deepEqual(await upcomingRenewals(w.org.id, [w.other.id]), []);
   });
 });
