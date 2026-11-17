@@ -4,6 +4,8 @@ import { asc, eq } from 'drizzle-orm';
 
 import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities, memberships, users } from '@/db/schema';
@@ -13,6 +15,7 @@ import { can, scopedEntityIds } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { documentsFor } from '@/services/documents';
+import { importSourceName } from '@/services/imports';
 import { loadPolicyDocument } from '@/services/policy-documents';
 
 import { inputClass, Label } from '../../requests/fields';
@@ -110,6 +113,28 @@ export default async function PolicyDocumentPage({
           </p>
         ) : null}
       </header>
+
+      {doc.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(org, doc.importSourceId)) ??
+            'another platform'
+          }
+          batchId={doc.importBatchId}
+          confirmed={doc.importConfirmedAt !== null}
+          legacy={doc.legacy}
+          confirm={
+            mayEdit ? (
+              <ConfirmImported
+                type="policy_document"
+                id={doc.id}
+                revalidate={`/app/policy-documents/${doc.id}`}
+                what="this document"
+              />
+            ) : null
+          }
+        />
+      ) : null}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Conditions it covers</h2>

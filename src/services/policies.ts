@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql
+} from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -1062,7 +1073,14 @@ export async function policiesDueForReview(
         and(
           eq(policies.organisationId, organisationId),
           eq(policies.status, 'in_force'),
-          lte(policies.nextReviewAt, now)
+          lte(policies.nextReviewAt, now),
+          // One imported raises no review until a person has confirmed it: a
+          // register moved in with old review dates would otherwise ask for
+          // every one at once (decision 5 of issue #64).
+          or(
+            isNull(policies.importBatchId),
+            isNotNull(policies.importConfirmedAt)
+          )
         )
       )
       .orderBy(asc(policies.nextReviewAt))

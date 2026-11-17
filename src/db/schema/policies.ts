@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -10,9 +11,12 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { SourceEvent } from '@/lib/import/types';
+
 import { aiUseCases } from './ai';
 import { documents } from './documents';
 import { policyStatus, policyVersionStatus } from './enums';
+import { importBatches, importSources } from './imports';
 import { processingActivities } from './integration';
 import { entities, organisations, users } from './tenancy';
 
@@ -51,6 +55,24 @@ export const policies = pgTable(
     lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     withdrawnReason: text('withdrawn_reason'),
+    /**
+     * Moved in from another platform (docs/migration-plan.md): its identifier
+     * there, the batch, and the source's fields with no home here. What the old platform
+     * recorded of its approval is its account, shown as such: it was not
+     * approved here, so it has no version in force here until one is.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    sourceHistory: jsonb('source_history').$type<SourceEvent[]>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -61,7 +83,12 @@ export const policies = pgTable(
   (t) => [
     uniqueIndex('policy_reference_key').on(t.organisationId, t.reference),
     index('policy_entity_idx').on(t.organisationId, t.entityId),
-    index('policy_review_idx').on(t.organisationId, t.nextReviewAt)
+    index('policy_review_idx').on(t.organisationId, t.nextReviewAt),
+    uniqueIndex('policy_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      )
   ]
 );
 

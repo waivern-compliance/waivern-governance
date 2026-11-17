@@ -2279,7 +2279,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records, files, AI systems, assets, risks and mitigations in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
+      'Bring records, files, AI systems, assets, risks, mitigations and policies in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2333,6 +2333,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Policies and appropriate policy documents',
+        body: [
+          'Each is for the legal entity a column names, or for every entity where it names none. One imported before stays for the entity it came in for: a later row naming another entity is not imported. Files the rows name are added to the import and attached, as for agreements.',
+          'An appropriate policy document lists the Schedule 1 conditions and Part 3 grounds it covers, named as "para 18", "Sch 8 para 4", "Part 3 consent", or by the name the Act gives. Anything else stops its row. Until it is confirmed, it covers nothing, so the activities relying on those conditions show the gap until somebody here has checked the document.',
+          "A policy in force in the old platform is in force here, but no version of it has been approved here: who approved it there, when and where is shown as the platform's history, and the next version is approved here as for any policy. Its next review is the date the file gives, or counted from its last review or approval there. It asks for no review until it is confirmed. A withdrawn policy needs the date it was withdrawn. A policy can name the processing activities and AI systems it governs, which must already be recorded."
+        ]
+      },
+      {
         heading: 'Information assets',
         body: [
           "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
@@ -2351,7 +2359,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk or mitigation shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy or appropriate policy document shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {

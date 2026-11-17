@@ -4,6 +4,8 @@ import { asc, eq } from 'drizzle-orm';
 
 import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
@@ -11,6 +13,7 @@ import { can, scopedEntityIds, type Capability, type Grant } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { documentsFor } from '@/services/documents';
+import { importSourceName } from '@/services/imports';
 import { loadPolicy, policyLinkOptions } from '@/services/policies';
 
 import { inputClass, Label } from '../../requests/fields';
@@ -140,6 +143,29 @@ export default async function PolicyPage({
           <p className="text-xs text-amber-900">Past its review date.</p>
         ) : null}
       </header>
+
+      {policy.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(org, policy.importSourceId)) ??
+            'another platform'
+          }
+          batchId={policy.importBatchId}
+          confirmed={policy.importConfirmedAt !== null}
+          legacy={policy.legacy}
+          history={policy.sourceHistory}
+          confirm={
+            holds(grants, 'record.write', policy.entityId) ? (
+              <ConfirmImported
+                type="policy"
+                id={policy.id}
+                revalidate={`/app/policies/${policy.id}`}
+                what="this policy"
+              />
+            ) : null
+          }
+        />
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Versions</h2>

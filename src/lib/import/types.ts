@@ -2,6 +2,8 @@ import type {
   AiUseCaseIn,
   InformationAssetIn,
   MitigationIn,
+  PolicyDocumentIn,
+  PolicyIn,
   ProcessingActivityIn,
   RiskIn,
   VendorIn
@@ -42,6 +44,12 @@ export type ImportLink =
   | {
       kind: 'asset_activity' | 'asset_supplier' | 'asset_risk';
       /** The asset. */
+      from: string;
+      to: string;
+    }
+  | {
+      kind: 'policy_activity' | 'policy_ai_system';
+      /** The policy. */
       from: string;
       to: string;
     }
@@ -110,5 +118,15 @@ export type ImportRecord =
   | {
       kind: 'mitigation';
       data: MitigationIn;
+      legacy: Legacy;
+    }
+  | {
+      kind: 'policy_document';
+      data: PolicyDocumentIn & { file?: string };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'policy';
+      data: PolicyIn & { file?: string };
       legacy: Legacy;
     };
