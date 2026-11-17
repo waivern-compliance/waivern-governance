@@ -137,7 +137,10 @@ const DEFAULT_SLA_HOURS: Record<TaskType, number> = {
   pecr_scan_changes: 24 * 7,
   // Placeholder: the sweep sets each reminder's due date to when the 28 days run out.
   marketing_tps_screening: 24 * 3,
-  marketing_ndd_screening: 24 * 3
+  marketing_ndd_screening: 24 * 3,
+  // A week for somebody to read a policy and decide it.
+  policy_approval: 24 * 7,
+  policy_review: 24 * 14
 };
 
 async function slaHoursFor(tx: Tx, organisationId: string, type: TaskType) {

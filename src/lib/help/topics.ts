@@ -614,6 +614,50 @@ export const HELP_TOPICS: HelpTopic[] = [
     related: ['transfers', 'third-parties', 'exports', 'policy-documents']
   },
   {
+    id: 'policies',
+    title: 'Policies',
+    summary:
+      "The organisation's policies, each with the version in force, who approved it and where, and when it is next reviewed.",
+    path: '/app/policies',
+    keywords: [
+      'policy',
+      'policy register',
+      'information security policy',
+      'acceptable use',
+      'retention policy',
+      'policy approval',
+      'policy review'
+    ],
+    sections: [
+      {
+        heading: 'What it holds',
+        body: [
+          'Every policy the organisation keeps, such as information security, acceptable use, retention or AI use, for one legal entity or for all of them. Each has an owner, a review interval, and its text in versions. The appropriate policy documents the Data Protection Act 2018 requires for Schedule 1 conditions are kept in their own register, with the conditions each covers, and are linked from this page.'
+        ]
+      },
+      {
+        heading: 'Versions and approval',
+        body: [
+          'A policy starts with a draft version. Attach its text on the policy page, choose that file for the version, and submit it. The approvers are given a task. Somebody who may decide approvals, and who is not the person who submitted it, approves it, naming where it was agreed, such as the board, the date and the minute, or rejects it, saying why.',
+          'Approving a version puts the policy in force, supersedes the version before, and sets the next review from the interval. Once submitted, a version cannot be changed, and the file it names cannot be removed: it is what was decided. To change a policy, draft a new version and send it for approval again.'
+        ]
+      },
+      {
+        heading: 'Reviews',
+        body: [
+          'When a policy in force has been read again and still holds, its owner records the review, which moves the next review on. Policies past their review date show on the register, and once a month the privacy administrators are given one task naming how many.'
+        ]
+      },
+      {
+        heading: 'What it governs, and withdrawing',
+        body: [
+          'A policy can be linked to the processing activities and AI systems it governs, of its own entity, or of any entity for a policy that applies to all of them. Withdraw a policy that no longer applies, saying why: it is kept with its versions, so the register shows what applied while it was in force.'
+        ]
+      }
+    ],
+    related: ['policy-documents', 'approvals', 'ropa']
+  },
+  {
     id: 'policy-documents',
     title: 'Appropriate policy documents (Schedule 1)',
     summary:
@@ -3222,6 +3266,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
     ids: [
       'ropa',
       'information-assets',
+      'policies',
       'policy-documents',
       'third-parties',
       'contracts',

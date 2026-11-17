@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
-import { documents, users } from '@/db/schema';
+import { documents, policyVersions, users } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { contentMatchesType } from '@/lib/documents/content-check';
 import { ACCEPTED, MAX_BYTES, RETIRED } from '@/lib/documents/limits';
@@ -442,6 +442,26 @@ export async function removeDocument(input: {
           )
         );
       if (!row) return;
+      // The text a policy version was submitted or approved as is what was
+      // decided; removing it would leave a decision about nothing.
+      const [held] = await tx
+        .select({ label: policyVersions.label })
+        .from(policyVersions)
+        .where(
+          and(
+            eq(policyVersions.documentId, row.id),
+            inArray(policyVersions.status, [
+              'submitted',
+              'approved',
+              'rejected',
+              'superseded'
+            ])
+          )
+        );
+      if (held)
+        throw new Error(
+          `This file is the text of version ${held.label}, which has been submitted or decided, so it is kept.`
+        );
 
       await tx.delete(documents).where(eq(documents.id, input.id));
 

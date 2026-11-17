@@ -9,6 +9,7 @@ import { GapChips } from '@/components/GapChips';
 import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
+import { GoverningPolicies } from '@/components/policies/GoverningPolicies';
 import { StartAssessment } from '@/components/StartAssessment';
 import { db, scoped } from '@/db/client';
 import {
@@ -866,6 +867,12 @@ export default async function UseCasePage({
           </EditForm>
         </section>
       ) : null}
+
+      <GoverningPolicies
+        organisationId={active.membership.organisationId}
+        kind="ai_system"
+        id={useCase.id}
+      />
 
       <Discussion
         subjectType="ai_use_case"

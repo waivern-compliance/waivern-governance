@@ -81,6 +81,7 @@ import * as foi from '@/services/information-requests';
 import * as ingest from '@/services/ingest';
 import * as marketingSvc from '@/services/marketing';
 import * as metrics from '@/services/metrics';
+import * as policiesSvc from '@/services/policies';
 import * as policyDocs from '@/services/policy-documents';
 import * as renewalsSvc from '@/services/renewals';
 import * as riskPolicy from '@/services/risk-policy';
@@ -529,6 +530,14 @@ async function populated() {
     conditions: ['para6', 'para18'],
     actor: SYSTEM
   });
+  const policy = await policiesSvc.createPolicy({
+    organisationId: id,
+    entityId: o.entity.id,
+    title: "B's information security policy",
+    actor: SYSTEM
+  });
+  const policyVersion = (await policiesSvc.loadPolicy(policy.id, id))!
+    .versions[0].version;
   const complaint = await complaintsSvc.recordComplaint({
     organisationId: id,
     entityId: o.entity.id,
@@ -743,6 +752,8 @@ async function populated() {
     consentScan,
     marketingActivity,
     policyDoc,
+    policy,
+    policyVersion,
     partner,
     sharing,
     sharingParty,
@@ -781,6 +792,8 @@ let mine: {
   asset: { id: string };
   supplier: { id: string };
   policyDoc: { id: string };
+  policy: { id: string };
+  policyVersion: string;
   risk: { id: string };
   breach: { id: string };
   subjectRequest: { id: string };
@@ -896,6 +909,14 @@ before(async () => {
     conditions: ['para6'],
     actor: SYSTEM
   });
+  const policy = await policiesSvc.createPolicy({
+    organisationId: A.org.id,
+    entityId: null,
+    title: "A's policy",
+    actor: SYSTEM
+  });
+  const policyVersion = (await policiesSvc.loadPolicy(policy.id, A.org.id))!
+    .versions[0].version.id;
   const sharing = await sharingSvc.createSharingAgreement({
     organisationId: A.org.id,
     entityId: A.entity.id,
@@ -930,6 +951,8 @@ before(async () => {
     asset,
     supplier,
     policyDoc,
+    policy,
+    policyVersion,
     risk,
     breach,
     subjectRequest,
@@ -1185,6 +1208,7 @@ describe("reading another organisation's records", () => {
       'loadPolicyDocument',
       () => policyDocs.loadPolicyDocument(B.policyDoc.id, A.org.id)
     ],
+    ['loadPolicy', () => policiesSvc.loadPolicy(B.policy.id, A.org.id)],
     [
       'loadSharingAgreement',
       () => sharingSvc.loadSharingAgreement(B.sharing.id, A.org.id)
@@ -2796,6 +2820,97 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'updatePolicy',
+      () =>
+        policiesSvc.updatePolicy({
+          id: B.policy.id,
+          organisationId: A.org.id,
+          title: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'draftVersion',
+      () =>
+        policiesSvc.draftVersion({
+          policyId: B.policy.id,
+          organisationId: A.org.id,
+          label: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'updateDraft',
+      () =>
+        policiesSvc.updateDraft({
+          versionId: B.policyVersion.id,
+          organisationId: A.org.id,
+          label: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      'submitVersion',
+      () =>
+        policiesSvc.submitVersion({
+          versionId: B.policyVersion.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'decideVersion',
+      () =>
+        policiesSvc.decideVersion({
+          versionId: B.policyVersion.id,
+          organisationId: A.org.id,
+          decision: 'approved',
+          approvalReference: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      "recordPolicyReview (B's policy)",
+      () =>
+        policiesSvc.recordPolicyReview({
+          policyId: B.policy.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
+      'withdrawPolicy',
+      () =>
+        policiesSvc.withdrawPolicy({
+          policyId: B.policy.id,
+          organisationId: A.org.id,
+          reason: 'taken',
+          actor: as()
+        })
+    ],
+    [
+      "linkPolicy (B's policy)",
+      () =>
+        policiesSvc.linkPolicy({
+          policyId: B.policy.id,
+          organisationId: A.org.id,
+          kind: 'activity',
+          targetId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      'unlinkPolicy',
+      () =>
+        policiesSvc.unlinkPolicy({
+          policyId: B.policy.id,
+          organisationId: A.org.id,
+          kind: 'activity',
+          targetId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
       'updatePolicyDocument',
       () =>
         policyDocs.updatePolicyDocument({
@@ -3315,6 +3430,60 @@ describe("linking one's own records to another organisation's", () => {
           filename: 'x.pdf',
           contentType: 'application/pdf',
           content: PDF,
+          actor: as()
+        })
+    ],
+    [
+      "a policy for B's entity",
+      () =>
+        policiesSvc.createPolicy({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          title: 'x',
+          actor: as()
+        })
+    ],
+    [
+      "a policy owned by B's person",
+      () =>
+        policiesSvc.createPolicy({
+          organisationId: A.org.id,
+          entityId: null,
+          title: 'x',
+          ownerId: B.owner.user.id,
+          actor: as()
+        })
+    ],
+    [
+      "A's policy governing B's activity",
+      () =>
+        policiesSvc.linkPolicy({
+          policyId: mine.policy.id,
+          organisationId: A.org.id,
+          kind: 'activity',
+          targetId: B.activity.id,
+          actor: as()
+        })
+    ],
+    [
+      "A's policy governing B's AI system",
+      () =>
+        policiesSvc.linkPolicy({
+          policyId: mine.policy.id,
+          organisationId: A.org.id,
+          kind: 'ai_system',
+          targetId: B.useCase.id,
+          actor: as()
+        })
+    ],
+    [
+      "a policy version naming B's file",
+      () =>
+        policiesSvc.updateDraft({
+          versionId: mine.policyVersion,
+          organisationId: A.org.id,
+          label: 'x',
+          documentId: B.document.id,
           actor: as()
         })
     ],
@@ -3984,6 +4153,22 @@ describe('lists', () => {
           policyDocs.policyDocumentRegister(o, null)
         ] as const,
         ['policyDocs.policyCoverage', policyDocs.policyCoverage(o)] as const,
+        [
+          'policiesSvc.policyRegister',
+          policiesSvc.policyRegister(o, null)
+        ] as const,
+        [
+          'policiesSvc.policiesDueForReview',
+          policiesSvc.policiesDueForReview(o, new Date(Date.now() + 3650 * DAY))
+        ] as const,
+        [
+          'policiesSvc.policyLinkOptions',
+          policiesSvc.policyLinkOptions(o, null)
+        ] as const,
+        [
+          "policiesSvc.policiesGoverning B's activity",
+          policiesSvc.policiesGoverning(o, 'activity', B.activity.id)
+        ] as const,
         [
           'sharingSvc.sharingRegister',
           sharingSvc.sharingRegister(o, null)
