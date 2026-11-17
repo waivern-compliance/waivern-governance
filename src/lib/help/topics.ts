@@ -2235,7 +2235,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files, AI systems and information assets: match the columns, preview every row, then import.',
+      'Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files, AI systems, information assets and risks: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2273,6 +2273,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Risks',
+        body: [
+          "Each risk needs a title, a description, and its inherent likelihood and impact. A rating already on this organisation's scale, as a number or one of its words such as Likely, is read as it is. Any other, such as High on a platform's own scale, is for you to translate: after the first preview, the matching step lists each value the file holds and asks what it is here. Where the platform gives one rating, match it to both likelihood and impact and translate each. A value left untranslated stops its row; the original rating is kept with the risk to read.",
+          "A risk accepted in the old platform is not accepted here: it comes in waiting for somebody here to accept it, and the acceptance, who gave it, when and until when, is shown as the platform's history on the risk. A closed risk needs the date it was closed.",
+          'A risk can name the processing activities, suppliers, AI systems and information assets it concerns. Each must already be recorded; import those first. Importing again adds links the file names and never removes one, and undoing an import removes the links it made.'
+        ]
+      },
+      {
         heading: 'Information assets',
         body: [
           "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
@@ -2291,7 +2299,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence, AI system or information asset shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system, information asset or risk shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {

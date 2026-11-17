@@ -3,11 +3,16 @@ import { notFound, redirect } from 'next/navigation';
 
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { inputClass } from '@/components/form-classes';
-import { CARRIES_FILES, FIELDS } from '@/lib/import/fields';
+import { CARRIES_FILES, FIELDS, TRANSLATED } from '@/lib/import/fields';
 import { mayImport } from '@/lib/rbac';
+import { SCALES } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { extractionAvailable } from '@/services/extraction';
-import { agreementsToRead, loadImport } from '@/services/imports';
+import {
+  agreementsToRead,
+  loadImport,
+  valuesToTranslate
+} from '@/services/imports';
 
 import {
   addImportFilesAction,
@@ -60,6 +65,11 @@ export default async function ImportBatchPage({
 
   const defs = FIELDS[batch.recordType];
   const open = batch.status === 'uploaded' || batch.status === 'previewed';
+  // Ratings on the source's own scale, offered once their columns are matched.
+  const translating =
+    open && defs.some((f) => TRANSLATED.has(f.key))
+      ? await valuesToTranslate(org, batch.id, mapping)
+      : null;
   const written = rows.filter((r) =>
     ['create', 'update', 'merge'].includes(r.action)
   ).length;
@@ -221,6 +231,61 @@ export default async function ImportBatchPage({
                 </label>
               ))}
             </div>
+            {translating && translating.fields.length > 0 ? (
+              <div className="space-y-3 rounded border border-line bg-surface p-4">
+                <p className="max-w-prose text-sm">
+                  <span className="font-medium">What each rating is here.</span>{' '}
+                  <span className="text-ink-soft">
+                    This organisation rates risks on the{' '}
+                    {SCALES[translating.scale].inSentence} scale. Say what each
+                    value in the file is on it. A number or word already on the
+                    scale is read as it is; a value left unsaid stops its row.
+                  </span>
+                </p>
+                {translating.fields.map(({ key, values }) => {
+                  const field = defs.find((f) => f.key === key)!;
+                  const axis = /impact/i.test(key) ? 'impact' : 'likelihood';
+                  const points = SCALES[translating.scale][axis];
+                  return (
+                    <fieldset
+                      key={key}
+                      className="space-y-1"
+                    >
+                      <legend className="text-sm font-medium">
+                        {field.label}
+                      </legend>
+                      <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                        {values.map((v) => (
+                          <label
+                            key={v}
+                            className="flex items-center justify-between gap-3 text-sm"
+                          >
+                            <span className="truncate">{v}</span>
+                            <select
+                              name={`value:${key}:${v.toLowerCase()}`}
+                              defaultValue={
+                                mapping.values?.[key]?.[v.toLowerCase()] ?? ''
+                              }
+                              className={`${inputClass} max-w-48`}
+                            >
+                              <option value="">As written</option>
+                              {points.map((p) => (
+                                <option
+                                  key={p.value}
+                                  value={String(p.value)}
+                                >
+                                  {p.value} {p.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  );
+                })}
+              </div>
+            ) : null}
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"

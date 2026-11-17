@@ -2,6 +2,7 @@ import type {
   AiUseCaseIn,
   InformationAssetIn,
   ProcessingActivityIn,
+  RiskIn,
   VendorIn
 } from '@/lib/integration/contracts';
 
@@ -11,17 +12,43 @@ export type ImportMapping = {
   fields: Record<string, string>;
   /** Keep the columns no field reads, with the record, to read later. */
   keepUnmapped: boolean;
+  /**
+   * For a field whose values mean something only on the source's own scale,
+   * such as a risk rating of "High": what each value is here, as a person
+   * chose it. Keyed by field, then by the value as written, in lower case.
+   */
+  values?: Record<string, Record<string, string>>;
+};
+
+/**
+ * Something the old platform recorded happening to a record, such as an
+ * acceptance or an approval: kept and shown as that platform's account, never
+ * as something done here, and never written to the audit chain.
+ */
+export type SourceEvent = {
+  /** When, as the source dated it; null where it gave no date. */
+  at: string | null;
+  what: string;
+  /** Who, as the source named them. */
+  by?: string;
+  detail?: string;
 };
 
 type Legacy = Record<string, string>;
 
 /** A link between registers an import made, kept on its row for undo. */
-export type ImportLink = {
-  kind: 'asset_activity' | 'asset_supplier';
-  /** The record the row wrote. */
-  from: string;
-  to: string;
-};
+export type ImportLink =
+  | {
+      kind: 'asset_activity' | 'asset_supplier' | 'asset_risk';
+      /** The asset. */
+      from: string;
+      to: string;
+    }
+  | {
+      /** A `record_link` row the import made, by its id. */
+      kind: 'record_link';
+      id: string;
+    };
 
 /** One row, converted and checked, ready to write. */
 export type ImportRecord =
@@ -72,5 +99,10 @@ export type ImportRecord =
   | {
       kind: 'information_asset';
       data: InformationAssetIn;
+      legacy: Legacy;
+    }
+  | {
+      kind: 'risk';
+      data: RiskIn;
       legacy: Legacy;
     };

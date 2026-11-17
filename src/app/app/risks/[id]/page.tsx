@@ -3,6 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 
 import { Discussion } from '@/components/Discussion';
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RiskTierBadge } from '@/components/RiskTierBadge';
@@ -15,6 +17,7 @@ import { suggestionsFor } from '@/lib/risk/treatment-library';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { aiFrameworkPackOf } from '@/services/ai-framework';
+import { importSourceName } from '@/services/imports';
 import { assetsFor } from '@/services/information-assets';
 import { appetiteInForce } from '@/services/risk-policy';
 import { loadRisk } from '@/services/risks';
@@ -40,7 +43,7 @@ export default async function RiskPage({
   const loaded = await loadRisk(id, active.membership.organisationId);
   if (!loaded) notFound();
 
-  const { risk, mitigations, acceptances, assessment } = loaded;
+  const { risk, mitigations, acceptances, assessment, concerns } = loaded;
   // The scale this risk was rated on, which may predate the organisation's
   // current choice.
   const scale = risk.scale as RiskScaleId;
@@ -134,6 +137,52 @@ export default async function RiskPage({
           </p>
         ) : null}
       </header>
+
+      {risk.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(
+              active.membership.organisationId,
+              risk.importSourceId
+            )) ?? 'another platform'
+          }
+          batchId={risk.importBatchId}
+          confirmed={risk.importConfirmedAt !== null}
+          legacy={risk.legacy}
+          history={risk.sourceHistory}
+          confirm={
+            can(grants, 'risk.manage', risk.entityId) ? (
+              <ConfirmImported
+                type="risk"
+                id={risk.id}
+                revalidate={`/app/risks/${risk.id}`}
+                what="this risk"
+              />
+            ) : null
+          }
+        />
+      ) : null}
+
+      {concerns.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            What it concerns
+          </h2>
+          <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface text-sm">
+            {concerns.map((c) => (
+              <li key={c.href}>
+                <Link
+                  href={c.href}
+                  className="flex items-baseline justify-between gap-3 px-4 py-2 hover:bg-ground"
+                >
+                  <span>{c.label}</span>
+                  <span className="text-xs text-ink-soft">{c.kind}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {appetite.state === 'closed' ? null : (
         <section className="space-y-3">

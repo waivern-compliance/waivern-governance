@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 
+import type { SourceEvent } from '@/lib/import/types';
+
 /**
  * Where an imported record came from, the source's fields Govern has no home
  * for, and, while it waits, a way for a person to confirm it. Imported
@@ -11,12 +13,15 @@ export function ImportedFrom({
   batchId,
   confirmed,
   legacy,
+  history,
   confirm
 }: {
   sourceName: string;
   batchId: string | null;
   confirmed: boolean;
   legacy: Record<string, string> | null;
+  /** What the old platform recorded happening to it: its account, not ours. */
+  history?: SourceEvent[] | null;
   /** The confirm control, where this person may confirm it. */
   confirm?: ReactNode;
 }) {
@@ -49,6 +54,24 @@ export function ImportedFrom({
             The import it came in
           </Link>
         </p>
+      ) : null}
+      {history && history.length > 0 ? (
+        <div className="space-y-1">
+          <h3 className="text-xs font-medium">History from {sourceName}</h3>
+          <p className="max-w-prose text-xs">
+            As {sourceName} recorded it. None of it was done here.
+          </p>
+          <ul className="list-disc space-y-0.5 pl-5 text-xs">
+            {history.map((e, i) => (
+              <li key={i}>
+                {e.what}
+                {e.by ? ` by ${e.by}` : ''}
+                {e.at ? ` on ${e.at.slice(0, 10)}` : ''}
+                {e.detail ? `. ${e.detail}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       {kept.length > 0 ? (
         <details>

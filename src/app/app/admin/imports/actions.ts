@@ -9,7 +9,8 @@ import {
   aiUseCases,
   evidence,
   informationAssets,
-  processingActivities
+  processingActivities,
+  risks
 } from '@/db/schema';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import type { RecordType } from '@/lib/import/fields';
@@ -85,16 +86,24 @@ export async function previewImportAction(
   const { organisationId, actor } = await importer();
   // Every "field:" choice; the service keeps those its batch's type has.
   const fields: Record<string, string> = {};
-  for (const [name, value] of formData.entries())
+  // "value:<field>:<as written>" is what a person said a rating is here.
+  const values: Record<string, Record<string, string>> = {};
+  for (const [name, value] of formData.entries()) {
     if (name.startsWith('field:') && text(value))
       fields[name.slice('field:'.length)] = text(value);
+    if (name.startsWith('value:') && text(value)) {
+      const [field, ...given] = name.slice('value:'.length).split(':');
+      (values[field] ??= {})[given.join(':')] = text(value);
+    }
+  }
   const result = await refusable(() =>
     previewImport({
       organisationId,
       batchId,
       mapping: {
         fields,
-        keepUnmapped: formData.get('keepUnmapped') === 'on'
+        keepUnmapped: formData.get('keepUnmapped') === 'on',
+        values
       },
       actor
     })
@@ -230,7 +239,9 @@ async function confirmer(type: Confirmable, id: string) {
                 ? evidence
                 : type === 'information_asset'
                   ? informationAssets
-                  : aiUseCases;
+                  : type === 'risk'
+                    ? risks
+                    : aiUseCases;
           const [row] = await db
             .select({ entityId: table.entityId })
             .from(table)
