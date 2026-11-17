@@ -2279,7 +2279,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records in from OneTrust, Vanta or a spreadsheet, with their agreements and evidence files, AI systems, information assets and risks: match the columns, preview every row, then import.',
+      'Bring records, files, AI systems, assets, risks and mitigations in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2325,6 +2325,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Mitigations',
+        body: [
+          "Import risks first, then their mitigations into the same entity. Each mitigation needs a description and the risk it treats, named by the risk's ID in the old platform or its reference here. A mitigation stays on the risk it came in on: one naming another risk in a later import is not imported. A treatment of Accept is kept with the mitigation, which comes in with no treatment, since accepting a risk is decided on the risk itself.",
+          "A mitigation verified in the old platform comes in implemented, waiting for somebody here other than its owner to verify it; who verified it there, and when, is shown as the platform's history. A verification given here stands whatever a later import says.",
+          "An imported mitigation reminds nobody of its due date until it is confirmed, so a register with years of old target dates does not raise a reminder for each on its first night. Confirm each on the risk's page, or confirm the risk, which confirms its imported mitigations with it."
+        ]
+      },
+      {
         heading: 'Information assets',
         body: [
           "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
@@ -2343,7 +2351,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence, AI system, information asset or risk shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk or mitigation shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {

@@ -1,5 +1,10 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
+import { KeptFields } from '@/components/imports/KeptFields';
+import { SourceHistory } from '@/components/imports/SourceHistory';
+import type { SourceEvent } from '@/lib/import/types';
 import { savedKey } from '@/lib/saved-key';
 import { useRefusableAction } from '@/lib/use-refusable-action';
 
@@ -16,6 +21,7 @@ const STATUSES = [
 export function MitigationRow({
   riskId,
   mitigation,
+  imported,
   editable
 }: {
   riskId: string;
@@ -33,6 +39,15 @@ export function MitigationRow({
     fromSource: string | null;
     ownedByViewer: boolean;
   };
+  /** Where it came from, if imported, and what that platform recorded of it. */
+  imported?: {
+    sourceName: string;
+    confirmed: boolean;
+    history: SourceEvent[] | null;
+    legacy: Record<string, string> | null;
+    /** The confirm control, where this person may confirm it. */
+    confirm: ReactNode;
+  } | null;
   editable: boolean;
 }) {
   // Through a transition, so a refused update keeps the evidence reference typed.
@@ -48,7 +63,10 @@ export function MitigationRow({
   const error = result && !result.ok ? result.message : null;
 
   return (
-    <li className="space-y-2 px-4 py-3">
+    <li
+      id={mitigation.id}
+      className="space-y-2 px-4 py-3"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-medium">{mitigation.description}</span>
         <span className="font-mono text-[11px] text-ink-soft">
@@ -59,6 +77,35 @@ export function MitigationRow({
           {mitigation.fromSource ? ` · ${mitigation.fromSource}` : ''}
         </span>
       </div>
+
+      {imported ? (
+        <div
+          className={`space-y-1 rounded border-l-2 px-3 py-2 text-xs ${
+            imported.confirmed
+              ? 'border-line text-ink-soft'
+              : 'border-amber-700 bg-amber-50 text-amber-950'
+          }`}
+        >
+          <p className="font-medium">
+            {imported.confirmed
+              ? `Imported from ${imported.sourceName}`
+              : `Imported from ${imported.sourceName}, not yet confirmed. Its due date reminds nobody until it is.`}
+          </p>
+          {imported.history?.length ? (
+            <>
+              <p>
+                As {imported.sourceName} recorded it; none of it was done here.
+              </p>
+              <SourceHistory events={imported.history} />
+            </>
+          ) : null}
+          <KeptFields
+            sourceName={imported.sourceName}
+            legacy={imported.legacy}
+          />
+          {imported.confirmed ? null : imported.confirm}
+        </div>
+      ) : null}
 
       {editable ? (
         <form

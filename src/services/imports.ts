@@ -19,6 +19,7 @@ import {
   informationAssets,
   informationAssetSuppliers,
   memberships,
+  mitigations,
   processingActivities,
   recordLinks,
   risks,
@@ -281,8 +282,10 @@ export async function loadImport(batchId: string, organisationId: string) {
           reason: importRows.reason,
           recordId: importRows.recordId,
           documentId: importRows.documentId,
-          // An agreement is opened on its supplier's page.
-          supplierId: dpas.supplierId
+          // An agreement is opened on its supplier's page, and a
+          // mitigation on its risk's.
+          supplierId: dpas.supplierId,
+          riskId: mitigations.riskId
         })
         .from(importRows)
         .innerJoin(importBatches, eq(importBatches.id, importRows.batchId))
@@ -291,6 +294,13 @@ export async function loadImport(batchId: string, organisationId: string) {
           and(
             eq(dpas.id, importRows.recordId),
             eq(importBatches.recordType, 'dpa')
+          )
+        )
+        .leftJoin(
+          mitigations,
+          and(
+            eq(mitigations.id, importRows.recordId),
+            eq(importBatches.recordType, 'mitigation')
           )
         )
         .where(eq(importRows.batchId, batch.id))
@@ -609,6 +619,12 @@ type RiskResolved = {
   assetIds: string[];
 };
 
+/** A mitigation's risk, and its owner here, where they are a member. */
+type MitigationResolved = {
+  riskId: string;
+  ownerId: string | null;
+};
+
 type Resolved = {
   /** The supplier an agreement belongs to, or an AI system is linked to. */
   supplierId?: string | null;
@@ -616,6 +632,7 @@ type Resolved = {
   attach?: Attachment | null;
   asset?: AssetResolved;
   risk?: RiskResolved;
+  mitigation?: MitigationResolved;
 };
 
 type Decision =
@@ -895,6 +912,11 @@ async function matcher(
           ? { action: 'refuse', reason: risk.reason }
           : decide(sourceRef, { risk });
       };
+    }
+    case 'mitigation': {
+      const resolve = await mitigationResolver(tx, batch);
+      return (record, sourceRef) =>
+        resolve((record as Of<'mitigation'>).data, sourceRef);
     }
     case 'information_asset': {
       const decide = await importedBy(tx, batch, 'information_asset');
@@ -1243,6 +1265,95 @@ async function assetResolver(tx: Tx, batch: Batch) {
   };
 }
 
+/**
+ * A mitigation's risk, found by its identifier in this source or its
+ * reference here, in the batch's entity, and the mitigation imported before
+ * from this source, if any. A mitigation stays on the risk it came in on:
+ * moving it to another risk is a person's call, as for an agreement's
+ * supplier.
+ */
+async function mitigationResolver(tx: Tx, batch: Batch) {
+  const [riskRows, earlier, memberOf] = await Promise.all([
+    tx
+      .select({
+        id: risks.id,
+        reference: risks.reference,
+        ref: risks.externalRef,
+        sourceId: risks.importSourceId,
+        entityId: risks.entityId,
+        entityName: entities.name
+      })
+      .from(risks)
+      .innerJoin(entities, eq(entities.id, risks.entityId))
+      .where(eq(risks.organisationId, batch.organisationId)),
+    tx
+      .select({
+        id: mitigations.id,
+        ref: mitigations.externalRef,
+        riskId: mitigations.riskId,
+        riskReference: risks.reference,
+        entityId: risks.entityId,
+        entityName: entities.name
+      })
+      .from(mitigations)
+      .innerJoin(risks, eq(risks.id, mitigations.riskId))
+      .innerJoin(entities, eq(entities.id, risks.entityId))
+      .where(
+        and(
+          eq(risks.organisationId, batch.organisationId),
+          eq(mitigations.importSourceId, batch.sourceId)
+        )
+      ),
+    membersByEmail(tx, batch.organisationId)
+  ]);
+  // Risks of this entity by key, and elsewhere only to say where one is.
+  const keyed = (here: boolean) => {
+    const by = new Map<string, (typeof riskRows)[number]>();
+    const rows = riskRows.filter(
+      (r) => (r.entityId === batch.entityId) === here
+    );
+    // The source's identifier first, so a reference here wins a clash.
+    for (const r of rows)
+      if (r.sourceId === batch.sourceId && r.ref)
+        by.set(r.ref.toLowerCase(), r);
+    for (const r of rows) by.set(r.reference.toLowerCase(), r);
+    return by;
+  };
+  const riskBy = keyed(true);
+  const elsewhere = keyed(false);
+  const own = new Map(earlier.map((m) => [m.ref?.toLowerCase(), m]));
+  return (data: Of<'mitigation'>['data'], sourceRef: string): Decision => {
+    const given = data.risk.trim().toLowerCase();
+    const riskId = riskBy.get(given)?.id;
+    if (!riskId) {
+      const other = elsewhere.get(given);
+      return {
+        action: 'refuse',
+        reason: other
+          ? `The risk "${data.risk}" is recorded in ${other.entityName}. Import its mitigations into that entity.`
+          : `No risk "${data.risk}" is recorded in this entity. Import the risks first.`
+      };
+    }
+    const mitigation = {
+      riskId,
+      ownerId: data.owner ? memberOf(data.owner) : null
+    };
+    const found = own.get(sourceRef.toLowerCase());
+    if (!found) return { action: 'create', recordId: null, mitigation };
+    if (found.entityId !== batch.entityId)
+      return {
+        action: 'refuse',
+        reason: `Imported before into ${found.entityName}, on ${found.riskReference}. Import it into that entity.`
+      };
+    if (found.riskId !== riskId)
+      return {
+        action: 'refuse',
+        reason: `Imported before on ${found.riskReference}. Change it on that risk's page, or give it a new identifier.`
+      };
+    return { action: 'update', recordId: found.id, mitigation };
+  };
+}
+
 /** What makes two rows of one file the same record. */
 function sameRecordKeys(record: ImportRecord, sourceRef: string) {
   const keys = [`ref:${sourceRef.toLowerCase()}`];
@@ -1584,6 +1695,18 @@ const KEYS: Record<RecordType, string[]> = {
     'nextReviewAt',
     'sourceHistory',
     ...IMPORT_KEYS
+  ],
+  mitigation: [
+    'description',
+    'controlRef',
+    'treatmentType',
+    'ownerId',
+    'dueAt',
+    'status',
+    'implementedAt',
+    'evidenceRef',
+    'sourceHistory',
+    ...IMPORT_KEYS
   ]
 };
 
@@ -1597,7 +1720,9 @@ const DATE_KEYS = new Set([
   'collectedAt',
   'nextReviewAt',
   'openedAt',
-  'closedAt'
+  'closedAt',
+  'dueAt',
+  'implementedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -1627,7 +1752,8 @@ const TABLE = {
   evidence,
   ai_use_case: aiUseCases,
   information_asset: informationAssets,
-  risk: risks
+  risk: risks,
+  mitigation: mitigations
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -2120,6 +2246,8 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writeAsset(c, record);
     case 'risk':
       return writeRisk(c, record);
+    case 'mitigation':
+      return writeMitigation(c, record);
   }
 }
 
@@ -2480,6 +2608,112 @@ async function writeRisk(
   return { id, before: was && snapshot(was, KEYS.risk), links };
 }
 
+type MitigationStatus = (typeof mitigations.$inferSelect)['status'];
+
+/**
+ * The status a mitigation takes from a row. Verified there is implemented
+ * here: verification is a second member's act here, so it waits for one. A
+ * verification given here stands whatever a re-import says, and a file that
+ * does not say leaves the status as recorded.
+ */
+function mitigationStatusFor(
+  given: Of<'mitigation'>['data']['status'],
+  current: MitigationStatus | undefined
+): MitigationStatus {
+  if (current === 'verified') return current;
+  if (!given) return current ?? 'planned';
+  return given === 'verified' ? 'implemented' : given;
+}
+
+function mitigationHistory(
+  data: Of<'mitigation'>['data'],
+  source: string
+): SourceEvent[] | null {
+  if (data.status !== 'verified' && !data.verifiedBy && !data.verifiedAt)
+    return null;
+  return [
+    {
+      at: data.verifiedAt ?? null,
+      what: `Verified in ${source}`,
+      ...(data.verifiedBy ? { by: data.verifiedBy } : {})
+    }
+  ];
+}
+
+async function writeMitigation(
+  c: WriteContext,
+  record: Of<'mitigation'>
+): Promise<Written> {
+  const resolved = c.decision.mitigation!;
+  const { data } = record;
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'mitigation', c.decision.recordId)
+    : null;
+  const described = {
+    description: data.description,
+    controlRef: data.controlRef ?? null,
+    // Accepting is not a treatment here; the row keeps what the source said.
+    treatmentType:
+      data.treatmentType === 'acceptance' ? null : (data.treatmentType ?? null),
+    dueAt: data.dueAt ? new Date(data.dueAt) : null,
+    status: mitigationStatusFor(
+      data.status,
+      was?.status as MitigationStatus | undefined
+    ),
+    implementedAt: data.implementedAt ? new Date(data.implementedAt) : null,
+    evidenceRef: data.evidenceRef ?? null,
+    sourceHistory: mitigationHistory(data, c.sourceName)
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const kept = provenance(c, {
+    ...record,
+    legacy: {
+      ...record.legacy,
+      ...(data.owner && !resolved.ownerId ? { Owner: data.owner } : {}),
+      ...(data.status === 'verified' ? { Status: 'Verified' } : {}),
+      ...(data.treatmentType === 'acceptance' ? { Treatment: 'Accept' } : {})
+    }
+  });
+  let id: string;
+  if (c.decision.recordId) {
+    // What the file leaves out stays as recorded, its history included.
+    await c.tx
+      .update(mitigations)
+      .set({ ...said(described), ...owner, ...kept })
+      .where(eq(mitigations.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const [created] = await c.tx
+      .insert(mitigations)
+      .values({
+        riskId: resolved.riskId,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...described,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: mitigations.id });
+    id = created.id;
+  }
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: c.batch.entityId ?? undefined,
+    action: was ? 'mitigation.updated' : 'mitigation.added',
+    subjectType: 'mitigation',
+    subjectId: id,
+    after: {
+      riskId: resolved.riskId,
+      description: data.description,
+      status: described.status,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return { id, before: was && snapshot(was, KEYS.mitigation) };
+}
+
 /**
  * Import what was previewed, as one step: every row's record, or none. Each
  * row is decided again first, so a record created or removed since the
@@ -2793,7 +3027,53 @@ export type Confirmable =
   | 'evidence'
   | 'ai_use_case'
   | 'information_asset'
-  | 'risk';
+  | 'risk'
+  | 'mitigation';
+
+/**
+ * A mitigation has no organisation of its own: it is its risk's. Confirmed
+ * on its own where it came in on a risk already confirmed.
+ */
+async function confirmMitigation(
+  tx: Tx,
+  input: { organisationId: string; id: string; actor: Actor },
+  at: Date
+) {
+  const [row] = await tx
+    .update(mitigations)
+    .set({ importConfirmedAt: at, updatedAt: at })
+    .where(
+      and(
+        eq(mitigations.id, input.id),
+        sql`${mitigations.importBatchId} is not null`,
+        sql`${mitigations.importConfirmedAt} is null`,
+        inArray(
+          mitigations.riskId,
+          tx
+            .select({ id: risks.id })
+            .from(risks)
+            .where(eq(risks.organisationId, input.organisationId))
+        )
+      )
+    )
+    .returning();
+  if (!row)
+    throw new ImportRefused('That record is not waiting to be confirmed.');
+  const [risk] = await tx
+    .select({ entityId: risks.entityId })
+    .from(risks)
+    .where(eq(risks.id, row.riskId));
+  await appendAuditEvent(tx, {
+    ...input.actor,
+    organisationId: input.organisationId,
+    entityId: risk.entityId,
+    action: 'mitigation.import_confirmed',
+    subjectType: 'mitigation',
+    subjectId: input.id,
+    after: { riskId: row.riskId, description: row.description }
+  });
+  return row as Record<string, unknown>;
+}
 
 /** A person confirms an imported record, which then counts as current. */
 export async function confirmImportedRecord(input: {
@@ -2804,8 +3084,9 @@ export async function confirmImportedRecord(input: {
 }) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
-      const table = TABLE[input.type];
       const at = new Date();
+      if (input.type === 'mitigation') return confirmMitigation(tx, input, at);
+      const table = TABLE[input.type];
       const [row] = (await tx
         .update(table)
         .set({ importConfirmedAt: at, updatedAt: at })
@@ -2820,6 +3101,41 @@ export async function confirmImportedRecord(input: {
         .returning()) as Array<Record<string, unknown>>;
       if (!row)
         throw new ImportRefused('That record is not waiting to be confirmed.');
+      // A risk is checked with what is being done about it, shown on its
+      // page: its imported mitigations are confirmed with it.
+      const withIt =
+        input.type === 'risk'
+          ? await tx
+              .update(mitigations)
+              .set({ importConfirmedAt: at, updatedAt: at })
+              .where(
+                and(
+                  eq(mitigations.riskId, input.id),
+                  sql`${mitigations.importBatchId} is not null`,
+                  sql`${mitigations.importConfirmedAt} is null`
+                )
+              )
+              .returning({
+                id: mitigations.id,
+                description: mitigations.description
+              })
+          : [];
+      // Each its own event, so a mitigation's history says who confirmed it.
+      for (const m of withIt)
+        await appendAuditEvent(tx, {
+          ...input.actor,
+          organisationId: input.organisationId,
+          entityId: row.entityId as string,
+          action: 'mitigation.import_confirmed',
+          subjectType: 'mitigation',
+          subjectId: m.id,
+          after: {
+            riskId: input.id,
+            description: m.description,
+            withRisk: true
+          }
+        });
+      const mitigationsConfirmed = withIt.length;
       await appendAuditEvent(tx, {
         ...input.actor,
         organisationId: input.organisationId,
@@ -2829,7 +3145,8 @@ export async function confirmImportedRecord(input: {
         subjectId: input.id,
         after: {
           reference: row.reference ?? null,
-          name: row.name ?? row.title ?? null
+          name: row.name ?? row.title ?? null,
+          ...(mitigationsConfirmed ? { mitigationsConfirmed } : {})
         }
       });
       return row;
@@ -2853,6 +3170,26 @@ export async function importSourceName(
         )
       );
     return row?.name ?? null;
+  });
+}
+
+/** The names of several platforms records were imported from, by id. */
+export async function importSourceNames(
+  organisationId: string,
+  sourceIds: string[]
+): Promise<Map<string, string>> {
+  if (sourceIds.length === 0) return new Map();
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select({ id: importSources.id, name: importSources.name })
+      .from(importSources)
+      .where(
+        and(
+          inArray(importSources.id, sourceIds),
+          eq(importSources.organisationId, organisationId)
+        )
+      );
+    return new Map(rows.map((r) => [r.id, r.name]));
   });
 }
 

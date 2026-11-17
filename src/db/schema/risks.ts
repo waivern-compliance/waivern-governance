@@ -160,6 +160,24 @@ export const mitigations = pgTable(
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
     evidenceRef: text('evidence_ref'),
 
+    /**
+     * Moved in from another platform, as for its risk. A verification given
+     * there is kept as that platform's history: verifying is a second member's
+     * act here, so the mitigation comes in implemented, not verified.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    sourceHistory: jsonb('source_history').$type<SourceEvent[]>(),
+    /** Confirmed by a person here; until then its due date reminds nobody. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -169,7 +187,13 @@ export const mitigations = pgTable(
   },
   (t) => [
     index('mitigation_risk_idx').on(t.riskId),
-    index('mitigation_due_idx').on(t.dueAt)
+    index('mitigation_due_idx').on(t.dueAt),
+    // An import source belongs to one organisation, so it scopes the identifier.
+    uniqueIndex('mitigation_imported')
+      .on(t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      )
   ]
 );
 

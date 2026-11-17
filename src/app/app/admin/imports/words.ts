@@ -7,18 +7,22 @@ export const RECORD_TYPE_LABEL: Record<string, string> = {
   evidence: 'Evidence',
   ai_use_case: 'AI systems',
   information_asset: 'Information assets',
-  risk: 'Risks'
+  risk: 'Risks',
+  mitigation: 'Mitigations'
 };
 
 /** Where a record of each kind is opened. */
 export function recordHref(
   recordType: string,
   id: string,
-  supplierId?: string | null
+  /** The record it is shown on: an agreement's supplier, a mitigation's risk. */
+  parentId?: string | null
 ): string {
   switch (recordType) {
     case 'dpa':
-      return `/app/third-parties/${supplierId}`;
+      return `/app/third-parties/${parentId}`;
+    case 'mitigation':
+      return `/app/risks/${parentId}#${id}`;
     case 'supplier':
       return `/app/third-parties/${id}`;
     case 'ai_use_case':

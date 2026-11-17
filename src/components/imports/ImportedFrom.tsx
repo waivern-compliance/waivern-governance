@@ -3,6 +3,9 @@ import Link from 'next/link';
 
 import type { SourceEvent } from '@/lib/import/types';
 
+import { KeptFields } from './KeptFields';
+import { SourceHistory } from './SourceHistory';
+
 /**
  * Where an imported record came from, the source's fields Govern has no home
  * for, and, while it waits, a way for a person to confirm it. Imported
@@ -25,7 +28,6 @@ export function ImportedFrom({
   /** The confirm control, where this person may confirm it. */
   confirm?: ReactNode;
 }) {
-  const kept = Object.entries(legacy ?? {});
   return (
     <section
       className={`space-y-3 rounded border p-5 text-sm ${
@@ -61,36 +63,13 @@ export function ImportedFrom({
           <p className="max-w-prose text-xs">
             As {sourceName} recorded it. None of it was done here.
           </p>
-          <ul className="list-disc space-y-0.5 pl-5 text-xs">
-            {history.map((e, i) => (
-              <li key={i}>
-                {e.what}
-                {e.by ? ` by ${e.by}` : ''}
-                {e.at ? ` on ${e.at.slice(0, 10)}` : ''}
-                {e.detail ? `. ${e.detail}` : ''}
-              </li>
-            ))}
-          </ul>
+          <SourceHistory events={history} />
         </div>
       ) : null}
-      {kept.length > 0 ? (
-        <details>
-          <summary className="cursor-pointer text-xs font-medium">
-            From {sourceName}, with no field here ({kept.length})
-          </summary>
-          <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-[auto_1fr]">
-            {kept.map(([k, v]) => (
-              <div
-                key={k}
-                className="contents"
-              >
-                <dt className="font-medium">{k}</dt>
-                <dd className="whitespace-pre-wrap break-words">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
-      ) : null}
+      <KeptFields
+        sourceName={sourceName}
+        legacy={legacy}
+      />
       {confirmed ? null : confirm}
     </section>
   );

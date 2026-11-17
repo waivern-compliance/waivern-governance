@@ -1,6 +1,7 @@
 import type {
   AiUseCaseIn,
   InformationAssetIn,
+  MitigationIn,
   ProcessingActivityIn,
   RiskIn,
   VendorIn
@@ -104,5 +105,10 @@ export type ImportRecord =
   | {
       kind: 'risk';
       data: RiskIn;
+      legacy: Legacy;
+    }
+  | {
+      kind: 'mitigation';
+      data: MitigationIn;
       legacy: Legacy;
     };

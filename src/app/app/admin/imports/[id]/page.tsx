@@ -417,7 +417,7 @@ export default async function ImportBatchPage({
                             href={recordHref(
                               batch.recordType,
                               r.recordId,
-                              r.supplierId
+                              r.supplierId ?? r.riskId
                             )}
                             className="text-brand underline"
                           >

@@ -34,7 +34,8 @@ export const importRecordType = pgEnum('import_record_type', [
   'evidence',
   'ai_use_case',
   'information_asset',
-  'risk'
+  'risk',
+  'mitigation'
 ]);
 
 export const importBatchStatus = pgEnum('import_batch_status', [
