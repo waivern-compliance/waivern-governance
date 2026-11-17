@@ -26,3 +26,4 @@ export * from './erasure';
 export * from './trials';
 export * from './assets';
 export * from './contracts';
+export * from './policies';

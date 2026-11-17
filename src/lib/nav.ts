@@ -70,6 +70,12 @@ export const NAV: NavItem[] = [
     capability: 'record.read'
   },
   {
+    href: '/app/policies',
+    label: 'Policies',
+    hint: 'Each policy, the version in force, its approval and review',
+    capability: 'record.read'
+  },
+  {
     href: '/app/policy-documents',
     label: 'Appropriate policy documents',
     hint: 'Schedule 1 conditions, and what no current document covers',

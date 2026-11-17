@@ -65,6 +65,7 @@ import {
 } from './marketing';
 import { deliverNotifications } from './member-email';
 import { canOpenRecordsIn } from './member-grants';
+import { policiesDueForReview } from './policies';
 import { assetRenewal, retireRenewalReminders } from './renewals';
 import { appetitesDueForReview } from './risk-policy';
 import { propertiesDueForRescan } from './storage-inventory';
@@ -122,6 +123,7 @@ export type SweepResult = {
   contractNoticesRaised: number;
   assetRenewalsRaised: number;
   appetiteReviewsRaised: number;
+  policyReviewsRaised: number;
   documentsScanned: number;
   documentsQuarantined: number;
   webhooksDelivered: number;
@@ -1389,6 +1391,56 @@ async function raiseAppetiteReviews(organisationId: string): Promise<number> {
   return raised;
 }
 
+/**
+ * Policies in force past their review date: one task a month naming how
+ * many, as for lapsed assessments, rather than one per policy. A policy
+ * past review is still the one people are held to; the task is to read it
+ * again and either record the review or draft a new version.
+ */
+async function raisePolicyReviews(organisationId: string): Promise<number> {
+  const due = await policiesDueForReview(organisationId);
+  if (due.length === 0) return 0;
+  const oldest = due[0];
+  const entityId =
+    oldest.entityId ??
+    (
+      await db
+        .select({ id: entities.id })
+        .from(entities)
+        .where(
+          and(
+            eq(entities.organisationId, organisationId),
+            eq(entities.isDefault, true)
+          )
+        )
+    )[0]?.id;
+  if (!entityId) return 0;
+
+  const period = new Date().toISOString().slice(0, 7);
+  let raised = 0;
+  await db.transaction(async (tx) => {
+    const task = await raiseTask(tx, {
+      organisationId,
+      entityId,
+      type: 'policy_review',
+      title:
+        due.length === 1
+          ? `${oldest.reference} ${oldest.title} is past its review date`
+          : `${due.length} policies are past their review date`,
+      description:
+        `Oldest is ${oldest.reference}, due ${oldest.nextReviewAt!.toISOString().slice(0, 10)}. ` +
+        'Read it again: record the review if it still holds, or draft a new version for approval.',
+      subjectType: 'policy',
+      subjectId: oldest.id,
+      assigneeRole: 'privacy_admin',
+      idempotencyKey: `policy-reviews:${period}`,
+      actor: SYSTEM
+    });
+    if (task) raised = due.length;
+  });
+  return raised;
+}
+
 /** Few at a time: each is up to 10MB held in memory while it is scanned. */
 const SCAN_BATCH = 5;
 
@@ -1563,6 +1615,7 @@ export async function sweepOrganisation(
     contractNoticesRaised: await raiseContractNotices(organisationId),
     assetRenewalsRaised: await raiseAssetRenewals(organisationId),
     appetiteReviewsRaised: await raiseAppetiteReviews(organisationId),
+    policyReviewsRaised: await raisePolicyReviews(organisationId),
     documentsScanned: 0,
     documentsQuarantined: 0,
     webhooksDelivered: 0,

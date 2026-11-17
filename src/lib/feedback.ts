@@ -27,6 +27,8 @@ const PLACES: Array<[RegExp, string]> = [
   [/^\/app\/reviews/, 'Recurring reviews'],
   [/^\/app\/ropa\/\[id\]/, 'A processing record'],
   [/^\/app\/ropa/, 'Processing register'],
+  [/^\/app\/policies\/\[id\]/, 'A policy'],
+  [/^\/app\/policies/, 'Policies'],
   [/^\/app\/policy-documents/, 'Appropriate policy documents'],
   [/^\/app\/sharing-agreements/, 'Data sharing agreements'],
   [/^\/app\/assets\/\[id\]/, 'An information asset'],

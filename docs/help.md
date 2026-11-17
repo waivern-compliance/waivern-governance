@@ -31,6 +31,7 @@ Every help topic the application carries, in the order it presents them.
 
 - [The processing register (Article 30)](#the-processing-register-article-30) - Every processing activity, checked against what Article 30 actually requires rather than against whether the form was filled in.
 - [Information asset register](#information-asset-register) - The systems you hold information in, and the domains, certificates and licences that renew: who owns each, where it is hosted, how it is classified and when it expires.
+- [Policies](#policies) - The organisation's policies, each with the version in force, who approved it and where, and when it is next reviewed.
 - [Appropriate policy documents (Schedule 1)](#appropriate-policy-documents-schedule-1) - Which Schedule 1 conditions each appropriate policy document covers, and which processing relies on a condition no current document covers.
 - [Third parties and processor agreements (Article 28)](#third-parties-and-processor-agreements-article-28) - Every processor you rely on, whether or not anybody procured it, and whether a contract actually covers them.
 - [Supplier contracts](#supplier-contracts) - Commercial contracts with third parties: who owns each, when it ends, the last day to give notice, and who may see what it is worth.
@@ -653,6 +654,34 @@ When an asset is decommissioned or replaced, retire it with a reason. It is kept
 **See also:** The processing register (Article 30) · Third parties and processor agreements (Article 28) · The risk register · Supplier contracts · The organisation and its legal entities
 
 <sub>Also searchable as: iar, information asset, asset register, information asset owner, iao, system inventory, data inventory, classification, government security classifications, official sensitive, hosting, data location, asset type, typology, digital asset, domain, certificate, tls certificate, software licence, licence renewal, expiry</sub>
+
+## Policies
+
+*The organisation's policies, each with the version in force, who approved it and where, and when it is next reviewed.*
+
+**Screen:** `/app/policies`
+
+### What it holds
+
+Every policy the organisation keeps, such as information security, acceptable use, retention or AI use, for one legal entity or for all of them. Each has an owner, a review interval, and its text in versions. The appropriate policy documents the Data Protection Act 2018 requires for Schedule 1 conditions are kept in their own register, with the conditions each covers, and are linked from this page.
+
+### Versions and approval
+
+A policy starts with a draft version. Attach its text on the policy page, choose that file for the version, and submit it. The approvers are given a task. Somebody who may decide approvals, and who is not the person who submitted it, approves it, naming where it was agreed, such as the board, the date and the minute, or rejects it, saying why.
+
+Approving a version puts the policy in force, supersedes the version before, and sets the next review from the interval. Once submitted, a version cannot be changed, and the file it names cannot be removed: it is what was decided. To change a policy, draft a new version and send it for approval again.
+
+### Reviews
+
+When a policy in force has been read again and still holds, its owner records the review, which moves the next review on. Policies past their review date show on the register, and once a month the privacy administrators are given one task naming how many.
+
+### What it governs, and withdrawing
+
+A policy can be linked to the processing activities and AI systems it governs, of its own entity, or of any entity for a policy that applies to all of them. Withdraw a policy that no longer applies, saying why: it is kept with its versions, so the register shows what applied while it was in force.
+
+**See also:** Appropriate policy documents (Schedule 1) · Approving, returning and rejecting · The processing register (Article 30)
+
+<sub>Also searchable as: policy, policy register, information security policy, acceptable use, retention policy, policy approval, policy review</sub>
 
 ## Appropriate policy documents (Schedule 1)
 

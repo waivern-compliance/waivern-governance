@@ -10,6 +10,7 @@ import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
+import { GoverningPolicies } from '@/components/policies/GoverningPolicies';
 import { db, scoped } from '@/db/client';
 import { memberships, processingActivities, users } from '@/db/schema';
 import {
@@ -927,6 +928,12 @@ export default async function ActivityPage({
         mayEdit={mayEdit}
         regime={activity.regime}
         laws={laws}
+      />
+
+      <GoverningPolicies
+        organisationId={active.membership.organisationId}
+        kind="activity"
+        id={activity.id}
       />
 
       <Discussion

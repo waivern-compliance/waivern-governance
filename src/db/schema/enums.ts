@@ -88,7 +88,10 @@ export const recordType = pgEnum('record_type', [
   // Added with the information asset register.
   'information_asset',
   // Added with supplier contracts.
-  'supplier_contract'
+  'supplier_contract',
+  // Added with the policy register.
+  'policy',
+  'policy_version'
 ]);
 
 /**
@@ -686,7 +689,31 @@ export const taskType = pgEnum('task_type', [
    */
   'foi_deadline',
   /** A freedom of information request arrived through the public web form and nobody has picked it up yet. */
-  'foi_intake'
+  'foi_intake',
+  /** A version of a policy is waiting for somebody other than its author to approve it. */
+  'policy_approval',
+  /** Policies in force are past their review date. */
+  'policy_review'
+]);
+
+/** Where a policy stands: drafted, in force, or withdrawn and kept. */
+export const policyStatus = pgEnum('policy_status', [
+  'draft',
+  'in_force',
+  'withdrawn'
+]);
+
+/**
+ * Where one version of a policy stands. Only a draft is edited; once
+ * submitted it is decided, and an approved version stays as it was approved
+ * until a later one supersedes it.
+ */
+export const policyVersionStatus = pgEnum('policy_version_status', [
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+  'superseded'
 ]);
 
 export const taskStatus = pgEnum('task_status', [

@@ -574,6 +574,8 @@ export const ERASED_BY_ENTITY = [
   'processing_activity',
   'scan_finding',
   'evidence',
+  // Before its files: a decided version's file is held by a guard.
+  'policy',
   'document',
   'policy_document',
   'import_batch',
