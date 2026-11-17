@@ -14,6 +14,7 @@ import {
   processingActivities,
   users
 } from '@/db/schema';
+import { createAssetType, setAssetTypeRetired } from '@/services/asset-types';
 import {
   commitImport,
   confirmImportedRecord,
@@ -300,5 +301,66 @@ describe('importing information assets', () => {
     });
     assert.equal((await assetsDueForReview(w.org.id)).length, 1);
     assert.equal((await assetsNeedingRenewal(w.org.id)).length, 1);
+  });
+
+  it('clears renewal dates when a re-import changes the type, and keeps a type retired since', async () => {
+    const w = await world('import-assets-retype');
+    const first = await imported(
+      w.org.id,
+      'ID,Name,Type,Expiry date\nA-1,example.org,Domain,2027-03-31\nA-2,Old ledger,Legacy store,\n'
+    );
+    // "Legacy store" is not a type yet, so that row waits.
+    assert.deepEqual(first.preview, { create: 1, refuse: 1 });
+    await commitImport({
+      organisationId: w.org.id,
+      batchId: first.batch.id,
+      actor: SYSTEM
+    });
+    const [domain] = await assetsOf(w.org.id);
+    assert.ok(domain.expiresAt);
+
+    const again = await imported(
+      w.org.id,
+      'ID,Name,Type,Expiry date\nA-1,example.org,Database,\n'
+    );
+    await commitImport({
+      organisationId: w.org.id,
+      batchId: again.batch.id,
+      actor: SYSTEM
+    });
+    const [database] = await assetsOf(w.org.id);
+    assert.equal(database.assetType, 'database');
+    assert.equal(database.expiresAt, null);
+
+    // A type retired after the import stays on the asset that has it.
+    const type = await createAssetType({
+      organisationId: w.org.id,
+      type: {
+        label: 'Legacy store',
+        definition: 'An old store.',
+        hasExpiry: false
+      },
+      actor: SYSTEM
+    });
+    const third = await imported(
+      w.org.id,
+      'ID,Name,Type\nA-2,Old ledger,Legacy store\n'
+    );
+    await commitImport({
+      organisationId: w.org.id,
+      batchId: third.batch.id,
+      actor: SYSTEM
+    });
+    await setAssetTypeRetired({
+      organisationId: w.org.id,
+      key: type.key,
+      retired: true,
+      actor: SYSTEM
+    });
+    const fourth = await imported(
+      w.org.id,
+      'ID,Name,Type,Description\nA-2,Old ledger,Legacy store,Kept for audit\nA-3,New ledger,Legacy store,\n'
+    );
+    assert.deepEqual(fourth.preview, { update: 1, refuse: 1 });
   });
 });

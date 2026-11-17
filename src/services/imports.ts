@@ -803,8 +803,29 @@ async function matcher(
     case 'information_asset': {
       const decide = await importedBy(tx, batch, 'information_asset');
       const resolve = await assetResolver(tx, batch);
+      // The type each asset imported before from this source has now: one
+      // since retired may stay on the asset that has it, as when edited here.
+      const typeNow = new Map(
+        (
+          await tx
+            .select({
+              ref: informationAssets.externalRef,
+              assetType: informationAssets.assetType
+            })
+            .from(informationAssets)
+            .where(
+              and(
+                eq(informationAssets.organisationId, batch.organisationId),
+                eq(informationAssets.importSourceId, batch.sourceId)
+              )
+            )
+        ).map((a) => [a.ref?.toLowerCase(), a.assetType])
+      );
       return (record, sourceRef) => {
-        const asset = resolve((record as Of<'information_asset'>).data);
+        const asset = resolve(
+          (record as Of<'information_asset'>).data,
+          typeNow.get(sourceRef.toLowerCase())
+        );
         return 'reason' in asset
           ? { action: 'refuse', reason: asset.reason }
           : decide(sourceRef, { asset });
@@ -880,7 +901,9 @@ async function assetResolver(tx: Tx, batch: Batch) {
   ]);
   const levels: Record<string, string> = CLASSIFICATION_SCHEMES[scheme].levels;
   return (
-    data: Of<'information_asset'>['data']
+    data: Of<'information_asset'>['data'],
+    /** The type the matching asset has now, where there is one. */
+    current?: string
   ): AssetResolved | { reason: string } => {
     const type = types.find(
       (t) =>
@@ -894,7 +917,7 @@ async function assetResolver(tx: Tx, batch: Batch) {
           .map((t) => t.label)
           .join(', ')}, or add it as a type first.`
       };
-    if (type.retiredAt)
+    if (type.retiredAt && type.key !== current)
       return {
         reason: `The ${type.label} type has been retired. Choose another.`
       };
@@ -1824,9 +1847,20 @@ async function writeAsset(
   let was: Record<string, unknown> | null = null;
   if (c.decision.recordId) {
     was = await rowBefore(c, 'information_asset', c.decision.recordId);
+    // A type that does not expire carries no renewal dates, so a change of
+    // type leaves none behind to raise reminders, as when edited here.
+    const noExpiry = resolved.hasExpiry
+      ? {}
+      : { expiresAt: null, noticeDays: null, autoRenews: false };
     await c.tx
       .update(informationAssets)
-      .set({ ...said(described), ...owner, ...autoRenews, ...kept })
+      .set({
+        ...said(described),
+        ...noExpiry,
+        ...owner,
+        ...autoRenews,
+        ...kept
+      })
       .where(eq(informationAssets.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
