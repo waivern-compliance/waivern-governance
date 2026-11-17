@@ -878,11 +878,19 @@ export async function unlinkPolicy(input: {
   );
 }
 
-/** A policy is overdue for review once in force and past its date. */
+/**
+ * A policy is overdue for review once in force and past its date. One
+ * imported and not yet confirmed is not yet relied on, as its held review
+ * task says: its page asks for confirmation first.
+ */
 export function reviewOverdue(
-  policy: Pick<Policy, 'status' | 'nextReviewAt'>,
+  policy: Pick<
+    Policy,
+    'status' | 'nextReviewAt' | 'importBatchId' | 'importConfirmedAt'
+  >,
   now = new Date()
 ): boolean {
+  if (policy.importBatchId && !policy.importConfirmedAt) return false;
   return (
     policy.status === 'in_force' &&
     policy.nextReviewAt !== null &&

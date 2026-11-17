@@ -270,6 +270,22 @@ export function can(
 }
 
 /**
+ * May this person act on a record that belongs to one entity, or to the whole
+ * organisation (null)? `can` with no entity asks whether the capability is
+ * held anywhere, which is not enough for a record that binds every entity:
+ * that needs the capability across the organisation.
+ */
+export function canInScope(
+  grants: readonly Grant[],
+  capability: Capability,
+  entityId: string | null
+): boolean {
+  return entityId
+    ? can(grants, capability, entityId)
+    : scopedEntityIds(grants, capability) === null;
+}
+
+/**
  * May this person add legal entities, rename them and choose the default?
  *
  * An owner over the whole organisation only. Not `entity.manage`, which a

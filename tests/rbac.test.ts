@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { can, capabilitiesFor, scopedEntityIds, type Grant } from '@/lib/rbac';
+import {
+  can,
+  canInScope,
+  capabilitiesFor,
+  scopedEntityIds,
+  type Grant
+} from '@/lib/rbac';
 
 const PUBLIC_SERVICE = '11111111-1111-1111-1111-111111111111';
 const STUDIOS = '22222222-2222-2222-2222-222222222222';
@@ -68,5 +74,26 @@ describe('role definitions', () => {
       'assessment.answer',
       'contact.outside'
     ]);
+  });
+});
+
+describe('records for every entity', () => {
+  const studiosAdmin: Grant[] = [
+    { role: 'privacy_admin', scope: 'entity', entityId: STUDIOS }
+  ];
+  const admin: Grant[] = [{ role: 'privacy_admin', scope: 'organisation' }];
+
+  it('needs the capability across the organisation, not in one entity', () => {
+    assert.equal(can(studiosAdmin, 'record.write'), true);
+    assert.equal(canInScope(studiosAdmin, 'record.write', null), false);
+    assert.equal(canInScope(admin, 'record.write', null), true);
+  });
+
+  it('is the entity check for a record of one entity', () => {
+    assert.equal(canInScope(studiosAdmin, 'record.write', STUDIOS), true);
+    assert.equal(
+      canInScope(studiosAdmin, 'record.write', PUBLIC_SERVICE),
+      false
+    );
   });
 });

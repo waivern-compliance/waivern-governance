@@ -138,6 +138,12 @@ export default async function PolicyDocumentPage({
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Conditions it covers</h2>
+        {doc.importBatchId && !doc.importConfirmedAt ? (
+          <p className="max-w-prose text-xs text-amber-900">
+            As imported. Until it is confirmed, none of these counts as covered:
+            activities relying on them still show the gap.
+          </p>
+        ) : null}
         {doc.conditions.length > 0 ? (
           <ul className="list-disc space-y-0.5 pl-5 text-sm">
             {doc.conditions.map((k) => (

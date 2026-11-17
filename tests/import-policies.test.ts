@@ -26,7 +26,11 @@ import {
   undoImport,
   uploadImport
 } from '@/services/imports';
-import { draftVersion, policiesDueForReview } from '@/services/policies';
+import {
+  draftVersion,
+  policiesDueForReview,
+  reviewOverdue
+} from '@/services/policies';
 import { policyCoverage } from '@/services/policy-documents';
 
 const SYSTEM = {
@@ -195,6 +199,43 @@ describe('importing appropriate policy documents', () => {
   });
 });
 
+describe('importing appropriate policy documents again', () => {
+  it('updates one imported before, and keeps whom it is for', async () => {
+    const w = await world('import-apd-again');
+    await imported(
+      w.org.id,
+      'policy_document',
+      'ID,Title,Conditions\nAPD-1,Special category policy,para 1\n'
+    );
+    const again = await imported(
+      w.org.id,
+      'policy_document',
+      'ID,Title,Conditions\napd-1,Special category data policy,para 1; para 6\n'
+    );
+    assert.deepEqual(again.preview, { update: 1 });
+    const [doc] = await db
+      .select()
+      .from(policyDocuments)
+      .where(eq(policyDocuments.organisationId, w.org.id));
+    assert.equal(doc.title, 'Special category data policy');
+    assert.deepEqual(doc.conditions, ['para1', 'para6']);
+    assert.equal(doc.importConfirmedAt, null);
+
+    const moved = await imported(
+      w.org.id,
+      'policy_document',
+      'ID,Title,Legal entity\nAPD-1,Special category data policy,Subsidiary Ltd\n',
+      [],
+      { entity: 'Legal entity' }
+    );
+    assert.deepEqual(moved.preview, { refuse: 1 });
+    assert.match(
+      moved.rows[0].reason ?? '',
+      /Imported before for every entity, and this row says Subsidiary Ltd\. Change whom it is for on its page/
+    );
+  });
+});
+
 describe('importing policies', () => {
   it('brings one in force with no version approved here, its approval kept as history', async () => {
     const w = await world('import-policy');
@@ -255,8 +296,10 @@ describe('importing policies', () => {
       .where(eq(policyActivities.policyId, security.id));
     assert.equal(link.activityId, w.payroll.id);
 
-    // Its review, long past, waits until a person has confirmed it.
+    // Its review, long past, waits until a person has confirmed it, and it
+    // is not shown as overdue meanwhile.
     assert.equal((await policiesDueForReview(w.org.id)).length, 0);
+    assert.equal(reviewOverdue(security), false);
     await confirmImportedRecord({
       organisationId: w.org.id,
       type: 'policy',
@@ -367,5 +410,43 @@ describe('importing policies', () => {
       ).length,
       0
     );
+  });
+
+  it('brings a withdrawn policy back in force cleanly, and counts its review from its approval when the file gives no status', async () => {
+    const w = await world('import-policy-reinstated');
+    await imported(
+      w.org.id,
+      'policy',
+      'ID,Title,Status,Withdrawn on,Why it was withdrawn\nP-1,Retention,Withdrawn,2024-01-01,Replaced\nP-2,Clear desk,Active,,\n'
+    );
+    await imported(
+      w.org.id,
+      'policy',
+      'ID,Title,Status,Withdrawn on,Why it was withdrawn\nP-1,Retention,Active,,\n'
+    );
+    const all = await db
+      .select()
+      .from(policies)
+      .where(eq(policies.organisationId, w.org.id));
+    const retention = byRef(all, 'P-1');
+    assert.equal(retention.status, 'in_force');
+    assert.equal(retention.withdrawnAt, null);
+    assert.equal(retention.withdrawnReason, null);
+
+    // No status column: the policy is in force already, so its approval date
+    // there sets its next review.
+    await imported(
+      w.org.id,
+      'policy',
+      'ID,Title,Approved on\nP-2,Clear desk,2025-06-01\n',
+      [],
+      { approvedAt: 'Approved on' }
+    );
+    const [desk] = await db
+      .select()
+      .from(policies)
+      .where(eq(policies.id, byRef(all, 'P-2').id));
+    assert.equal(desk.status, 'in_force');
+    assert.equal(desk.nextReviewAt?.toISOString().slice(0, 10), '2026-06-01');
   });
 });

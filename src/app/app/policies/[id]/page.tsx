@@ -9,7 +9,7 @@ import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
-import { can, scopedEntityIds, type Capability, type Grant } from '@/lib/rbac';
+import { can, canInScope } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { documentsFor } from '@/services/documents';
@@ -38,17 +38,6 @@ const VERSION_WORDS = {
   rejected: 'Not approved',
   superseded: 'Superseded'
 } as const;
-
-/** As the actions decide it: in the policy's entity, or organisation-wide. */
-function holds(
-  grants: readonly Grant[],
-  capability: Capability,
-  entityId: string | null
-) {
-  return entityId
-    ? can(grants, capability, entityId)
-    : scopedEntityIds(grants, capability) === null;
-}
 
 const button =
   'rounded border border-line px-4 py-2 text-sm hover:border-brand';
@@ -79,8 +68,9 @@ export default async function PolicyPage({
     );
   }
   const open = policy.status !== 'withdrawn';
-  const mayEdit = open && holds(grants, 'record.write', policy.entityId);
-  const mayDecide = open && holds(grants, 'approval.decide', policy.entityId);
+  const mayEdit = open && canInScope(grants, 'record.write', policy.entityId);
+  const mayDecide =
+    open && canInScope(grants, 'approval.decide', policy.entityId);
 
   const [files, members, options] = await Promise.all([
     documentsFor(org, 'policy', policy.id),
@@ -131,9 +121,9 @@ export default async function PolicyPage({
         ) : null}
         {policy.status === 'withdrawn' ? (
           <p className="max-w-prose rounded border border-line bg-ground px-3 py-2 text-xs">
-            Withdrawn on {day(policy.withdrawnAt!)}: {policy.withdrawnReason}.
-            It is kept, with its versions, to show what applied while it was in
-            force.
+            Withdrawn on {day(policy.withdrawnAt!)}
+            {policy.withdrawnReason ? `: ${policy.withdrawnReason}` : ''}. It is
+            kept, with its versions, to show what applied while it was in force.
           </p>
         ) : policy.status === 'draft' ? (
           <p className="text-xs text-amber-900">
@@ -155,7 +145,7 @@ export default async function PolicyPage({
           legacy={policy.legacy}
           history={policy.sourceHistory}
           confirm={
-            holds(grants, 'record.write', policy.entityId) ? (
+            canInScope(grants, 'record.write', policy.entityId) ? (
               <ConfirmImported
                 type="policy"
                 id={policy.id}
