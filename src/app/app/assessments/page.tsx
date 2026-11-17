@@ -21,7 +21,8 @@ const STATUS_STYLE: Record<string, string> = {
   approved: 'text-emerald-800 border-emerald-700',
   rejected: 'text-red-800 border-red-700',
   superseded: 'text-ink-soft border-line',
-  withdrawn: 'text-ink-soft border-line'
+  withdrawn: 'text-ink-soft border-line',
+  imported: 'text-amber-800 border-amber-700'
 };
 
 const TIER_STYLE: Record<string, string> = {

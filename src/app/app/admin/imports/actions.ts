@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
+  assessments,
   evidence,
   informationAssets,
   mitigations,
@@ -233,7 +234,8 @@ const ENTITY_TABLE = {
   information_asset: informationAssets,
   risk: risks,
   policy: policies,
-  policy_document: policyDocuments
+  policy_document: policyDocuments,
+  assessment: assessments
 } as const;
 
 /**

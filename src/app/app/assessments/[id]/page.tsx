@@ -4,6 +4,9 @@ import { notFound, redirect } from 'next/navigation';
 import { AssessmentForm } from '@/components/AssessmentForm';
 import { Chat } from '@/components/assistant/Chat';
 import { Discussion } from '@/components/Discussion';
+import { Attachments } from '@/components/documents/Attachments';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RaiseRiskForm } from '@/components/RaiseRiskForm';
 import { RiskTierBadge } from '@/components/RiskTierBadge';
@@ -23,6 +26,8 @@ import { aiFrameworkPackOf } from '@/services/ai-framework';
 import { assessmentHistory, loadAssessment } from '@/services/assessments';
 import { providerFor } from '@/services/assistant';
 import { linksForAssessment } from '@/services/contributor-links';
+import { documentsFor } from '@/services/documents';
+import { importSourceName } from '@/services/imports';
 import { riskScaleOf, risksForAssessment } from '@/services/risks';
 import { approvalsFor } from '@/services/workflow';
 
@@ -151,84 +156,121 @@ export default async function AssessmentPage({
         </p>
       </header>
 
-      <AssessmentForm
-        definition={definition}
-        initialAnswers={answers}
-        readOnly={!editable}
-        legalRefs={refs}
-        law={loaded.entityLaw}
-        answerMeta={meta}
-        onSave={saveAction.bind(null, id)}
-        onFinish={
-          editable && maySubmit ? submitAction.bind(null, id) : undefined
-        }
-      />
-
-      {editable &&
-      !can(active.membership.grants, 'contact.outside', assessment.entityId) ? (
-        <TrialNotice
-          withheld="contact.outside"
-          what="Contributors"
+      {assessment.importSourceId ? (
+        <ImportedAssessment
+          sourceName={
+            (await importSourceName(
+              active.membership.organisationId,
+              assessment.importSourceId
+            )) ?? 'another platform'
+          }
+          assessment={assessment}
+          files={await documentsFor(
+            active.membership.organisationId,
+            'assessment',
+            id
+          )}
+          confirm={
+            can(
+              active.membership.grants,
+              'record.write',
+              assessment.entityId
+            ) ? (
+              <ConfirmImported
+                type="assessment"
+                id={id}
+                revalidate={`/app/assessments/${id}`}
+                what="this assessment"
+              />
+            ) : null
+          }
         />
-      ) : editable ? (
-        <InviteContributor
-          assessmentId={id}
-          sections={definition.schema.sections
-            .filter((s) => !s.organisationOnly)
-            .map((s) => ({
-              key: s.key,
-              title: s.title
+      ) : (
+        <>
+          <AssessmentForm
+            definition={definition}
+            initialAnswers={answers}
+            readOnly={!editable}
+            legalRefs={refs}
+            law={loaded.entityLaw}
+            answerMeta={meta}
+            onSave={saveAction.bind(null, id)}
+            onFinish={
+              editable && maySubmit ? submitAction.bind(null, id) : undefined
+            }
+          />
+
+          {editable &&
+          !can(
+            active.membership.grants,
+            'contact.outside',
+            assessment.entityId
+          ) ? (
+            <TrialNotice
+              withheld="contact.outside"
+              what="Contributors"
+            />
+          ) : editable ? (
+            <InviteContributor
+              assessmentId={id}
+              sections={definition.schema.sections
+                .filter((s) => !s.organisationOnly)
+                .map((s) => ({
+                  key: s.key,
+                  title: s.title
+                }))}
+              existing={links.map((l) => ({
+                id: l.id,
+                email: l.email,
+                sectionKey: l.sectionKey,
+                useCount: l.useCount,
+                completedAt: l.completedAt?.toISOString().slice(0, 10) ?? null,
+                revokedAt: l.revokedAt?.toISOString().slice(0, 10) ?? null,
+                expiresAt: l.expiresAt.toISOString().slice(0, 10)
+              }))}
+            />
+          ) : null}
+
+          {active.membership.trial ? (
+            <p className="max-w-prose rounded border border-dashed border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              In a trial, the people these stages go to are simulated
+              colleagues, told in the app and never by email. Decide each stage
+              yourself to see what happens next.
+            </p>
+          ) : null}
+          <Approvals
+            assessmentId={id}
+            gates={gates.map((g) => ({
+              id: g.id,
+              position: g.position,
+              name: g.name,
+              requiredRole: g.requiredRole,
+              status: g.status,
+              reason: g.reason,
+              decidedBy: g.decidedByLabel,
+              decidedAt: g.decidedAt?.toISOString().slice(0, 10) ?? null,
+              rationale: g.rationale,
+              boardName: g.boardName,
+              boardReference: g.boardReference
             }))}
-          existing={links.map((l) => ({
-            id: l.id,
-            email: l.email,
-            sectionKey: l.sectionKey,
-            useCount: l.useCount,
-            completedAt: l.completedAt?.toISOString().slice(0, 10) ?? null,
-            revokedAt: l.revokedAt?.toISOString().slice(0, 10) ?? null,
-            expiresAt: l.expiresAt.toISOString().slice(0, 10)
-          }))}
-        />
-      ) : null}
-
-      {active.membership.trial ? (
-        <p className="max-w-prose rounded border border-dashed border-amber-700 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          In a trial, the people these stages go to are simulated colleagues,
-          told in the app and never by email. Decide each stage yourself to see
-          what happens next.
-        </p>
-      ) : null}
-      <Approvals
-        assessmentId={id}
-        gates={gates.map((g) => ({
-          id: g.id,
-          position: g.position,
-          name: g.name,
-          requiredRole: g.requiredRole,
-          status: g.status,
-          reason: g.reason,
-          decidedBy: g.decidedByLabel,
-          decidedAt: g.decidedAt?.toISOString().slice(0, 10) ?? null,
-          rationale: g.rationale,
-          boardName: g.boardName,
-          boardReference: g.boardReference
-        }))}
-        decidableId={nextGate && mayDecideHere ? nextGate.id : null}
-        notYours={
-          // The stage waiting now, when this viewer cannot decide it. Without
-          // this the form simply does not appear, and an owner who expected to
-          // act reads the missing buttons as the platform being broken.
-          nextGate && !mayDecideHere
-            ? {
-                gateId: nextGate.id,
-                roleLabel:
-                  ROLE_LABEL[nextGate.requiredRole as AppRole] ??
-                  nextGate.requiredRole,
-                mayGrant: can(active.membership.grants, 'member.manage')
-              }
-            : null
-        }
-      />
+            decidableId={nextGate && mayDecideHere ? nextGate.id : null}
+            notYours={
+              // The stage waiting now, when this viewer cannot decide it. Without
+              // this the form simply does not appear, and an owner who expected to
+              // act reads the missing buttons as the platform being broken.
+              nextGate && !mayDecideHere
+                ? {
+                    gateId: nextGate.id,
+                    roleLabel:
+                      ROLE_LABEL[nextGate.requiredRole as AppRole] ??
+                      nextGate.requiredRole,
+                    mayGrant: can(active.membership.grants, 'member.manage')
+                  }
+                : null
+            }
+          />
+        </>
+      )}
 
       {raised.length > 0 || mayRaise || named.length > 0 ? (
         <section className="space-y-3">
@@ -346,5 +388,85 @@ export default async function AssessmentPage({
         subjectLabel={assessment.reference}
       />
     </main>
+  );
+}
+
+/**
+ * An assessment done in another platform: where it came from, what that
+ * platform recorded of its outcome, and its questions and answers as that
+ * platform asked them. Read only; a reassessment is started here as new.
+ */
+function ImportedAssessment({
+  sourceName,
+  assessment,
+  files,
+  confirm
+}: {
+  sourceName: string;
+  assessment: Awaited<ReturnType<typeof loadAssessment>> extends infer L
+    ? L extends { assessment: infer A }
+      ? A
+      : never
+    : never;
+  files: Awaited<ReturnType<typeof documentsFor>>;
+  confirm: React.ReactNode;
+}) {
+  const waiting = assessment.importConfirmedAt === null;
+  const answers = assessment.sourceAnswers ?? [];
+  return (
+    <>
+      <ImportedFrom
+        sourceName={sourceName}
+        batchId={assessment.importBatchId}
+        confirmed={!waiting}
+        legacy={assessment.legacy}
+        history={assessment.sourceHistory}
+        confirm={confirm}
+      />
+      {waiting && assessment.importedOutcome === 'approved' ? (
+        <p className="max-w-prose text-xs text-amber-900">
+          Approved in {sourceName}. Until it is confirmed here, it does not
+          count as an approved assessment: what it assessed still shows the gap.
+        </p>
+      ) : null}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+          As {sourceName} asked it
+        </h2>
+        <p className="max-w-prose text-xs text-ink-soft">
+          Its questions were {sourceName}&rsquo;s, so it is kept as it was
+          answered there and cannot be edited here. To assess this again, start
+          a new assessment.
+        </p>
+        {answers.length > 0 ? (
+          <dl className="divide-y divide-line overflow-hidden rounded border border-line bg-surface text-sm">
+            {answers.map((a, i) => (
+              <div
+                key={i}
+                className="space-y-1 px-4 py-3"
+              >
+                <dt className="font-medium">{a.question}</dt>
+                <dd className="whitespace-pre-wrap break-words text-ink-soft">
+                  {a.answer}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="text-sm text-ink-soft">
+            No answers came with it. Any report attached below is the record.
+          </p>
+        )}
+      </section>
+      <Attachments
+        subjectType="assessment"
+        subjectId={assessment.id}
+        entityId={assessment.entityId}
+        revalidate={`/app/assessments/${assessment.id}`}
+        documents={files}
+        mayEdit={false}
+        what={`The report from ${sourceName}`}
+      />
+    </>
   );
 }

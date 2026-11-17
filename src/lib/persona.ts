@@ -67,7 +67,8 @@ const PLAIN_STATUS: Record<string, string> = {
   approved: 'Cleared',
   rejected: 'Not approved',
   superseded: 'Replaced',
-  withdrawn: 'Withdrawn'
+  withdrawn: 'Withdrawn',
+  imported: 'Imported, to be checked'
 };
 
 export function statusWords(status: string, persona: Persona): string {

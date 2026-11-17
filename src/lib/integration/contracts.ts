@@ -293,6 +293,8 @@ export const riskIn = z.object({
   acceptedAt: z.iso.datetime().optional(),
   acceptanceExpiresAt: z.iso.datetime().optional(),
   acceptanceRationale: longText.optional(),
+  /** The assessment it came out of, by its identifier in the source. */
+  assessment: z.string().max(500).optional(),
   /** What it concerns, by reference, identifier in the source, or name. */
   activities: z.array(z.string().max(500)).max(100).default([]),
   suppliers: z.array(z.string().max(500)).max(100).default([]),
@@ -373,6 +375,47 @@ export const policyIn = z.object({
   aiSystems: z.array(z.string().max(500)).max(100).default([])
 });
 
+/**
+ * An assessment done in another platform. Read by the importer only. Its
+ * questions and answers are the columns no field reads, kept as asked there.
+ */
+export const assessmentIn = z.object({
+  externalRef,
+  title: shortText,
+  kind: z.enum([
+    'dpia',
+    'lia',
+    'tia',
+    'tra',
+    'ai_risk',
+    'screening',
+    'eia',
+    'custom'
+  ]),
+  /** Where it got to there; unfinished comes in withdrawn (decision 4). */
+  outcome: z.enum([
+    'approved',
+    'rejected',
+    'superseded',
+    'withdrawn',
+    'unfinished'
+  ]),
+  /** What it assessed: one of these, by reference, identifier there, or name. */
+  activity: z.string().max(500).optional(),
+  supplier: z.string().max(500).optional(),
+  aiSystem: z.string().max(500).optional(),
+  owner: z.string().max(320).optional(),
+  submittedAt: z.iso.datetime().optional(),
+  completedAt: z.iso.datetime().optional(),
+  approvedBy: z.string().max(320).optional(),
+  reviewDueAt: z.iso.datetime().optional(),
+  /** The questions as asked there, with their answers, in order. */
+  answers: z
+    .array(z.object({ question: z.string().max(1000), answer: longText }))
+    .max(500)
+    .default([])
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -391,6 +434,7 @@ export type RiskIn = z.infer<typeof riskIn>;
 export type MitigationIn = z.infer<typeof mitigationIn>;
 export type PolicyDocumentIn = z.infer<typeof policyDocumentIn>;
 export type PolicyIn = z.infer<typeof policyIn>;
+export type AssessmentIn = z.infer<typeof assessmentIn>;
 
 export type IngestOutcome = {
   received: number;

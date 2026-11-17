@@ -1,5 +1,6 @@
 import type {
   AiUseCaseIn,
+  AssessmentIn,
   InformationAssetIn,
   MitigationIn,
   PolicyDocumentIn,
@@ -37,6 +38,12 @@ export type SourceEvent = {
   detail?: string;
 };
 
+/** One question and its answer, as another platform asked it. */
+export type SourceAnswer = {
+  question: string;
+  answer: string;
+};
+
 type Legacy = Record<string, string>;
 
 /** A link between registers an import made, kept on its row for undo. */
@@ -44,6 +51,13 @@ export type ImportLink =
   | {
       kind: 'asset_activity' | 'asset_supplier' | 'asset_risk';
       /** The asset. */
+      from: string;
+      to: string;
+    }
+  | {
+      /** A risk named this assessment there; the import set its assessment. */
+      kind: 'risk_assessment';
+      /** The risk. */
       from: string;
       to: string;
     }
@@ -128,5 +142,10 @@ export type ImportRecord =
   | {
       kind: 'policy';
       data: PolicyIn & { file?: string };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'assessment';
+      data: AssessmentIn & { file?: string };
       legacy: Legacy;
     };

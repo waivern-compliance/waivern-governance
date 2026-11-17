@@ -50,9 +50,17 @@ const REFERENCE_PREFIX: Record<string, string> = {
   custom: 'ASMT'
 };
 
+/** The prefix of an assessment's reference, by its template's kind. */
+export const referencePrefixFor = (kind: string) =>
+  REFERENCE_PREFIX[kind] ?? 'ASMT';
+
 export class AssessmentNotEditable extends Error {
-  constructor(status: string) {
-    super(`An assessment with status "${status}" cannot be edited`);
+  constructor(status: string, imported = false) {
+    super(
+      imported
+        ? "An assessment imported from another platform is read only: its questions were that platform's. Start a reassessment here instead."
+        : `An assessment with status "${status}" cannot be edited`
+    );
   }
 }
 
@@ -127,7 +135,7 @@ export async function createAssessment(input: {
       const reference = await nextReference(
         tx,
         input.organisationId,
-        REFERENCE_PREFIX[version.template.kind] ?? 'ASMT',
+        referencePrefixFor(version.template.kind),
         new Date().getUTCFullYear()
       );
 
@@ -253,6 +261,9 @@ export async function saveAnswers(input: {
       input.organisationId
     );
     if (!loaded) throw new Error('No such assessment');
+    // Imported ones never take answers here, whatever their status.
+    if (loaded.assessment.importSourceId)
+      throw new AssessmentNotEditable(loaded.assessment.status, true);
     if (
       !EDITABLE.includes(loaded.assessment.status as (typeof EDITABLE)[number])
     ) {
@@ -387,6 +398,9 @@ export async function submitAssessment(input: {
       input.organisationId
     );
     if (!loaded) throw new Error('No such assessment');
+    // Imported ones never take answers here, whatever their status.
+    if (loaded.assessment.importSourceId)
+      throw new AssessmentNotEditable(loaded.assessment.status, true);
     if (
       !EDITABLE.includes(loaded.assessment.status as (typeof EDITABLE)[number])
     ) {

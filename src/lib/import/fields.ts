@@ -1,5 +1,6 @@
 import {
   aiUseCaseIn,
+  assessmentIn,
   dpaIn,
   evidenceIn,
   informationAssetIn,
@@ -29,7 +30,8 @@ export type RecordType =
   | 'risk'
   | 'mitigation'
   | 'policy_document'
-  | 'policy';
+  | 'policy'
+  | 'assessment';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -38,7 +40,8 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'ai_use_case',
   'information_asset',
   'risk',
-  'mitigation'
+  'mitigation',
+  'assessment'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -46,7 +49,8 @@ export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
   'dpa',
   'evidence',
   'policy_document',
-  'policy'
+  'policy',
+  'assessment'
 ]);
 
 type FieldKind =
@@ -806,6 +810,19 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       kind: 'list',
       hint: 'By reference, ID in the platform, or name, in this entity.',
       aliases: ['assets', 'information assets', 'systems', 'asset']
+    },
+    {
+      key: 'assessment',
+      label: 'Assessment',
+      kind: 'text',
+      hint: 'The assessment it came out of, by its ID in the platform. Linked once that assessment is imported, before or after.',
+      aliases: [
+        'assessment',
+        'assessment id',
+        'source assessment',
+        'raised from',
+        'dpia'
+      ]
     }
   ],
   mitigation: [
@@ -1115,6 +1132,156 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['ai systems', 'ai system', 'ai use cases', 'models']
     },
     FILE
+  ],
+  assessment: [
+    ID,
+    {
+      key: 'title',
+      label: 'Title',
+      kind: 'text',
+      required: true,
+      aliases: ['title', 'name', 'assessment', 'assessment name']
+    },
+    {
+      key: 'kind',
+      label: 'Kind',
+      kind: 'choice',
+      required: true,
+      hint: 'Match it for the whole file by matching a column that says it, such as "Template".',
+      aliases: ['kind', 'type', 'assessment type', 'template'],
+      choices: [
+        choice(
+          'dpia',
+          'DPIA',
+          'data protection impact assessment',
+          'pia',
+          'privacy impact assessment'
+        ),
+        choice(
+          'lia',
+          'LIA',
+          'legitimate interests assessment',
+          'legitimate interest assessment'
+        ),
+        choice('tia', 'TIA', 'transfer impact assessment'),
+        choice('tra', 'TRA', 'transfer risk assessment'),
+        choice(
+          'ai_risk',
+          'AI risk assessment',
+          'ai assessment',
+          'ai impact assessment',
+          'aia'
+        ),
+        choice(
+          'screening',
+          'Screening',
+          'pre-screening',
+          'threshold assessment',
+          'dpia screening'
+        ),
+        choice('eia', 'EIA', 'equality impact assessment'),
+        choice('custom', 'Other', 'custom', 'general', 'vendor assessment')
+      ]
+    },
+    {
+      key: 'outcome',
+      label: 'Outcome',
+      kind: 'choice',
+      required: true,
+      hint: 'One not finished there comes in withdrawn, as history: start a new one here.',
+      aliases: ['status', 'outcome', 'result', 'state', 'stage'],
+      choices: [
+        choice(
+          'approved',
+          'Approved',
+          'complete',
+          'completed',
+          'closed',
+          'signed off',
+          'accepted'
+        ),
+        choice('rejected', 'Rejected', 'declined', 'not approved'),
+        choice('superseded', 'Superseded', 'replaced', 'archived'),
+        choice('withdrawn', 'Withdrawn', 'cancelled', 'canceled', 'abandoned'),
+        choice(
+          'unfinished',
+          'Unfinished',
+          'draft',
+          'in progress',
+          'under review',
+          'in review',
+          'open',
+          'not started',
+          'pending'
+        )
+      ]
+    },
+    {
+      key: 'activity',
+      label: 'Processing activity',
+      kind: 'text',
+      hint: 'What it assessed, by reference, ID in the platform, or name. Name one of activity, supplier or AI system.',
+      aliases: ['processing activity', 'activity', 'ropa', 'process']
+    },
+    {
+      key: 'supplier',
+      label: 'Supplier',
+      kind: 'text',
+      hint: 'By name.',
+      aliases: ['supplier', 'vendor', 'third party']
+    },
+    {
+      key: 'aiSystem',
+      label: 'AI system',
+      kind: 'text',
+      hint: 'By ID in the platform or name.',
+      aliases: ['ai system', 'ai use case', 'model', 'system']
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no owner.',
+      aliases: ['owner', 'assessor', 'owner email', 'respondent', 'author']
+    },
+    {
+      key: 'submittedAt',
+      label: 'Submitted on',
+      kind: 'date',
+      aliases: ['submitted', 'submitted on', 'date submitted']
+    },
+    {
+      key: 'completedAt',
+      label: 'Decided on',
+      kind: 'date',
+      aliases: [
+        'completed',
+        'completed on',
+        'decided on',
+        'approved on',
+        'date completed',
+        'closed on'
+      ]
+    },
+    {
+      key: 'approvedBy',
+      label: 'Decided by',
+      kind: 'text',
+      aliases: [
+        'approved by',
+        'approver',
+        'decided by',
+        'reviewer',
+        'signed off by'
+      ]
+    },
+    {
+      key: 'reviewDueAt',
+      label: 'Review due',
+      kind: 'date',
+      aliases: ['review due', 'next review', 'review date', 'reassess by']
+    },
+    FILE
   ]
 };
 
@@ -1264,7 +1431,8 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
   if (
     recordType === 'risk' ||
     recordType === 'policy_document' ||
-    recordType === 'policy'
+    recordType === 'policy' ||
+    recordType === 'assessment'
   )
     return valueOf('title') || null;
   if (recordType === 'mitigation') {
@@ -1308,6 +1476,10 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
     case 'policy': {
       const { file: _file, ...rest } = data;
       return policyIn.safeParse(rest);
+    }
+    case 'assessment': {
+      const { file: _file, ...rest } = data;
+      return assessmentIn.safeParse(rest);
     }
   }
 }
@@ -1368,13 +1540,20 @@ export function convertRow(
       data.kind = data.file || !data.uri ? 'document' : 'link';
 
     const mapped = new Set(Object.values(mapping.fields));
-    const legacy = mapping.keepUnmapped
-      ? Object.fromEntries(
-          Object.entries(row).filter(
-            ([column, value]) => !mapped.has(column) && value.trim() !== ''
-          )
+    const unmapped = mapping.keepUnmapped
+      ? Object.entries(row).filter(
+          ([column, value]) => !mapped.has(column) && value.trim() !== ''
         )
-      : {};
+      : [];
+    // An assessment's other columns are its questions, answered: kept as a
+    // list, in the file's order, which an object stored as JSON would lose.
+    const asAnswers = recordType === 'assessment';
+    if (asAnswers)
+      data.answers = unmapped.map(([question, answer]) => ({
+        question,
+        answer
+      }));
+    const legacy = asAnswers ? {} : Object.fromEntries(unmapped);
 
     const checked = checkAs(recordType, data);
     if (!checked.success) {
