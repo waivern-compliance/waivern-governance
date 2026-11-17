@@ -1,5 +1,5 @@
 {
-  "id": "6893007c-eb67-48e7-9835-efed598e3bb7",
+  "id": "b2b3bcff-48f5-447f-900c-8e197c94a68d",
   "prevId": "5987fae8-1ea3-42d9-b318-123f9c3c7c97",
   "version": "7",
   "dialect": "postgresql",
@@ -12867,6 +12867,12 @@
         },
         "mapping": {
           "name": "mapping",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "values_found": {
+          "name": "values_found",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false

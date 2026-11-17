@@ -68,7 +68,7 @@ export default async function ImportBatchPage({
   // Ratings on the source's own scale, offered once their columns are matched.
   const translating =
     open && defs.some((f) => TRANSLATED.has(f.key))
-      ? await valuesToTranslate(org, batch.id, mapping)
+      ? await valuesToTranslate(org, batch.id)
       : null;
   const written = rows.filter((r) =>
     ['create', 'update', 'merge'].includes(r.action)

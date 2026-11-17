@@ -1264,8 +1264,7 @@ describe("reading another organisation's records", () => {
   it("gives nothing: valuesToTranslate for B's import", async () => {
     const offered = await importsSvc.valuesToTranslate(
       A.org.id,
-      B.importBatch.id,
-      { fields: { inherentLikelihood: 'Name' }, keepUnmapped: false }
+      B.importBatch.id
     );
     assert.deepEqual(offered.fields, []);
   });

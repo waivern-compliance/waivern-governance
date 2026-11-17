@@ -114,7 +114,7 @@ describe('importing risks', () => {
     assert.match(rows[3].reason ?? '', /closed risk needs the date/);
 
     // The values each rating column holds, offered for translation.
-    const offered = await valuesToTranslate(org.id, batch.id, first.mapping);
+    const offered = await valuesToTranslate(org.id, batch.id);
     assert.equal(offered.scale, '4x4');
     assert.deepEqual(
       offered.fields.find((f) => f.key === 'inherentLikelihood')?.values,
@@ -358,5 +358,58 @@ describe('importing risks', () => {
         )
       );
     assert.ok(updated);
+  });
+
+  it('keeps a status set here, and the history, when a short file says nothing of them', async () => {
+    const { org } = await world('import-risks-keep-status');
+    const first = await upload(
+      org.id,
+      'ID,Title,Description,Likelihood,Impact,Status,Accepted by\nR-1,Leak,A leak,2,2,Accepted,J. Smith\nR-2,Breach,A breach,2,2,Open,\n'
+    );
+    await preview(org.id, first.id);
+    await commitImport({
+      organisationId: org.id,
+      batchId: first.id,
+      actor: SYSTEM
+    });
+    const [leak, breach] = await risksOf(org.id);
+    await db
+      .update(risks)
+      .set({ status: 'treating' })
+      .where(eq(risks.id, breach.id));
+
+    const again = await upload(
+      org.id,
+      'ID,Title,Description,Likelihood,Impact\nR-1,Leak,A leak still,2,2\nR-2,Breach,A breach still,2,2\n'
+    );
+    await preview(org.id, again.id, undefined, {
+      status: '',
+      acceptedBy: ''
+    });
+    await commitImport({
+      organisationId: org.id,
+      batchId: again.id,
+      actor: SYSTEM
+    });
+    const [leakAfter, breachAfter] = await risksOf(org.id);
+    assert.equal(breachAfter.status, 'treating');
+    assert.equal(leakAfter.status, leak.status);
+    assert.deepEqual(leakAfter.sourceHistory, leak.sourceHistory);
+  });
+
+  it('asks again for a translation saved on another scale', async () => {
+    const { org } = await world('import-risks-rescaled');
+    const batch = await upload(
+      org.id,
+      'ID,Title,Description,Likelihood,Impact\nR-1,Leak,A leak,Very high,2\n'
+    );
+    const { counts } = await preview(org.id, batch.id, {
+      inherentLikelihood: { 'very high': '5' }
+    });
+    assert.deepEqual(counts, { refuse: 1 });
+    assert.match(
+      (await loadImport(batch.id, org.id))!.rows[0].reason ?? '',
+      /translated as 5, which is not on the four by four scale/
+    );
   });
 });

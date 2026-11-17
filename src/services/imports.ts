@@ -336,24 +336,44 @@ export async function loadImport(batchId: string, organisationId: string) {
 /** At most this many values are offered for translation per field. */
 const TRANSLATION_LIMIT = 40;
 
+/** The values each translated field's column holds, as written, without repeats. */
+function valuesIn(
+  table: Table,
+  recordType: RecordType,
+  mapping: ImportMapping
+): Record<string, string[]> {
+  const found: Record<string, string[]> = {};
+  for (const f of FIELDS[recordType]) {
+    if (!TRANSLATED.has(f.key) || !mapping.fields[f.key]) continue;
+    const at = table.columns.indexOf(mapping.fields[f.key]);
+    const seen = new Map<string, string>();
+    for (const cells of table.rows) {
+      const v = String(cells[at] ?? '').trim();
+      if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+      if (seen.size >= TRANSLATION_LIMIT) break;
+    }
+    found[f.key] = [...seen.values()].sort((a, b) =>
+      a.localeCompare(b, 'en', { numeric: true })
+    );
+  }
+  return found;
+}
+
 /**
- * The values each translated field's column holds, for a person to say what
- * each is on this organisation's scale. With the scale, for the choices.
+ * The values each translated field's column held at the last preview, for a
+ * person to say what each is on this organisation's scale. With the scale,
+ * for the choices.
  */
 export async function valuesToTranslate(
   organisationId: string,
-  batchId: string,
-  mapping: ImportMapping
+  batchId: string
 ): Promise<{
   scale: RiskScaleId;
   fields: Array<{ key: string; values: string[] }>;
 }> {
   return withOrganisation(organisationId, async () => {
     const [batch] = await db
-      .select({
-        file: importBatches.file,
-        recordType: importBatches.recordType
-      })
+      .select({ found: importBatches.valuesFound })
       .from(importBatches)
       .where(
         and(
@@ -362,30 +382,11 @@ export async function valuesToTranslate(
         )
       );
     const scale = await riskScaleOf(organisationId);
-    const keys = batch
-      ? FIELDS[batch.recordType]
-          .filter((f) => TRANSLATED.has(f.key) && mapping.fields[f.key])
-          .map((f) => f.key)
-      : [];
-    if (!batch || keys.length === 0) return { scale, fields: [] };
-    const table = await readFile(batch.file);
     return {
       scale,
-      fields: keys.map((key) => {
-        const at = table.columns.indexOf(mapping.fields[key]);
-        const seen = new Map<string, string>();
-        for (const cells of table.rows) {
-          const v = String(cells[at] ?? '').trim();
-          if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
-          if (seen.size >= TRANSLATION_LIMIT) break;
-        }
-        return {
-          key,
-          values: [...seen.values()].sort((a, b) =>
-            a.localeCompare(b, 'en', { numeric: true })
-          )
-        };
-      })
+      fields: Object.entries(batch?.found ?? {})
+        .filter(([, values]) => values.length > 0)
+        .map(([key, values]) => ({ key, values }))
     };
   });
 }
@@ -1047,7 +1048,14 @@ function ratingReader(
   ): number | { reason: string } => {
     const v = given.trim();
     const chosen = values[field]?.[v.toLowerCase()];
-    if (chosen) return Number(chosen);
+    if (chosen) {
+      // Saved for this source on another scale, before the scale changed.
+      if (points[axis].some((p) => p.value === Number(chosen)))
+        return Number(chosen);
+      return {
+        reason: `${label} "${v}" was translated as ${chosen}, which is not on the ${SCALES[scale].inSentence} scale this organisation now uses. Say again what it is on the matching step.`
+      };
+    }
     const n = Number(v);
     if (Number.isInteger(n) && points[axis].some((p) => p.value === n))
       return n;
@@ -1364,7 +1372,12 @@ export async function previewImport(input: {
       const counts = tally(rows.map((r) => r.action as Action));
       await tx
         .update(importBatches)
-        .set({ status: 'previewed', mapping, counts })
+        .set({
+          status: 'previewed',
+          mapping,
+          counts,
+          valuesFound: valuesIn(table, batch.recordType, mapping)
+        })
         .where(eq(importBatches.id, batch.id));
       await tx
         .insert(importMappings)
@@ -1653,6 +1666,8 @@ type WriteContext = {
   at: Date;
   sourceRef: string;
   decision: Exclude<Decision, { action: 'refuse' }>;
+  /** The platform the batch came from, as named here. */
+  sourceName: string;
   /** The entity's default regime, for a new processing activity. */
   regime?: (typeof processingActivities.$inferInsert)['regime'] | null;
   /** The entity's data protection law: a new activity takes it, and bases are read under it. */
@@ -2270,6 +2285,24 @@ const day = (iso: string | undefined) => iso?.slice(0, 10);
  * acceptance above all. Kept as that platform's account, so the risk waits
  * to be accepted again here rather than being treated as accepted.
  */
+type RiskStatus = (typeof risks.$inferSelect)['status'];
+
+/**
+ * The status a risk takes from a row. Accepted there is not accepted here:
+ * a new risk waits for somebody here to take responsibility for it (decision
+ * 2 of the migration plan). On a re-import, a file that does not say, or says
+ * accepted, leaves the status as recorded, and an acceptance given here
+ * stands whatever the file says: that was a person's decision here.
+ */
+function statusFor(
+  given: Of<'risk'>['data']['status'],
+  current: RiskStatus | undefined
+): RiskStatus {
+  if (current === 'accepted') return current;
+  if (!given || given === 'accepted') return current ?? 'identified';
+  return given;
+}
+
 function riskHistory(
   data: Of<'risk'>['data'],
   source: string
@@ -2318,10 +2351,11 @@ async function writeRisk(
         resolved.scale
       )
     : null;
-  const [{ name: sourceName }] = await c.tx
-    .select({ name: importSources.name })
-    .from(importSources)
-    .where(eq(importSources.id, c.batch.sourceId));
+  // The scale can change only while the register is empty, so a risk
+  // imported before is on the scale read now.
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'risk', c.decision.recordId)
+    : null;
   const described = {
     title: data.title,
     description: data.description,
@@ -2335,15 +2369,10 @@ async function writeRisk(
     residualImpact: resolved.residual?.impact ?? null,
     residualScore: residual?.score ?? null,
     residualTier: residual?.tier ?? null,
-    // Accepted there is not accepted here: it waits for somebody here to
-    // take responsibility for it (decision 2 of the migration plan).
-    status:
-      data.status === 'accepted' || !data.status
-        ? ('identified' as const)
-        : data.status,
+    status: statusFor(data.status, was?.status as RiskStatus | undefined),
     closedAt: data.closedAt ? new Date(data.closedAt) : null,
     nextReviewAt: data.nextReviewAt ? new Date(data.nextReviewAt) : null,
-    sourceHistory: riskHistory(data, sourceName)
+    sourceHistory: riskHistory(data, c.sourceName)
   };
   const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
   // A rating read through a translation keeps what the source said, so the
@@ -2376,20 +2405,11 @@ async function writeRisk(
   };
   const kept = provenance(c, { ...record, legacy });
   let id: string;
-  let was: Record<string, unknown> | null = null;
   if (c.decision.recordId) {
-    // The scale can change only while the register is empty, so a risk
-    // imported before is on the scale read now.
-    was = await rowBefore(c, 'risk', c.decision.recordId);
+    // What the file leaves out stays as recorded, its history included.
     await c.tx
       .update(risks)
-      .set({
-        ...said(described),
-        // Cleared when the file no longer says it.
-        sourceHistory: described.sourceHistory,
-        ...owner,
-        ...kept
-      })
+      .set({ ...said(described), ...owner, ...kept })
       .where(eq(risks.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
@@ -2496,6 +2516,10 @@ export async function commitImport(input: {
       const at = new Date();
       const actions: Action[] = [];
       const decide = await matcher(tx, batch);
+      const [source] = await tx
+        .select({ name: importSources.name })
+        .from(importSources)
+        .where(eq(importSources.id, batch.sourceId));
 
       for (const row of rows) {
         if (!row.record || !row.sourceRef) {
@@ -2520,6 +2544,7 @@ export async function commitImport(input: {
             at,
             sourceRef: row.sourceRef,
             decision,
+            sourceName: source.name,
             regime: entity?.defaultRegime,
             law: entity?.dataProtectionLaw
           },

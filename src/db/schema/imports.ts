@@ -100,6 +100,11 @@ export const importBatches = pgTable(
     columns: jsonb('columns').$type<string[]>().notNull(),
     rowCount: integer('row_count').notNull(),
     mapping: jsonb('mapping').$type<ImportMapping>(),
+    /**
+     * The values each rating column held at the last preview, for a person
+     * to say what each is here: kept so the page need not read the file again.
+     */
+    valuesFound: jsonb('values_found').$type<Record<string, string[]>>(),
     status: importBatchStatus('status').notNull().default('uploaded'),
     counts: jsonb('counts')
       .$type<
