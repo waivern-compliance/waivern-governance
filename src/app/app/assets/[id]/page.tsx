@@ -10,7 +10,7 @@ import {
 } from '@/lib/assets/register';
 import { describeDetails, offeredTypes } from '@/lib/assets/types';
 import { can } from '@/lib/rbac';
-import { needsAttention, NOTICE_WORDS } from '@/lib/renewals';
+import { needsAttention, NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { assetTypology } from '@/services/asset-types';
@@ -181,9 +181,10 @@ export default async function AssetPage({
             className={`text-xs ${needsAttention(renewal) ? 'text-amber-900' : 'text-ink-soft'}`}
           >
             {asset.autoRenews ? 'Renews' : 'Expires'} {day(asset.expiresAt)}
-            {noticeBy && asset.noticeDays
+            {noticeBy && asset.noticeDays && noticeStillOpen(renewal)
               ? ` · act by ${day(noticeBy)}`
-              : ''} · {NOTICE_WORDS[renewal]}
+              : ''}{' '}
+            · {NOTICE_WORDS[renewal]}
           </p>
         ) : null}
       </header>

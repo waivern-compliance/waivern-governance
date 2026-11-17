@@ -28,12 +28,19 @@ export function noticeBy(dates: RenewalDates): Date | null {
 }
 
 export type NoticeState =
-  'ended' | 'open_ended' | 'renewed' | 'passed' | 'due_soon' | 'later';
+  | 'ended'
+  | 'open_ended'
+  | 'renewed'
+  | 'expired'
+  | 'passed'
+  | 'due_soon'
+  | 'later';
 
 export const NOTICE_WORDS: Record<NoticeState, string> = {
   ended: 'Ended',
   open_ended: 'No end date',
   renewed: 'Renewed: record the new term',
+  expired: 'Past its end date: record a new one, or close it',
   passed: 'Notice date passed',
   due_soon: 'Notice due soon',
   later: 'In term'
@@ -49,8 +56,11 @@ export function noticeState(
   // Past its end and renewing automatically, it is in a new term whose end
   // nobody has recorded yet. Not "notice passed": that decision is behind us,
   // and what is wanted now is the new end date.
-  if (dates.autoRenews && dates.endsAt!.getTime() < now.getTime())
-    return 'renewed';
+  // Past its end and not renewing, it has lapsed unless someone renewed it
+  // by hand. Either way the notice date no longer matters: what is wanted is
+  // the new end date, or the record closed (a contract ended, an asset retired).
+  if (dates.endsAt!.getTime() < now.getTime())
+    return dates.autoRenews ? 'renewed' : 'expired';
   if (by.getTime() < now.getTime()) return 'passed';
   if (by.getTime() - now.getTime() <= NOTICE_LEAD_DAYS * DAY) return 'due_soon';
   return 'later';
@@ -58,7 +68,17 @@ export function noticeState(
 
 /** Whether a renewal needs somebody now: notice due or passed, or a new term to record. */
 export function needsAttention(state: NoticeState): boolean {
-  return state === 'due_soon' || state === 'passed' || state === 'renewed';
+  return (
+    state === 'due_soon' ||
+    state === 'passed' ||
+    state === 'renewed' ||
+    state === 'expired'
+  );
+}
+
+/** Whether the notice date is still worth showing: not once the end date has gone by. */
+export function noticeStillOpen(state: NoticeState): boolean {
+  return state === 'due_soon' || state === 'passed' || state === 'later';
 }
 
 /** What a reminder is about, which prefixes its key. */
@@ -76,8 +96,8 @@ export function reminderKey(
 ): string | null {
   const state = noticeState(record, now);
   const day = (d: Date) => d.toISOString().slice(0, 10);
-  if (state === 'renewed')
-    return `${subject}-renewed:${record.id}:${day(record.endsAt!)}`;
+  if (state === 'renewed' || state === 'expired')
+    return `${subject}-${state}:${record.id}:${day(record.endsAt!)}`;
   if (state === 'due_soon' || state === 'passed')
     return `${subject}-notice:${record.id}:${day(noticeBy(record)!)}`;
   return null;
@@ -88,5 +108,9 @@ export function reminderKeyPatterns(
   subject: RenewalSubject,
   id: string
 ): string[] {
-  return [`${subject}-notice:${id}:%`, `${subject}-renewed:${id}:%`];
+  return [
+    `${subject}-notice:${id}:%`,
+    `${subject}-renewed:${id}:%`,
+    `${subject}-expired:${id}:%`
+  ];
 }

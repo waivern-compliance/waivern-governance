@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { NOTICE_WORDS } from '@/lib/renewals';
+import { NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import type { ContractRow } from '@/services/contracts';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -32,7 +32,7 @@ export function SupplierContracts({
                 {c.contract.title}{' '}
                 <span className="text-xs text-ink-soft">
                   {c.entityName} · {NOTICE_WORDS[c.notice]}
-                  {c.noticeBy && c.notice !== 'renewed' && !c.contract.endedAt
+                  {c.noticeBy && noticeStillOpen(c.notice)
                     ? `, notice by ${day(c.noticeBy)}`
                     : ''}
                 </span>

@@ -42,13 +42,16 @@ async function ownTypes(reader: Reader, organisationId: string) {
     .orderBy(asc(assetTypes.label));
 }
 
-/** Every type, built-in and the organisation's own, retired ones included. */
+/**
+ * Every type, built-in and the organisation's own, retired ones included.
+ * Inside a service's transaction `db` is that transaction, so this reads
+ * what it has written.
+ */
 export async function assetTypology(
-  organisationId: string,
-  tx?: Tx
+  organisationId: string
 ): Promise<AssetTypeDef[]> {
   return withOrganisation(organisationId, async () =>
-    typology(await ownTypes(tx ?? db, organisationId))
+    typology(await ownTypes(db, organisationId))
   );
 }
 

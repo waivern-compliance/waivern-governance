@@ -511,6 +511,42 @@ describe('digital assets', () => {
     );
   });
 
+  it('asks for a new date or retirement once an asset has expired, and closes that when it is retired', async () => {
+    const w = await world('lapsed');
+    const a = await createAsset({
+      organisationId: w.org.id,
+      entityId: w.main.id,
+      details: asset({
+        ownerId: w.admin.id,
+        expiresAt: new Date(Date.now() - 5 * DAY),
+        noticeDays: 14
+      }),
+      actor: SYSTEM
+    });
+    const [due] = await assetsNeedingRenewal(w.org.id);
+    assert.equal(due.notice, 'expired');
+    assert.match(due.key, /^asset-expired:/);
+    const [renewal] = await upcomingRenewals(w.org.id, null);
+    assert.equal(renewal.notice, 'expired');
+
+    assert.equal((await sweepOrganisation(w.org.id)).assetRenewalsRaised, 1);
+    const [task] = await remindersFor(w, a.id);
+    assert.match(task.title, /expired on .*record its renewal or retire it/);
+    assert.equal(task.dueAt === null || task.dueAt > new Date(), true);
+
+    await retireAsset({
+      id: a.id,
+      organisationId: w.org.id,
+      reason: 'Let the domain go',
+      actor: SYSTEM
+    });
+    assert.deepEqual(
+      (await remindersFor(w, a.id)).map((t) => t.status),
+      ['done']
+    );
+    assert.deepEqual(await upcomingRenewals(w.org.id, null), []);
+  });
+
   it("sends a renewal to the privacy administrators when the owner cannot open the asset's entity", async () => {
     const w = await world('elsewhere');
     const outsider = await w.member(w.other.id);

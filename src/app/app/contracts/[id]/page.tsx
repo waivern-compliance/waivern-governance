@@ -6,7 +6,7 @@ import { EditForm } from '@/components/EditForm';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { can } from '@/lib/rbac';
-import { NOTICE_WORDS } from '@/lib/renewals';
+import { needsAttention, NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { contractPeople, loadContract } from '@/services/contracts';
@@ -107,17 +107,13 @@ export default async function ContractPage({
         </p>
         <p
           className={`text-xs ${
-            loaded.notice === 'passed' ||
-            loaded.notice === 'due_soon' ||
-            loaded.notice === 'renewed'
-              ? 'text-amber-900'
-              : 'text-ink-soft'
+            needsAttention(loaded.notice) ? 'text-amber-900' : 'text-ink-soft'
           }`}
         >
           {contract.endedAt
             ? `Ended ${day(contract.endedAt)}${contract.endedReason ? `: ${contract.endedReason}` : ''}. It is kept as it was.`
             : `${NOTICE_WORDS[loaded.notice]}${
-                loaded.noticeBy && loaded.notice !== 'renewed'
+                loaded.noticeBy && noticeStillOpen(loaded.notice)
                   ? `: notice by ${day(loaded.noticeBy)}`
                   : ''
               }${contract.autoRenews ? '. Renews automatically.' : '.'}`}

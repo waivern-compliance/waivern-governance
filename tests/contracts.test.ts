@@ -623,12 +623,15 @@ describe('notice', () => {
     );
   });
 
-  it('calls a contract that renewed on its own renewed, not overdue', () => {
+  it('calls a contract past its end renewed if it renews on its own, otherwise expired', () => {
     const endsAt = new Date('2027-06-30T00:00:00Z');
     const after = new Date('2027-07-15T00:00:00Z');
     const dates = { endsAt, noticeDays: 90, endedAt: null };
     assert.equal(noticeState({ ...dates, autoRenews: true }, after), 'renewed');
-    assert.equal(noticeState({ ...dates, autoRenews: false }, after), 'passed');
+    assert.equal(
+      noticeState({ ...dates, autoRenews: false }, after),
+      'expired'
+    );
   });
 
   it('links its reminders to the contract', () => {

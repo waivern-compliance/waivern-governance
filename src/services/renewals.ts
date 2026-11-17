@@ -1,14 +1,4 @@
-import {
-  and,
-  asc,
-  eq,
-  inArray,
-  isNotNull,
-  isNull,
-  like,
-  ne,
-  or
-} from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, like, ne, or } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -147,7 +137,6 @@ export async function upcomingRenewals(
               : inArray(informationAssets.entityId, entityIds)
           )
         )
-        .orderBy(asc(informationAssets.expiresAt))
     ]);
     const renewals: Renewal[] = [
       ...contracts.map(({ contract, supplierName }) => ({

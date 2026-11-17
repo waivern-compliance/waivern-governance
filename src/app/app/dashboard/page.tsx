@@ -8,7 +8,7 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { rescanState } from '@/lib/pecr/rescan';
 import { mergeGapSummaries } from '@/lib/pecr/statutory';
 import { can } from '@/lib/rbac';
-import { NOTICE_WORDS } from '@/lib/renewals';
+import { NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { complaintRegister } from '@/services/complaints';
 import { requestRegister } from '@/services/data-subject-requests';
@@ -358,7 +358,7 @@ export default async function Dashboard() {
         </h2>
         <p className="text-xs text-ink-soft">
           Contracts, and assets that expire, whose notice date is within 90 days
-          or has passed, or which have renewed without a new end date.
+          or has passed, or whose end date has gone by without a new one.
         </p>
         {renewals.length === 0 ? (
           <p className="rounded border border-line bg-surface px-4 py-3 text-sm text-ink-soft">
@@ -390,7 +390,7 @@ export default async function Dashboard() {
                     className={`text-xs ${r.notice === 'due_soon' ? 'text-amber-900' : 'text-red-800'}`}
                   >
                     {NOTICE_WORDS[r.notice]}
-                    {r.notice === 'renewed'
+                    {!noticeStillOpen(r.notice)
                       ? ''
                       : ` · by ${r.noticeBy.toISOString().slice(0, 10)}`}
                   </span>

@@ -1233,6 +1233,7 @@ async function raiseContractNotices(organisationId: string): Promise<number> {
   for (const { contract, key, noticeBy, notice, ownerMayAct } of due) {
     const day = (d: Date) => d.toISOString().slice(0, 10);
     const renewed = notice === 'renewed';
+    const expired = notice === 'expired';
     const by = day(noticeBy!);
     await db.transaction(async (tx) => {
       const task = await raiseTask(tx, {
@@ -1241,23 +1242,27 @@ async function raiseContractNotices(organisationId: string): Promise<number> {
         type: 'reassess',
         title: renewed
           ? `${contract.reference} ${contract.title}: renewed on ${day(contract.endsAt!)}, record the new term`
-          : notice === 'passed'
-            ? `${contract.reference} ${contract.title}: the notice date has passed`
-            : `${contract.reference} ${contract.title}: notice due by ${by}`,
+          : expired
+            ? `${contract.reference} ${contract.title}: its term ended on ${day(contract.endsAt!)}, record a new term or end it`
+            : notice === 'passed'
+              ? `${contract.reference} ${contract.title}: the notice date has passed`
+              : `${contract.reference} ${contract.title}: notice due by ${by}`,
         description: renewed
           ? `Its term ended on ${day(contract.endsAt!)} and it renews automatically. Record the new end date on the contract, or end it if notice was given.`
-          : (contract.autoRenews
-              ? `It renews automatically unless notice is given by ${by}. `
-              : `Notice must be given by ${by} to end it at the end of its term. `) +
-            'Decide whether to renew, renegotiate or end it, and record the outcome on the contract.',
+          : expired
+            ? `Its term ended on ${day(contract.endsAt!)} and it does not renew automatically. If it was extended, record the new end date on the contract; otherwise end it, which closes this reminder.`
+            : (contract.autoRenews
+                ? `It renews automatically unless notice is given by ${by}. `
+                : `Notice must be given by ${by} to end it at the end of its term. `) +
+              'Decide whether to renew, renegotiate or end it, and record the outcome on the contract.',
         subjectType: 'supplier_contract',
         subjectId: contract.id,
         ...(ownerMayAct
           ? { assigneeUserId: contract.ownerId }
           : { assigneeRole: 'privacy_admin' as const }),
-        // A renewal is due a new end date promptly; the default service level
-        // sets when.
-        ...(renewed ? {} : { dueAt: noticeBy! }),
+        // A renewal or a lapse is due a new end date, or the contract ended,
+        // promptly; the default service level sets when.
+        ...(renewed || expired ? {} : { dueAt: noticeBy! }),
         idempotencyKey: key,
         actor: SYSTEM
       });
@@ -1288,6 +1293,7 @@ async function raiseAssetRenewals(organisationId: string): Promise<number> {
   for (const { asset, key, noticeBy, notice, ownerMayAct } of due) {
     const day = (d: Date) => d.toISOString().slice(0, 10);
     const renewed = notice === 'renewed';
+    const expired = notice === 'expired';
     const by = day(noticeBy);
     const ends = day(asset.expiresAt!);
     await db.transaction(async (tx) => {
@@ -1297,21 +1303,25 @@ async function raiseAssetRenewals(organisationId: string): Promise<number> {
         type: 'reassess',
         title: renewed
           ? `${asset.reference} ${asset.name}: renewed on ${ends}, record the new expiry date`
-          : notice === 'passed'
-            ? `${asset.reference} ${asset.name}: the date to act by has passed; it ${asset.autoRenews ? 'renews' : 'expires'} on ${ends}`
-            : `${asset.reference} ${asset.name}: renew or let it lapse by ${by}`,
+          : expired
+            ? `${asset.reference} ${asset.name}: expired on ${ends}, record its renewal or retire it`
+            : notice === 'passed'
+              ? `${asset.reference} ${asset.name}: the date to act by has passed; it ${asset.autoRenews ? 'renews' : 'expires'} on ${ends}`
+              : `${asset.reference} ${asset.name}: renew or let it lapse by ${by}`,
         description: renewed
           ? `It was due to expire on ${ends} and renews automatically. Record the new expiry date on the asset, or retire it if it was not renewed.`
-          : (asset.autoRenews
-              ? `It renews automatically on ${ends} unless it is cancelled by ${by}. `
-              : `It expires on ${ends}; act by ${by} to renew it in time. `) +
-            'Decide whether to renew it, and record the new expiry date on the asset or retire it.',
+          : expired
+            ? `It expired on ${ends} and does not renew automatically. If it was renewed, record the new expiry date on the asset; if it was let go, retire the asset, which closes this reminder.`
+            : (asset.autoRenews
+                ? `It renews automatically on ${ends} unless it is cancelled by ${by}. `
+                : `It expires on ${ends}; act by ${by} to renew it in time. `) +
+              'Decide whether to renew it, and record the new expiry date on the asset or retire it.',
         subjectType: 'information_asset',
         subjectId: asset.id,
         ...(ownerMayAct
           ? { assigneeUserId: asset.ownerId }
           : { assigneeRole: 'privacy_admin' as const }),
-        ...(renewed ? {} : { dueAt: noticeBy }),
+        ...(renewed || expired ? {} : { dueAt: noticeBy }),
         idempotencyKey: key,
         actor: SYSTEM
       });

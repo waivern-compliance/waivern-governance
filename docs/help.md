@@ -632,7 +632,7 @@ Some types carry fields of their own: a domain's registrar, a certificate's issu
 
 A type that expires - domain, certificate, software licence, or one of your own that says so - records when the asset expires or renews, how many days before then to act, and whether it renews automatically. From ninety days before the date to act, it is listed as due and a task goes to its owner, or to the privacy administrators if it has no owner who can open records in its legal entity. A task is raised once for each date; changing the date cancels the old task, and retiring the asset closes it.
 
-When an asset that renews automatically passes its date, it is listed as renewed, and its owner is asked to record the new date.
+When an asset that renews automatically passes its date, it is listed as renewed, and its owner is asked to record the new date. When one that does not renew automatically passes its date, it is listed as past its end date, and its owner is asked to record the new date if it was renewed, or to retire the asset if it was let go.
 
 ### Classification
 
@@ -822,7 +822,7 @@ The date that matters is the last day to give notice: the end date less the noti
 
 From ninety days before the notice date, the contract is listed as notice due, and a task goes to its owner - or to the privacy administrators if it has no owner who can still open it. A task is raised once for each notice date. Changing the dates cancels the old task and raises a fresh one for the new date. Ending a contract closes its task and stops its reminders.
 
-When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term.
+When a contract that renews automatically passes its end date without being ended, it has renewed. It is listed as renewed, and its owner is asked to record the new end date, which starts the reminders again for the new term. When a contract that does not renew automatically passes its end date without being ended, it is listed as past its end date, and its owner is asked to record a new end date if it was extended, or to end it.
 
 Contract and asset renewals are listed together on the governance overview. Link a contract to the assets it pays for from each asset's page; the contract then lists them.
 
@@ -1681,7 +1681,7 @@ Everything is scoped to what you can see. Two people looking at the same dashboa
 
 Data subject requests, complaints and freedom of information requests appear only for people who handle them, because each carries somebody's name. The freedom of information tiles count requests within five working days of their deadline, those past it, and reviews past theirs.
 
-Renewals lists supplier contracts and expiring assets - domains, certificates, licences - whose date to act is within ninety days or has passed, or which have renewed without a new date recorded, soonest first. It shows dates only, never what a contract is worth.
+Renewals lists supplier contracts and expiring assets - domains, certificates, licences - whose date to act is within ninety days or has passed, or whose date has gone by without a new one recorded, soonest first. It shows dates only, never what a contract is worth.
 
 **See also:** Trends · The risk register · Service levels and things that come round again · Supplier contracts
 
