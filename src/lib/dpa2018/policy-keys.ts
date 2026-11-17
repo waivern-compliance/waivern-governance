@@ -44,3 +44,43 @@ export function describePolicyKey(key: PolicyKey): string {
     ? describeSchedule1(key)
     : describePart3PolicyKey(key);
 }
+
+const plain = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+/**
+ * A condition as another platform names it: its key here, its paragraph
+ * ("para 18", "Schedule 1 paragraph 18", "Sch 8 para 4"), "Part 3 consent",
+ * or its name as the Act gives it. A name two conditions share, or anything
+ * else, is not guessed.
+ */
+export function policyKeyFrom(given: string): PolicyKey | null {
+  const v = plain(given);
+  if (!v) return null;
+  const asKey = v.replace(/ /g, '_');
+  if (isPolicyKey(asKey)) return asKey;
+  if (/^part 3 consent$|^consent part 3$|^s 35 4$/.test(v))
+    return 'part3_consent';
+  const sch8 = /^(?:sch(?:edule)? 8 )(?:para(?:graph)? )?(\d+)$/.exec(v);
+  if (sch8) {
+    const key = `sch8_p${sch8[1]}`;
+    return isPolicyKey(key) ? key : null;
+  }
+  const sch1 = /^(?:sch(?:edule)? 1 )?(?:para(?:graph)? )?(\d+)$/.exec(v);
+  if (sch1) {
+    const n = Number(sch1[1]);
+    return SCHEDULE_1_KEYS.find((k) => SCHEDULE_1[k].paragraph === n) ?? null;
+  }
+  const named = POLICY_KEYS.filter((k) => {
+    const label = isSchedule1Condition(k)
+      ? SCHEDULE_1[k].label
+      : k === 'part3_consent'
+        ? 'Part 3 consent'
+        : describePart3PolicyKey(k).split(' - ')[1];
+    return plain(label) === v;
+  });
+  return named.length === 1 ? named[0] : null;
+}

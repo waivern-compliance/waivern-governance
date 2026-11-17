@@ -8,7 +8,9 @@ export const RECORD_TYPE_LABEL: Record<string, string> = {
   ai_use_case: 'AI systems',
   information_asset: 'Information assets',
   risk: 'Risks',
-  mitigation: 'Mitigations'
+  mitigation: 'Mitigations',
+  policy_document: 'Appropriate policy documents',
+  policy: 'Policies'
 };
 
 /** Where a record of each kind is opened. */
@@ -23,6 +25,10 @@ export function recordHref(
       return `/app/third-parties/${parentId}`;
     case 'mitigation':
       return `/app/risks/${parentId}#${id}`;
+    case 'policy':
+      return `/app/policies/${id}`;
+    case 'policy_document':
+      return `/app/policy-documents/${id}`;
     case 'supplier':
       return `/app/third-parties/${id}`;
     case 'ai_use_case':

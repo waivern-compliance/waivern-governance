@@ -20,6 +20,11 @@ import {
   informationAssetSuppliers,
   memberships,
   mitigations,
+  policies,
+  policyActivities,
+  policyAiSystems,
+  policyDocuments,
+  policyVersions,
   processingActivities,
   recordLinks,
   risks,
@@ -34,6 +39,7 @@ import {
 import { appendAuditEvent } from '@/lib/audit';
 import { ACCEPTED } from '@/lib/documents/limits';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { policyKeyFrom, type PolicyKey } from '@/lib/dpa2018/policy-keys';
 import { basesFromTextFor } from '@/lib/gdpr/lawful-basis';
 import {
   CARRIES_FILES,
@@ -625,6 +631,16 @@ type MitigationResolved = {
   ownerId: string | null;
 };
 
+/** A policy's entity, owner, conditions and links, read into this organisation's terms. */
+type PolicyResolved = {
+  /** Null: every entity in the organisation. */
+  entityId: string | null;
+  ownerId: string | null;
+  conditions: PolicyKey[];
+  activityIds: string[];
+  aiSystemIds: string[];
+};
+
 type Resolved = {
   /** The supplier an agreement belongs to, or an AI system is linked to. */
   supplierId?: string | null;
@@ -633,6 +649,7 @@ type Resolved = {
   asset?: AssetResolved;
   risk?: RiskResolved;
   mitigation?: MitigationResolved;
+  policy?: PolicyResolved;
 };
 
 type Decision =
@@ -911,6 +928,14 @@ async function matcher(
         return 'reason' in risk
           ? { action: 'refuse', reason: risk.reason }
           : decide(sourceRef, { risk });
+      };
+    }
+    case 'policy_document':
+    case 'policy': {
+      const resolve = await policyResolver(tx, batch);
+      return (record, sourceRef) => {
+        const { file } = (record as Of<'policy' | 'policy_document'>).data;
+        return missingFile(file) ?? resolve(record, sourceRef);
       };
     }
     case 'mitigation': {
@@ -1354,6 +1379,161 @@ async function mitigationResolver(tx: Tx, batch: Batch) {
   };
 }
 
+/**
+ * Records across the organisation by Govern reference, ID in this source, or
+ * name, for a record that may be for one entity or for every one. A name
+ * shared by records in two entities is not guessed between.
+ */
+async function orgRecordsByName(
+  tx: Tx,
+  batch: Batch,
+  table: typeof processingActivities | typeof aiUseCases
+) {
+  const rows = (await tx
+    .select()
+    .from(table)
+    .where(eq(table.organisationId, batch.organisationId))) as Array<{
+    id: string;
+    entityId: string;
+    name: string;
+    reference?: string;
+    externalRef: string | null;
+    importSourceId: string | null;
+  }>;
+  return (given: string, entityId: string | null): string[] => {
+    const inScope = rows.filter((r) => !entityId || r.entityId === entityId);
+    const ref = given.trim().toLowerCase();
+    for (const match of [
+      (r: (typeof rows)[number]) => r.reference?.toLowerCase() === ref,
+      (r: (typeof rows)[number]) =>
+        r.importSourceId === batch.sourceId &&
+        r.externalRef?.toLowerCase() === ref,
+      (r: (typeof rows)[number]) => loose(r.name) === loose(given)
+    ]) {
+      const found = inScope.filter(match);
+      if (found.length) return found.map((r) => r.id);
+    }
+    return [];
+  };
+}
+
+/**
+ * A policy or appropriate policy document read into this organisation's
+ * terms: its entity by name (none: every entity), its owner, the conditions
+ * it covers, and what it governs. One imported before stays for the entity
+ * it came in for: changing whom a policy is for is a person's call.
+ */
+async function policyResolver(tx: Tx, batch: Batch) {
+  const kind = batch.recordType as 'policy' | 'policy_document';
+  const table = kind === 'policy' ? policies : policyDocuments;
+  const [entityRows, earlier, memberOf, activityOf, systemOf] =
+    await Promise.all([
+      tx
+        .select({ id: entities.id, name: entities.name })
+        .from(entities)
+        .where(eq(entities.organisationId, batch.organisationId)),
+      tx
+        .select({
+          id: table.id,
+          ref: table.externalRef,
+          entityId: table.entityId
+        })
+        .from(table)
+        .where(
+          and(
+            eq(table.organisationId, batch.organisationId),
+            eq(table.importSourceId, batch.sourceId)
+          )
+        ),
+      membersByEmail(tx, batch.organisationId),
+      orgRecordsByName(tx, batch, processingActivities),
+      orgRecordsByName(tx, batch, aiUseCases)
+    ]);
+  const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
+  const nameOf = (id: string | null) =>
+    id
+      ? (entityRows.find((e) => e.id === id)?.name ?? 'another entity')
+      : 'every entity';
+  return (record: ImportRecord, sourceRef: string): Decision => {
+    const data = (record as Of<'policy' | 'policy_document'>).data;
+    let entityId: string | null = null;
+    if (data.entity) {
+      const entity = entityRows.find(
+        (e) => loose(e.name) === loose(data.entity!)
+      );
+      if (!entity)
+        return {
+          action: 'refuse',
+          reason: `No legal entity called "${data.entity}". Use one of: ${entityRows.map((e) => e.name).join(', ')}, or leave it empty for every entity.`
+        };
+      entityId = entity.id;
+    }
+    const conditions: PolicyKey[] = [];
+    if (record.kind === 'policy_document')
+      for (const given of record.data.conditions) {
+        const key = policyKeyFrom(given);
+        if (!key)
+          return {
+            action: 'refuse',
+            reason: `"${given}" is not a Schedule 1 condition or Part 3 ground Govern can tell. Name it as "para 18", "Sch 8 para 4" or "Part 3 consent".`
+          };
+        if (!conditions.includes(key)) conditions.push(key);
+      }
+    const links = { activityIds: [] as string[], aiSystemIds: [] as string[] };
+    if (record.kind === 'policy') {
+      if (record.data.status === 'withdrawn' && !record.data.withdrawnAt)
+        return {
+          action: 'refuse',
+          reason: 'A withdrawn policy needs the date it was withdrawn.'
+        };
+      const lookups = [
+        [
+          'activityIds',
+          record.data.activities,
+          activityOf,
+          'processing activity'
+        ],
+        ['aiSystemIds', record.data.aiSystems, systemOf, 'AI system']
+      ] as const;
+      for (const [key, names, find, words] of lookups)
+        for (const name of names) {
+          const ids = find(name, entityId);
+          const where = entityId ? ` in ${nameOf(entityId)}` : '';
+          if (ids.length === 0)
+            return {
+              action: 'refuse',
+              reason: `No ${words} "${name}" is recorded${where}. Import or add it first.`
+            };
+          if (ids.length > 1)
+            return {
+              action: 'refuse',
+              reason: `More than one ${words} is called "${name}"${where}. Name it by its reference.`
+            };
+          if (!links[key].includes(ids[0])) links[key].push(ids[0]);
+        }
+    }
+    const policy: PolicyResolved = {
+      entityId,
+      ownerId: data.owner ? memberOf(data.owner) : null,
+      conditions,
+      ...links
+    };
+    const found = own.get(sourceRef.toLowerCase());
+    if (!found) return { action: 'create', recordId: null, policy };
+    if (found.entityId !== entityId)
+      return {
+        action: 'refuse',
+        reason: `Imported before for ${nameOf(found.entityId)}, and this row says ${nameOf(entityId)}. ${
+          // A policy document's entity is changed on its page; a policy's is not.
+          kind === 'policy_document'
+            ? 'Change whom it is for on its page, or give it a new identifier.'
+            : 'Give it a new identifier to record it for that entity.'
+        }`
+      };
+    return { action: 'update', recordId: found.id, policy };
+  };
+}
+
 /** What makes two rows of one file the same record. */
 function sameRecordKeys(record: ImportRecord, sourceRef: string) {
   const keys = [`ref:${sourceRef.toLowerCase()}`];
@@ -1696,6 +1876,28 @@ const KEYS: Record<RecordType, string[]> = {
     'sourceHistory',
     ...IMPORT_KEYS
   ],
+  policy_document: [
+    'title',
+    'version',
+    'ownerId',
+    'conditions',
+    'lastReviewedAt',
+    'withdrawnAt',
+    ...IMPORT_KEYS
+  ],
+  policy: [
+    'title',
+    'summary',
+    'ownerId',
+    'status',
+    'reviewIntervalMonths',
+    'nextReviewAt',
+    'lastReviewedAt',
+    'withdrawnAt',
+    'withdrawnReason',
+    'sourceHistory',
+    ...IMPORT_KEYS
+  ],
   mitigation: [
     'description',
     'controlRef',
@@ -1722,7 +1924,9 @@ const DATE_KEYS = new Set([
   'openedAt',
   'closedAt',
   'dueAt',
-  'implementedAt'
+  'implementedAt',
+  'lastReviewedAt',
+  'withdrawnAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -1753,7 +1957,9 @@ const TABLE = {
   ai_use_case: aiUseCases,
   information_asset: informationAssets,
   risk: risks,
-  mitigation: mitigations
+  mitigation: mitigations,
+  policy_document: policyDocuments,
+  policy: policies
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -1820,7 +2026,12 @@ const provenance = (c: WriteContext, record: ImportRecord) => ({
 async function attachImportFile(
   c: WriteContext,
   name: string | undefined,
-  subject: { type: 'dpa' | 'evidence'; id: string },
+  subject: {
+    type: 'dpa' | 'evidence' | 'policy_document' | 'policy';
+    id: string;
+    /** The entity the file is for, where the record has one. */
+    entityId?: string | null;
+  },
   /** Files earlier imports attached to this record. */
   earlier: string[] = []
 ): Promise<{ documentId: string | null; sha256: string | null }> {
@@ -1863,7 +2074,10 @@ async function attachImportFile(
     : [];
   const row = await insertDocument(c.tx, {
     organisationId: c.batch.organisationId,
-    entityId: subject.type === 'evidence' ? c.batch.entityId : null,
+    entityId:
+      subject.type === 'evidence'
+        ? c.batch.entityId
+        : (subject.entityId ?? null),
     subjectType: subject.type,
     subjectId: subject.id,
     file: {
@@ -2248,6 +2462,10 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writeRisk(c, record);
     case 'mitigation':
       return writeMitigation(c, record);
+    case 'policy_document':
+      return writePolicyDocument(c, record);
+    case 'policy':
+      return writePolicy(c, record);
   }
 }
 
@@ -2397,6 +2615,28 @@ async function removeLinks(tx: Tx, links: ImportLink[]) {
   for (const link of links) {
     if (link.kind === 'record_link') {
       await tx.delete(recordLinks).where(eq(recordLinks.id, link.id));
+      continue;
+    }
+    if (link.kind === 'policy_activity') {
+      await tx
+        .delete(policyActivities)
+        .where(
+          and(
+            eq(policyActivities.policyId, link.from),
+            eq(policyActivities.activityId, link.to)
+          )
+        );
+      continue;
+    }
+    if (link.kind === 'policy_ai_system') {
+      await tx
+        .delete(policyAiSystems)
+        .where(
+          and(
+            eq(policyAiSystems.policyId, link.from),
+            eq(policyAiSystems.aiUseCaseId, link.to)
+          )
+        );
       continue;
     }
     const { table, target } = ASSET_LINK[link.kind];
@@ -2606,6 +2846,262 @@ async function writeRisk(
     }
   });
   return { id, before: was && snapshot(was, KEYS.risk), links };
+}
+
+/** An appropriate policy document, from a checked row. */
+async function writePolicyDocument(
+  c: WriteContext,
+  record: Of<'policy_document'>
+): Promise<Written> {
+  const resolved = c.decision.policy!;
+  const { data } = record;
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'policy_document', c.decision.recordId)
+    : null;
+  const described = {
+    title: data.title,
+    version: data.version ?? null,
+    conditions: resolved.conditions,
+    lastReviewedAt: data.lastReviewedAt ? new Date(data.lastReviewedAt) : null,
+    withdrawnAt: data.withdrawnAt ? new Date(data.withdrawnAt) : null
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const kept = provenance(c, {
+    ...record,
+    legacy: {
+      ...record.legacy,
+      ...(data.owner && !resolved.ownerId ? { Owner: data.owner } : {})
+    }
+  });
+  let id: string;
+  if (c.decision.recordId) {
+    await c.tx
+      .update(policyDocuments)
+      .set({ ...said(described), ...owner, ...kept })
+      .where(eq(policyDocuments.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const [created] = await c.tx
+      .insert(policyDocuments)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: resolved.entityId,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...described,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: policyDocuments.id });
+    id = created.id;
+  }
+  const earlier = was ? await earlierImports(c, 'policy_document', id) : null;
+  const { documentId } = await attachImportFile(
+    c,
+    data.file,
+    { type: 'policy_document', id, entityId: resolved.entityId },
+    earlier?.documentIds
+  );
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: resolved.entityId ?? undefined,
+    action: was ? 'policy_document.updated' : 'policy_document.created',
+    subjectType: 'policy_document',
+    subjectId: id,
+    after: {
+      title: data.title,
+      conditions: resolved.conditions,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return {
+    id,
+    before: was && snapshot(was, KEYS.policy_document),
+    documentId
+  };
+}
+
+type PolicyStatus = (typeof policies.$inferSelect)['status'];
+
+/** What the old platform recorded of a policy's approval: its account, not ours. */
+function policyHistory(
+  data: Of<'policy'>['data'],
+  source: string
+): SourceEvent[] | null {
+  if (!data.approvedBy && !data.approvedAt && !data.approvalReference)
+    return null;
+  return [
+    {
+      at: data.approvedAt ?? null,
+      what: data.version
+        ? `Version ${data.version} approved in ${source}`
+        : `Approved in ${source}`,
+      ...(data.approvedBy ? { by: data.approvedBy } : {}),
+      ...(data.approvalReference ? { detail: data.approvalReference } : {})
+    }
+  ];
+}
+
+const addMonths = (d: Date, months: number) => {
+  const next = new Date(d);
+  next.setUTCMonth(next.getUTCMonth() + months);
+  return next;
+};
+
+/**
+ * A policy on the general register, from a checked row. In force there is in
+ * force here, as a fact about the organisation, but with no version approved
+ * here: approval is a decision with its own checks, so the source's is kept
+ * as its history. Once a version has been drafted here, the register's own
+ * cycle decides its status and review dates, and a re-import leaves them.
+ */
+async function writePolicy(
+  c: WriteContext,
+  record: Of<'policy'>
+): Promise<Written> {
+  const resolved = c.decision.policy!;
+  const { data } = record;
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'policy', c.decision.recordId)
+    : null;
+  const [versioned] = c.decision.recordId
+    ? await c.tx
+        .select({ id: policyVersions.id })
+        .from(policyVersions)
+        .where(eq(policyVersions.policyId, c.decision.recordId))
+        .limit(1)
+    : [];
+  const interval =
+    data.reviewIntervalMonths ??
+    (was?.reviewIntervalMonths as number | undefined) ??
+    12;
+  const lastReviewedAt = data.lastReviewedAt
+    ? new Date(data.lastReviewedAt)
+    : null;
+  // The next review the source gave, or the one its own dates imply, as
+  // approving here sets it: never a date counted from the import.
+  const reviewedOrApproved =
+    lastReviewedAt ?? (data.approvedAt ? new Date(data.approvedAt) : null);
+  const nextReviewAt = data.nextReviewAt
+    ? new Date(data.nextReviewAt)
+    : data.status === 'in_force' && reviewedOrApproved
+      ? addMonths(reviewedOrApproved, interval)
+      : null;
+  const cycle = versioned
+    ? {}
+    : {
+        status: (data.status ??
+          (was?.status as PolicyStatus | undefined) ??
+          'draft') as PolicyStatus,
+        nextReviewAt,
+        lastReviewedAt,
+        withdrawnAt: data.withdrawnAt ? new Date(data.withdrawnAt) : null,
+        withdrawnReason: data.withdrawnReason ?? null
+      };
+  const described = {
+    title: data.title,
+    summary: data.summary ?? null,
+    reviewIntervalMonths: interval,
+    sourceHistory: policyHistory(data, c.sourceName),
+    ...cycle
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const kept = provenance(c, {
+    ...record,
+    legacy: {
+      ...record.legacy,
+      ...(data.owner && !resolved.ownerId ? { Owner: data.owner } : {}),
+      ...(data.version ? { 'Version there': data.version } : {})
+    }
+  });
+  let id: string;
+  if (c.decision.recordId) {
+    await c.tx
+      .update(policies)
+      .set({ ...said(described), ...owner, ...kept })
+      .where(eq(policies.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const reference = await nextReference(
+      c.tx,
+      c.batch.organisationId,
+      'POL',
+      c.at.getUTCFullYear()
+    );
+    const [created] = await c.tx
+      .insert(policies)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: resolved.entityId,
+        reference,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...said(described),
+        title: data.title,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: policies.id });
+    id = created.id;
+  }
+  // Links are added, never taken away, as for assets.
+  const links: ImportLink[] = [];
+  for (const activityId of resolved.activityIds) {
+    const made = await c.tx
+      .insert(policyActivities)
+      .values({
+        organisationId: c.batch.organisationId,
+        policyId: id,
+        activityId
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (made.length)
+      links.push({ kind: 'policy_activity', from: id, to: activityId });
+  }
+  for (const aiUseCaseId of resolved.aiSystemIds) {
+    const made = await c.tx
+      .insert(policyAiSystems)
+      .values({
+        organisationId: c.batch.organisationId,
+        policyId: id,
+        aiUseCaseId
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (made.length)
+      links.push({ kind: 'policy_ai_system', from: id, to: aiUseCaseId });
+  }
+  const earlier = was ? await earlierImports(c, 'policy', id) : null;
+  const { documentId } = await attachImportFile(
+    c,
+    data.file,
+    { type: 'policy', id, entityId: resolved.entityId },
+    earlier?.documentIds
+  );
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: resolved.entityId ?? undefined,
+    action: was ? 'policy.updated' : 'policy.created',
+    subjectType: 'policy',
+    subjectId: id,
+    after: {
+      title: data.title,
+      status: described.status ?? (was?.status as string | undefined) ?? null,
+      linked: links.length,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return {
+    id,
+    before: was && snapshot(was, KEYS.policy),
+    documentId,
+    links
+  };
 }
 
 type MitigationStatus = (typeof mitigations.$inferSelect)['status'];
@@ -3028,7 +3524,9 @@ export type Confirmable =
   | 'ai_use_case'
   | 'information_asset'
   | 'risk'
-  | 'mitigation';
+  | 'mitigation'
+  | 'policy_document'
+  | 'policy';
 
 /**
  * A mitigation has no organisation of its own: it is its risk's. Confirmed

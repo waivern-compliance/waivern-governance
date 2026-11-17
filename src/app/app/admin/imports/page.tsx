@@ -130,7 +130,8 @@ export default async function ImportsPage() {
               <span className="font-medium">
                 Legal entity{' '}
                 <span className="font-normal text-ink-soft">
-                  (for processing activities, evidence and AI systems)
+                  (for records that belong to one, such as processing activities
+                  and risks)
                 </span>
               </span>
               <select

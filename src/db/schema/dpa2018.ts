@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   index,
   jsonb,
@@ -17,6 +18,7 @@ import type {
 import type { GatewayKind, SharingDirection } from '@/lib/dpa2018/sharing';
 import type { LawfulBasis } from '@/lib/gdpr/lawful-basis';
 
+import { importBatches, importSources } from './imports';
 import { processingActivities, suppliers } from './integration';
 import { entities, organisations, users } from './tenancy';
 
@@ -50,6 +52,22 @@ export const policyDocuments = pgTable(
     }),
     lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    /**
+     * Moved in from another platform (docs/migration-plan.md): its identifier
+     * there, the batch, and the source's fields with no home here. Until
+     * confirmed, it covers no condition.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /** Confirmed by a person here; until then it is not yet relied on. */
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -57,7 +75,14 @@ export const policyDocuments = pgTable(
       .notNull()
       .defaultNow()
   },
-  (t) => [index('policy_document_org_idx').on(t.organisationId)]
+  (t) => [
+    index('policy_document_org_idx').on(t.organisationId),
+    uniqueIndex('policy_document_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      )
+  ]
 );
 
 /**

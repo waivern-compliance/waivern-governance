@@ -4,6 +4,8 @@ import {
   evidenceIn,
   informationAssetIn,
   mitigationIn,
+  policyDocumentIn,
+  policyIn,
   processingActivityIn,
   riskIn,
   vendorIn
@@ -25,7 +27,9 @@ export type RecordType =
   | 'ai_use_case'
   | 'information_asset'
   | 'risk'
-  | 'mitigation';
+  | 'mitigation'
+  | 'policy_document'
+  | 'policy';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -40,7 +44,9 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
 /** Kinds of record whose rows can name a file added to the import. */
 export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
   'dpa',
-  'evidence'
+  'evidence',
+  'policy_document',
+  'policy'
 ]);
 
 type FieldKind =
@@ -914,6 +920,201 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       kind: 'text',
       aliases: ['evidence', 'evidence ref', 'evidence reference']
     }
+  ],
+  policy_document: [
+    ID,
+    {
+      key: 'title',
+      label: 'Title',
+      kind: 'text',
+      required: true,
+      aliases: ['title', 'name', 'policy', 'document', 'policy name']
+    },
+    {
+      key: 'version',
+      label: 'Version',
+      kind: 'text',
+      aliases: ['version', 'version number', 'revision']
+    },
+    {
+      key: 'entity',
+      label: 'Legal entity',
+      kind: 'text',
+      hint: 'By name. Empty: it is for every entity in the organisation.',
+      aliases: ['entity', 'legal entity', 'company', 'controller']
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no owner.',
+      aliases: ['owner', 'policy owner', 'owner email', 'author']
+    },
+    {
+      key: 'conditions',
+      label: 'Conditions',
+      kind: 'list',
+      hint: 'The Schedule 1 conditions or Part 3 grounds it covers, as "para 18", "Sch 8 para 4", "Part 3 consent", or by name. Separate several with ";".',
+      aliases: [
+        'conditions',
+        'schedule 1 conditions',
+        'conditions covered',
+        'condition',
+        'covers'
+      ]
+    },
+    {
+      key: 'lastReviewedAt',
+      label: 'Last reviewed',
+      kind: 'date',
+      aliases: ['last reviewed', 'reviewed on', 'review date', 'last review']
+    },
+    {
+      key: 'withdrawnAt',
+      label: 'Withdrawn on',
+      kind: 'date',
+      aliases: ['withdrawn', 'withdrawn on', 'retired on', 'archived on']
+    },
+    FILE
+  ],
+  policy: [
+    ID,
+    {
+      key: 'title',
+      label: 'Title',
+      kind: 'text',
+      required: true,
+      aliases: ['title', 'name', 'policy', 'policy name', 'policy title']
+    },
+    {
+      key: 'summary',
+      label: 'Summary',
+      kind: 'text',
+      aliases: ['summary', 'description', 'purpose', 'scope']
+    },
+    {
+      key: 'entity',
+      label: 'Legal entity',
+      kind: 'text',
+      hint: 'By name. Empty: it is for every entity in the organisation.',
+      aliases: ['entity', 'legal entity', 'company', 'controller']
+    },
+    {
+      key: 'owner',
+      label: 'Owner',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no owner.',
+      aliases: ['owner', 'policy owner', 'owner email', 'author']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'One in force in the source is in force here, with no version approved here yet; its approval there is kept as its history.',
+      aliases: ['status', 'state', 'policy status'],
+      choices: [
+        choice(
+          'draft',
+          'Draft',
+          'in draft',
+          'drafting',
+          'in review',
+          'proposed'
+        ),
+        choice(
+          'in_force',
+          'In force',
+          'active',
+          'approved',
+          'published',
+          'live',
+          'current',
+          'effective'
+        ),
+        choice(
+          'withdrawn',
+          'Withdrawn',
+          'retired',
+          'archived',
+          'superseded',
+          'inactive'
+        )
+      ]
+    },
+    {
+      key: 'version',
+      label: 'Version',
+      kind: 'text',
+      aliases: ['version', 'version number', 'revision']
+    },
+    {
+      key: 'approvedBy',
+      label: 'Approved by',
+      kind: 'text',
+      aliases: ['approved by', 'approver', 'signed off by']
+    },
+    {
+      key: 'approvedAt',
+      label: 'Approved on',
+      kind: 'date',
+      aliases: ['approved on', 'approval date', 'date approved', 'approved']
+    },
+    {
+      key: 'approvalReference',
+      label: 'Where it was approved',
+      kind: 'text',
+      aliases: ['approval reference', 'approved at', 'committee', 'minute']
+    },
+    {
+      key: 'reviewIntervalMonths',
+      label: 'Review every (months)',
+      kind: 'number',
+      aliases: [
+        'review interval',
+        'review frequency',
+        'review cycle',
+        'review every'
+      ]
+    },
+    {
+      key: 'lastReviewedAt',
+      label: 'Last reviewed',
+      kind: 'date',
+      aliases: ['last reviewed', 'reviewed on', 'last review']
+    },
+    {
+      key: 'nextReviewAt',
+      label: 'Next review',
+      kind: 'date',
+      aliases: ['next review', 'review due', 'next review date', 'review date']
+    },
+    {
+      key: 'withdrawnAt',
+      label: 'Withdrawn on',
+      kind: 'date',
+      aliases: ['withdrawn', 'withdrawn on', 'retired on', 'archived on']
+    },
+    {
+      key: 'withdrawnReason',
+      label: 'Why it was withdrawn',
+      kind: 'text',
+      aliases: ['withdrawal reason', 'why withdrawn', 'reason withdrawn']
+    },
+    {
+      key: 'activities',
+      label: 'Processing activities',
+      kind: 'list',
+      hint: "By reference, ID in the platform, or name, in the policy's entity.",
+      aliases: ['processing activities', 'activities', 'ropa', 'processes']
+    },
+    {
+      key: 'aiSystems',
+      label: 'AI systems',
+      kind: 'list',
+      hint: "By ID in the platform or name, in the policy's entity.",
+      aliases: ['ai systems', 'ai system', 'ai use cases', 'models']
+    },
+    FILE
   ]
 };
 
@@ -1060,7 +1261,12 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
           .join(' / ')
       : null;
   }
-  if (recordType === 'risk') return valueOf('title') || null;
+  if (
+    recordType === 'risk' ||
+    recordType === 'policy_document' ||
+    recordType === 'policy'
+  )
+    return valueOf('title') || null;
   if (recordType === 'mitigation') {
     const risk = valueOf('risk');
     const description = valueOf('description');
@@ -1095,6 +1301,14 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
       return riskIn.safeParse(data);
     case 'mitigation':
       return mitigationIn.safeParse(data);
+    case 'policy_document': {
+      const { file: _file, ...rest } = data;
+      return policyDocumentIn.safeParse(rest);
+    }
+    case 'policy': {
+      const { file: _file, ...rest } = data;
+      return policyIn.safeParse(rest);
+    }
   }
 }
 

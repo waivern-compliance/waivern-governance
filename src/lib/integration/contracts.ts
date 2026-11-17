@@ -330,6 +330,49 @@ export const mitigationIn = z.object({
   evidenceRef: z.string().max(500).optional()
 });
 
+/**
+ * An appropriate policy document. Read by the importer only. Conditions are
+ * as the source names them, read onto Schedule 1 and Part 3 when matched.
+ */
+export const policyDocumentIn = z.object({
+  externalRef,
+  title: shortText,
+  version: z.string().max(100).optional(),
+  /** The legal entity by name; empty for every entity. */
+  entity: z.string().max(200).optional(),
+  /** The owner's email address, matched to a member. */
+  owner: z.string().max(320).optional(),
+  conditions: z.array(z.string().max(300)).max(60).default([]),
+  lastReviewedAt: z.iso.datetime().optional(),
+  withdrawnAt: z.iso.datetime().optional()
+});
+
+/**
+ * A policy on the general register. Read by the importer only. An approval
+ * given in the source is kept as its history, not as one given here.
+ */
+export const policyIn = z.object({
+  externalRef,
+  title: shortText,
+  summary: longText.optional(),
+  /** The legal entity by name; empty for every entity. */
+  entity: z.string().max(200).optional(),
+  owner: z.string().max(320).optional(),
+  status: z.enum(['draft', 'in_force', 'withdrawn']).optional(),
+  version: z.string().max(100).optional(),
+  approvedBy: z.string().max(320).optional(),
+  approvedAt: z.iso.datetime().optional(),
+  approvalReference: z.string().max(500).optional(),
+  reviewIntervalMonths: z.number().int().min(1).max(60).optional(),
+  lastReviewedAt: z.iso.datetime().optional(),
+  nextReviewAt: z.iso.datetime().optional(),
+  withdrawnAt: z.iso.datetime().optional(),
+  withdrawnReason: longText.optional(),
+  /** What it governs, by reference, identifier in the source, or name. */
+  activities: z.array(z.string().max(500)).max(100).default([]),
+  aiSystems: z.array(z.string().max(500)).max(100).default([])
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -346,6 +389,8 @@ export type AiUseCaseIn = z.infer<typeof aiUseCaseIn>;
 export type InformationAssetIn = z.infer<typeof informationAssetIn>;
 export type RiskIn = z.infer<typeof riskIn>;
 export type MitigationIn = z.infer<typeof mitigationIn>;
+export type PolicyDocumentIn = z.infer<typeof policyDocumentIn>;
+export type PolicyIn = z.infer<typeof policyIn>;
 
 export type IngestOutcome = {
   received: number;

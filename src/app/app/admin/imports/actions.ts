@@ -10,6 +10,8 @@ import {
   evidence,
   informationAssets,
   mitigations,
+  policies,
+  policyDocuments,
   processingActivities,
   risks
 } from '@/db/schema';
@@ -224,12 +226,27 @@ export async function readImportedAgreementsAction(
   };
 }
 
-/** The entity an imported record belongs to; null where it is gone. */
-async function entityOf(
-  type: Exclude<Confirmable, 'dpa'>,
+const ENTITY_TABLE = {
+  processing_activity: processingActivities,
+  evidence,
+  ai_use_case: aiUseCases,
+  information_asset: informationAssets,
+  risk: risks,
+  policy: policies,
+  policy_document: policyDocuments
+} as const;
+
+/**
+ * Whom an imported record is for: its entity, or nobody in particular for one
+ * that is the organisation's (an agreement, or a policy for every entity).
+ * Null where it is gone.
+ */
+async function scopeOf(
+  type: Confirmable,
   id: string,
   organisationId: string
-) {
+): Promise<{ entityId: string | undefined } | null> {
+  if (type === 'dpa') return { entityId: undefined };
   return withOrganisation(organisationId, async () => {
     // A mitigation belongs to its risk's entity.
     if (type === 'mitigation') {
@@ -240,23 +257,14 @@ async function entityOf(
         .where(
           and(eq(mitigations.id, id), eq(risks.organisationId, organisationId))
         );
-      return row?.entityId ?? null;
+      return row ? { entityId: row.entityId } : null;
     }
-    const table =
-      type === 'processing_activity'
-        ? processingActivities
-        : type === 'evidence'
-          ? evidence
-          : type === 'information_asset'
-            ? informationAssets
-            : type === 'risk'
-              ? risks
-              : aiUseCases;
+    const table = ENTITY_TABLE[type];
     const [row] = await db
       .select({ entityId: table.entityId })
       .from(table)
       .where(and(eq(table.id, id), eq(table.organisationId, organisationId)));
-    return row?.entityId ?? null;
+    return row ? { entityId: row.entityId ?? undefined } : null;
   });
 }
 
@@ -264,13 +272,11 @@ async function entityOf(
 async function confirmer(type: Confirmable, id: string) {
   const active = await requireCapability('record.write');
   const organisationId = active.membership.organisationId;
-  // An agreement belongs to the organisation; the rest to an entity.
-  const entityId =
-    type === 'dpa' ? undefined : await entityOf(type, id, organisationId);
+  const scope = await scopeOf(type, id, organisationId);
   // Gone since the page was drawn, say an import undone meanwhile.
-  if (entityId === null) return null;
-  if (!can(active.membership.grants, 'record.write', entityId))
-    throw new NotPermitted('record.write', entityId);
+  if (!scope) return null;
+  if (!can(active.membership.grants, 'record.write', scope.entityId))
+    throw new NotPermitted('record.write', scope.entityId);
   return { active, organisationId };
 }
 

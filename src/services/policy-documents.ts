@@ -1,4 +1,13 @@
-import { and, asc, count, eq, inArray, isNull, or } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or
+} from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -70,7 +79,13 @@ export async function policyCoverage(
     .where(
       and(
         eq(policyDocuments.organisationId, organisationId),
-        isNull(policyDocuments.withdrawnAt)
+        isNull(policyDocuments.withdrawnAt),
+        // What another platform said a document covers, until a person here
+        // has checked the document, covers nothing.
+        or(
+          isNull(policyDocuments.importBatchId),
+          isNotNull(policyDocuments.importConfirmedAt)
+        )
       )
     );
 }
