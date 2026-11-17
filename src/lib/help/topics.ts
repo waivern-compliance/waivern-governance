@@ -2327,9 +2327,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Mitigations',
         body: [
-          "Import risks first, then their mitigations into the same entity. Each mitigation needs a description and the risk it treats, named by the risk's ID in the old platform or its reference here. A mitigation stays on the risk it came in on: to move one, change it on the risk's page.",
+          "Import risks first, then their mitigations into the same entity. Each mitigation needs a description and the risk it treats, named by the risk's ID in the old platform or its reference here. A mitigation stays on the risk it came in on: one naming another risk in a later import is not imported. A treatment of Accept is kept with the mitigation, which comes in with no treatment, since accepting a risk is decided on the risk itself.",
           "A mitigation verified in the old platform comes in implemented, waiting for somebody here other than its owner to verify it; who verified it there, and when, is shown as the platform's history. A verification given here stands whatever a later import says.",
-          'An imported mitigation reminds nobody of its due date until it is confirmed, so a register with years of old target dates does not raise a reminder for each on its first night. Confirming a risk confirms the imported mitigations shown on it; one imported onto a risk already confirmed has its own confirm button.'
+          "An imported mitigation reminds nobody of its due date until it is confirmed, so a register with years of old target dates does not raise a reminder for each on its first night. Confirm each on the risk's page, or confirm the risk, which confirms its imported mitigations with it."
         ]
       },
       {

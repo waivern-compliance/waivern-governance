@@ -1285,6 +1285,17 @@ describe("reading another organisation's records", () => {
     });
   }
 
+  it("gives nothing: importSourceNames for B's platform", async () => {
+    const { batch } = (await importsSvc.loadImport(
+      B.importBatch.id,
+      B.org.id
+    ))!;
+    const names = await importsSvc.importSourceNames(A.org.id, [
+      batch.sourceId
+    ]);
+    assert.equal(names.size, 0);
+  });
+
   it("gives nothing: valuesToTranslate for B's import", async () => {
     const offered = await importsSvc.valuesToTranslate(
       A.org.id,

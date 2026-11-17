@@ -132,22 +132,26 @@ describe('importing mitigations', () => {
         'ID,Risk,Description,Treatment,Owner,Due date,Status,Verified by,Verified on',
         `M-1,r-1,Encrypt payroll exports,Reduce,${w.person.email.toUpperCase()},2027-01-31,In progress,,`,
         `M-2,${vendor.reference},Annual supplier audit,Transfer,someone@elsewhere.example,,Verified,A. Auditor,2025-04-01`,
-        'M-3,R-9,Nothing to treat,,,,,,'
+        'M-3,R-9,Nothing to treat,,,,,,',
+        'M-4,R-1,Live with the residual,Accept,,,,,'
       ].join('\n')
     );
-    assert.deepEqual(preview, { create: 2, refuse: 1 });
+    assert.deepEqual(preview, { create: 3, refuse: 1 });
     assert.match(
       rows[2].reason ?? '',
       /No risk "R-9" is recorded in this entity/
     );
 
     const payroll = await riskBy(w.org.id, 'R-1');
-    const [encrypt] = await mitigationsOf(payroll.id);
+    const [encrypt, accepted] = await mitigationsOf(payroll.id);
     assert.equal(encrypt.treatmentType, 'limitation');
     assert.equal(encrypt.ownerId, w.person.id);
     assert.equal(encrypt.status, 'in_progress');
     assert.equal(encrypt.dueAt?.toISOString().slice(0, 10), '2027-01-31');
     assert.equal(encrypt.importConfirmedAt, null);
+    // Accepting is decided on the risk here: kept, not refused, not a treatment.
+    assert.equal(accepted.treatmentType, null);
+    assert.equal(accepted.legacy?.Treatment, 'Accept');
 
     // Verified there is implemented here, waiting for a second person.
     const [audit] = await mitigationsOf(vendor.id);
@@ -174,7 +178,7 @@ describe('importing mitigations', () => {
           eq(auditEvents.action, 'mitigation.added')
         )
       );
-    assert.equal(events.length, 2);
+    assert.equal(events.length, 3);
     for (const e of events) {
       assert.equal(e.actorLabel, SYSTEM.actorLabel);
       assert.ok(e.at.getTime() > Date.parse('2026-01-01'));
@@ -238,7 +242,7 @@ describe('importing mitigations', () => {
     assert.deepEqual(preview, { refuse: 1 });
     assert.match(
       rows[0].reason ?? '',
-      /No risk "R-1" is recorded in this entity/
+      /The risk "R-1" is recorded in Main\. Import its mitigations into that entity/
     );
   });
 
@@ -266,6 +270,17 @@ describe('importing mitigations', () => {
     assert.ok(confirmed);
     const [encrypt] = await mitigationsOf(payroll.id);
     assert.ok(encrypt.importConfirmedAt);
+    // Its own event, so its history says who confirmed it.
+    const confirmedEvents = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.subjectId, encrypt.id),
+          eq(auditEvents.action, 'mitigation.import_confirmed')
+        )
+      );
+    assert.equal(confirmedEvents.length, 1);
     assert.equal(
       (await sweepOrganisation(w.org.id)).mitigationRemindersRaised,
       1
@@ -362,6 +377,28 @@ describe('importing mitigations', () => {
         actor: SYSTEM
       }),
       refused(/changed since it was imported/)
+    );
+  });
+
+  it('stops a risk import being undone once mitigations sit on its risks', async () => {
+    const w = await world('import-mitigations-risk-undo');
+    const risksBatch = await imported(w.org.id, 'risk', RISKS);
+    await imported(
+      w.org.id,
+      'mitigation',
+      'ID,Risk,Description\nM-1,R-1,Encrypt payroll exports\n'
+    );
+    await assert.rejects(
+      undoImport({
+        organisationId: w.org.id,
+        batchId: risksBatch.batch.id,
+        actor: SYSTEM
+      }),
+      refused(/now linked to other records/)
+    );
+    assert.equal(
+      (await mitigationsOf((await riskBy(w.org.id, 'R-1')).id)).length,
+      1
     );
   });
 });

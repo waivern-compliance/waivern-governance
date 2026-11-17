@@ -835,7 +835,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       key: 'treatmentType',
       label: 'Treatment',
       kind: 'choice',
-      hint: 'Accepting a risk is not a mitigation here: accept the risk itself on its page.',
+      hint: 'Accept is kept with the mitigation, which comes in with no treatment: accepting a risk is a decision taken on the risk itself here.',
       aliases: [
         'treatment',
         'treatment type',
@@ -854,7 +854,8 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
           'treat',
           'control'
         ),
-        choice('transference', 'Transfer', 'transfer', 'share', 'insure')
+        choice('transference', 'Transfer', 'transfer', 'share', 'insure'),
+        choice('acceptance', 'Accept', 'accept', 'tolerate', 'retain')
       ]
     },
     {

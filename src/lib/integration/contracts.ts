@@ -311,7 +311,13 @@ export const mitigationIn = z.object({
   risk: z.string().min(1).max(500),
   description: longText.min(1),
   controlRef: z.string().max(200).optional(),
-  treatmentType: z.enum(['avoidance', 'limitation', 'transference']).optional(),
+  /**
+   * Acceptance is read so the row is not lost, but is not a treatment here:
+   * it is kept with the mitigation, and the risk is accepted on its own page.
+   */
+  treatmentType: z
+    .enum(['avoidance', 'limitation', 'transference', 'acceptance'])
+    .optional(),
   /** The owner's email address, matched to a member. */
   owner: z.string().max(320).optional(),
   dueAt: z.iso.datetime().optional(),

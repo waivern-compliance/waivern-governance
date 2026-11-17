@@ -17,7 +17,7 @@ import { suggestionsFor } from '@/lib/risk/treatment-library';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { aiFrameworkPackOf } from '@/services/ai-framework';
-import { importSourceName } from '@/services/imports';
+import { importSourceNames } from '@/services/imports';
 import { assetsFor } from '@/services/information-assets';
 import { appetiteInForce } from '@/services/risk-policy';
 import { loadRisk } from '@/services/risks';
@@ -72,27 +72,18 @@ export default async function RiskPage({
   const live = acceptances.find((a) => !a.supersededAt && !a.revokedAt) ?? null;
   const lapsed = live ? hasPassed(live.expiresAt) : false;
   const ownsIt = risk.ownerId !== null && risk.ownerId === active.userId;
-  // The platforms its imported mitigations came from, which may not be the risk's.
-  const sourceNames = new Map(
-    await Promise.all(
-      [
-        ...new Set(
-          mitigations.flatMap((m) =>
-            m.importSourceId ? [m.importSourceId] : []
-          )
+  // The platforms the risk and its mitigations came from, read together.
+  const sourceNames = await importSourceNames(
+    active.membership.organisationId,
+    [
+      ...new Set(
+        [risk, ...mitigations].flatMap((r) =>
+          r.importSourceId ? [r.importSourceId] : []
         )
-      ].map(
-        async (sourceId) =>
-          [
-            sourceId,
-            (await importSourceName(
-              active.membership.organisationId,
-              sourceId
-            )) ?? 'another platform'
-          ] as const
       )
-    )
+    ]
   );
+  const sourceName = (id: string) => sourceNames.get(id) ?? 'another platform';
   const assets = await assetsFor(
     active.membership.organisationId,
     { riskId: risk.id },
@@ -161,12 +152,7 @@ export default async function RiskPage({
 
       {risk.importSourceId ? (
         <ImportedFrom
-          sourceName={
-            (await importSourceName(
-              active.membership.organisationId,
-              risk.importSourceId
-            )) ?? 'another platform'
-          }
+          sourceName={sourceName(risk.importSourceId)}
           batchId={risk.importBatchId}
           confirmed={risk.importConfirmedAt !== null}
           legacy={risk.legacy}
@@ -287,7 +273,7 @@ export default async function RiskPage({
                 imported={
                   m.importSourceId
                     ? {
-                        sourceName: sourceNames.get(m.importSourceId)!,
+                        sourceName: sourceName(m.importSourceId),
                         confirmed: m.importConfirmedAt !== null,
                         history: m.sourceHistory,
                         legacy: m.legacy,
