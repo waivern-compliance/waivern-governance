@@ -572,6 +572,67 @@ export const complaintIn = z.object({
   closureRationale: longText.optional()
 });
 
+/**
+ * A freedom of information request handled in another platform, with its
+ * real dates. Read by the importer only. Clarification, the extensions that
+ * move its deadline, the grounds it was refused on and its latest review
+ * come with it, so its twenty working days read here as they did there.
+ */
+export const informationRequestIn = z.object({
+  externalRef,
+  requesterName: shortText,
+  correspondenceAddress: z.string().max(500).optional(),
+  /** General information, environmental, or both: read onto the entity's Act. */
+  kind: z.enum(['general', 'environmental', 'both']).optional(),
+  channel: z
+    .enum(['email', 'web_form', 'post', 'social_media', 'phone', 'in_person'])
+    .optional(),
+  receivedAt: z.iso.datetime(),
+  description: longText.optional(),
+  owner: z.string().max(320).optional(),
+  status: z.enum(['open', 'responded', 'closed']).optional(),
+  clarificationSoughtAt: z.iso.datetime().optional(),
+  clarificationReceivedAt: z.iso.datetime().optional(),
+  /** FOIA s.9, EIR reg 8: a fees notice, which pauses the time, and its payment. */
+  feeNoticeAt: z.iso.datetime().optional(),
+  feeAmount: z.number().positive().optional(),
+  feePaidAt: z.iso.datetime().optional(),
+  /** Which part of a request under both regimes the fee was charged under. */
+  feeUnder: z.enum(['general', 'environmental']).optional(),
+  /** EIR reg 7: the applicant told it is complex and voluminous. */
+  complexityExtendedAt: z.iso.datetime().optional(),
+  /** FOIA s.10(3): the notice that the public interest is being weighed. */
+  publicInterestNoticeAt: z.iso.datetime().optional(),
+  publicInterestDate: z.iso.datetime().optional(),
+  publicInterestExemption: z.string().max(100).optional(),
+  respondedAt: z.iso.datetime().optional(),
+  outcome: z
+    .enum([
+      'released_in_full',
+      'released_in_part',
+      'withheld_in_full',
+      'refused_request',
+      'not_held'
+    ])
+    .optional(),
+  responseSummary: longText.optional(),
+  /** Provisions relied on to withhold, as the source names them. */
+  exemptions: z.array(z.string().max(100)).max(20).optional(),
+  /** A request refused as a whole, other than under an exception. */
+  refusedAs: z.enum(['cost_limit', 'vexatious', 'repeated']).optional(),
+  lateReason: longText.optional(),
+  published: z.boolean().optional(),
+  closedAt: z.iso.datetime().optional(),
+  closureRationale: longText.optional(),
+  reviewRequestedAt: z.iso.datetime().optional(),
+  reviewGrounds: longText.optional(),
+  reviewDecidedAt: z.iso.datetime().optional(),
+  reviewOutcome: z
+    .enum(['upheld', 'varied', 'reversed', 'declined'])
+    .optional(),
+  reviewSummary: longText.optional()
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -594,6 +655,7 @@ export type AssessmentIn = z.infer<typeof assessmentIn>;
 export type DataSubjectRequestIn = z.infer<typeof dataSubjectRequestIn>;
 export type BreachIn = z.infer<typeof breachIn>;
 export type ComplaintIn = z.infer<typeof complaintIn>;
+export type InformationRequestIn = z.infer<typeof informationRequestIn>;
 
 export type IngestOutcome = {
   received: number;

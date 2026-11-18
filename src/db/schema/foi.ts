@@ -20,6 +20,7 @@ import {
   informationRequestReviewStatus,
   informationRequestStatus
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { dataSubjectRequests, dsrIntakeLinks } from './requests';
 import { entities, organisations, users } from './tenancy';
 
@@ -122,6 +123,22 @@ export const informationRequests = pgTable(
     ),
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closureRationale: text('closure_rationale'),
+    /**
+     * Moved in from another platform, with its real dates, so its twenty
+     * working days read as they would have here (decision 6 of issue #64).
+     * Its extensions, grounds for refusal and review came in marked with the
+     * import that made them.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -130,6 +147,11 @@ export const informationRequests = pgTable(
       .defaultNow()
   },
   (t) => [
+    uniqueIndex('information_request_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     uniqueIndex('information_request_reference_key').on(
       t.organisationId,
       t.reference
@@ -183,7 +205,15 @@ export const informationRequestDecisions = pgTable(
     decidedByLabel: text('decided_by_label').notNull(),
     decidedAt: timestamp('decided_at', { withTimezone: true })
       .notNull()
-      .defaultNow()
+      .defaultNow(),
+    /**
+     * The import that brought this decision in from another platform, where
+     * one did: so undoing it removes the decisions it made, and a decision
+     * made here since still stops the undo.
+     */
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    })
   },
   (t) => [
     index('information_request_decision_request_idx').on(
@@ -249,6 +279,10 @@ export const informationRequestReviews = pgTable(
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
     withdrawnNote: text('withdrawn_note'),
     createdBy: uuid('created_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    /** The import that brought this review in, where one did, as for decisions. */
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
       onDelete: 'set null'
     }),
     createdAt: timestamp('created_at', { withTimezone: true })

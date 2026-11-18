@@ -4,6 +4,9 @@ import { notFound, redirect } from 'next/navigation';
 import { InformationRequestClock } from '@/components/foi/InformationRequestClock';
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { HelpLink } from '@/components/help/HelpLink';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedCaseFile } from '@/components/imports/ImportedCaseFile';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { OUTCOME_HINT, OUTCOME_LABEL, type Outcome } from '@/lib/foi/report';
 import {
@@ -14,6 +17,7 @@ import {
 } from '@/lib/foi/statutory';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
+import { importSourceName } from '@/services/imports';
 import { reviewsAndRegulator } from '@/services/information-request-reviews';
 import {
   feeAwaited,
@@ -100,9 +104,7 @@ export default async function InformationRequestPage({
         <p className="text-sm text-ink-soft">
           To {request.entityName} · {STATUS_LABEL[request.status]} · received{' '}
           {longDate(request.receivedAt)} by{' '}
-          {(
-            FOI_CHANNEL_LABEL[request.channel] ?? request.channel
-          ).toLowerCase()}
+          {FOI_CHANNEL_LABEL[request.channel]?.toLowerCase() ?? request.channel}
           {request.timeProfile !== 'standard'
             ? ` · ${request.timeProfile} time limits`
             : ''}
@@ -114,6 +116,43 @@ export default async function InformationRequestPage({
           </p>
         ) : null}
       </header>
+
+      {request.importSourceId ? (
+        <>
+          <ImportedFrom
+            sourceName={
+              (await importSourceName(
+                active.membership.organisationId,
+                request.importSourceId
+              )) ?? 'another platform'
+            }
+            batchId={request.importBatchId}
+            confirmed={request.importConfirmedAt !== null}
+            legacy={request.legacy}
+            confirm={
+              can(
+                active.membership.grants,
+                'record.write',
+                request.entityId
+              ) ? (
+                <ConfirmImported
+                  type="information_request"
+                  id={request.id}
+                  revalidate={`/app/information-requests/${request.id}`}
+                  what="this request"
+                />
+              ) : null
+            }
+          />
+          <ImportedCaseFile
+            organisationId={active.membership.organisationId}
+            subjectType="information_request"
+            subjectId={request.id}
+            entityId={request.entityId}
+            revalidate={`/app/information-requests/${request.id}`}
+          />
+        </>
+      ) : null}
 
       <HelpLink topic="information-requests" />
 
