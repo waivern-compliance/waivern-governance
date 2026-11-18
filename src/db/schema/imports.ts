@@ -39,7 +39,8 @@ export const importRecordType = pgEnum('import_record_type', [
   'policy_document',
   'policy',
   'assessment',
-  'data_subject_request'
+  'data_subject_request',
+  'breach'
 ]);
 
 export const importBatchStatus = pgEnum('import_batch_status', [

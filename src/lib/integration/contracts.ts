@@ -461,6 +461,51 @@ export const dataSubjectRequestIn = z.object({
   closureRationale: longText.optional()
 });
 
+/**
+ * A personal data breach handled in another platform, with its real dates.
+ * Read by the importer only. Who was told, and when, comes with it, so its
+ * seventy-two hours here reads as it did there.
+ */
+export const breachIn = z.object({
+  externalRef,
+  title: shortText,
+  description: longText.optional(),
+  controllerRole: z
+    .enum(['controller', 'joint_controller', 'processor'])
+    .optional(),
+  regime: z.enum(['gdpr', 'dpa_part3']).optional(),
+  laws: z.enum(['uk', 'eu', 'uk_eu']).optional(),
+  /** EEA member States where affected people live, by ISO code. */
+  affectedStates: z.array(z.string().max(100)).max(40).optional(),
+  discoveredAt: z.iso.datetime(),
+  occurredAt: z.iso.datetime().optional(),
+  containedAt: z.iso.datetime().optional(),
+  /** As the source names them; read onto confidentiality, integrity and availability. */
+  categories: z.array(z.string().max(200)).max(10).optional(),
+  subjectsAffected: z.number().int().nonnegative().optional(),
+  recordsAffected: z.number().int().nonnegative().optional(),
+  specialCategory: z.boolean().optional(),
+  likelyConsequences: longText.optional(),
+  measuresTaken: longText.optional(),
+  dataUnintelligible: z.boolean().optional(),
+  pecrServiceBreach: z.boolean().optional(),
+  status: z
+    .enum(['discovered', 'assessing', 'contained', 'notified', 'closed'])
+    .optional(),
+  owner: z.string().max(320).optional(),
+  authorityDecision: z.enum(['notified', 'not_required']).optional(),
+  /** Which authority was told, by code or name, where more than one is owed. */
+  authority: z.string().max(200).optional(),
+  authorityNotifiedAt: z.iso.datetime().optional(),
+  authorityRef: z.string().max(200).optional(),
+  authorityRationale: longText.optional(),
+  lateReason: longText.optional(),
+  subjectsNotifiedAt: z.iso.datetime().optional(),
+  pecrNotifiedAt: z.iso.datetime().optional(),
+  closedAt: z.iso.datetime().optional(),
+  closureRationale: longText.optional()
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -481,6 +526,7 @@ export type PolicyDocumentIn = z.infer<typeof policyDocumentIn>;
 export type PolicyIn = z.infer<typeof policyIn>;
 export type AssessmentIn = z.infer<typeof assessmentIn>;
 export type DataSubjectRequestIn = z.infer<typeof dataSubjectRequestIn>;
+export type BreachIn = z.infer<typeof breachIn>;
 
 export type IngestOutcome = {
   received: number;

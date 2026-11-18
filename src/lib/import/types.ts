@@ -1,6 +1,7 @@
 import type {
   AiUseCaseIn,
   AssessmentIn,
+  BreachIn,
   DataSubjectRequestIn,
   InformationAssetIn,
   MitigationIn,
@@ -163,5 +164,10 @@ export type ImportRecord =
   | {
       kind: 'data_subject_request';
       data: DataSubjectRequestIn & { file?: string };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'breach';
+      data: BreachIn & { file?: string };
       legacy: Legacy;
     };

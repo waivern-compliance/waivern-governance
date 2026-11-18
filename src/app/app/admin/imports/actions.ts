@@ -8,6 +8,7 @@ import { db, withOrganisation } from '@/db/client';
 import {
   aiUseCases,
   assessments,
+  breaches,
   dataSubjectRequests,
   evidence,
   informationAssets,
@@ -245,7 +246,8 @@ const ENTITY_TABLE = {
   policy: policies,
   policy_document: policyDocuments,
   assessment: assessments,
-  data_subject_request: dataSubjectRequests
+  data_subject_request: dataSubjectRequests,
+  breach: breaches
 } as const;
 
 /**

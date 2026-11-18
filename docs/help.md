@@ -70,7 +70,7 @@ Every help topic the application carries, in the order it presents them.
 - [Who approves what, and changing it](#who-approves-what-and-changing-it) - Approvers are named by role rather than by person, so a departure is handled by moving the role - and both are managed on one screen.
 - [AI governance framework](#ai-governance-framework) - Whether AI risk follows the UK framework or NIST AI RMF, and what changes when the organisation moves from one to the other.
 - [Connected tools](#connected-tools) - Signed endpoints that let the Compliance Portal and scanning tools push records in and pull current state out.
-- [Importing records from another platform](#importing-records-from-another-platform) - Bring records, files, assets, risks, policies, assessments and request history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
+- [Importing records from another platform](#importing-records-from-another-platform) - Bring records, files, assets, risks, policies, assessments, and request and breach history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
 - [The organisation and its legal entities](#the-organisation-and-its-legal-entities) - What this organisation is called, the legal entities within it, and who may add them.
 - [Deleting a legal entity](#deleting-a-legal-entity) - Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.
 - [Accepting Waivern's terms and Data Processing Agreement](#accepting-waiverns-terms-and-data-processing-agreement) - On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.
@@ -904,6 +904,8 @@ Record a review with the date the next is due. When the sharing stops or the agr
 The seventy-two hours runs from when the organisation became aware, not from when the breach happened, and not from when somebody finished deciding what it amounted to. So the form asks for four facts and the time you became aware, and the assessment comes afterwards.
 
 Every breach goes on the register, including the ones you decide not to report. Article 33(5) requires all of them to be documented, and an absence of notification with nothing written down is indistinguishable from an oversight.
+
+A breach imported from another platform keeps its real dates, so its clocks read as they did there. Its notifications show as decided in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it.
 
 ### Two questions, not one
 
@@ -2034,7 +2036,7 @@ The Portal reads the register back, with each system's gaps and its latest appro
 
 ## Importing records from another platform
 
-*Bring records, files, assets, risks, policies, assessments and request history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
+*Bring records, files, assets, risks, policies, assessments, and request and breach history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
 
 **Screen:** `/app/admin/imports`
 
@@ -2100,6 +2102,14 @@ A closed request needs the date it was responded to, or closed: with it, no dead
 
 Set a retention cut-off on the matching step to leave out closed requests that ended before it, so they are not kept longer than your policy allows. Imported requests count in the requests summary by their real dates, marked as imported. Importing again updates a request's details but leaves its clock decisions as they came in, and a request worked on here since it was imported, with a decision recorded or its details changed, is not written over. Confirming it is not working on it.
 
+### Breaches
+
+Each breach needs a title and the date the organisation became aware of it, which starts the seventy-two hours. Its dates are kept as the old platform recorded them, so its clocks run here as they would have had it been recorded here. Notifying the supervisory authority, judging that it did not need notifying, telling the people affected and, for a communications provider, telling the Information Commission under PECR come in with their dates, said to have been done in the old platform. A notification with no date is not imported, because whether it was in time cannot be worked out without it. Where a breach is owed to more than one authority, say which one was notified.
+
+A closed breach needs the date it was closed: with it, no clock runs and no task is raised, however old it is. An open breach never notified is overdue here too; the preview says how many there are before anything is written, and they raise tasks once imported. Nobody is notified by the import. Columns no field reads are not kept. A breach under EU law at an entity under UK law only, or under PECR at an entity that is not a communications provider, is not imported.
+
+The retention cut-off leaves out breaches closed before it. A case file named in a row is attached to the breach. Importing again updates a breach's details but leaves its decisions as they came in, and a breach worked on here since it was imported is not written over.
+
 ### Information assets
 
 Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.
@@ -2118,7 +2128,7 @@ The matching of columns is remembered for each platform and kind of record, and 
 
 Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.
 
-An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment or data subject request shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
+An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request or breach shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
 
 ### Undoing an import
 
