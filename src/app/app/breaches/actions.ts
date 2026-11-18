@@ -6,7 +6,10 @@ import { and, eq } from 'drizzle-orm';
 
 import { db, scoped } from '@/db/client';
 import { breaches, entities } from '@/db/schema';
-import type { ControllerRole } from '@/lib/breach/statutory';
+import {
+  isBreachClassification,
+  type ControllerRole
+} from '@/lib/breach/statutory';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { requireCapability } from '@/lib/session';
 import { createAssessment } from '@/services/assessments';
@@ -14,6 +17,7 @@ import {
   closeBreach,
   linkAssessment,
   RationaleRequired,
+  reclassifyBreach,
   recordBreach,
   recordDecision,
   updateBreach
@@ -55,10 +59,13 @@ export async function recordBreachAction(
   const entityId = text(formData.get('entityId'));
   const discoveredAt = when(formData.get('discoveredAt'));
 
+  const classification = text(formData.get('classification')) || 'breach';
+  if (!isBreachClassification(classification))
+    return { ok: false, message: 'Say whether it is a breach or a near miss.' };
   if (!title || !description || !entityId) {
     return {
       ok: false,
-      message: 'A breach needs a name, a description and an entity.'
+      message: 'Say what happened, describe it and choose the entity.'
     };
   }
   if (!discoveredAt) {
@@ -89,6 +96,7 @@ export async function recordBreachAction(
     entityId,
     title,
     description,
+    classification,
     controllerRole: (text(formData.get('controllerRole')) ||
       'controller') as ControllerRole,
     discoveredAt,
@@ -209,6 +217,43 @@ export async function recordDecisionAction(
   revalidatePath(`/app/breaches/${breachId}`);
   revalidatePath('/app/breaches');
   return { ok: true, message: 'Recorded.' };
+}
+
+/**
+ * Change a breach to a near miss, or back. A near miss becoming a breach
+ * counts its seventy-two hours from discovery unless a later date is chosen.
+ */
+export async function reclassifyBreachAction(
+  breachId: string,
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await requireCapability('record.write');
+    const classification = text(formData.get('classification'));
+    if (!isBreachClassification(classification))
+      throw new Error('Say whether it is a breach or a near miss.');
+    const later = text(formData.get('clockFrom')) === 'later';
+    const awareAt = later ? when(formData.get('awareAt')) : null;
+    if (later && !awareAt)
+      throw new Error(
+        'Give when it became known to be a breach, or count from discovery.'
+      );
+    await reclassifyBreach({
+      breachId,
+      organisationId: active.membership.organisationId,
+      classification,
+      rationale: text(formData.get('rationale')),
+      awareAt,
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    revalidatePath(`/app/breaches/${breachId}`);
+    revalidatePath('/app/breaches');
+  });
 }
 
 export async function closeBreachAction(

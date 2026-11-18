@@ -33,7 +33,7 @@ import {
   templateVersions
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { notificationDeadline } from '@/lib/breach/statutory';
+import { clockStart, notificationDeadline } from '@/lib/breach/statutory';
 import { addMonths } from '@/lib/dates';
 import {
   scanBuffer,
@@ -574,7 +574,7 @@ async function raiseBreachDeadlines(organisationId: string): Promise<number> {
         // The statutory deadline, not a service level counted from now.
         // Without this the task inherits 72 hours from its own creation and
         // shows "in 4d" for something due this afternoon.
-        dueAt: notificationDeadline(breach.discoveredAt),
+        dueAt: notificationDeadline(clockStart(breach)),
         idempotencyKey: pecr
           ? `breach-deadline-5a:${breach.id}:${clock.state}`
           : `breach-deadline:${breach.id}:${clock.state}`,

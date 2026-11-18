@@ -59,6 +59,7 @@ import {
   type DetailField
 } from '@/lib/assets/types';
 import { appendAuditEvent } from '@/lib/audit';
+import type { BreachClassification } from '@/lib/breach/statutory';
 import {
   complaintClock,
   OUTCOME_LABEL,
@@ -761,6 +762,7 @@ type BreachDecisionResolved = {
 
 /** A breach read into this organisation's terms, with where its clocks stand. */
 type BreachResolved = {
+  classification: BreachClassification;
   regime: 'gdpr' | 'dpa_part3';
   laws: 'uk' | 'eu' | 'uk_eu';
   affectedStates: string[];
@@ -2311,6 +2313,19 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
     const discoveredAt = new Date(data.discoveredAt);
     if (discoveredAt > now)
       return refuse('It cannot have been discovered in the future.');
+    const classification = data.classification ?? 'breach';
+    if (
+      classification === 'near_miss' &&
+      (data.authorityDecision ||
+        data.authorityNotifiedAt ||
+        data.subjectsDecision ||
+        data.subjectsNotifiedAt ||
+        data.pecrNotifiedAt ||
+        data.status === 'notified')
+    )
+      return refuse(
+        'It is a near miss there, but says who was or was not told. A near miss owes no notification: give it as a breach if personal data was compromised.'
+      );
     // Each date after it was discovered and none in the future, or its clocks
     // read nonsense: told before anyone knew reads as told in time.
     const after = [
@@ -2452,6 +2467,7 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
     if (skipped) return skipped;
 
     const resolved = (toWrite: BreachDecisionResolved[]): BreachResolved => ({
+      classification,
       regime,
       laws,
       affectedStates,
@@ -2464,8 +2480,10 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
         !data.closedAt &&
         anyClockOverdue({
           breach: {
+            classification,
             controllerRole: data.controllerRole ?? 'controller',
             discoveredAt,
+            awareAt: null,
             regime,
             pecrServiceBreach: data.pecrServiceBreach ?? null
           },
@@ -3880,6 +3898,7 @@ const KEYS: Record<RecordType, string[]> = {
   breach: [
     'title',
     'description',
+    'classification',
     'controllerRole',
     'regime',
     'laws',
@@ -5171,6 +5190,7 @@ async function writeBreach(
   const described = {
     title: data.title,
     description: data.description,
+    classification: resolved.classification,
     controllerRole: data.controllerRole,
     regime: resolved.regime,
     laws: resolved.laws,
@@ -5214,7 +5234,8 @@ async function writeBreach(
       })
       .where(eq(breaches.id, c.decision.recordId));
     id = c.decision.recordId;
-    if (described.closedAt)
+    // Closed, or found to be a near miss: either way it owes nothing now.
+    if (described.closedAt || resolved.classification === 'near_miss')
       await retireEndedCaseTasks(c, id, 'breach_deadline');
   } else {
     const reference = await nextReference(

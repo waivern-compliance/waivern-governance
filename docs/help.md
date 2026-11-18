@@ -912,6 +912,16 @@ Every breach goes on the register, including the ones you decide not to report. 
 
 A breach imported from another platform keeps its real dates, so its clocks read as they did there. Its notifications show as decided in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it.
 
+### Near misses
+
+A near miss is an incident that put personal data at risk without compromising it: an email to the wrong person recalled unread, a lost laptop found before anyone opened it. It is not a personal data breach under Article 4(12), so Articles 33 and 34 do not apply, but it shows where a breach nearly happened, and that is worth keeping.
+
+Record it on the same form, as a near miss. It has everything a breach has - its facts, its handler, its decisions, its discussion, its closing - except the clocks: no seventy-two hours runs, no deadline task is raised and no notification is offered. You can still record what you chose to do, such as telling an insurer.
+
+Not sure? Record it as a breach. The clock runs while you find out, and either can be reclassified with the reason why.
+
+A near miss later found to be a breach asks when its seventy-two hours runs from. From its discovery is the default, because that is where regulators are likely to count from: awareness is when you could reasonably have known. A later date is for when something new came to light, and the reason should say what. A breach found to be a near miss stops its clocks and retires its deadline tasks; any notification already made stays on the record.
+
 ### Two questions, not one
 
 Article 33 asks whether the breach is likely to result in a risk to people's rights and freedoms. If it is, the supervisory authority must be told within seventy-two hours. In the UK that is the Information Commission, which replaced the Information Commissioner on 30 September 2026 and still publishes its guidance as the ICO.
@@ -974,7 +984,7 @@ Where exemption is required to safeguard national security, s.78A lifts both dut
 
 **See also:** The risk register · Service levels and things that come round again · The audit trail · The processing register (Article 30)
 
-<sub>Also searchable as: breach, incident, 72 hours, seventy-two, article 33, article 34, notify, ico, information commission, supervisory authority, data subjects, ransomware, leak, pecr, reg 5a, telecoms, communications provider, part 3, law enforcement, section 67, section 68</sub>
+<sub>Also searchable as: breach, incident, 72 hours, seventy-two, article 33, article 34, notify, ico, information commission, supervisory authority, data subjects, ransomware, leak, pecr, reg 5a, telecoms, communications provider, part 3, law enforcement, section 67, section 68, near miss</sub>
 
 ## Data subject requests
 

@@ -98,11 +98,14 @@ export function DecisionForm({
   breachId,
   pecr = false,
   part3 = false,
+  nearMiss = false,
   authorities = []
 }: {
   breachId: string;
   pecr?: boolean;
   part3?: boolean;
+  /** A near miss owes no notification, so only what was chosen is offered. */
+  nearMiss?: boolean;
   /**
    * The authorities a notification can concern, those owed one first. Asked
    * where there is more than one, so each notification says which.
@@ -114,8 +117,8 @@ export function DecisionForm({
     null
   );
   // The PECR kinds are offered only where the entity is a public communications provider.
-  const kinds = (
-    pecr ? KINDS : KINDS.filter((k) => !k.value.startsWith('pecr_'))
+  const kinds = KINDS.filter((k) =>
+    nearMiss ? !k.basis : pecr || !k.value.startsWith('pecr_')
   ).map((k) =>
     part3 && PART3_BASIS[k.value]
       ? {

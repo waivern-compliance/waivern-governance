@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { choiceOf } from '@/lib/assets/types';
+import { BREACH_CLASSIFICATIONS } from '@/lib/breach/statutory';
 import {
   LAWFUL_BASIS_KEYS,
   RECOGNISED_CONDITION_KEYS
@@ -478,6 +479,8 @@ export const breachIn = z.object({
   externalRef,
   title: shortText,
   description: longText.optional(),
+  /** A breach unless said otherwise; a near miss comes in with nobody told. */
+  classification: z.enum(BREACH_CLASSIFICATIONS).optional(),
   controllerRole: z
     .enum(['controller', 'joint_controller', 'processor'])
     .optional(),

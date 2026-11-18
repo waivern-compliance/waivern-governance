@@ -26,6 +26,7 @@ import {
   updateBreachAction
 } from '../actions';
 import { DecisionForm } from '../DecisionForm';
+import { Reclassify } from './Reclassify';
 
 const stamp = (d: Date | null) =>
   d ? d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : null;
@@ -75,6 +76,7 @@ export default async function BreachPage({
       : [])
   ];
   const euLaw = appliesEu(laws) && breach.regime !== 'dpa_part3';
+  const nearMiss = breach.classification === 'near_miss';
   if (!can(active.membership.grants, 'record.read', breach.entityId)) {
     return (
       <NotPermitted
@@ -120,6 +122,11 @@ export default async function BreachPage({
           <h1 className="text-2xl font-semibold tracking-tight">
             {breach.title}
           </h1>
+          {nearMiss ? (
+            <span className="rounded border border-line px-2 py-0.5 text-xs font-medium text-ink-soft">
+              Near miss
+            </span>
+          ) : null}
         </div>
         <p className="text-xs text-ink-soft">
           {entityName} · {breach.controllerRole.replace(/_/g, ' ')} ·{' '}
@@ -248,7 +255,15 @@ export default async function BreachPage({
         <h2 className="text-sm font-semibold">
           What the Regulation requires here
         </h2>
-        {obligations.length === 0 ? (
+        {nearMiss ? (
+          <p className="rounded border border-line bg-surface px-4 py-3 text-sm">
+            Recorded as a near miss: personal data was put at risk but not
+            compromised, so it is not a personal data breach under Article
+            4(12), and neither Article 33 nor Article 34 applies. It is handled
+            and kept like a breach so what nearly happened is learned from. If
+            personal data was compromised after all, reclassify it below.
+          </p>
+        ) : obligations.length === 0 ? (
           <p className="rounded border border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
             Assessed as unlikely to result in a risk to rights and freedoms, so
             neither Article 33 nor Article 34 requires notification. It stays on
@@ -273,9 +288,11 @@ export default async function BreachPage({
           </ul>
         )}
         <p className="max-w-prose text-xs text-ink-soft">
-          {risk === null
-            ? 'The risk has not been assessed yet, so the authority obligation is shown as engaged. The seventy-two hours does not pause while somebody decides whether it applies.'
-            : `Assessed as ${risk.replace(/_/g, ' ')}.`}
+          {nearMiss
+            ? null
+            : risk === null
+              ? 'The risk has not been assessed yet, so the authority obligation is shown as engaged. The seventy-two hours does not pause while somebody decides whether it applies.'
+              : `Assessed as ${risk.replace(/_/g, ' ')}.`}
         </p>
       </section>
 
@@ -326,7 +343,7 @@ export default async function BreachPage({
         </section>
       ) : null}
 
-      {publicCommsProvider ? (
+      {publicCommsProvider && !nearMiss ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">
             What PECR regulation 5A requires here
@@ -429,10 +446,13 @@ export default async function BreachPage({
           ))}
           {decisions.length === 0 ? (
             <li className="px-4 py-5 text-sm text-ink-soft">
-              Nothing decided yet. The first judgement is whether{' '}
-              {breach.regime === 'dpa_part3'
-                ? 'section 67 requires the Information Commission to be told.'
-                : 'Article 33 requires the supervisory authority to be told.'}
+              {nearMiss
+                ? 'Nothing recorded yet. A near miss owes no notification; record anything done anyway, such as telling an insurer or another organisation.'
+                : `Nothing decided yet. The first judgement is whether ${
+                    breach.regime === 'dpa_part3'
+                      ? 'section 67 requires the Information Commission to be told.'
+                      : 'Article 33 requires the supervisory authority to be told.'
+                  }`}
             </li>
           ) : null}
         </ul>
@@ -443,9 +463,22 @@ export default async function BreachPage({
           breachId={breach.id}
           pecr={publicCommsProvider}
           part3={breach.regime === 'dpa_part3'}
+          nearMiss={nearMiss}
           authorities={authorityOptions}
         />
       ) : null}
+
+      <Reclassify
+        breach={breach}
+        notified={decisions.some(
+          (d) =>
+            (d.kind === 'supervisory_authority' ||
+              d.kind === 'data_subjects' ||
+              d.kind === 'pecr_commissioner') &&
+            d.outcome === 'done'
+        )}
+        mayEdit={mayEdit}
+      />
 
       {mayEdit ? (
         <EditForm
@@ -665,7 +698,7 @@ export default async function BreachPage({
 
           <fieldset className="space-y-1.5">
             <legend className="text-xs font-medium uppercase tracking-wider text-ink-soft">
-              What kind of breach
+              What was, or could have been, affected
             </legend>
             {[
               ['confidentiality', 'Confidentiality'],

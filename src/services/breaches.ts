@@ -6,17 +6,21 @@ import {
   breachDecisions,
   breaches,
   entities,
+  tasks,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import {
   clockFor,
+  clockStart,
+  isBreachClassification,
   missingContent,
   mostUrgent,
   obligationsFor,
   pecrClockFor,
   pecrObligationsFor,
   reg5aApplies,
+  type BreachClassification,
   type ControllerRole,
   type RiskLevel
 } from '@/lib/breach/statutory';
@@ -94,20 +98,26 @@ export type LoadedBreach = {
 
 /** The reg 5A clock for a breach, or null where reg 5A does not apply. */
 function pecrClockOf(
-  breach: Pick<Breach, 'discoveredAt' | 'pecrServiceBreach'>,
+  breach: Pick<
+    Breach,
+    'classification' | 'discoveredAt' | 'awareAt' | 'pecrServiceBreach'
+  >,
   provider: boolean,
   decisions: ReadonlyArray<
     Pick<BreachDecision, 'kind' | 'outcome' | 'completedAt'>
   >,
   now: Date
 ) {
-  if (!reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach }))
+  if (
+    breach.classification === 'near_miss' ||
+    !reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach })
+  )
     return null;
   const told = decisions.find(
     (d) => d.kind === 'pecr_commissioner' && d.outcome === 'done'
   );
   return pecrClockFor({
-    discoveredAt: breach.discoveredAt,
+    discoveredAt: clockStart(breach),
     notifiedAt: told?.completedAt ?? null,
     now
   });
@@ -187,7 +197,12 @@ export function targetsOf(
 export function anyClockOverdue(input: {
   breach: Pick<
     Breach,
-    'controllerRole' | 'discoveredAt' | 'regime' | 'pecrServiceBreach'
+    | 'classification'
+    | 'controllerRole'
+    | 'discoveredAt'
+    | 'awareAt'
+    | 'regime'
+    | 'pecrServiceBreach'
   >;
   decisions: ReadonlyArray<
     Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode' | 'completedAt'>
@@ -198,13 +213,14 @@ export function anyClockOverdue(input: {
   now: Date;
 }): boolean {
   const { breach, decisions, targets, now } = input;
+  if (breach.classification === 'near_miss') return false;
   const notRequired = decisions.some(
     (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
   );
   const clock = (notifiedAt: Date | null) =>
     clockFor({
       role: breach.controllerRole as ControllerRole,
-      discoveredAt: breach.discoveredAt,
+      discoveredAt: clockStart(breach),
       notifiedAt,
       notRequired,
       now,
@@ -226,6 +242,25 @@ export function anyClockOverdue(input: {
   return [...clocks, pecr].some((c) => c?.state === 'overdue');
 }
 
+/** A near miss compromised no personal data, so no clock runs. */
+const NEAR_MISS_CLOCK = {
+  state: 'not_applicable',
+  words:
+    'A near miss: no personal data was compromised, so nobody is owed a notification'
+} as const;
+
+/**
+ * The notifications only a breach can owe. A near miss may still be reported
+ * to an insurer or another organisation, as anything worth telling them.
+ */
+const STATUTORY_KINDS: ReadonlyArray<BreachDecision['kind']> = [
+  'supervisory_authority',
+  'data_subjects',
+  'processor_to_controller',
+  'pecr_commissioner',
+  'pecr_subscribers'
+];
+
 function assemble(
   breach: Breach,
   entityName: string,
@@ -235,6 +270,22 @@ function assemble(
   entity: EntityLaw,
   now = new Date()
 ): LoadedBreach {
+  if (breach.classification === 'near_miss')
+    return {
+      breach,
+      entityName,
+      ownerEmail,
+      decisions,
+      risk: null,
+      obligations: [],
+      clock: NEAR_MISS_CLOCK,
+      laws: effectiveLaws(entity.entityLaw, breach.laws),
+      authorityClocks: [],
+      outstandingContent: [],
+      publicCommsProvider: provider,
+      pecr: null
+    };
+  const started = clockStart(breach);
   const pecrClock = pecrClockOf(breach, provider, decisions, now);
   const risk = riskFrom(decisions);
   const role = breach.controllerRole as ControllerRole;
@@ -257,7 +308,7 @@ function assemble(
       notified,
       clock: clockFor({
         role,
-        discoveredAt: breach.discoveredAt,
+        discoveredAt: started,
         notifiedAt: notified?.completedAt ?? null,
         notRequired,
         now,
@@ -275,7 +326,7 @@ function assemble(
     obligations: obligationsFor({
       role,
       risk,
-      discoveredAt: breach.discoveredAt,
+      discoveredAt: started,
       dataUnintelligible: breach.dataUnintelligible,
       regime: breach.regime,
       authorities: targets
@@ -284,7 +335,7 @@ function assemble(
       mostUrgent(authorityClocks.map((c) => c.clock)) ??
       clockFor({
         role,
-        discoveredAt: breach.discoveredAt,
+        discoveredAt: started,
         notRequired,
         now,
         regime: breach.regime
@@ -295,9 +346,7 @@ function assemble(
     publicCommsProvider: provider,
     pecr: pecrClock
       ? {
-          obligations: pecrObligationsFor({
-            discoveredAt: breach.discoveredAt
-          }),
+          obligations: pecrObligationsFor({ discoveredAt: started }),
           clock: pecrClock
         }
       : null
@@ -358,6 +407,8 @@ export async function recordBreach(input: {
   entityId: string;
   title: string;
   description: string;
+  /** A breach unless said otherwise. */
+  classification?: BreachClassification;
   controllerRole?: ControllerRole;
   /** When the organisation became aware. Starts the seventy-two hours. */
   discoveredAt: Date;
@@ -376,6 +427,9 @@ export async function recordBreach(input: {
     await assertEntityIn(input.organisationId, input.entityId);
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
+    const classification = input.classification ?? 'breach';
+    if (!isBreachClassification(classification))
+      throw new Error('Say whether it is a breach or a near miss.');
     const regime = await checkedRegime(db, input.entityId, input.regime);
     const laws = await checkedLaws(db, input.entityId, input.laws, regime);
     const affectedStates = cleanStates(input.affectedStates ?? []);
@@ -395,6 +449,7 @@ export async function recordBreach(input: {
           reference,
           title: input.title,
           description: input.description,
+          classification,
           controllerRole: input.controllerRole ?? 'controller',
           regime,
           laws,
@@ -415,6 +470,7 @@ export async function recordBreach(input: {
         subjectId: row.id,
         after: {
           reference,
+          classification,
           discoveredAt: input.discoveredAt.toISOString(),
           role: row.controllerRole,
           laws
@@ -576,6 +632,13 @@ export async function recordDecision(input: {
           )
         );
       if (!breach) throw new Error('No such breach');
+      if (
+        breach.classification === 'near_miss' &&
+        STATUTORY_KINDS.includes(input.kind)
+      )
+        throw new Error(
+          'A near miss owes no notification. If personal data was compromised after all, reclassify it as a breach first.'
+        );
 
       // Each authority is its own notification. Where there is more than one
       // to tell, a notification says which, and it must be one the breach's
@@ -721,6 +784,123 @@ export async function closeBreach(input: {
   });
 }
 
+/**
+ * Change a breach to a near miss, or back, with the reasoning.
+ *
+ * A near miss found to be a breach starts its seventy-two hours on awareness
+ * of that. Regulators are likely to count from the original discovery, where
+ * the facts were there to be seen, so that is the default and a later date
+ * has to be chosen. A breach found to be a near miss stops its clocks, and
+ * its open deadline tasks are retired; any notification already made stays
+ * on the record.
+ */
+export async function reclassifyBreach(input: {
+  breachId: string;
+  organisationId: string;
+  classification: BreachClassification;
+  rationale: string;
+  /**
+   * For a near miss becoming a breach: when the organisation became aware it
+   * was one. Absent means from its discovery.
+   */
+  awareAt?: Date | null;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, async () => {
+    const rationale = input.rationale.trim();
+    if (!isBreachClassification(input.classification))
+      throw new Error('Say whether it is a breach or a near miss.');
+    if (!rationale)
+      throw new Error(
+        'Record why it is being reclassified. The change of view is part of the record.'
+      );
+
+    return db.transaction(async (tx) => {
+      const [breach] = await tx
+        .select()
+        .from(breaches)
+        .where(
+          and(
+            eq(breaches.id, input.breachId),
+            eq(breaches.organisationId, input.organisationId)
+          )
+        );
+      if (!breach) throw new Error('No such breach');
+      if (breach.classification === input.classification)
+        throw new Error(
+          input.classification === 'near_miss'
+            ? 'It is already recorded as a near miss.'
+            : 'It is already recorded as a breach.'
+        );
+
+      const now = new Date();
+      const toBreach = input.classification === 'breach';
+      const awareAt = toBreach ? (input.awareAt ?? null) : null;
+      if (awareAt && awareAt < breach.discoveredAt)
+        throw new Error(
+          'It cannot have been known to be a breach before it was discovered. Count from discovery instead.'
+        );
+      if (awareAt && awareAt > now)
+        throw new Error(
+          'When it became known to be a breach cannot be in the future.'
+        );
+
+      const [after] = await tx
+        .update(breaches)
+        .set({
+          classification: input.classification,
+          awareAt,
+          reclassifiedAt: now,
+          reclassificationRationale: rationale,
+          updatedAt: now
+        })
+        .where(eq(breaches.id, input.breachId))
+        .returning();
+
+      // A near miss raises no deadline, so one raised while it was counted a
+      // breach asks for nothing now. The sweep raises them but never takes
+      // them down.
+      if (!toBreach)
+        await tx
+          .update(tasks)
+          .set({
+            status: 'done',
+            completedAt: now,
+            completedByLabel: input.actor.actorLabel
+          })
+          .where(
+            and(
+              eq(tasks.organisationId, input.organisationId),
+              eq(tasks.type, 'breach_deadline'),
+              eq(tasks.subjectId, input.breachId),
+              inArray(tasks.status, ['open', 'in_progress'])
+            )
+          );
+
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: breach.entityId,
+        action: 'breach.reclassified',
+        subjectType: 'breach',
+        subjectId: input.breachId,
+        before: { classification: breach.classification },
+        after: {
+          reference: after.reference,
+          classification: input.classification,
+          ...(toBreach
+            ? {
+                clockFrom: (awareAt ?? breach.discoveredAt).toISOString()
+              }
+            : {}),
+          rationale
+        }
+      });
+      return after;
+    });
+  });
+}
+
 async function decisionsFor(breachIds: string[]) {
   if (breachIds.length === 0) return [];
   return db
@@ -835,6 +1015,8 @@ export async function breachRegister(
     return {
       total: loaded.length,
       open: loaded.filter((b) => b.breach.status !== 'closed').length,
+      nearMisses: loaded.filter((b) => b.breach.classification === 'near_miss')
+        .length,
       // The number that matters at a glance: a clock running out.
       urgent: loaded.filter((b) =>
         [b.clock.state, b.pecr?.clock.state].some(
@@ -842,7 +1024,10 @@ export async function breachRegister(
         )
       ).length,
       unassessed: loaded.filter(
-        (b) => b.risk === null && b.breach.status !== 'closed'
+        (b) =>
+          b.risk === null &&
+          b.breach.status !== 'closed' &&
+          b.breach.classification === 'breach'
       ).length,
       notified: loaded.filter((b) =>
         b.decisions.some(

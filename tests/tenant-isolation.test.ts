@@ -1568,6 +1568,17 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'reclassifyBreach',
+      () =>
+        breachesSvc.reclassifyBreach({
+          breachId: B.breach.id,
+          organisationId: A.org.id,
+          classification: 'near_miss',
+          rationale: 'x',
+          actor: as()
+        })
+    ],
+    [
       'closeBreach',
       () =>
         breachesSvc.closeBreach({
