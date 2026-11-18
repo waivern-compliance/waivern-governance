@@ -35,7 +35,8 @@ import {
   suppliers,
   templates,
   templateVersions,
-  users
+  users,
+  type breachCategory
 } from '@/db/schema';
 import { AI_FRAMEWORKS } from '@/lib/ai-frameworks';
 import {
@@ -90,7 +91,12 @@ import { rate, SCALES, type RiskScaleId } from '@/lib/risk/scale';
 import { createUseCase } from './ai-register';
 import { referencePrefixFor } from './assessments';
 import { assetTypology } from './asset-types';
-import { anyClockOverdue, concerns, targetsOf } from './breaches';
+import {
+  anyClockOverdue,
+  concerns,
+  everyAuthorityTold,
+  targetsOf
+} from './breaches';
 import { checkFile, insertDocument, UploadRefused } from './documents';
 import { ExtractionUnavailable, runExtraction } from './extraction';
 import { classificationSchemeOf } from './information-assets';
@@ -700,6 +706,14 @@ type RequestResolved = {
   overdue: boolean;
 };
 
+/** A decision a breach comes in with: who was told there, and when. */
+type BreachDecisionResolved = {
+  kind: 'supervisory_authority' | 'data_subjects' | 'pecr_commissioner';
+  outcome: 'done' | 'not_required';
+  completedAt: Date | null;
+  authorityCode: string | null;
+};
+
 /** A breach read into this organisation's terms, with where its clocks stand. */
 type BreachResolved = {
   regime: 'gdpr' | 'dpa_part3';
@@ -708,8 +722,8 @@ type BreachResolved = {
   categories: BreachCategory[];
   status: (typeof breaches.$inferSelect)['status'];
   ownerId: string | null;
-  /** The authority told, where it was. */
-  authorityCode: string | null;
+  /** The decisions to write: all of them when it is new, and on a later import only those it did not come in with. */
+  decisions: BreachDecisionResolved[];
   /** Open, and a clock already past: it raises a task once imported. */
   overdue: boolean;
 };
@@ -1996,29 +2010,25 @@ async function requestResolver(tx: Tx, batch: Batch) {
   };
 }
 
-type BreachCategory = 'confidentiality' | 'integrity' | 'availability';
+type BreachCategory = (typeof breachCategory.enumValues)[number];
 
-/** A kind of breach in the source's words, read onto the three here. */
-function breachCategoryFrom(given: string): BreachCategory | null {
-  const word = given.trim().toLowerCase();
-  const said: Record<string, BreachCategory> = {
-    confidentiality: 'confidentiality',
-    disclosure: 'confidentiality',
-    'unauthorised disclosure': 'confidentiality',
-    'unauthorized disclosure': 'confidentiality',
-    'unauthorised access': 'confidentiality',
-    'unauthorized access': 'confidentiality',
-    integrity: 'integrity',
-    alteration: 'integrity',
-    'unauthorised alteration': 'integrity',
-    'unauthorized alteration': 'integrity',
-    availability: 'availability',
-    loss: 'availability',
-    destruction: 'availability',
-    'loss of access': 'availability'
-  };
-  return said[word] ?? null;
-}
+/** Kinds of breach in the source's words, read onto the three here. */
+const BREACH_CATEGORY_WORDS: Record<string, BreachCategory> = {
+  confidentiality: 'confidentiality',
+  disclosure: 'confidentiality',
+  'unauthorised disclosure': 'confidentiality',
+  'unauthorized disclosure': 'confidentiality',
+  'unauthorised access': 'confidentiality',
+  'unauthorized access': 'confidentiality',
+  integrity: 'integrity',
+  alteration: 'integrity',
+  'unauthorised alteration': 'integrity',
+  'unauthorized alteration': 'integrity',
+  availability: 'availability',
+  loss: 'availability',
+  destruction: 'availability',
+  'loss of access': 'availability'
+};
 
 /** An authority as the source names it: its code here, or its name. */
 function authorityFrom(given: string) {
@@ -2083,24 +2093,28 @@ async function breachResolver(tx: Tx, batch: Batch) {
       )
   ]);
   const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
-  // Breaches with a decision recorded here, not brought in by an import.
-  const decidedHere = new Set(
+  // Each earlier breach's decisions: one recorded here, not brought in by an
+  // import, means it has been worked on here.
+  const decisionsOf = Map.groupBy(
     earlier.length
-      ? (
-          await tx
-            .selectDistinct({ id: breachDecisions.breachId })
-            .from(breachDecisions)
-            .where(
-              and(
-                inArray(
-                  breachDecisions.breachId,
-                  earlier.map((r) => r.id)
-                ),
-                isNull(breachDecisions.importBatchId)
-              )
+      ? await tx
+          .select({
+            breachId: breachDecisions.breachId,
+            kind: breachDecisions.kind,
+            outcome: breachDecisions.outcome,
+            completedAt: breachDecisions.completedAt,
+            authorityCode: breachDecisions.authorityCode,
+            importBatchId: breachDecisions.importBatchId
+          })
+          .from(breachDecisions)
+          .where(
+            inArray(
+              breachDecisions.breachId,
+              earlier.map((r) => r.id)
             )
-        ).map((r) => r.id)
-      : []
+          )
+      : [],
+    (d) => d.breachId
   );
   const cutOff = batch.mapping?.closedBefore
     ? new Date(batch.mapping.closedBefore)
@@ -2110,7 +2124,7 @@ async function breachResolver(tx: Tx, batch: Batch) {
     const refuse = (reason: string): Decision => ({ action: 'refuse', reason });
     const categories: BreachCategory[] = [];
     for (const given of data.categories ?? []) {
-      const category = breachCategoryFrom(given);
+      const category = BREACH_CATEGORY_WORDS[given.trim().toLowerCase()];
       if (!category)
         return refuse(
           `"${given}" is not a kind of breach Govern knows. Use confidentiality, integrity or availability.`
@@ -2146,6 +2160,26 @@ async function breachResolver(tx: Tx, batch: Batch) {
     const discoveredAt = new Date(data.discoveredAt);
     if (discoveredAt > now)
       return refuse('It cannot have been discovered in the future.');
+    // Each date after it was discovered and none in the future, or its clocks
+    // read nonsense: told before anyone knew reads as told in time.
+    const after = [
+      ['the authority was notified', data.authorityNotifiedAt],
+      ['the people affected were told', data.subjectsNotifiedAt],
+      ['the Commissioner was told under PECR', data.pecrNotifiedAt],
+      ['it was closed', data.closedAt]
+    ] as const;
+    for (const [what, iso] of after) {
+      const when = at(iso);
+      if (when && when < discoveredAt)
+        return refuse(`It gives a date ${what} before it was discovered.`);
+      if (when && when > now)
+        return refuse(`It gives a date ${what} in the future.`);
+    }
+    if (data.occurredAt && new Date(data.occurredAt) > discoveredAt)
+      return refuse('It gives a date it happened after it was discovered.');
+    if (data.containedAt && new Date(data.containedAt) > now)
+      return refuse('It gives a date it was contained in the future.');
+
     // Told, or judged not to need telling: each needs what makes it true.
     const decision =
       data.authorityDecision ?? (data.authorityNotifiedAt ? 'notified' : null);
@@ -2157,8 +2191,20 @@ async function breachResolver(tx: Tx, batch: Batch) {
       return refuse(
         'It says the authority did not need notifying, and gives a date it was notified. Say which it was.'
       );
-    const establishment = { entityLaw: entity.law, ...entity };
-    const targets = targetsOf({ laws, affectedStates, regime }, establishment);
+    const subjects =
+      data.subjectsDecision ?? (data.subjectsNotifiedAt ? 'told' : null);
+    if (subjects === 'told' && !data.subjectsNotifiedAt)
+      return refuse(
+        'It says the people affected were told, but not when. Give the date they were told.'
+      );
+    if (subjects === 'not_required' && data.subjectsNotifiedAt)
+      return refuse(
+        'It says the people affected did not need telling, and gives a date they were told. Say which it was.'
+      );
+    const targets = targetsOf(
+      { laws, affectedStates, regime },
+      { entityLaw: entity.law, ...entity }
+    );
     let authorityCode: string | null = null;
     if (decision === 'notified') {
       if (data.authority) {
@@ -2182,16 +2228,63 @@ async function breachResolver(tx: Tx, batch: Batch) {
         );
       else authorityCode = targets[0]?.code ?? null;
     }
+    const decisions: BreachDecisionResolved[] = [
+      ...(decision
+        ? [
+            {
+              kind: 'supervisory_authority' as const,
+              outcome:
+                decision === 'notified'
+                  ? ('done' as const)
+                  : ('not_required' as const),
+              completedAt: at(data.authorityNotifiedAt),
+              authorityCode
+            }
+          ]
+        : []),
+      ...(subjects
+        ? [
+            {
+              kind: 'data_subjects' as const,
+              outcome:
+                subjects === 'told'
+                  ? ('done' as const)
+                  : ('not_required' as const),
+              completedAt: at(data.subjectsNotifiedAt),
+              authorityCode: null
+            }
+          ]
+        : []),
+      ...(data.pecrNotifiedAt
+        ? [
+            {
+              kind: 'pecr_commissioner' as const,
+              outcome: 'done' as const,
+              completedAt: new Date(data.pecrNotifiedAt),
+              authorityCode: null
+            }
+          ]
+        : [])
+    ];
 
+    if (data.status && data.status !== 'closed' && data.closedAt)
+      return refuse(
+        `It is ${data.status} there, but gives a date it was closed. Say which it is.`
+      );
+    // Notified as a breach recorded here is: every authority it is owed to
+    // told, or the Commissioner under PECR.
+    const told =
+      Boolean(data.pecrNotifiedAt) ||
+      (decision === 'notified' && everyAuthorityTold(targets, decisions));
     const status =
       data.status ??
       (data.closedAt
         ? 'closed'
-        : decision === 'notified' || data.pecrNotifiedAt
+        : told
           ? 'notified'
           : data.containedAt
             ? 'contained'
-            : decision === 'not_required'
+            : decision
               ? 'assessing'
               : 'discovered');
     if (status === 'closed' && !data.closedAt)
@@ -2211,14 +2304,14 @@ async function breachResolver(tx: Tx, batch: Batch) {
         reason: `Closed on ${ended.toISOString().slice(0, 10)}, before the retention cut-off of ${cutOff.toISOString().slice(0, 10)}.`
       };
 
-    const breach: BreachResolved = {
+    const resolved = (toWrite: BreachDecisionResolved[]): BreachResolved => ({
       regime,
       laws,
       affectedStates,
       categories,
       status,
       ownerId: data.owner ? memberOf(data.owner) : null,
-      authorityCode,
+      decisions: toWrite,
       // The sweep reads only open breaches.
       overdue:
         !data.closedAt &&
@@ -2227,42 +2320,17 @@ async function breachResolver(tx: Tx, batch: Batch) {
             controllerRole: data.controllerRole ?? 'controller',
             discoveredAt,
             regime,
-            laws,
-            affectedStates,
             pecrServiceBreach: data.pecrServiceBreach ?? null
           },
-          decisions: [
-            ...(decision
-              ? [
-                  {
-                    kind: 'supervisory_authority' as const,
-                    outcome:
-                      decision === 'notified'
-                        ? ('done' as const)
-                        : ('not_required' as const),
-                    authorityCode,
-                    completedAt: at(data.authorityNotifiedAt)
-                  }
-                ]
-              : []),
-            ...(data.pecrNotifiedAt
-              ? [
-                  {
-                    kind: 'pecr_commissioner' as const,
-                    outcome: 'done' as const,
-                    authorityCode: null,
-                    completedAt: new Date(data.pecrNotifiedAt)
-                  }
-                ]
-              : [])
-          ],
-          entity: establishment,
+          decisions,
+          targets,
           provider: entity.provider,
           now
         })
-    };
+    });
     const found = own.get(sourceRef.toLowerCase());
-    if (!found) return { action: 'create', recordId: null, breach };
+    if (!found)
+      return { action: 'create', recordId: null, breach: resolved(decisions) };
     if (found.entityId !== batch.entityId)
       return refuse(
         `Imported before into ${found.entityName}. Import it into that entity.`
@@ -2273,11 +2341,40 @@ async function breachResolver(tx: Tx, batch: Batch) {
       found.importedAt?.getTime() ?? 0,
       found.confirmedAt?.getTime() ?? 0
     );
-    if (decidedHere.has(found.id) || found.updatedAt.getTime() > settled)
+    const had = decisionsOf.get(found.id) ?? [];
+    if (
+      had.some((d) => d.importBatchId === null) ||
+      found.updatedAt.getTime() > settled
+    )
       return refuse(
         `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
       );
-    return { action: 'update', recordId: found.id, breach };
+    // A decision it came in with stands as it came in; one the source has
+    // recorded since is added, and one it now tells differently is refused
+    // rather than rewriting when somebody was told.
+    type Told = {
+      outcome: string;
+      authorityCode: string | null;
+      completedAt: Date | null;
+    };
+    const same = (a: Told, b: Told) =>
+      a.outcome === b.outcome &&
+      a.authorityCode === b.authorityCode &&
+      a.completedAt?.getTime() === b.completedAt?.getTime();
+    const changed = had.filter(
+      (h) => !decisions.some((d) => d.kind === h.kind && same(d, h))
+    );
+    if (changed.length)
+      return refuse(
+        `${found.reference} came in saying something different about who was told. A decision once imported is not rewritten: record what changed on its page.`
+      );
+    return {
+      action: 'update',
+      recordId: found.id,
+      breach: resolved(
+        decisions.filter((d) => !had.some((h) => h.kind === d.kind))
+      )
+    };
   };
 }
 
@@ -3900,8 +3997,8 @@ async function writeRequest(
  * is notified and no task is raised here; the sweep reads its clocks from
  * those dates afterwards. Who was told there comes in as decisions, completed
  * on the dates the source gave, said to have been made there, and marked with
- * this import; they are written when the breach first comes in, and a later
- * import leaves them as they are.
+ * this import. A later import adds what the source has recorded since and
+ * leaves the rest as they came in.
  */
 async function writeBreach(
   c: WriteContext,
@@ -3945,9 +4042,18 @@ async function writeBreach(
   });
   let id: string;
   if (c.decision.recordId) {
+    // Its dates follow the source exactly, emptied ones too: the clocks
+    // and the sweep read them.
     await c.tx
       .update(breaches)
-      .set({ ...said(described), ...owner, ...kept })
+      .set({
+        ...said(described),
+        occurredAt: described.occurredAt,
+        containedAt: described.containedAt,
+        closedAt: described.closedAt,
+        ...owner,
+        ...kept
+      })
       .where(eq(breaches.id, c.decision.recordId));
     id = c.decision.recordId;
   } else {
@@ -3977,85 +4083,54 @@ async function writeBreach(
       })
       .returning({ id: breaches.id });
     id = created.id;
-    const part3 = resolved.regime === 'dpa_part3';
-    const made = (
-      kind: 'supervisory_authority' | 'data_subjects' | 'pecr_commissioner',
-      outcome: 'done' | 'not_required',
-      completedAt: Date | null,
-      rationale: string,
-      statutoryBasis: string,
-      more: Partial<typeof breachDecisions.$inferInsert> = {}
-    ) => ({
-      organisationId: c.batch.organisationId,
-      breachId: id,
-      kind,
-      outcome,
-      completedAt,
-      rationale,
-      statutoryBasis,
-      decidedByLabel: `In ${c.sourceName}`,
-      decidedAt: c.at,
-      importBatchId: c.batch.id,
-      ...more
-    });
-    const authorityDecision =
-      data.authorityDecision ?? (data.authorityNotifiedAt ? 'notified' : null);
-    const decisions = [
-      ...(authorityDecision === 'notified'
-        ? [
-            made(
-              'supervisory_authority',
-              'done',
-              new Date(data.authorityNotifiedAt!),
-              data.authorityRationale ??
-                `Notified, as ${c.sourceName} recorded it.`,
-              part3 ? 's.67(1)' : 'Article 33(1)',
-              {
-                authorityCode: resolved.authorityCode,
-                recipient:
-                  authorityByCode(resolved.authorityCode)?.name ?? null,
+  }
+  const part3 = resolved.regime === 'dpa_part3';
+  const told = (d: BreachDecisionResolved) => {
+    switch (d.kind) {
+      case 'supervisory_authority':
+        return {
+          rationale:
+            data.authorityRationale ??
+            (d.outcome === 'done'
+              ? `Notified, as ${c.sourceName} recorded it.`
+              : `Judged not to need notifying, as ${c.sourceName} recorded it; it gave no reason.`),
+          statutoryBasis: part3 ? 's.67(1)' : 'Article 33(1)',
+          ...(d.outcome === 'done'
+            ? {
+                recipient: authorityByCode(d.authorityCode)?.name ?? null,
                 externalRef: data.authorityRef ?? null,
                 lateReason: data.lateReason ?? null
               }
-            )
-          ]
-        : authorityDecision === 'not_required'
-          ? [
-              made(
-                'supervisory_authority',
-                'not_required',
-                null,
-                data.authorityRationale ??
-                  `Judged not to need notifying, as ${c.sourceName} recorded it; it gave no reason.`,
-                part3 ? 's.67(1)' : 'Article 33(1)'
-              )
-            ]
-          : []),
-      ...(data.subjectsNotifiedAt
-        ? [
-            made(
-              'data_subjects',
-              'done',
-              new Date(data.subjectsNotifiedAt),
-              `The people affected were told, as ${c.sourceName} recorded it.`,
-              part3 ? 's.68(1)' : 'Article 34(1)'
-            )
-          ]
-        : []),
-      ...(data.pecrNotifiedAt
-        ? [
-            made(
-              'pecr_commissioner',
-              'done',
-              new Date(data.pecrNotifiedAt),
-              `The Information Commission was told, as ${c.sourceName} recorded it.`,
-              'PECR reg 5A(2)'
-            )
-          ]
-        : [])
-    ];
-    if (decisions.length) await c.tx.insert(breachDecisions).values(decisions);
-  }
+            : {})
+        };
+      case 'data_subjects':
+        return {
+          rationale:
+            data.subjectsRationale ??
+            (d.outcome === 'done'
+              ? `The people affected were told, as ${c.sourceName} recorded it.`
+              : `Judged not to need telling the people affected, as ${c.sourceName} recorded it; it gave no reason.`),
+          statutoryBasis: part3 ? 's.68(1)' : 'Article 34(1)'
+        };
+      case 'pecr_commissioner':
+        return {
+          rationale: `The Information Commission was told, as ${c.sourceName} recorded it.`,
+          statutoryBasis: 'PECR reg 5A(2)'
+        };
+    }
+  };
+  if (resolved.decisions.length)
+    await c.tx.insert(breachDecisions).values(
+      resolved.decisions.map((d) => ({
+        organisationId: c.batch.organisationId,
+        breachId: id,
+        ...d,
+        ...told(d),
+        decidedByLabel: `In ${c.sourceName}`,
+        decidedAt: c.at,
+        importBatchId: c.batch.id
+      }))
+    );
   const earlier = was ? await earlierImports(c, 'breach', id) : null;
   const { documentId } = await attachImportFile(
     c,

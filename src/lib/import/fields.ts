@@ -1665,7 +1665,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       label: 'Kind of breach',
       kind: 'list',
       hint: 'Confidentiality, integrity or availability. Separate several with ";".',
-      aliases: ['category', 'categories', 'breach type', 'type', 'kind']
+      aliases: ['category', 'categories', 'breach type', 'breach category']
     },
     {
       key: 'subjectsAffected',
@@ -1811,8 +1811,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: [
         'notification rationale',
         'reason not reported',
-        'reason not notified',
-        'risk assessment'
+        'reason not notified'
       ]
     },
     {
@@ -1822,15 +1821,38 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['late reason', 'reason for delay', 'delay reason']
     },
     {
+      key: 'subjectsDecision',
+      label: 'The people affected',
+      kind: 'choice',
+      hint: 'Whether they were told, or judged not to need telling. Empty: not decided there, or told on the date given.',
+      aliases: [
+        'individuals notified',
+        'data subjects notified',
+        'subjects notified'
+      ],
+      choices: [
+        choice('told', 'Told', 'yes', 'told', 'notified', 'true'),
+        choice('not_required', 'Not required', 'no', 'not required', 'false')
+      ]
+    },
+    {
       key: 'subjectsNotifiedAt',
       label: 'People affected told on',
       kind: 'date',
       aliases: [
-        'individuals notified',
         'individuals notified on',
-        'data subjects notified',
         'data subjects notified on',
-        'subjects notified on'
+        'subjects notified on',
+        'date individuals notified'
+      ]
+    },
+    {
+      key: 'subjectsRationale',
+      label: 'Why (the people affected)',
+      kind: 'text',
+      aliases: [
+        'reason individuals not notified',
+        'reason subjects not notified'
       ]
     },
     {
@@ -1843,7 +1865,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       key: 'closedAt',
       label: 'Closed on',
       kind: 'date',
-      aliases: ['closed', 'closed on', 'date closed', 'resolved on']
+      aliases: ['closed on', 'date closed', 'resolved on']
     },
     {
       key: 'closureRationale',

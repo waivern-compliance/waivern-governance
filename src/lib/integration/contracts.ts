@@ -500,7 +500,10 @@ export const breachIn = z.object({
   authorityRef: z.string().max(200).optional(),
   authorityRationale: longText.optional(),
   lateReason: longText.optional(),
+  /** Whether the people affected were told, or judged not to need telling. */
+  subjectsDecision: z.enum(['told', 'not_required']).optional(),
   subjectsNotifiedAt: z.iso.datetime().optional(),
+  subjectsRationale: longText.optional(),
   pecrNotifiedAt: z.iso.datetime().optional(),
   closedAt: z.iso.datetime().optional(),
   closureRationale: longText.optional()

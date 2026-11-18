@@ -150,7 +150,7 @@ export function concerns(
 }
 
 /** Whether every authority owed a notification has had one. */
-function everyAuthorityTold(
+export function everyAuthorityTold(
   targets: readonly NotifyTarget[],
   decisions: ReadonlyArray<
     Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode'>
@@ -187,25 +187,20 @@ export function targetsOf(
 export function anyClockOverdue(input: {
   breach: Pick<
     Breach,
-    | 'controllerRole'
-    | 'discoveredAt'
-    | 'regime'
-    | 'laws'
-    | 'affectedStates'
-    | 'pecrServiceBreach'
+    'controllerRole' | 'discoveredAt' | 'regime' | 'pecrServiceBreach'
   >;
   decisions: ReadonlyArray<
     Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode' | 'completedAt'>
   >;
-  entity: EntityLaw;
+  /** The authorities it is owed to, from {@link targetsOf}. */
+  targets: readonly NotifyTarget[];
   provider: boolean;
   now: Date;
 }): boolean {
-  const { breach, decisions, now } = input;
+  const { breach, decisions, targets, now } = input;
   const notRequired = decisions.some(
     (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
   );
-  const targets = targetsOf(breach, input.entity);
   const clock = (notifiedAt: Date | null) =>
     clockFor({
       role: breach.controllerRole as ControllerRole,

@@ -244,6 +244,91 @@ describe('importing breaches', () => {
     assert.equal(decision.authorityCode, 'gb-ico');
   });
 
+  it('refuses a status its dates contradict, and dates out of order', async () => {
+    const w = await world('import-breach-order');
+    const { preview, rows } = await imported(
+      w.org.id,
+      [
+        HEADER,
+        `B-1,Still open,${daysAgo(20)},Investigating,,,${daysAgo(5)}`,
+        `B-2,Told early,${daysAgo(20)},,Yes,${daysAgo(25)},`,
+        `B-3,Closed early,${daysAgo(20)},,No,,${daysAgo(30)}`
+      ].join('\n')
+    );
+    assert.deepEqual(preview, { refuse: 3 });
+    assert.match(
+      rows[0].reason ?? '',
+      /assessing there, but gives a date it was closed/
+    );
+    assert.match(
+      rows[1].reason ?? '',
+      /authority was notified before it was discovered/
+    );
+    assert.match(rows[2].reason ?? '', /closed before it was discovered/);
+  });
+
+  it('is notified only once every authority owed is told, as here', async () => {
+    const w = await world('import-breach-partly', 'uk_eu');
+    await imported(
+      w.org.id,
+      [
+        `${HEADER},Law,Authority`,
+        `B-1,Both,${daysAgo(20)},,Yes,${daysAgo(19)},,Both,ICO`
+      ].join('\n')
+    );
+    const [breach] = await breachesOf(w.org.id);
+    assert.equal(breach.status, 'assessing');
+  });
+
+  it('keeps a judgement that the people affected did not need telling', async () => {
+    const w = await world('import-breach-subjects');
+    await imported(
+      w.org.id,
+      [
+        `${HEADER},Individuals notified,Reason individuals not notified`,
+        `B-1,Encrypted laptop,${daysAgo(20)},,No,,,No,The disk was encrypted.`
+      ].join('\n')
+    );
+    const [breach] = await breachesOf(w.org.id);
+    const subjects = (await decisionsOf(breach.id)).find(
+      (d) => d.kind === 'data_subjects'
+    );
+    assert.equal(subjects?.outcome, 'not_required');
+    assert.equal(subjects?.rationale, 'The disk was encrypted.');
+  });
+
+  it('adds a notification the source recorded since, and refuses one it now tells differently', async () => {
+    const w = await world('import-breach-later');
+    const discovered = daysAgo(20);
+    const row = (told: string) =>
+      [HEADER, `B-1,Lost laptop,${discovered},,${told},`].join('\n');
+    const first = await imported(w.org.id, row(','));
+    assert.deepEqual(first.notes, { overdue: 1 });
+    const second = await imported(w.org.id, row(`Yes,${daysAgo(15)}`));
+    assert.deepEqual(second.preview, { update: 1 });
+    const [breach] = await breachesOf(w.org.id);
+    assert.equal(breach.status, 'notified');
+    const [notified] = await decisionsOf(breach.id);
+    assert.equal(notified.importBatchId, second.batch.id);
+    const loaded = (await loadBreach(breach.id, w.org.id))!;
+    assert.equal(loaded.clock.state, 'met');
+
+    const third = await imported(w.org.id, row(`Yes,${daysAgo(14)}`));
+    assert.deepEqual(third.preview, { refuse: 1 });
+    assert.match(
+      third.rows[0].reason ?? '',
+      /something different about who was told/
+    );
+
+    // Undoing the import that added it takes the notification away again.
+    await undoImport({
+      organisationId: w.org.id,
+      batchId: second.batch.id,
+      actor: SYSTEM
+    });
+    assert.equal((await decisionsOf(breach.id)).length, 0);
+  });
+
   it('leaves out breaches closed before the retention cut-off', async () => {
     const w = await world('import-breach-retention');
     const { preview, rows } = await imported(
