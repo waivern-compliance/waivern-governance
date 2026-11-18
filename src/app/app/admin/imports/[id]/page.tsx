@@ -3,7 +3,12 @@ import { notFound, redirect } from 'next/navigation';
 
 import { RefusableForm } from '@/components/foi/RefusableForm';
 import { inputClass } from '@/components/form-classes';
-import { CARRIES_FILES, FIELDS, TRANSLATED } from '@/lib/import/fields';
+import {
+  CARRIES_FILES,
+  CASE_HISTORY,
+  FIELDS,
+  TRANSLATED
+} from '@/lib/import/fields';
 import { mayImport } from '@/lib/rbac';
 import { SCALES } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
@@ -250,6 +255,25 @@ export default async function ImportBatchPage({
                 </label>
               ))}
             </div>
+            {CASE_HISTORY.has(batch.recordType) ? (
+              <label className="block max-w-prose space-y-1 text-sm">
+                <span className="font-medium">
+                  Leave out cases closed before{' '}
+                  <span className="font-normal text-ink-soft">(optional)</span>
+                </span>
+                <span className="block text-xs text-ink-soft">
+                  Your organisation&rsquo;s retention period for these records.
+                  A case that ended before this date is left out, rather than
+                  brought in and kept longer than your policy allows.
+                </span>
+                <input
+                  type="date"
+                  name="closedBefore"
+                  defaultValue={mapping.closedBefore ?? ''}
+                  className={`${inputClass} max-w-48`}
+                />
+              </label>
+            ) : null}
             {translating && translating.fields.length > 0 ? (
               <div className="space-y-3 rounded border border-line bg-surface p-4">
                 <p className="max-w-prose text-sm">
@@ -305,21 +329,29 @@ export default async function ImportBatchPage({
                 })}
               </div>
             ) : null}
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="keepUnmapped"
-                defaultChecked={mapping.keepUnmapped}
-                className="mt-1 accent-brand"
-              />
-              <span>
-                Keep the other columns with each record
-                <span className="block text-xs text-ink-soft">
-                  Values from columns no field reads are kept on the record, to
-                  read, so nothing from the old platform is lost.
+            {CASE_HISTORY.has(batch.recordType) ? (
+              <p className="max-w-prose text-xs text-ink-soft">
+                Columns no field reads are not kept. They are mostly about the
+                person who asked, and the register holds no more about them than
+                it needs. Attach the case file if the detail matters.
+              </p>
+            ) : (
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="keepUnmapped"
+                  defaultChecked={mapping.keepUnmapped}
+                  className="mt-1 accent-brand"
+                />
+                <span>
+                  Keep the other columns with each record
+                  <span className="block text-xs text-ink-soft">
+                    Values from columns no field reads are kept on the record,
+                    to read, so nothing from the old platform is lost.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            )}
           </RefusableForm>
         </section>
       ) : null}
@@ -332,6 +364,19 @@ export default async function ImportBatchPage({
               : 'What happened'}
           </h2>
           <p className="text-sm">{countsWords(batch.counts)}.</p>
+          {batch.status === 'previewed' && batch.previewNotes?.overdue ? (
+            <p className="max-w-prose rounded border-l-2 border-amber-700 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <strong>
+                {batch.previewNotes.overdue} open{' '}
+                {batch.previewNotes.overdue === 1 ? 'case is' : 'cases are'}{' '}
+                already past{' '}
+                {batch.previewNotes.overdue === 1 ? 'its' : 'their'} statutory
+                deadline
+              </strong>{' '}
+              and will raise tasks as soon as they are imported. That is how
+              they stand: their dates are the ones the other platform recorded.
+            </p>
+          ) : null}
 
           {batch.status === 'previewed' ? (
             <div className="space-y-2 rounded border border-line bg-surface p-4">
@@ -427,7 +472,9 @@ export default async function ImportBatchPage({
                     </td>
                     <td className="px-3 py-1.5">{r.sourceRef ?? ''}</td>
                     <td className={`px-3 py-1.5 ${TONE[r.action]}`}>
-                      {ACTION_LABEL[r.action]}
+                      {r.action === 'skip' && !r.reason
+                        ? 'Empty row'
+                        : ACTION_LABEL[r.action]}
                       {r.reason ? `: ${r.reason}` : ''}
                       {r.recordId && batch.status === 'committed' ? (
                         <>

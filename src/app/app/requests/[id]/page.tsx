@@ -4,6 +4,8 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, processingActivities, users } from '@/db/schema';
@@ -46,6 +48,7 @@ import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { complaintsAboutRequest } from '@/services/complaints';
 import { loadRequest } from '@/services/data-subject-requests';
+import { importSourceName } from '@/services/imports';
 import { convertedFrom } from '@/services/information-requests';
 import { regulatorWithoutEstablishment } from '@/services/regulator';
 
@@ -236,6 +239,30 @@ export default async function RequestPage({
           </p>
         ) : null}
       </header>
+
+      {request.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(
+              active.membership.organisationId,
+              request.importSourceId
+            )) ?? 'another platform'
+          }
+          batchId={request.importBatchId}
+          confirmed={request.importConfirmedAt !== null}
+          legacy={request.legacy}
+          confirm={
+            can(active.membership.grants, 'record.write', request.entityId) ? (
+              <ConfirmImported
+                type="data_subject_request"
+                id={request.id}
+                revalidate={`/app/requests/${request.id}`}
+                what="this request"
+              />
+            ) : null
+          }
+        />
+      ) : null}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">What was asked</h2>

@@ -11,7 +11,8 @@ export const RECORD_TYPE_LABEL: Record<string, string> = {
   mitigation: 'Mitigations',
   policy_document: 'Appropriate policy documents',
   policy: 'Policies',
-  assessment: 'Assessments'
+  assessment: 'Assessments',
+  data_subject_request: 'Data subject requests (history)'
 };
 
 /** Where a record of each kind is opened. */
@@ -30,6 +31,8 @@ export function recordHref(
       return `/app/policies/${id}`;
     case 'assessment':
       return `/app/assessments/${id}`;
+    case 'data_subject_request':
+      return `/app/requests/${id}`;
     case 'policy_document':
       return `/app/policy-documents/${id}`;
     case 'supplier':
@@ -59,7 +62,7 @@ export const ACTION_LABEL: Record<string, string> = {
   update: 'Updates the one imported before',
   merge: 'Adds to a supplier already recorded',
   refuse: 'Not imported',
-  skip: 'Empty row'
+  skip: 'Left out'
 };
 
 const ORDER = ['create', 'update', 'merge', 'refuse', 'skip'] as const;
@@ -68,7 +71,7 @@ const SHORT: Record<string, string> = {
   update: 'updated',
   merge: 'added to',
   refuse: 'not imported',
-  skip: 'empty'
+  skip: 'left out'
 };
 
 /** "12 new, 3 updated, 2 not imported". */

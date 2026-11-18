@@ -416,6 +416,51 @@ export const assessmentIn = z.object({
     .default([])
 });
 
+/**
+ * A data subject request handled in another platform, with its real dates.
+ * Read by the importer only. What moved its clock there (asking for proof of
+ * identity or for clarification, extending the time) comes with its dates, so
+ * its deadline here is the one it had there.
+ */
+export const dataSubjectRequestIn = z.object({
+  externalRef,
+  requesterName: shortText,
+  requesterContact: z.string().max(500).optional(),
+  representative: z.string().max(500).optional(),
+  /** As the source names them; read onto the rights here when matched. */
+  rights: z.array(z.string().max(200)).min(1).max(20),
+  channel: z.string().max(100).optional(),
+  receivedAt: z.iso.datetime(),
+  description: longText.optional(),
+  jurisdiction: z.enum(['uk', 'eu', 'uk_eu']).optional(),
+  regime: z.enum(['gdpr', 'dpa_part3']).optional(),
+  owner: z.string().max(320).optional(),
+  status: z
+    .enum([
+      'received',
+      'verifying',
+      'in_progress',
+      'paused',
+      'responded',
+      'refused',
+      'withdrawn',
+      'closed'
+    ])
+    .optional(),
+  identityRequestedAt: z.iso.datetime().optional(),
+  identityVerifiedAt: z.iso.datetime().optional(),
+  identityMethod: z.string().max(500).optional(),
+  clarificationRequestedAt: z.iso.datetime().optional(),
+  clarificationReceivedAt: z.iso.datetime().optional(),
+  extended: z.boolean().optional(),
+  extendedAt: z.iso.datetime().optional(),
+  extensionReason: longText.optional(),
+  respondedAt: z.iso.datetime().optional(),
+  responseSummary: longText.optional(),
+  closedAt: z.iso.datetime().optional(),
+  closureRationale: longText.optional()
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -435,6 +480,7 @@ export type MitigationIn = z.infer<typeof mitigationIn>;
 export type PolicyDocumentIn = z.infer<typeof policyDocumentIn>;
 export type PolicyIn = z.infer<typeof policyIn>;
 export type AssessmentIn = z.infer<typeof assessmentIn>;
+export type DataSubjectRequestIn = z.infer<typeof dataSubjectRequestIn>;
 
 export type IngestOutcome = {
   received: number;

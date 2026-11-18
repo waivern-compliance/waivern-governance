@@ -1,6 +1,7 @@
 import type {
   AiUseCaseIn,
   AssessmentIn,
+  DataSubjectRequestIn,
   InformationAssetIn,
   MitigationIn,
   PolicyDocumentIn,
@@ -27,6 +28,11 @@ export type ImportMapping = {
    * the kind of every assessment in an export of DPIAs, say. Keyed by field.
    */
   everyRow?: Record<string, string>;
+  /**
+   * For case history: closed cases that ended before this date are left out,
+   * as the organisation's own retention period for them has run (decision 10).
+   */
+  closedBefore?: string;
 };
 
 /**
@@ -152,5 +158,10 @@ export type ImportRecord =
   | {
       kind: 'assessment';
       data: AssessmentIn & { file?: string };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'data_subject_request';
+      data: DataSubjectRequestIn & { file?: string };
       legacy: Legacy;
     };
