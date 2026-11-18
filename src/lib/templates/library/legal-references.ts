@@ -1,4 +1,5 @@
 import { NIST_LEGAL_REFERENCES } from '@/lib/ai-frameworks/nist-ai-rmf';
+import { CE_LEGAL_REFERENCES } from '@/lib/cyber-essentials/references';
 
 /**
  * The reference library shown beside questions.
@@ -1566,5 +1567,13 @@ const REFERENCES = [
   }
 ] as const;
 
-/** The whole library: the references above, then NIST AI RMF 1.0's functions, categories and subcategories. */
-export const LEGAL_REFERENCES = [...REFERENCES, ...NIST_LEGAL_REFERENCES];
+/**
+ * The whole library: the references above, then NIST AI RMF 1.0's functions,
+ * categories and subcategories, then Cyber Essentials' requirements and scope
+ * rules.
+ */
+export const LEGAL_REFERENCES = [
+  ...REFERENCES,
+  ...NIST_LEGAL_REFERENCES,
+  ...CE_LEGAL_REFERENCES
+];

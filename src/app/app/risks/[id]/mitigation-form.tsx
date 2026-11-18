@@ -131,7 +131,7 @@ export function MitigationForm({
             <input
               name="controlRef"
               placeholder="A.8.3"
-              className="w-28 rounded border border-line bg-ground px-3 py-2 font-mono text-sm"
+              className="w-48 rounded border border-line bg-ground px-3 py-2 font-mono text-sm"
             />
           </label>
           <label className="block space-y-1">
