@@ -543,7 +543,7 @@ same reason. The window covers complaints **received** in it.
 
 ```json
 {
-  "summaryVersion": "1.1",
+  "summaryVersion": "1.2",
   "generatedAt": "2026-10-30T09:14:02.881Z",
   "organisation": { "name": "BBC Group", "slug": "bbc-group", "defaultJurisdiction": "uk" },
   "targets": { "outcomeTargetDays": 30, "updateIntervalDays": 30 },
@@ -552,7 +552,7 @@ same reason. The window covers complaints **received** in it.
     "received": 9, "acknowledged": 8, "acknowledgedInTime": 7, "acknowledgedLate": 1,
     "outcomesSent": 6, "outcomeWithinTarget": 5, "outcomeAfterTarget": 1,
     "withdrawn": 1, "open": 2, "acknowledgementOverdue": 0,
-    "medianDaysToAcknowledge": 3, "medianDaysToOutcome": 24
+    "medianDaysToAcknowledge": 3, "medianDaysToOutcome": 24, "imported": 2
   },
   "outcomes": { "upheld": 2, "partlyUpheld": 2, "notUpheld": 2, "passedToController": 0 },
   "bySubject": [
@@ -588,6 +588,9 @@ same reason. The window covers complaints **received** in it.
 - `byLaw` (from 1.1) splits `totals` by the law each was handled under, with
   `uk`, `eu` and `uk_eu` (both laws) as keys, each with the same counts as `totals`.
   A law with nothing in the window is present with zeros.
+- `imported` (from 1.2) is how many of `received` were brought in from another
+  platform. They count by their real dates, like any other complaint, so a
+  migration can change the figures for months already reported.
 - `summaryVersion` versions this shape; additive changes bump the minor version.
 
 ### Transfer mechanisms on agreements

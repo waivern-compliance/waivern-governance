@@ -1629,7 +1629,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           'Write the letter in whatever you normally use. Record here whether the complaint was upheld, partly upheld or not upheld, what they were told, anything you are changing because of it, and where the letter is kept.',
           'The Act does not require you to tell them they may complain to the Information Commission, but the Commission will expect it, and the form asks.',
-          'A complaint cannot be closed without an outcome unless the complainant withdrew it.'
+          'A complaint cannot be closed without an outcome unless the complainant withdrew it.',
+          'A complaint imported from another platform keeps its real dates, so its 30 days and your targets read as they would have here. When it was acknowledged, last updated and answered shows as recorded in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it.'
         ]
       },
       {
@@ -2280,7 +2281,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records, files, assets, risks, policies, assessments, and request and breach history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
+      'Bring records, files, assets, risks, policies, assessments, and request, breach and complaint history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2366,6 +2367,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Complaints',
+        body: [
+          'Each complaint needs who complained and when it arrived, which starts the 30 days to acknowledge it where the Act applies. Its dates are kept as the old platform recorded them, so its 30 days and your own targets run here as they would have had it been recorded here. Acknowledging it, the latest progress update and sending the outcome come in with their dates, said to have been done in the old platform. A date before it arrived, an update after the outcome, or an outcome without what it came to is not imported.',
+          'A closed complaint needs its outcome and the date it was closed, as here; one the complainant withdrew needs the date and no outcome. An open complaint already past the 30 days or one of your targets is overdue here too; the preview says how many there are before anything is written, and they raise tasks once imported. Nothing is sent to the complainant. Columns no field reads are not kept. A complaint can name the request it is about by its ID in the same platform, so import the requests first.',
+          "The retention cut-off leaves out complaints closed before it. Imported complaints count in the complaints summary by their real dates, marked as imported. Importing again updates a complaint's details and adds a step recorded there since, such as a later update; a step it came in with is not rewritten, so a row dating it differently is not imported. A complaint worked on here since it was imported is not written over."
+        ]
+      },
+      {
         heading: 'Information assets',
         body: [
           "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
@@ -2384,7 +2393,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request or breach shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request, breach or complaint shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {

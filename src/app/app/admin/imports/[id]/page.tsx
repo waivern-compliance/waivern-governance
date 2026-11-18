@@ -369,9 +369,7 @@ export default async function ImportBatchPage({
               <strong>
                 {batch.previewNotes.overdue} open{' '}
                 {batch.previewNotes.overdue === 1 ? 'case is' : 'cases are'}{' '}
-                already past{' '}
-                {batch.previewNotes.overdue === 1 ? 'its' : 'their'} statutory
-                deadline
+                already past a deadline
               </strong>{' '}
               and will raise tasks as soon as they are imported. That is how
               they stand: their dates are the ones the other platform recorded.

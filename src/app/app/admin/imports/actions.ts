@@ -9,6 +9,7 @@ import {
   aiUseCases,
   assessments,
   breaches,
+  dataProtectionComplaints,
   dataSubjectRequests,
   evidence,
   informationAssets,
@@ -247,7 +248,8 @@ const ENTITY_TABLE = {
   policy_document: policyDocuments,
   assessment: assessments,
   data_subject_request: dataSubjectRequests,
-  breach: breaches
+  breach: breaches,
+  data_protection_complaint: dataProtectionComplaints
 } as const;
 
 /**

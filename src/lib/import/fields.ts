@@ -1,7 +1,9 @@
+import { COMPLAINT_SUBJECTS } from '@/lib/complaints/statutory';
 import {
   aiUseCaseIn,
   assessmentIn,
   breachIn,
+  complaintIn,
   dataSubjectRequestIn,
   dpaIn,
   evidenceIn,
@@ -35,7 +37,8 @@ export type RecordType =
   | 'policy'
   | 'assessment'
   | 'data_subject_request'
-  | 'breach';
+  | 'breach'
+  | 'data_protection_complaint';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -47,7 +50,8 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'mitigation',
   'assessment',
   'data_subject_request',
-  'breach'
+  'breach',
+  'data_protection_complaint'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -58,13 +62,15 @@ export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
   'policy',
   'assessment',
   'data_subject_request',
-  'breach'
+  'breach',
+  'data_protection_complaint'
 ]);
 
 /** Kinds of record with a statutory clock, imported with their history. */
 export const CASE_HISTORY: ReadonlySet<RecordType> = new Set([
   'data_subject_request',
-  'breach'
+  'breach',
+  'data_protection_complaint'
 ]);
 
 type FieldKind =
@@ -1879,6 +1885,375 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       ]
     },
     FILE
+  ],
+  data_protection_complaint: [
+    ID,
+    {
+      key: 'complainantName',
+      label: 'Complainant',
+      kind: 'text',
+      required: true,
+      aliases: [
+        'complainant',
+        'complainant name',
+        'data subject',
+        'name',
+        'full name',
+        'raised by'
+      ]
+    },
+    {
+      key: 'complainantContact',
+      label: 'Complainant contact',
+      kind: 'text',
+      aliases: [
+        'email',
+        'contact',
+        'complainant email',
+        'email address',
+        'contact details'
+      ]
+    },
+    {
+      key: 'representative',
+      label: 'Acting for them',
+      kind: 'text',
+      aliases: ['representative', 'agent', 'on behalf of', 'authorised agent']
+    },
+    {
+      key: 'channel',
+      label: 'How it arrived',
+      kind: 'text',
+      aliases: ['channel', 'received via', 'source', 'submitted via']
+    },
+    {
+      key: 'receivedAt',
+      label: 'Received on',
+      kind: 'date',
+      hint: 'Starts the thirty days to acknowledge it, for a complaint under UK law received from 19 June 2026.',
+      aliases: [
+        'received',
+        'received on',
+        'date received',
+        'submitted',
+        'submitted on',
+        'created',
+        'created on',
+        'opened'
+      ]
+    },
+    {
+      key: 'subject',
+      label: 'About',
+      kind: 'choice',
+      hint: "Empty: something else. The complainant's own words go in what they said.",
+      aliases: ['subject', 'category', 'complaint type', 'about', 'topic'],
+      choices: [
+        choice(
+          'request_handling',
+          COMPLAINT_SUBJECTS.request_handling,
+          'request handling',
+          'dsar',
+          'subject access',
+          'data subject request',
+          'request'
+        ),
+        choice(
+          'accuracy',
+          COMPLAINT_SUBJECTS.accuracy,
+          'accuracy',
+          'inaccurate data'
+        ),
+        choice(
+          'security',
+          COMPLAINT_SUBJECTS.security,
+          'security',
+          'breach',
+          'data breach',
+          'loss'
+        ),
+        choice(
+          'disclosure',
+          COMPLAINT_SUBJECTS.disclosure,
+          'disclosure',
+          'sharing',
+          'data sharing'
+        ),
+        choice(
+          'retention',
+          COMPLAINT_SUBJECTS.retention,
+          'retention',
+          'kept too long'
+        ),
+        choice(
+          'marketing',
+          COMPLAINT_SUBJECTS.marketing,
+          'marketing',
+          'direct marketing',
+          'spam'
+        ),
+        choice(
+          'lawfulness',
+          COMPLAINT_SUBJECTS.lawfulness,
+          'lawfulness',
+          'lawful basis',
+          'unlawful processing'
+        ),
+        choice(
+          'transparency',
+          COMPLAINT_SUBJECTS.transparency,
+          'transparency',
+          'privacy notice',
+          'right to be informed'
+        ),
+        choice(
+          'automated_decision',
+          COMPLAINT_SUBJECTS.automated_decision,
+          'automated decision',
+          'automated decision making',
+          'profiling'
+        ),
+        choice(
+          'other',
+          COMPLAINT_SUBJECTS.other,
+          'other',
+          'something else',
+          'general'
+        )
+      ]
+    },
+    {
+      key: 'description',
+      label: 'What they said',
+      kind: 'text',
+      aliases: [
+        'description',
+        'complaint',
+        'details',
+        'complaint details',
+        'notes'
+      ]
+    },
+    {
+      key: 'jurisdiction',
+      label: 'Law',
+      kind: 'choice',
+      hint: "Empty: the entity's. A complaint under EU law to an entity under UK law only is not imported.",
+      aliases: ['jurisdiction', 'law', 'regulation'],
+      choices: [
+        choice('uk', 'UK law', 'uk', 'uk gdpr', 'united kingdom'),
+        choice(
+          'eu',
+          'EU law',
+          'eu',
+          'eu gdpr',
+          'gdpr',
+          'ireland',
+          'european union'
+        ),
+        choice('uk_eu', 'Both', 'uk and eu', 'both', 'uk_eu')
+      ]
+    },
+    {
+      key: 'controllerRole',
+      label: 'Our role',
+      kind: 'choice',
+      hint: "A processor passes the complaint to the controller; the thirty days are the controller's.",
+      aliases: ['role', 'our role', 'controller or processor'],
+      choices: [
+        choice('controller', 'Controller', 'controller'),
+        choice('joint_controller', 'Joint controller', 'joint controller'),
+        choice('processor', 'Processor', 'processor')
+      ]
+    },
+    {
+      key: 'requestRef',
+      label: 'The request it is about',
+      kind: 'text',
+      hint: 'Its ID in the same platform. Import the requests first: a row naming a request not imported is not imported.',
+      aliases: ['request id', 'related request', 'dsr id', 'request reference']
+    },
+    {
+      key: 'owner',
+      label: 'Handler',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no handler.',
+      aliases: ['owner', 'handler', 'assignee', 'assigned to', 'owner email']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'Empty: worked out from its dates. Withdrawn and closed need the date it ended; outcome sent needs the outcome and its date.',
+      aliases: ['status', 'state', 'stage'],
+      choices: [
+        choice('received', 'Received', 'received', 'new', 'open', 'submitted'),
+        choice('acknowledged', 'Acknowledged', 'acknowledged'),
+        choice(
+          'investigating',
+          'Investigating',
+          'investigating',
+          'in progress',
+          'under investigation'
+        ),
+        choice(
+          'outcome_sent',
+          'Outcome sent',
+          'outcome sent',
+          'responded',
+          'answered'
+        ),
+        choice('withdrawn', 'Withdrawn', 'withdrawn', 'cancelled'),
+        choice(
+          'closed',
+          'Closed',
+          'closed',
+          'resolved',
+          'complete',
+          'completed'
+        )
+      ]
+    },
+    {
+      key: 'acknowledgedAt',
+      label: 'Acknowledged on',
+      kind: 'date',
+      aliases: [
+        'acknowledged',
+        'acknowledged on',
+        'date acknowledged',
+        'acknowledgement date'
+      ]
+    },
+    {
+      key: 'acknowledgementChannel',
+      label: 'Acknowledged by',
+      kind: 'text',
+      aliases: ['acknowledgement channel', 'acknowledged via']
+    },
+    {
+      key: 'acknowledgementLateReason',
+      label: 'Why the acknowledgement was late',
+      kind: 'text',
+      aliases: ['acknowledgement late reason', 'reason acknowledgement late']
+    },
+    {
+      key: 'lastUpdateAt',
+      label: 'Last updated them on',
+      kind: 'date',
+      hint: 'The latest progress update the complainant was given. Updates are counted on from it.',
+      aliases: [
+        'last update',
+        'last updated complainant',
+        'last progress update',
+        'last contact'
+      ]
+    },
+    {
+      key: 'outcome',
+      label: 'Outcome',
+      kind: 'choice',
+      aliases: ['outcome', 'result', 'finding'],
+      choices: [
+        choice('upheld', 'Upheld', 'upheld', 'justified', 'substantiated'),
+        choice(
+          'partly_upheld',
+          'Partly upheld',
+          'partly upheld',
+          'partially upheld',
+          'partly justified'
+        ),
+        choice(
+          'not_upheld',
+          'Not upheld',
+          'not upheld',
+          'rejected',
+          'unjustified',
+          'unsubstantiated'
+        ),
+        choice(
+          'passed_to_controller',
+          'Passed to the controller',
+          'passed to controller',
+          'referred to controller'
+        )
+      ]
+    },
+    {
+      key: 'outcomeAt',
+      label: 'Outcome sent on',
+      kind: 'date',
+      aliases: [
+        'outcome date',
+        'outcome sent on',
+        'responded on',
+        'date responded',
+        'response date'
+      ]
+    },
+    {
+      key: 'outcomeChannel',
+      label: 'Outcome sent by',
+      kind: 'text',
+      aliases: ['outcome channel', 'response channel', 'responded via']
+    },
+    {
+      key: 'outcomeSummary',
+      label: 'What they were told',
+      kind: 'text',
+      aliases: [
+        'outcome summary',
+        'what they were told',
+        'response',
+        'response summary',
+        'resolution'
+      ]
+    },
+    {
+      key: 'remedialAction',
+      label: 'What is changing because of it',
+      kind: 'text',
+      aliases: [
+        'remedial action',
+        'remediation',
+        'actions taken',
+        'corrective action'
+      ]
+    },
+    {
+      key: 'toldOfRegulatorRight',
+      label: 'Told they may complain to the regulator',
+      kind: 'yesno',
+      aliases: [
+        'told of right to complain',
+        'regulator right',
+        'ico rights given'
+      ]
+    },
+    {
+      key: 'outcomeLateReason',
+      label: 'Why the outcome took longer',
+      kind: 'text',
+      aliases: ['outcome late reason', 'reason for delay', 'delay reason']
+    },
+    {
+      key: 'closedAt',
+      label: 'Closed on',
+      kind: 'date',
+      aliases: ['closed on', 'date closed', 'resolved on', 'withdrawn on']
+    },
+    {
+      key: 'closureRationale',
+      label: 'Why it was closed',
+      kind: 'text',
+      aliases: [
+        'closure reason',
+        'reason closed',
+        'closure rationale',
+        'withdrawal reason'
+      ]
+    },
+    FILE
   ]
 };
 
@@ -2038,6 +2413,12 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
     const discovered = valueOf('discoveredAt');
     return title && discovered ? `${title} / ${discovered}` : null;
   }
+  if (recordType === 'data_protection_complaint') {
+    // Who and when tell two complaints apart where the source gave no ID.
+    const name = valueOf('complainantName');
+    const received = valueOf('receivedAt');
+    return name && received ? `${name} / ${received}` : null;
+  }
   if (recordType === 'data_subject_request') {
     // Who and when tell two requests apart where the source gave no ID.
     const name = valueOf('requesterName');
@@ -2097,6 +2478,10 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
     case 'breach': {
       const { file: _file, ...rest } = data;
       return breachIn.safeParse(rest);
+    }
+    case 'data_protection_complaint': {
+      const { file: _file, ...rest } = data;
+      return complaintIn.safeParse(rest);
     }
   }
 }

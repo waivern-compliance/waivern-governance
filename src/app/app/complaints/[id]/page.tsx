@@ -4,6 +4,9 @@ import { asc, eq } from 'drizzle-orm';
 
 import { ComplaintClock } from '@/components/complaints/ComplaintClock';
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedCaseFile } from '@/components/imports/ImportedCaseFile';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
@@ -19,6 +22,7 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { loadComplaint } from '@/services/complaints';
+import { importSourceName } from '@/services/imports';
 import { regulatorWithoutEstablishment } from '@/services/regulator';
 
 import { ActionForm } from '../../requests/ActionForm';
@@ -142,6 +146,43 @@ export default async function ComplaintPage({
           </p>
         ) : null}
       </header>
+
+      {complaint.importSourceId ? (
+        <>
+          <ImportedFrom
+            sourceName={
+              (await importSourceName(
+                active.membership.organisationId,
+                complaint.importSourceId
+              )) ?? 'another platform'
+            }
+            batchId={complaint.importBatchId}
+            confirmed={complaint.importConfirmedAt !== null}
+            legacy={complaint.legacy}
+            confirm={
+              can(
+                active.membership.grants,
+                'record.write',
+                complaint.entityId
+              ) ? (
+                <ConfirmImported
+                  type="data_protection_complaint"
+                  id={complaint.id}
+                  revalidate={`/app/complaints/${complaint.id}`}
+                  what="this complaint"
+                />
+              ) : null
+            }
+          />
+          <ImportedCaseFile
+            organisationId={active.membership.organisationId}
+            subjectType="data_protection_complaint"
+            subjectId={complaint.id}
+            entityId={complaint.entityId}
+            revalidate={`/app/complaints/${complaint.id}`}
+          />
+        </>
+      ) : null}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">The complaint</h2>
@@ -283,9 +324,11 @@ export default async function ComplaintPage({
         <section className="space-y-1 rounded border border-line bg-surface p-5">
           <h2 className="text-sm font-semibold">
             {OUTCOME_LABEL[complaint.outcome as ComplaintOutcome]} - told{' '}
-            {stamp(complaint.outcomeAt)} by{' '}
-            {CHANNEL_LABEL[complaint.outcomeChannel ?? '']?.toLowerCase() ??
-              complaint.outcomeChannel}
+            {stamp(complaint.outcomeAt)}
+            {/* An imported outcome may not say how it was sent. */}
+            {complaint.outcomeChannel
+              ? ` by ${CHANNEL_LABEL[complaint.outcomeChannel]?.toLowerCase() ?? complaint.outcomeChannel}`
+              : ''}
           </h2>
           <p className="max-w-prose text-sm">{complaint.outcomeSummary}</p>
           {complaint.remedialAction ? (
