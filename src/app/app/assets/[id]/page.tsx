@@ -10,7 +10,11 @@ import {
   classificationLabel,
   HOSTING_LABEL
 } from '@/lib/assets/register';
-import { describeDetails, offeredTypes } from '@/lib/assets/types';
+import {
+  describeDetails,
+  offeredTypes,
+  outOfSupport
+} from '@/lib/assets/types';
 import { can } from '@/lib/rbac';
 import { needsAttention, NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import { savedKey } from '@/lib/saved-key';
@@ -262,6 +266,12 @@ export default async function AssetPage({
               <span className="text-ink-soft">{d.label}:</span> {d.value}
             </p>
           ))}
+          {!asset.retiredAt && outOfSupport(asset.details, new Date()) ? (
+            <p className="text-amber-900">
+              Its vendor no longer issues security updates for it. Upgrade or
+              replace it, or retire it here once it is out of use.
+            </p>
+          ) : null}
         </section>
       )}
 

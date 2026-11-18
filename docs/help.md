@@ -622,7 +622,7 @@ Where it is: whether it is on premises, SaaS run by the supplier, in your own cl
 
 ### Asset types
 
-Every asset has a type. The built-in types are system, database, file share, SaaS application, paper archive, device, domain, certificate, software licence and other. Each has a definition, shown wherever the type is chosen and listed on the asset types page.
+Every asset has a type. The built-in types are system, database, file share, SaaS application, paper archive, device, server, network device, domain, certificate, software licence and other. Each has a definition, shown wherever the type is chosen and listed on the asset types page.
 
 Owners and privacy administrators can add types of their own on the asset types page, reached from the register. A type cannot be added without a definition saying what belongs under it, and can say whether its assets expire or renew. A type can be renamed or redefined; it cannot stop expiring while any of its assets has an expiry date recorded.
 
@@ -631,6 +631,10 @@ A type no longer wanted is retired: it is offered for no new asset, and assets t
 ### Domains, certificates and licences
 
 Some types carry fields of their own: a domain's registrar, a certificate's issuer and the names it covers, a licence's number of seats. These describe the asset, never what is in it.
+
+Devices, servers and network devices can be recorded as groups of alike ones, such as one laptop build, with how many there are; Govern is not a device inventory. A device records who owns it (the organisation, its user, or a supplier, contractor or customer) and who uses it, and devices, servers and network devices record their operating system or firmware. These are what a Cyber Essentials scope turns on.
+
+Devices, servers, network devices and software licences can record the date their vendor stops issuing security updates. Once that date has passed, the asset's page says it is out of support. A system, database, file share or server run on a cloud provider can record whether it is infrastructure, platform or software as a service, which decides who configures what.
 
 A type that expires - domain, certificate, software licence, or one of your own that says so - records when the asset expires or renews, how many days before then to act, and whether it renews automatically. From ninety days before the date to act, it is listed as due and a task goes to its owner, or to the privacy administrators if it has no owner who can open records in its legal entity. A task is raised once for each date; changing the date cancels the old task, and retiring the asset closes it.
 
@@ -2165,7 +2169,7 @@ The latest internal review comes in with the request: when it was asked for, and
 
 ### Information assets
 
-Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.
+Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence. Ownership, users, how many, operating system, end of support and cloud service model are kept only for the types that carry them; a cell left empty on a later import keeps what is recorded.
 
 An asset can name the processing activities that use it, by reference, ID in the platform or name, and the suppliers that host or run it, by name. Each must already be recorded, so import those first; a row naming one Govern does not know is not imported, with the reason. Importing again adds links the file names and never removes one.
 
