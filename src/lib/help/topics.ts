@@ -3284,6 +3284,62 @@ export const HELP_TOPICS: HelpTopic[] = [
       }
     ],
     related: ['ai-framework', 'ai-register', 'exports']
+  },
+  {
+    id: 'cyber-essentials',
+    title: 'Cyber Essentials requirements',
+    summary:
+      "The five technical controls of the UK's Cyber Essentials scheme and the rules for what a certificate's scope must include, edition by edition.",
+    path: '/app/cyber-essentials/requirements',
+    keywords: [
+      'cyber essentials',
+      'cyber essentials plus',
+      'ce plus',
+      'ncsc',
+      'iasme',
+      'danzell',
+      'willow',
+      'firewall',
+      'secure configuration',
+      'patching',
+      'security updates',
+      'mfa',
+      'multi-factor authentication',
+      'malware',
+      'byod',
+      'certification scope',
+      'ppn 014'
+    ],
+    sections: [
+      {
+        heading: 'What it is',
+        body: [
+          'Cyber Essentials is a UK government-backed certification scheme run by NCSC, with IASME as its delivery partner. It checks five technical controls: firewalls, secure configuration, security update management, user access control and malware protection. Basic certification is a self-assessment that an independent certification body marks; Cyber Essentials Plus adds technical testing by an assessor.',
+          'It is a scheme, not a law. An organisation takes it up, or a contract asks for it: central government and NHS buyers ask for it from suppliers handling personal information under PPN 014. Govern does not present it as a legal duty.'
+        ]
+      },
+      {
+        heading: 'Editions',
+        body: [
+          'The requirements are reviewed every year. NCSC numbers each edition of its requirements document (v3.2, v3.3) and IASME names the question set that goes with it (Willow, Danzell). The page opens on the edition new assessments use today, and you can switch to the earlier one, which certificates issued under it were assessed against.',
+          'Under Danzell, two answers fail an assessment outright, whatever else is right: high-risk or critical updates not installed within 14 days, and a cloud service without multi-factor authentication where it offers it. Those requirements are marked automatic fail.'
+        ]
+      },
+      {
+        heading: 'Scope',
+        body: [
+          "A certificate covers what its scope covers. A scope can be the whole organisation or a separately managed sub-set, but it must include end-user devices, and cloud services that hold the organisation's data cannot be left out. Staff's own devices, home working, wireless devices and accounts used by suppliers each have their own rule, listed on the page with the NCSC page it comes from."
+        ]
+      },
+      {
+        heading: 'Wording and codes',
+        body: [
+          "The requirements are in Govern's words, not NCSC's, with the page of NCSC's document each comes from, so you can check them against the source. IASME's question set is not reproduced.",
+          "Each requirement has a code, such as ce:v3.3:UAC.MFA_CLOUD. Put it in a mitigation's Control field to say which requirement the mitigation meets, and the mitigation shows the requirement in words."
+        ]
+      }
+    ],
+    related: ['risks', 'third-parties', 'information-assets']
   }
 ];
 
@@ -3342,6 +3398,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
       'ai-chain',
       'ai-incidents',
       'ai-profile',
+      'cyber-essentials',
       'transparency-records',
       'transfers',
       'authorities',

@@ -9,6 +9,7 @@ import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RiskTierBadge } from '@/components/RiskTierBadge';
 import { categoryLabel, frameworkOfSuggestion } from '@/lib/ai-frameworks';
+import { describeControlRef } from '@/lib/cyber-essentials/control-ref';
 import { can } from '@/lib/rbac';
 import { APPETITE_LEVEL_LABEL, judge, scopeLabel } from '@/lib/risk/appetite';
 import { labelFor, SCALES, type RiskScaleId } from '@/lib/risk/scale';
@@ -257,6 +258,7 @@ export default async function RiskPage({
                   id: m.id,
                   description: m.description,
                   controlRef: m.controlRef,
+                  control: describeControlRef(m.controlRef),
                   treatment: m.treatmentType
                     ? TREATMENT_LABEL[m.treatmentType as TreatmentType]
                     : null,

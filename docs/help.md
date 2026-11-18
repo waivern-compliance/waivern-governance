@@ -48,6 +48,7 @@ Every help topic the application carries, in the order it presents them.
 - [The AI assurance chain](#the-ai-assurance-chain) - Each AI system drawn through to what was done about it - and, more usefully, where that chain stops.
 - [AI incidents and concerns](#ai-incidents-and-concerns) - Reports about AI systems - failures, harm, challenges to outcomes and concerns - each handled by a named person.
 - [NIST AI RMF profile](#nist-ai-rmf-profile) - Where the organisation stands against each of NIST AI RMF's 72 subcategories, where it means to be, and the gap between.
+- [Cyber Essentials requirements](#cyber-essentials-requirements) - The five technical controls of the UK's Cyber Essentials scheme and the rules for what a certificate's scope must include, edition by edition.
 - [Algorithmic transparency records](#algorithmic-transparency-records) - The public record of how an AI system is used, in the Algorithmic Transparency Recording Standard's own fields.
 - [Countries, UK approval and transfers](#countries-uk-approval-and-transfers) - One shared library of destinations, with UK approval, EU adequacy and transfer risk, and a date showing when each was last checked by a person.
 - [Supervisory authorities](#supervisory-authorities) - The UK's regulator and each EEA State's data protection authorities, as Govern names them on complaints, refusals and an entity's lead authority.
@@ -1591,6 +1592,38 @@ The profile is there whichever framework the organisation follows, so an organis
 **See also:** AI governance framework · The AI register · Exports
 
 <sub>Also searchable as: nist, ai rmf, profile, current, target, gap, subcategory, govern, map, measure, manage, playbook</sub>
+
+## Cyber Essentials requirements
+
+*The five technical controls of the UK's Cyber Essentials scheme and the rules for what a certificate's scope must include, edition by edition.*
+
+**Screen:** `/app/cyber-essentials/requirements`
+
+### What it is
+
+Cyber Essentials is a UK government-backed certification scheme run by NCSC, with IASME as its delivery partner. It checks five technical controls: firewalls, secure configuration, security update management, user access control and malware protection. Basic certification is a self-assessment that an independent certification body marks; Cyber Essentials Plus adds technical testing by an assessor.
+
+It is a scheme, not a law. An organisation takes it up, or a contract asks for it: central government and NHS buyers ask for it from suppliers handling personal information under PPN 014. Govern does not present it as a legal duty.
+
+### Editions
+
+The requirements are reviewed every year. NCSC numbers each edition of its requirements document (v3.2, v3.3) and IASME names the question set that goes with it (Willow, Danzell). The page opens on the edition new assessments use today, and you can switch to the earlier one, which certificates issued under it were assessed against.
+
+Under Danzell, two answers fail an assessment outright, whatever else is right: high-risk or critical updates not installed within 14 days, and a cloud service without multi-factor authentication where it offers it. Those requirements are marked automatic fail.
+
+### Scope
+
+A certificate covers what its scope covers. A scope can be the whole organisation or a separately managed sub-set, but it must include end-user devices, and cloud services that hold the organisation's data cannot be left out. Staff's own devices, home working, wireless devices and accounts used by suppliers each have their own rule, listed on the page with the NCSC page it comes from.
+
+### Wording and codes
+
+The requirements are in Govern's words, not NCSC's, with the page of NCSC's document each comes from, so you can check them against the source. IASME's question set is not reproduced.
+
+Each requirement has a code, such as ce:v3.3:UAC.MFA_CLOUD. Put it in a mitigation's Control field to say which requirement the mitigation meets, and the mitigation shows the requirement in words.
+
+**See also:** The risk register · Third parties and processor agreements (Article 28) · Information asset register
+
+<sub>Also searchable as: cyber essentials, cyber essentials plus, ce plus, ncsc, iasme, danzell, willow, firewall, secure configuration, patching, security updates, mfa, multi-factor authentication, malware, byod, certification scope, ppn 014</sub>
 
 ## Algorithmic transparency records
 

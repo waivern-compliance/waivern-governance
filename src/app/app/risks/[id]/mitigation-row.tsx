@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 
 import { KeptFields } from '@/components/imports/KeptFields';
 import { SourceHistory } from '@/components/imports/SourceHistory';
@@ -29,6 +30,8 @@ export function MitigationRow({
     id: string;
     description: string;
     controlRef: string | null;
+    /** The requirement the control reference names, where Govern knows it. */
+    control: { text: string; href: string } | null;
     /** Already worded — "Limit", "Avoid" — or null where it was never recorded. */
     treatment: string | null;
     status: string;
@@ -77,6 +80,17 @@ export function MitigationRow({
           {mitigation.fromSource ? ` · ${mitigation.fromSource}` : ''}
         </span>
       </div>
+
+      {mitigation.control ? (
+        <p className="text-xs text-ink-soft">
+          <Link
+            href={mitigation.control.href}
+            className="hover:text-brand"
+          >
+            {mitigation.control.text}
+          </Link>
+        </p>
+      ) : null}
 
       {imported ? (
         <div
