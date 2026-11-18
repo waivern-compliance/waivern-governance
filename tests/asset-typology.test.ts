@@ -14,6 +14,7 @@ import {
   tasks,
   users
 } from '@/db/schema';
+import { assetGaps } from '@/lib/assets/register';
 import {
   assetTypeKeyFrom,
   BUILT_IN_ASSET_TYPES,
@@ -245,6 +246,25 @@ describe('the typology', () => {
     assert.equal(outOfSupport({ supportedUntil: '2027-10-14' }, at), false);
     assert.equal(outOfSupport({ supportedUntil: '2027-10-13' }, at), true);
     assert.equal(outOfSupport({}, at), false);
+    const facts = {
+      ownerId: 'someone',
+      hosting: 'on_premises' as const,
+      classification: 'internal',
+      retention: 'Until replaced',
+      nextReviewAt: new Date('2028-01-01T00:00:00Z'),
+      retiredAt: null
+    };
+    assert.deepEqual(
+      assetGaps({ ...facts, details: { supportedUntil: '2027-10-13' } }, at),
+      ['out_of_support']
+    );
+    assert.deepEqual(
+      assetGaps(
+        { ...facts, retiredAt: at, details: { supportedUntil: '2027-10-13' } },
+        at
+      ),
+      []
+    );
   });
 
   it('offers a retired type only to the asset that already has it', () => {
