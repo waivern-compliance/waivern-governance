@@ -20,6 +20,7 @@ import {
 } from '@/services/data-subject-requests';
 import {
   commitImport,
+  confirmImportedRecord,
   ImportRefused,
   loadImport,
   previewImport,
@@ -284,5 +285,108 @@ describe('importing data subject requests', () => {
       ).length,
       2
     );
+  });
+
+  it('keeps none of the other columns, and takes a closed one with only its response dated as answered', async () => {
+    const w = await world('import-dsr-minimal');
+    await imported(
+      w.org.id,
+      [
+        'ID,Requester,Rights,Received on,Status,Responded on,Date of birth,Postal address',
+        'R-1,Alex Example,Access,2024-03-01,Closed,2024-03-20,1980-01-01,1 High Street'
+      ].join('\n')
+    );
+    const [request] = await requestsOf(w.org.id);
+    assert.deepEqual(request.legacy, {});
+    assert.equal(request.status, 'responded');
+    assert.equal(request.respondedAt?.toISOString().slice(0, 10), '2024-03-20');
+  });
+
+  it('refuses a retention cut-off that is not a date', async () => {
+    const w = await world('import-dsr-bad-cutoff');
+    const batch = await uploadImport({
+      organisationId: w.org.id,
+      recordType: 'data_subject_request',
+      sourceName: 'OneTrust',
+      filename: 'requests.csv',
+      contentType: 'text/csv',
+      bytes: new TextEncoder().encode(
+        `${HEADER}\nR-1,Alex Example,,Access,2024-03-01,,,,,\n`
+      ),
+      actor: SYSTEM
+    });
+    const { mapping } = (await loadImport(batch.id, w.org.id))!;
+    await assert.rejects(
+      previewImport({
+        organisationId: w.org.id,
+        batchId: batch.id,
+        mapping: { ...mapping, closedBefore: '2024-02-31' },
+        actor: SYSTEM
+      }),
+      refused(/is not a date/)
+    );
+  });
+
+  it('updates on a second import without doubling its decisions, after confirmation too, but not once worked on here', async () => {
+    const w = await world('import-dsr-again');
+    const file = [
+      HEADER,
+      `R-1,Alex Example,,Access,${daysAgo(20)},,,,yes,${daysAgo(5)}`
+    ].join('\n');
+    await imported(w.org.id, file);
+    const [request] = await requestsOf(w.org.id);
+    await confirmImportedRecord({
+      organisationId: w.org.id,
+      type: 'data_subject_request',
+      id: request.id,
+      actor: SYSTEM
+    });
+    const again = await imported(
+      w.org.id,
+      file.replace('Alex Example', 'Alex Q. Example')
+    );
+    assert.deepEqual(again.preview, { update: 1 });
+    // Not counted again: its tasks were raised when it first came in.
+    assert.deepEqual(again.notes, { overdue: 0 });
+    const decisions = () =>
+      db
+        .select()
+        .from(dataSubjectRequestDecisions)
+        .where(eq(dataSubjectRequestDecisions.requestId, request.id));
+    assert.equal((await decisions()).length, 1);
+    assert.equal(
+      (await requestsOf(w.org.id))[0].requesterName,
+      'Alex Q. Example'
+    );
+
+    await recordRequestDecision({
+      organisationId: w.org.id,
+      requestId: request.id,
+      kind: 'other',
+      rationale: 'Called the requester.',
+      actor: SYSTEM
+    });
+    const third = await imported(w.org.id, file);
+    assert.equal(third.rows[0].action, 'refuse');
+    assert.match(third.rows[0].reason ?? '', /worked on here since/);
+  });
+
+  it('refuses Part 3 for an entity that is not a competent authority, and waits on identity asked for', async () => {
+    const w = await world('import-dsr-part3');
+    const { preview, rows } = await imported(
+      w.org.id,
+      [
+        'ID,Requester,Rights,Received on,Regime,Identity requested',
+        `R-1,Alex Example,Access,${daysAgo(20)},Part 3,`,
+        `R-2,Sam Example,Access,${daysAgo(90)},,${daysAgo(85)}`
+      ].join('\n')
+    );
+    assert.equal(rows[0].action, 'refuse');
+    assert.match(rows[0].reason ?? '', /not marked as one/);
+    assert.equal(preview.create, 1);
+    const [waiting] = await requestsOf(w.org.id);
+    assert.equal(waiting.status, 'verifying');
+    const loaded = (await loadRequest(waiting.id, w.org.id))!;
+    assert.equal(loaded.clock.state, 'waiting');
   });
 });

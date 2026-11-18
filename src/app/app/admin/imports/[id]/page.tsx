@@ -329,21 +329,29 @@ export default async function ImportBatchPage({
                 })}
               </div>
             ) : null}
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="keepUnmapped"
-                defaultChecked={mapping.keepUnmapped}
-                className="mt-1 accent-brand"
-              />
-              <span>
-                Keep the other columns with each record
-                <span className="block text-xs text-ink-soft">
-                  Values from columns no field reads are kept on the record, to
-                  read, so nothing from the old platform is lost.
+            {CASE_HISTORY.has(batch.recordType) ? (
+              <p className="max-w-prose text-xs text-ink-soft">
+                Columns no field reads are not kept. They are mostly about the
+                person who asked, and the register holds no more about them than
+                it needs. Attach the case file if the detail matters.
+              </p>
+            ) : (
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="keepUnmapped"
+                  defaultChecked={mapping.keepUnmapped}
+                  className="mt-1 accent-brand"
+                />
+                <span>
+                  Keep the other columns with each record
+                  <span className="block text-xs text-ink-soft">
+                    Values from columns no field reads are kept on the record,
+                    to read, so nothing from the old platform is lost.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            )}
           </RefusableForm>
         </section>
       ) : null}
@@ -464,7 +472,9 @@ export default async function ImportBatchPage({
                     </td>
                     <td className="px-3 py-1.5">{r.sourceRef ?? ''}</td>
                     <td className={`px-3 py-1.5 ${TONE[r.action]}`}>
-                      {ACTION_LABEL[r.action]}
+                      {r.action === 'skip' && !r.reason
+                        ? 'Empty row'
+                        : ACTION_LABEL[r.action]}
                       {r.reason ? `: ${r.reason}` : ''}
                       {r.recordId && batch.status === 'committed' ? (
                         <>

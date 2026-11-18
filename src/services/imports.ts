@@ -368,6 +368,16 @@ export async function loadImport(batchId: string, organisationId: string) {
   });
 }
 
+/** A retention cut-off as a calendar date, or refused: never silently ignored. */
+function cutOffDate(given: string): string {
+  const day = new Date(`${given}T00:00:00Z`);
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== given)
+    throw new ImportRefused(
+      `"${given}" is not a date. Give the retention cut-off as a day, such as 2020-01-01.`
+    );
+  return given;
+}
+
 /** At most this many values are offered for translation per field. */
 const TRANSLATION_LIMIT = 40;
 
@@ -1755,8 +1765,6 @@ function rightFrom(given: string): Right | null {
   );
 }
 
-const DAY_MS = 86_400_000;
-
 /**
  * A request's rights, law, regime and status read into this organisation's
  * terms, its dates checked for what each status needs, and its clock worked
@@ -1784,7 +1792,8 @@ async function requestResolver(tx: Tx, batch: Batch) {
         entityName: entities.name,
         reference: dataSubjectRequests.reference,
         updatedAt: dataSubjectRequests.updatedAt,
-        importedAt: importBatches.committedAt
+        importedAt: importBatches.committedAt,
+        confirmedAt: dataSubjectRequests.importConfirmedAt
       })
       .from(dataSubjectRequests)
       .innerJoin(entities, eq(entities.id, dataSubjectRequests.entityId))
@@ -1800,6 +1809,25 @@ async function requestResolver(tx: Tx, batch: Batch) {
       )
   ]);
   const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
+  // Requests with a decision recorded here, not brought in by an import.
+  const decidedHere = new Set(
+    earlier.length
+      ? (
+          await tx
+            .selectDistinct({ id: dataSubjectRequestDecisions.requestId })
+            .from(dataSubjectRequestDecisions)
+            .where(
+              and(
+                inArray(
+                  dataSubjectRequestDecisions.requestId,
+                  earlier.map((r) => r.id)
+                ),
+                isNull(dataSubjectRequestDecisions.importBatchId)
+              )
+            )
+        ).map((r) => r.id)
+      : []
+  );
   const cutOff = batch.mapping?.closedBefore
     ? new Date(batch.mapping.closedBefore)
     : null;
@@ -1848,8 +1876,14 @@ async function requestResolver(tx: Tx, batch: Batch) {
       return refuse(
         'It says the time was extended, but not when. The deadline cannot be worked out without that date.'
       );
+    // Closed there with only its response dated is a request answered: its
+    // response is how it ended.
+    const given =
+      data.status === 'closed' && !data.closedAt && data.respondedAt
+        ? 'responded'
+        : data.status;
     const status =
-      data.status ??
+      given ??
       (data.closedAt
         ? 'closed'
         : data.respondedAt
@@ -1918,10 +1952,13 @@ async function requestResolver(tx: Tx, batch: Batch) {
       return refuse(
         `Imported before into ${found.entityName}. Import it into that entity.`
       );
-    if (
-      found.importedAt &&
-      found.updatedAt.getTime() > found.importedAt.getTime() + DAY_MS / 24 / 60
-    )
+    // Worked on here: a decision recorded here, or a change after both its
+    // last import and its confirmation, which are not work on the case.
+    const settled = Math.max(
+      found.importedAt?.getTime() ?? 0,
+      found.confirmedAt?.getTime() ?? 0
+    );
+    if (decidedHere.has(found.id) || found.updatedAt.getTime() > settled)
       return refuse(
         `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
       );
@@ -2007,10 +2044,8 @@ export async function previewImport(input: {
         keepUnmapped: input.mapping.keepUnmapped,
         ...(Object.keys(values).length ? { values } : {}),
         ...(Object.keys(everyRow).length ? { everyRow } : {}),
-        ...(CASE_HISTORY.has(batch.recordType) &&
-        input.mapping.closedBefore &&
-        /^\d{4}-\d{2}-\d{2}$/.test(input.mapping.closedBefore)
-          ? { closedBefore: input.mapping.closedBefore }
+        ...(CASE_HISTORY.has(batch.recordType) && input.mapping.closedBefore
+          ? { closedBefore: cutOffDate(input.mapping.closedBefore) }
           : {})
       };
 
@@ -2060,7 +2095,9 @@ export async function previewImport(input: {
         }
         for (const k of keys) seen.set(k, rowNumber);
         const decision = decide(converted.record, converted.sourceRef);
-        if ('request' in decision && decision.request?.overdue) overdue += 1;
+        // Only new ones: a request imported before is already raising its tasks.
+        if (decision.action === 'create' && decision.request?.overdue)
+          overdue += 1;
         rows.push({
           organisationId: input.organisationId,
           batchId: batch.id,

@@ -1830,11 +1830,14 @@ export function convertRow(
       data.kind = data.file || !data.uri ? 'document' : 'link';
 
     const mapped = new Set(Object.values(mapping.fields));
-    const unmapped = mapping.keepUnmapped
-      ? Object.entries(row).filter(
-          ([column, value]) => !mapped.has(column) && value.trim() !== ''
-        )
-      : [];
+    // A case's other columns are mostly about the person who asked: kept
+    // nowhere, as the register holds no more of them than it must.
+    const unmapped =
+      mapping.keepUnmapped && !CASE_HISTORY.has(recordType)
+        ? Object.entries(row).filter(
+            ([column, value]) => !mapped.has(column) && value.trim() !== ''
+          )
+        : [];
     // An assessment's other columns are its questions, answered: kept as a
     // list, in the file's order, which an object stored as JSON would lose.
     const asAnswers = recordType === 'assessment';
