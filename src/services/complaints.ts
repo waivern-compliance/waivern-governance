@@ -1078,7 +1078,8 @@ export async function complaintMetrics(
         outcome: r.complaint.outcome,
         outcomeAt: r.complaint.outcomeAt,
         outcomeState: r.clock.outcome.state,
-        status: r.complaint.status
+        status: r.complaint.status,
+        imported: r.complaint.importBatchId !== null
       })),
       over
     );
@@ -1148,7 +1149,7 @@ export async function complaintsSummary(input: {
 
     const m = await complaintMetrics(input.organisationId, entityIds, months);
     return {
-      summaryVersion: '1.1',
+      summaryVersion: '1.2',
       generatedAt: new Date().toISOString(),
       organisation: {
         name: org.name,

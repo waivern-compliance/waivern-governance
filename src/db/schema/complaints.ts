@@ -1,7 +1,8 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -15,6 +16,7 @@ import {
   complaintStatus,
   dataProtectionJurisdiction
 } from './enums';
+import { importBatches, importSources } from './imports';
 import { dataSubjectRequests, dsrIntakeLinks } from './requests';
 import { entities, organisations, users } from './tenancy';
 
@@ -98,6 +100,23 @@ export const dataProtectionComplaints = pgTable(
     closedAt: timestamp('closed_at', { withTimezone: true }),
     closureRationale: text('closure_rationale'),
 
+    /**
+     * Moved in from another platform, with its real dates, so its thirty
+     * days and the organisation's own targets read as they would have here
+     * (decision 6 of issue #64). Its acknowledgement, last update and outcome
+     * came in as steps, each marked with the import that made it.
+     */
+    externalRef: text('external_ref'),
+    importSourceId: uuid('import_source_id').references(
+      () => importSources.id,
+      { onDelete: 'set null' }
+    ),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    }),
+    legacy: jsonb('legacy').$type<Record<string, string>>(),
+    importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -106,6 +125,11 @@ export const dataProtectionComplaints = pgTable(
       .defaultNow()
   },
   (t) => [
+    uniqueIndex('data_protection_complaint_imported')
+      .on(t.organisationId, t.importSourceId, t.externalRef)
+      .where(
+        sql`${t.importSourceId} is not null and ${t.externalRef} is not null`
+      ),
     uniqueIndex('data_protection_complaint_reference_key').on(
       t.organisationId,
       t.reference
@@ -158,7 +182,15 @@ export const dataProtectionComplaintEvents = pgTable(
     recordedByLabel: text('recorded_by_label').notNull(),
     recordedAt: timestamp('recorded_at', { withTimezone: true })
       .notNull()
-      .defaultNow()
+      .defaultNow(),
+    /**
+     * The import that brought this step in from another platform, where one
+     * did: so undoing it removes the steps it made, and a step recorded here
+     * since still stops the undo.
+     */
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id, {
+      onDelete: 'set null'
+    })
   },
   (t) => [
     index('data_protection_complaint_event_complaint_idx').on(

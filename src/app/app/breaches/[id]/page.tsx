@@ -4,9 +4,9 @@ import { asc, eq } from 'drizzle-orm';
 
 import { Clock } from '@/components/breach/Clock';
 import { Discussion } from '@/components/Discussion';
-import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
 import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedCaseFile } from '@/components/imports/ImportedCaseFile';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
@@ -18,7 +18,6 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { loadBreach, severitySuggestion } from '@/services/breaches';
-import { documentsFor } from '@/services/documents';
 import { importSourceName } from '@/services/imports';
 
 import {
@@ -95,10 +94,6 @@ export default async function BreachPage({
     breach.entityId
   );
   const suggestion = await severitySuggestion(breach);
-  // Only an imported breach can have files: the case file it came with.
-  const files = breach.importSourceId
-    ? await documentsFor(active.membership.organisationId, 'breach', breach.id)
-    : [];
 
   const colleagues = await scoped(active.membership.organisationId, () =>
     db
@@ -171,15 +166,13 @@ export default async function BreachPage({
           }
         />
       ) : null}
-      {files.length > 0 ? (
-        <Attachments
+      {breach.importSourceId ? (
+        <ImportedCaseFile
+          organisationId={active.membership.organisationId}
           subjectType="breach"
           subjectId={breach.id}
           entityId={breach.entityId}
           revalidate={`/app/breaches/${breach.id}`}
-          documents={files}
-          mayEdit={false}
-          what="The case file it came with"
         />
       ) : null}
 

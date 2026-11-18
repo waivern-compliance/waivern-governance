@@ -509,6 +509,69 @@ export const breachIn = z.object({
   closureRationale: longText.optional()
 });
 
+/**
+ * A complaint from a data subject handled in another platform, with its real
+ * dates. Read by the importer only. Its acknowledgement, latest update and
+ * outcome come with it, so its thirty days and the organisation's own
+ * targets read here as they did there.
+ */
+export const complaintIn = z.object({
+  externalRef,
+  complainantName: shortText,
+  complainantContact: z.string().max(500).optional(),
+  representative: z.string().max(500).optional(),
+  channel: z.string().max(100).optional(),
+  receivedAt: z.iso.datetime(),
+  subject: z
+    .enum([
+      'request_handling',
+      'accuracy',
+      'security',
+      'disclosure',
+      'retention',
+      'marketing',
+      'lawfulness',
+      'transparency',
+      'automated_decision',
+      'other'
+    ])
+    .optional(),
+  description: longText.optional(),
+  jurisdiction: z.enum(['uk', 'eu', 'uk_eu']).optional(),
+  controllerRole: z
+    .enum(['controller', 'joint_controller', 'processor'])
+    .optional(),
+  /** The request it is about, by its ID in the same source. */
+  requestRef: z.string().max(200).optional(),
+  owner: z.string().max(320).optional(),
+  status: z
+    .enum([
+      'received',
+      'acknowledged',
+      'investigating',
+      'outcome_sent',
+      'withdrawn',
+      'closed'
+    ])
+    .optional(),
+  acknowledgedAt: z.iso.datetime().optional(),
+  acknowledgementChannel: z.string().max(100).optional(),
+  acknowledgementLateReason: longText.optional(),
+  /** The latest progress update the complainant was given. */
+  lastUpdateAt: z.iso.datetime().optional(),
+  outcome: z
+    .enum(['upheld', 'partly_upheld', 'not_upheld', 'passed_to_controller'])
+    .optional(),
+  outcomeAt: z.iso.datetime().optional(),
+  outcomeChannel: z.string().max(100).optional(),
+  outcomeSummary: longText.optional(),
+  remedialAction: longText.optional(),
+  toldOfRegulatorRight: z.boolean().optional(),
+  outcomeLateReason: longText.optional(),
+  closedAt: z.iso.datetime().optional(),
+  closureRationale: longText.optional()
+});
+
 export const evidenceBatch = z.object({
   records: z.array(evidenceIn).min(1).max(MAX_BATCH)
 });
@@ -530,6 +593,7 @@ export type PolicyIn = z.infer<typeof policyIn>;
 export type AssessmentIn = z.infer<typeof assessmentIn>;
 export type DataSubjectRequestIn = z.infer<typeof dataSubjectRequestIn>;
 export type BreachIn = z.infer<typeof breachIn>;
+export type ComplaintIn = z.infer<typeof complaintIn>;
 
 export type IngestOutcome = {
   received: number;

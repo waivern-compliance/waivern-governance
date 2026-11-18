@@ -26,6 +26,8 @@ export type ComplaintInput = {
   /** The outcome dial's state against the organisation's target. */
   outcomeState: string;
   status: string;
+  /** Brought in from another platform, with its real dates. */
+  imported?: boolean;
 };
 
 export type Period = { key: string; start: Date; end: Date };
@@ -51,6 +53,8 @@ export type ComplaintCounts = {
     acknowledgementOverdue: number;
     medianDaysToAcknowledge: number | null;
     medianDaysToOutcome: number | null;
+    /** Of `received`, how many were imported from another platform. */
+    imported: number;
   };
   outcomes: {
     upheld: number;
@@ -132,7 +136,8 @@ export function complaintCounts(
         rows.flatMap((r) =>
           r.outcomeAt ? [daysBetween(r.receivedAt, r.outcomeAt)] : []
         )
-      )
+      ),
+      imported: rows.filter((r) => r.imported).length
     },
     outcomes: {
       upheld: outcome('upheld'),
