@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import {
@@ -9,6 +9,7 @@ import {
   entities,
   notifications,
   organisations,
+  tasks,
   webhookDeliveries
 } from '@/db/schema';
 import type { RecordType } from '@/lib/import/fields';
@@ -19,6 +20,7 @@ import {
   recordComplaint,
   recordComplaintEvent
 } from '@/services/complaints';
+import { recordRequest } from '@/services/data-subject-requests';
 import {
   commitImport,
   confirmImportedRecord,
@@ -103,6 +105,12 @@ const complaintsOf = (organisationId: string) =>
     .from(dataProtectionComplaints)
     .where(eq(dataProtectionComplaints.organisationId, organisationId))
     .orderBy(dataProtectionComplaints.externalRef);
+
+const complaintTasksOf = (organisationId: string) =>
+  and(
+    eq(tasks.organisationId, organisationId),
+    eq(tasks.subjectType, 'data_protection_complaint')
+  );
 
 const stepsOf = (complaintId: string) =>
   db
@@ -234,10 +242,13 @@ describe('importing complaints', () => {
         `C-4,D,${daysAgo(20)},Investigating,,Upheld,${daysAgo(5)},,,`,
         `C-5,E,${daysAgo(20)},,${daysAgo(25)},,,,,`,
         `C-6,F,${daysAgo(20)},,,,,,EU,`,
-        `C-7,G,${daysAgo(20)},,,Upheld,${daysAgo(10)},,,${daysAgo(5)}`
+        `C-7,G,${daysAgo(20)},,,Upheld,${daysAgo(10)},,,${daysAgo(5)}`,
+        `C-8,H,${daysAgo(20)},Withdrawn,,Upheld,${daysAgo(10)},${daysAgo(5)},,`,
+        `C-9,I,${daysAgo(20)},,,Passed to controller,${daysAgo(10)},,,`,
+        `C-10,J,${daysAgo(20)},Received,${daysAgo(19)},,,,,`
       ].join('\n')
     );
-    assert.deepEqual(preview, { refuse: 7 });
+    assert.deepEqual(preview, { refuse: 10 });
     assert.match(rows[0].reason ?? '', /gives the outcome, but not when/);
     assert.match(rows[1].reason ?? '', /but not what it was/);
     assert.match(rows[2].reason ?? '', /gives no outcome/);
@@ -248,9 +259,18 @@ describe('importing complaints', () => {
     assert.match(rows[4].reason ?? '', /acknowledged before it arrived/);
     assert.match(rows[5].reason ?? '', /subject to UK law only/);
     assert.match(rows[6].reason ?? '', /last updated after the outcome/);
+    assert.match(
+      rows[7].reason ?? '',
+      /An answered complaint was not withdrawn/
+    );
+    assert.match(rows[8].reason ?? '', /As the controller/);
+    assert.match(
+      rows[9].reason ?? '',
+      /received there, but gives a date it was acknowledged/
+    );
   });
 
-  it('links the request it is about, imported from the same platform first', async () => {
+  it('links the request it is about, by its ID there or its reference here', async () => {
     const w = await world('import-complaint-request');
     await imported(
       w.org.id,
@@ -261,22 +281,30 @@ describe('importing complaints', () => {
       {},
       'data_subject_request'
     );
+    const typed = await recordRequest({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      requesterName: 'Jo Example',
+      rights: ['access'],
+      channel: 'email',
+      receivedAt: new Date(daysAgo(30)),
+      description: 'Everything you hold.',
+      actor: SYSTEM
+    });
     const { preview, rows } = await imported(
       w.org.id,
       [
         `${HEADER},Request ID`,
         `C-1,Alex Example,${daysAgo(10)},,,,,,R-1`,
-        `C-2,Sam Example,${daysAgo(10)},,,,,,R-404`
+        `C-2,Sam Example,${daysAgo(10)},,,,,,R-404`,
+        `C-3,Jo Example,${daysAgo(10)},,,,,,${typed.reference.toLowerCase()}`
       ].join('\n')
     );
-    assert.deepEqual(preview, { create: 1, refuse: 1 });
-    assert.match(
-      rows[1].reason ?? '',
-      /not a request imported from this platform/
-    );
-    const [linked] = await complaintsOf(w.org.id);
-    const loaded = (await loadComplaint(linked.id, w.org.id))!;
-    assert.ok(loaded.request);
+    assert.deepEqual(preview, { create: 2, refuse: 1 });
+    assert.match(rows[1].reason ?? '', /not a request in Govern/);
+    const [byId, byReference] = await complaintsOf(w.org.id);
+    assert.ok((await loadComplaint(byId.id, w.org.id))!.request);
+    assert.equal(byReference.requestId, typed.id);
   });
 
   it('leaves out complaints closed before the retention cut-off', async () => {
@@ -293,6 +321,63 @@ describe('importing complaints', () => {
     assert.deepEqual(preview, { skip: 1, create: 1 });
     assert.match(rows[0].reason ?? '', /before the retention cut-off/);
     assert.equal((await complaintsOf(w.org.id)).length, 1);
+  });
+
+  it('takes away the deadline tasks the sweep raised for it when undone, unless one was picked up', async () => {
+    const w = await world('import-complaint-undo-tasks');
+    const file = [HEADER, `C-1,Alex Example,${daysAgo(40)},,,,,`].join('\n');
+    const first = await imported(w.org.id, file);
+    assert.equal(
+      (await sweepOrganisation(w.org.id)).complaintDeadlinesRaised,
+      2
+    );
+    await undoImport({
+      organisationId: w.org.id,
+      batchId: first.batch.id,
+      actor: SYSTEM
+    });
+    assert.equal((await complaintsOf(w.org.id)).length, 0);
+    assert.equal(
+      (await db.select().from(tasks).where(complaintTasksOf(w.org.id))).length,
+      0
+    );
+
+    const second = await imported(w.org.id, file);
+    await sweepOrganisation(w.org.id);
+    const [task] = await db
+      .select()
+      .from(tasks)
+      .where(complaintTasksOf(w.org.id));
+    await db
+      .update(tasks)
+      .set({ status: 'in_progress' })
+      .where(eq(tasks.id, task.id));
+    await assert.rejects(
+      undoImport({
+        organisationId: w.org.id,
+        batchId: second.batch.id,
+        actor: SYSTEM
+      }),
+      refused(/worked on through a task or a comment/)
+    );
+  });
+
+  it('marks a late acknowledgement or outcome as late, and keeps a delay reason only where it was', async () => {
+    const w = await world('import-complaint-late');
+    await imported(
+      w.org.id,
+      [
+        `${HEADER},Reason for delay`,
+        `C-1,Alex Example,${daysAgo(80)},,${daysAgo(30)},,,,`,
+        `C-2,Sam Example,${daysAgo(30)},,${daysAgo(29)},Upheld,${daysAgo(20)},,Short-staffed`
+      ].join('\n')
+    );
+    const [late, inTime] = await complaintsOf(w.org.id);
+    assert.equal(
+      late.acknowledgementLateReason,
+      'OneTrust recorded no reason.'
+    );
+    assert.equal(inTime.outcomeLateReason, null);
   });
 
   it('is undone with the steps it made, and not once a step is recorded here', async () => {
@@ -348,6 +433,9 @@ describe('importing complaints', () => {
       ['acknowledged', 'progress_update', 'progress_update']
     );
     assert.equal(steps[2].importBatchId, again.batch.id);
+
+    const earlier = await imported(w.org.id, file(daysAgo(45), daysAgo(10)));
+    assert.deepEqual(earlier.preview, { refuse: 1 });
 
     const moved = await imported(w.org.id, file(daysAgo(44), daysAgo(5)));
     assert.deepEqual(moved.preview, { refuse: 1 });

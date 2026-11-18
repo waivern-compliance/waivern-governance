@@ -1924,7 +1924,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       key: 'channel',
       label: 'How it arrived',
       kind: 'text',
-      aliases: ['channel', 'received via', 'source', 'submitted via']
+      aliases: ['channel', 'received via', 'submitted via']
     },
     {
       key: 'receivedAt',
@@ -2070,7 +2070,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       key: 'requestRef',
       label: 'The request it is about',
       kind: 'text',
-      hint: 'Its ID in the same platform. Import the requests first: a row naming a request not imported is not imported.',
+      hint: 'Its reference here, such as DSR-2026-0001, or its ID in the platform it was imported from. Import the requests first: a row naming a request Govern does not have is not imported.',
       aliases: ['request id', 'related request', 'dsr id', 'request reference']
     },
     {
@@ -2145,8 +2145,7 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: [
         'last update',
         'last updated complainant',
-        'last progress update',
-        'last contact'
+        'last progress update'
       ]
     },
     {

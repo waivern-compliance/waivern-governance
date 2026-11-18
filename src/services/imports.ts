@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -6,6 +6,7 @@ import {
   assessments,
   breachDecisions,
   breaches,
+  comments,
   dataProtectionComplaintEvents,
   dataProtectionComplaints,
   dataSubjectRequestDecisions,
@@ -36,6 +37,7 @@ import {
   recordLinks,
   risks,
   suppliers,
+  tasks,
   templates,
   templateVersions,
   users,
@@ -752,6 +754,9 @@ type ComplaintResolved = {
   ownerId: string | null;
   /** The steps to write: all of them when it is new, and on a later import only those it did not come in with. */
   steps: ComplaintStep[];
+  /** After the thirty days, or after the organisation's own target. */
+  acknowledgedLate: boolean;
+  outcomeLate: boolean;
   /** Still owed an outcome, and a deadline already past: it raises a task once imported. */
   overdue: boolean;
 };
@@ -891,12 +896,14 @@ async function attachments(tx: Tx, organisationId: string, entityId: string) {
 /**
  * What each checked row would do now: create, update, add to a supplier, or
  * nothing, with the reason. What the rows could match is read once for the
- * whole file, not row by row.
+ * whole file, not row by row; for case history, only what the file names.
  */
 async function matcher(
   tx: Tx,
-  batch: Batch
+  batch: Batch,
+  rows: ReadonlyArray<{ record: ImportRecord; sourceRef: string }>
 ): Promise<(record: ImportRecord, sourceRef: string) => Decision> {
+  const refs = rows.map((r) => r.sourceRef);
   const files = new Set(
     (
       await tx
@@ -1052,21 +1059,30 @@ async function matcher(
       };
     }
     case 'data_subject_request': {
-      const resolve = await requestResolver(tx, batch);
+      const resolve = await requestResolver(tx, batch, refs);
       return (record, sourceRef) => {
         const { data } = record as Of<'data_subject_request'>;
         return missingFile(data.file) ?? resolve(data, sourceRef);
       };
     }
     case 'data_protection_complaint': {
-      const resolve = await complaintResolver(tx, batch);
+      const resolve = await complaintResolver(
+        tx,
+        batch,
+        refs,
+        rows.flatMap(({ record }) =>
+          record.kind === 'data_protection_complaint' && record.data.requestRef
+            ? [record.data.requestRef]
+            : []
+        )
+      );
       return (record, sourceRef) => {
         const { data } = record as Of<'data_protection_complaint'>;
         return missingFile(data.file) ?? resolve(data, sourceRef);
       };
     }
     case 'breach': {
-      const resolve = await breachResolver(tx, batch);
+      const resolve = await breachResolver(tx, batch, refs);
       return (record, sourceRef) => {
         const { data } = record as Of<'breach'>;
         return missingFile(data.file) ?? resolve(data, sourceRef);
@@ -1845,6 +1861,90 @@ function rightFrom(given: string): Right | null {
   );
 }
 
+/** The tables of cases imported with their history. */
+type CaseTable =
+  | typeof dataSubjectRequests
+  | typeof breaches
+  | typeof dataProtectionComplaints;
+
+/**
+ * Cases brought in before from the batch's platform that the rows about to
+ * be decided name by their ID there: what a re-import would update.
+ */
+async function priorCases(
+  tx: Tx,
+  batch: Batch,
+  table: CaseTable,
+  refs: readonly string[]
+) {
+  if (refs.length === 0) return [];
+  return tx
+    .select({
+      id: table.id,
+      ref: table.externalRef,
+      entityId: table.entityId,
+      entityName: entities.name,
+      reference: table.reference,
+      updatedAt: table.updatedAt,
+      importedAt: importBatches.committedAt,
+      confirmedAt: table.importConfirmedAt
+    })
+    .from(table)
+    .innerJoin(entities, eq(entities.id, table.entityId))
+    .leftJoin(importBatches, eq(importBatches.id, table.importBatchId))
+    .where(
+      and(
+        eq(table.organisationId, batch.organisationId),
+        eq(table.importSourceId, batch.sourceId),
+        inArray(
+          sql`lower(${table.externalRef})`,
+          refs.map((r) => r.toLowerCase())
+        )
+      )
+    );
+}
+
+type PriorCase = Awaited<ReturnType<typeof priorCases>>[number];
+
+/**
+ * Why a case imported before is not written over, or null where it may be:
+ * it belongs to another entity, or it has been worked on here since, with a
+ * decision or step recorded here, or a change after both its last import and
+ * its confirmation, neither of which is work on the case.
+ */
+function priorCaseRefusal(
+  found: PriorCase,
+  batch: Batch,
+  recordedHere: boolean
+): string | null {
+  if (found.entityId !== batch.entityId)
+    return `Imported before into ${found.entityName}. Import it into that entity.`;
+  const settled = Math.max(
+    found.importedAt?.getTime() ?? 0,
+    found.confirmedAt?.getTime() ?? 0
+  );
+  return recordedHere || found.updatedAt.getTime() > settled
+    ? `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
+    : null;
+}
+
+/** The retention cut-off a batch of case history was given (decision 10). */
+const cutOffOf = (batch: Batch) =>
+  batch.mapping?.closedBefore ? new Date(batch.mapping.closedBefore) : null;
+
+/** A case that ended before the retention cut-off, left out; or null. */
+function beforeCutOff(
+  ended: Date | null,
+  cutOff: Date | null
+): Decision | null {
+  return cutOff && ended && ended < cutOff
+    ? {
+        action: 'skip',
+        reason: `Ended on ${ended.toISOString().slice(0, 10)}, before the retention cut-off of ${cutOff.toISOString().slice(0, 10)}.`
+      }
+    : null;
+}
+
 /**
  * A request's rights, law, regime and status read into this organisation's
  * terms, its dates checked for what each status needs, and its clock worked
@@ -1853,7 +1953,7 @@ function rightFrom(given: string): Right | null {
  * on here since it was imported is not written over: that work is a
  * person's, here.
  */
-async function requestResolver(tx: Tx, batch: Batch) {
+async function requestResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
   const [[entity], memberOf, earlier] = await Promise.all([
     tx
       .select({
@@ -1864,29 +1964,7 @@ async function requestResolver(tx: Tx, batch: Batch) {
       .from(entities)
       .where(eq(entities.id, batch.entityId!)),
     membersByEmail(tx, batch.organisationId),
-    tx
-      .select({
-        id: dataSubjectRequests.id,
-        ref: dataSubjectRequests.externalRef,
-        entityId: dataSubjectRequests.entityId,
-        entityName: entities.name,
-        reference: dataSubjectRequests.reference,
-        updatedAt: dataSubjectRequests.updatedAt,
-        importedAt: importBatches.committedAt,
-        confirmedAt: dataSubjectRequests.importConfirmedAt
-      })
-      .from(dataSubjectRequests)
-      .innerJoin(entities, eq(entities.id, dataSubjectRequests.entityId))
-      .leftJoin(
-        importBatches,
-        eq(importBatches.id, dataSubjectRequests.importBatchId)
-      )
-      .where(
-        and(
-          eq(dataSubjectRequests.organisationId, batch.organisationId),
-          eq(dataSubjectRequests.importSourceId, batch.sourceId)
-        )
-      )
+    priorCases(tx, batch, dataSubjectRequests, refs)
   ]);
   const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
   // Requests with a decision recorded here, not brought in by an import.
@@ -1908,9 +1986,7 @@ async function requestResolver(tx: Tx, batch: Batch) {
         ).map((r) => r.id)
       : []
   );
-  const cutOff = batch.mapping?.closedBefore
-    ? new Date(batch.mapping.closedBefore)
-    : null;
+  const cutOff = cutOffOf(batch);
   const now = new Date();
   return (
     data: Of<'data_subject_request'>['data'],
@@ -1994,12 +2070,11 @@ async function requestResolver(tx: Tx, batch: Batch) {
       return refuse(
         'Waiting for clarification needs the date it was asked for, and no date it arrived.'
       );
-    const ended = at(data.closedAt) ?? at(data.respondedAt);
-    if (cutOff && ended && ended < cutOff)
-      return {
-        action: 'skip',
-        reason: `Ended on ${ended.toISOString().slice(0, 10)}, before the retention cut-off of ${cutOff.toISOString().slice(0, 10)}.`
-      };
+    const skipped = beforeCutOff(
+      at(data.closedAt) ?? at(data.respondedAt),
+      cutOff
+    );
+    if (skipped) return skipped;
     const clock = requestClock({
       jurisdiction,
       receivedAt,
@@ -2028,20 +2103,8 @@ async function requestResolver(tx: Tx, batch: Batch) {
     };
     const found = own.get(sourceRef.toLowerCase());
     if (!found) return { action: 'create', recordId: null, request };
-    if (found.entityId !== batch.entityId)
-      return refuse(
-        `Imported before into ${found.entityName}. Import it into that entity.`
-      );
-    // Worked on here: a decision recorded here, or a change after both its
-    // last import and its confirmation, which are not work on the case.
-    const settled = Math.max(
-      found.importedAt?.getTime() ?? 0,
-      found.confirmedAt?.getTime() ?? 0
-    );
-    if (decidedHere.has(found.id) || found.updatedAt.getTime() > settled)
-      return refuse(
-        `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
-      );
+    const refusal = priorCaseRefusal(found, batch, decidedHere.has(found.id));
+    if (refusal) return refuse(refusal);
     return { action: 'update', recordId: found.id, request };
   };
 }
@@ -2092,7 +2155,7 @@ function authorityFrom(given: string) {
  * out (decision 10). One worked on here since it was imported is not written
  * over.
  */
-async function breachResolver(tx: Tx, batch: Batch) {
+async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
   const [[entity], memberOf, earlier] = await Promise.all([
     tx
       .select({
@@ -2107,26 +2170,7 @@ async function breachResolver(tx: Tx, batch: Batch) {
       .from(entities)
       .where(eq(entities.id, batch.entityId!)),
     membersByEmail(tx, batch.organisationId),
-    tx
-      .select({
-        id: breaches.id,
-        ref: breaches.externalRef,
-        entityId: breaches.entityId,
-        entityName: entities.name,
-        reference: breaches.reference,
-        updatedAt: breaches.updatedAt,
-        importedAt: importBatches.committedAt,
-        confirmedAt: breaches.importConfirmedAt
-      })
-      .from(breaches)
-      .innerJoin(entities, eq(entities.id, breaches.entityId))
-      .leftJoin(importBatches, eq(importBatches.id, breaches.importBatchId))
-      .where(
-        and(
-          eq(breaches.organisationId, batch.organisationId),
-          eq(breaches.importSourceId, batch.sourceId)
-        )
-      )
+    priorCases(tx, batch, breaches, refs)
   ]);
   const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
   // Each earlier breach's decisions: one recorded here, not brought in by an
@@ -2152,9 +2196,7 @@ async function breachResolver(tx: Tx, batch: Batch) {
       : [],
     (d) => d.breachId
   );
-  const cutOff = batch.mapping?.closedBefore
-    ? new Date(batch.mapping.closedBefore)
-    : null;
+  const cutOff = cutOffOf(batch);
   const now = new Date();
   return (data: Of<'breach'>['data'], sourceRef: string): Decision => {
     const refuse = (reason: string): Decision => ({ action: 'refuse', reason });
@@ -2333,12 +2375,8 @@ async function breachResolver(tx: Tx, batch: Batch) {
       return refuse(
         'It is notified there, but gives no date the authority was notified.'
       );
-    const ended = at(data.closedAt);
-    if (cutOff && ended && ended < cutOff)
-      return {
-        action: 'skip',
-        reason: `Closed on ${ended.toISOString().slice(0, 10)}, before the retention cut-off of ${cutOff.toISOString().slice(0, 10)}.`
-      };
+    const skipped = beforeCutOff(at(data.closedAt), cutOff);
+    if (skipped) return skipped;
 
     const resolved = (toWrite: BreachDecisionResolved[]): BreachResolved => ({
       regime,
@@ -2367,24 +2405,13 @@ async function breachResolver(tx: Tx, batch: Batch) {
     const found = own.get(sourceRef.toLowerCase());
     if (!found)
       return { action: 'create', recordId: null, breach: resolved(decisions) };
-    if (found.entityId !== batch.entityId)
-      return refuse(
-        `Imported before into ${found.entityName}. Import it into that entity.`
-      );
-    // Worked on here: a decision recorded here, or a change after both its
-    // last import and its confirmation, which are not work on the case.
-    const settled = Math.max(
-      found.importedAt?.getTime() ?? 0,
-      found.confirmedAt?.getTime() ?? 0
-    );
     const had = decisionsOf.get(found.id) ?? [];
-    if (
-      had.some((d) => d.importBatchId === null) ||
-      found.updatedAt.getTime() > settled
-    )
-      return refuse(
-        `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
-      );
+    const refusal = priorCaseRefusal(
+      found,
+      batch,
+      had.some((d) => d.importBatchId === null)
+    );
+    if (refusal) return refuse(refusal);
     // A decision it came in with stands as it came in; one the source has
     // recorded since is added, and one it now tells differently is refused
     // rather than rewriting when somebody was told.
@@ -2471,36 +2498,19 @@ function complaintStatusRefusal(
  * the batch's retention cut-off is left out (decision 10). One worked on
  * here since it was imported is not written over.
  */
-async function complaintResolver(tx: Tx, batch: Batch) {
+async function complaintResolver(
+  tx: Tx,
+  batch: Batch,
+  refs: readonly string[],
+  requestRefs: readonly string[]
+) {
   const [[entity], memberOf, earlier, [targets], requests] = await Promise.all([
     tx
       .select({ name: entities.name, law: entities.dataProtectionLaw })
       .from(entities)
       .where(eq(entities.id, batch.entityId!)),
     membersByEmail(tx, batch.organisationId),
-    tx
-      .select({
-        id: dataProtectionComplaints.id,
-        ref: dataProtectionComplaints.externalRef,
-        entityId: dataProtectionComplaints.entityId,
-        entityName: entities.name,
-        reference: dataProtectionComplaints.reference,
-        updatedAt: dataProtectionComplaints.updatedAt,
-        importedAt: importBatches.committedAt,
-        confirmedAt: dataProtectionComplaints.importConfirmedAt
-      })
-      .from(dataProtectionComplaints)
-      .innerJoin(entities, eq(entities.id, dataProtectionComplaints.entityId))
-      .leftJoin(
-        importBatches,
-        eq(importBatches.id, dataProtectionComplaints.importBatchId)
-      )
-      .where(
-        and(
-          eq(dataProtectionComplaints.organisationId, batch.organisationId),
-          eq(dataProtectionComplaints.importSourceId, batch.sourceId)
-        )
-      ),
+    priorCases(tx, batch, dataProtectionComplaints, refs),
     tx
       .select({
         outcomeTargetDays: organisations.complaintOutcomeTargetDays,
@@ -2508,24 +2518,48 @@ async function complaintResolver(tx: Tx, batch: Batch) {
       })
       .from(organisations)
       .where(eq(organisations.id, batch.organisationId)),
-    // The requests brought in from the same platform, which a complaint can
-    // name by its ID there.
-    tx
-      .select({
-        id: dataSubjectRequests.id,
-        ref: dataSubjectRequests.externalRef,
-        entityId: dataSubjectRequests.entityId
-      })
-      .from(dataSubjectRequests)
-      .where(
-        and(
-          eq(dataSubjectRequests.organisationId, batch.organisationId),
-          eq(dataSubjectRequests.importSourceId, batch.sourceId)
-        )
-      )
+    // The requests the file's complaints name: by their reference here, or
+    // by their ID in a platform they were imported from.
+    requestRefs.length
+      ? tx
+          .select({
+            id: dataSubjectRequests.id,
+            reference: dataSubjectRequests.reference,
+            ref: dataSubjectRequests.externalRef,
+            sourceId: dataSubjectRequests.importSourceId,
+            entityId: dataSubjectRequests.entityId
+          })
+          .from(dataSubjectRequests)
+          .where(
+            and(
+              eq(dataSubjectRequests.organisationId, batch.organisationId),
+              or(
+                inArray(
+                  sql`lower(${dataSubjectRequests.reference})`,
+                  requestRefs.map((r) => r.toLowerCase())
+                ),
+                inArray(
+                  sql`lower(${dataSubjectRequests.externalRef})`,
+                  requestRefs.map((r) => r.toLowerCase())
+                )
+              )
+            )
+          )
+      : []
   ]);
   const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
-  const requestByRef = new Map(requests.map((r) => [r.ref?.toLowerCase(), r]));
+  // Its reference here first; then its ID in this platform, or in the one
+  // other platform it was imported from.
+  const requestNamed = (given: string) => {
+    const key = given.toLowerCase();
+    const here = requests.find((r) => r.reference.toLowerCase() === key);
+    if (here) return here;
+    const there = requests.filter((r) => r.ref?.toLowerCase() === key);
+    return (
+      there.find((r) => r.sourceId === batch.sourceId) ??
+      (there.length > 1 ? 'ambiguous' : (there[0] ?? null))
+    );
+  };
   // Each earlier complaint's steps: one recorded here, not brought in by an
   // import, means it has been worked on here.
   const stepsOf = Map.groupBy(
@@ -2547,9 +2581,7 @@ async function complaintResolver(tx: Tx, batch: Batch) {
       : [],
     (e) => e.complaintId
   );
-  const cutOff = batch.mapping?.closedBefore
-    ? new Date(batch.mapping.closedBefore)
-    : null;
+  const cutOff = cutOffOf(batch);
   const now = new Date();
   return (
     data: Of<'data_protection_complaint'>['data'],
@@ -2619,15 +2651,19 @@ async function complaintResolver(tx: Tx, batch: Batch) {
           : data.acknowledgedAt
             ? 'acknowledged'
             : 'received');
-    const refusal = complaintStatusRefusal(status, data);
-    if (refusal) return refuse(refusal);
+    const statusRefusal = complaintStatusRefusal(status, data);
+    if (statusRefusal) return refuse(statusRefusal);
 
     let requestId: string | null = null;
     if (data.requestRef) {
-      const request = requestByRef.get(data.requestRef.toLowerCase());
+      const request = requestNamed(data.requestRef);
       if (!request)
         return refuse(
-          `"${data.requestRef}" is not a request imported from this platform. Import the requests first, or leave the request it is about empty.`
+          `"${data.requestRef}" is not a request in Govern, by its reference here or its ID in a platform it was imported from. Import the requests first, or leave the request it is about empty.`
+        );
+      if (request === 'ambiguous')
+        return refuse(
+          `"${data.requestRef}" is the ID of requests imported from more than one platform. Give its reference here instead, such as DSR-2026-0001.`
         );
       if (request.entityId !== batch.entityId)
         return refuse(
@@ -2636,11 +2672,8 @@ async function complaintResolver(tx: Tx, batch: Batch) {
       requestId = request.id;
     }
 
-    if (cutOff && closedAt && closedAt < cutOff)
-      return {
-        action: 'skip',
-        reason: `Closed on ${closedAt.toISOString().slice(0, 10)}, before the retention cut-off of ${cutOff.toISOString().slice(0, 10)}.`
-      };
+    const skipped = beforeCutOff(closedAt, cutOff);
+    if (skipped) return skipped;
 
     const steps: ComplaintStep[] = [
       ...(data.acknowledgedAt
@@ -2677,7 +2710,20 @@ async function complaintResolver(tx: Tx, batch: Batch) {
     // Sending the outcome tells the complainant it arrived, so it
     // acknowledges it where nothing did before, as recording it here does.
     const acknowledgedAt = at(data.acknowledgedAt) ?? outcomeAt;
-    // The sweep reads only complaints still owed an outcome.
+    // How it stands as it would here: late, or overdue where it is still
+    // owed an outcome, which is all the sweep reads.
+    const clock = complaintClock({
+      jurisdiction,
+      controllerRole,
+      receivedAt,
+      acknowledgedAt,
+      lastUpdateAt: at(data.lastUpdateAt),
+      outcomeAt,
+      ended: status === 'withdrawn',
+      outcomeTargetDays: targets.outcomeTargetDays,
+      updateIntervalDays: targets.updateIntervalDays,
+      now
+    });
     const open = !outcomeAt && !closedAt;
     const resolved = (toWrite: ComplaintStep[]): ComplaintResolved => ({
       jurisdiction,
@@ -2691,44 +2737,20 @@ async function complaintResolver(tx: Tx, batch: Batch) {
       requestId,
       ownerId: data.owner ? memberOf(data.owner) : null,
       steps: toWrite,
-      overdue:
-        open &&
-        pressingDials(
-          complaintClock({
-            jurisdiction,
-            controllerRole,
-            receivedAt,
-            acknowledgedAt,
-            lastUpdateAt: at(data.lastUpdateAt),
-            outcomeAt: null,
-            ended: false,
-            outcomeTargetDays: targets.outcomeTargetDays,
-            updateIntervalDays: targets.updateIntervalDays,
-            now
-          })
-        ).some((d) => d.state === 'overdue')
+      acknowledgedLate: clock.acknowledgement.state === 'late',
+      outcomeLate: clock.outcome.state === 'late',
+      overdue: open && pressingDials(clock).some((d) => d.state === 'overdue')
     });
     const found = own.get(sourceRef.toLowerCase());
     if (!found)
       return { action: 'create', recordId: null, complaint: resolved(steps) };
-    if (found.entityId !== batch.entityId)
-      return refuse(
-        `Imported before into ${found.entityName}. Import it into that entity.`
-      );
-    // Worked on here: a step recorded here, or a change after both its last
-    // import and its confirmation, which are not work on the complaint.
-    const settled = Math.max(
-      found.importedAt?.getTime() ?? 0,
-      found.confirmedAt?.getTime() ?? 0
-    );
     const had = stepsOf.get(found.id) ?? [];
-    if (
-      had.some((e) => e.importBatchId === null) ||
-      found.updatedAt.getTime() > settled
-    )
-      return refuse(
-        `${found.reference} has been worked on here since it was imported, so it is not written over. Record what changed on its page.`
-      );
+    const refusal = priorCaseRefusal(
+      found,
+      batch,
+      had.some((e) => e.importBatchId === null)
+    );
+    if (refusal) return refuse(refusal);
     // A step it came in with stands as it came in; one the source has
     // recorded since is added, and one it now dates differently is refused
     // rather than rewriting when the complainant heard. A later update is
@@ -2853,18 +2875,22 @@ export async function previewImport(input: {
       };
 
       const table = await readFile(batch.file);
-      const decide = await matcher(tx, { ...batch, mapping });
+      const all = table.rows.map((cells) =>
+        convertRow(batch.recordType, mapping, rowObject(table, cells))
+      );
+      const decide = await matcher(
+        tx,
+        { ...batch, mapping },
+        all.flatMap((c) =>
+          c.action === 'skip' || c.action === 'refuse' ? [] : [c]
+        )
+      );
       const seen = new Map<string, number>();
       // Open cases already past their deadline, to say before importing.
       let overdue = 0;
       const rows: Array<typeof importRows.$inferInsert> = [];
-      for (const [i, cells] of table.rows.entries()) {
+      for (const [i, converted] of all.entries()) {
         const rowNumber = i + 2;
-        const converted = convertRow(
-          batch.recordType,
-          mapping,
-          rowObject(table, cells)
-        );
         if (converted.action === 'skip' || converted.action === 'refuse') {
           rows.push({
             organisationId: input.organisationId,
@@ -4611,7 +4637,12 @@ async function writeComplaint(
     status: resolved.status,
     acknowledgedAt: resolved.acknowledgedAt,
     acknowledgementChannel: resolved.acknowledgementChannel,
-    acknowledgementLateReason: data.acknowledgementLateReason ?? null,
+    // Only where it was late, as recording it here keeps them; where the
+    // source gave no reason, the record says so rather than nothing.
+    acknowledgementLateReason: resolved.acknowledgedLate
+      ? (data.acknowledgementLateReason ??
+        `${c.sourceName} recorded no reason.`)
+      : null,
     outcome: data.outcome ?? null,
     outcomeAt: at(data.outcomeAt),
     outcomeChannel: data.outcomeChannel ?? null,
@@ -4622,7 +4653,9 @@ async function writeComplaint(
         : null),
     remedialAction: data.remedialAction ?? null,
     toldOfRegulatorRight: data.toldOfRegulatorRight ?? null,
-    outcomeLateReason: data.outcomeLateReason ?? null,
+    outcomeLateReason: resolved.outcomeLate
+      ? (data.outcomeLateReason ?? `${c.sourceName} recorded no reason.`)
+      : null,
     closedAt: at(data.closedAt),
     closureRationale: data.closureRationale ?? null
   };
@@ -5387,7 +5420,15 @@ export async function commitImport(input: {
         : [];
       const at = new Date();
       const actions: Action[] = [];
-      const decide = await matcher(tx, batch);
+      const decide = await matcher(
+        tx,
+        batch,
+        rows.flatMap((r) =>
+          r.record && r.sourceRef
+            ? [{ record: r.record, sourceRef: r.sourceRef }]
+            : []
+        )
+      );
       const importedTemplates = new Map<string, string>();
       const [source] = await tx
         .select({ name: importSources.name })
@@ -5512,7 +5553,20 @@ async function referencesTo(
     .where(
       sql`(${recordLinks.fromType} = ${table} and ${recordLinks.fromId} in ${ids}) or (${recordLinks.toType} = ${table} and ${recordLinks.toId} in ${ids})`
     );
-  return n + a.n + d.n + l.n;
+  // A comment, or a task somebody picked up, finished or sent to another
+  // tracker, is work on the record. An open task nobody has touched is not:
+  // undo takes those away first.
+  const [w] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(comments)
+    .where(
+      and(eq(comments.subjectType, table), inArray(comments.subjectId, ids))
+    );
+  const [t] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(tasks)
+    .where(and(eq(tasks.subjectType, table), inArray(tasks.subjectId, ids)));
+  return n + a.n + d.n + l.n + w.n + t.n;
 }
 
 /**
@@ -5595,10 +5649,24 @@ export async function undoImport(input: {
         throw new ImportRefused(
           `It registered ${created.length} AI system${created.length === 1 ? '' : 's'}. The AI register keeps every system's history, so ${created.length === 1 ? 'it' : 'they'} cannot be taken back out; retire any registered in error from ${created.length === 1 ? 'its' : 'their'} page.`
         );
+      // The sweep raises deadline tasks from an imported case's dates as soon
+      // as it runs. Those are the import's doing too, while nobody has picked
+      // them up or sent them to another tracker.
+      if (created.length)
+        await tx
+          .delete(tasks)
+          .where(
+            and(
+              eq(tasks.subjectType, kind),
+              inArray(tasks.subjectId, created),
+              eq(tasks.status, 'open'),
+              isNull(tasks.externalId)
+            )
+          );
       const linked = await referencesTo(tx, kind, created);
       if (linked > 0)
         throw new ImportRefused(
-          'Some of the records it created are now linked to other records, such as an assessment, an agreement or a file, so it can no longer be undone as a whole.'
+          'Some of the records it created are now linked to other records, such as an assessment, an agreement or a file, or have been worked on through a task or a comment, so it can no longer be undone as a whole.'
         );
 
       for (const row of rows) {
