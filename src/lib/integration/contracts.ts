@@ -593,6 +593,12 @@ export const informationRequestIn = z.object({
   status: z.enum(['open', 'responded', 'closed']).optional(),
   clarificationSoughtAt: z.iso.datetime().optional(),
   clarificationReceivedAt: z.iso.datetime().optional(),
+  /** FOIA s.9, EIR reg 8: a fees notice, which pauses the time, and its payment. */
+  feeNoticeAt: z.iso.datetime().optional(),
+  feeAmount: z.number().positive().optional(),
+  feePaidAt: z.iso.datetime().optional(),
+  /** Which part of a request under both regimes the fee was charged under. */
+  feeUnder: z.enum(['general', 'environmental']).optional(),
   /** EIR reg 7: the applicant told it is complex and voluminous. */
   complexityExtendedAt: z.iso.datetime().optional(),
   /** FOIA s.10(3): the notice that the public interest is being weighed. */

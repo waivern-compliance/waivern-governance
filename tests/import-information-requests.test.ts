@@ -312,6 +312,98 @@ describe('importing freedom of information requests', () => {
     );
   });
 
+  it('reads the grounds for refusing under each regime, and refuses what a regime does not have', async () => {
+    const w = await world('import-foi-grounds');
+    const { preview, rows } = await imported(
+      w.org.id,
+      [
+        'ID,Requester,Received on,Responded on,Outcome,Exemptions,Refused as,Kind of information,Public interest notice sent on,Public interest decision due,Exemption being weighed',
+        `F-1,A,${daysAgo(40)},${daysAgo(30)},Request refused,,Cost limit,,,,`,
+        `F-2,B,${daysAgo(40)},${daysAgo(30)},Released in part,s.43; reg 12(5)(e),,Both,,,`,
+        `F-3,C,${daysAgo(40)},${daysAgo(30)},Request refused,,Vexatious,Environmental,,,`,
+        `F-4,D,${daysAgo(40)},,,,,Environmental,${daysAgo(20)},${daysAhead(10)},s.43`,
+        `F-5,E,${daysAgo(40)},${daysAgo(30)},Withheld in full,reg 12(4)(a),,Environmental,,,`
+      ].join('\n')
+    );
+    assert.deepEqual(preview, { create: 3, refuse: 2 });
+    assert.match(rows[2].reason ?? '', /no cost limit and no vexatious/);
+    assert.match(rows[3].reason ?? '', /Only FOIA allows more time/);
+    // F-3 and F-4 were refused, so these are F-1, F-2 and F-5.
+    const [cost, both, notHeld] = await requestsOf(w.org.id);
+    const [limit] = await decisionsOf(cost.id);
+    assert.equal(limit.kind, 'cost_limit');
+    assert.equal(limit.provision, 's.12');
+    const grounds = await decisionsOf(both.id);
+    assert.deepEqual(grounds.map((d) => [d.regime, d.provision]).sort(), [
+      ['eir', 'reg 12(5)(e)'],
+      ['foia', 's.43']
+    ]);
+    // Information not held has no public interest to weigh, so no factors.
+    const [exception] = await decisionsOf(notHeld.id);
+    assert.equal(exception.detail.factorsFor, undefined);
+  });
+
+  it('stops the time while a fee is awaited, and counts a paid fee as here', async () => {
+    const w = await world('import-foi-fees');
+    const { notes } = await imported(
+      w.org.id,
+      [
+        'ID,Requester,Received on,Kind of information,Fees notice sent on,Fee asked for,Fee paid on,Responded on,Outcome',
+        `F-1,A,${daysAgo(60)},Environmental,${daysAgo(55)},25,,,`,
+        `F-2,B,${daysAgo(90)},Environmental,${daysAgo(85)},25,${daysAgo(50)},${daysAgo(40)},Released in full`
+      ].join('\n')
+    );
+    assert.deepEqual(notes, { overdue: 0 });
+    const [waiting, paid] = await requestsOf(w.org.id);
+    assert.equal(
+      (await loadInformationRequest(waiting.id, w.org.id))!.clock.state,
+      'waiting'
+    );
+    const loaded = (await loadInformationRequest(paid.id, w.org.id))!;
+    assert.equal(loaded.clock.state, 'met');
+    assert.equal(paid.lateReason, null);
+    assert.deepEqual((await decisionsOf(paid.id)).map((d) => d.kind).sort(), [
+      'fee_paid',
+      'fees_notice'
+    ]);
+  });
+
+  it('marks a review asked for late, or decided late, as the source left it', async () => {
+    const w = await world('import-foi-late-review');
+    await imported(
+      w.org.id,
+      [
+        'ID,Requester,Received on,Responded on,Outcome,Review asked for on,Review decided on,Review outcome',
+        `F-1,A,${daysAgo(300)},${daysAgo(290)},Released in full,${daysAgo(150)},${daysAgo(80)},Upheld`
+      ].join('\n')
+    );
+    const [request] = await requestsOf(w.org.id);
+    const [review] = await reviewsOf(request.id);
+    assert.match(
+      review.lateAcceptedReason ?? '',
+      /OneTrust recorded no reason/
+    );
+    assert.equal(review.lateReason, 'OneTrust recorded no reason.');
+  });
+
+  it('retires its deadline task when a later import says it was answered', async () => {
+    const w = await world('import-foi-answered');
+    const row = (responded: string) =>
+      [
+        'ID,Requester,Received on,Responded on,Outcome',
+        `F-1,A,${daysAgo(60)},${responded},${responded ? 'Released in full' : ''}`
+      ].join('\n');
+    await imported(w.org.id, row(''));
+    await sweepOrganisation(w.org.id);
+    const [task] = await requestTasksOf(w.org.id);
+    assert.equal(task.status, 'open');
+    const again = await imported(w.org.id, row(daysAgo(2)));
+    assert.deepEqual(again.preview, { update: 1 });
+    const [done] = await requestTasksOf(w.org.id);
+    assert.equal(done.status, 'done');
+    assert.equal((await requestsOf(w.org.id))[0].status, 'responded');
+  });
+
   it('leaves out requests that ended before the retention cut-off', async () => {
     const w = await world('import-foi-retention');
     const { preview, rows } = await imported(

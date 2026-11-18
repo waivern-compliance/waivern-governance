@@ -2424,6 +2424,41 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['clarification received', 'clarification answered']
     },
     {
+      key: 'feeNoticeAt',
+      label: 'Fees notice sent on',
+      kind: 'date',
+      hint: 'The time stops from the notice until the fee is paid. Give the amount too.',
+      aliases: [
+        'fees notice',
+        'fee notice',
+        'fees notice date',
+        'fee requested'
+      ]
+    },
+    {
+      key: 'feeAmount',
+      label: 'Fee asked for',
+      kind: 'number',
+      aliases: ['fee', 'fee amount', 'charge']
+    },
+    {
+      key: 'feePaidAt',
+      label: 'Fee paid on',
+      kind: 'date',
+      aliases: ['fee paid', 'fee paid date', 'payment received']
+    },
+    {
+      key: 'feeUnder',
+      label: 'Fee charged under',
+      kind: 'choice',
+      hint: 'Only for a request under both regimes.',
+      aliases: ['fee regime'],
+      choices: [
+        choice('general', 'General', 'general', 'foi', 'foia', 'foisa'),
+        choice('environmental', 'Environmental', 'environmental', 'eir', 'eisr')
+      ]
+    },
+    {
       key: 'complexityExtendedAt',
       label: 'Extended for complexity on',
       kind: 'date',
@@ -2653,18 +2688,23 @@ export function guessMapping(
 ): ImportMapping {
   const fields: Record<string, string> = {};
   const taken = new Set<string>();
-  for (const f of FIELDS[recordType]) {
-    // A field's own label too, so a file laid out with Govern's names matches.
-    const column = columns.find(
-      (c) =>
-        !taken.has(c) &&
-        (f.aliases.includes(norm(c)) || norm(f.label) === norm(c))
-    );
-    if (column) {
-      fields[f.key] = column;
-      taken.add(column);
+  // By the names each field is known by first, then by a field's own label
+  // for those still unmatched, so a file laid out with Govern's names matches
+  // without a label taking a column another field's name claims.
+  const by = (named: (f: FieldDef) => readonly string[]) => {
+    for (const f of FIELDS[recordType]) {
+      if (fields[f.key]) continue;
+      const column = columns.find(
+        (c) => !taken.has(c) && named(f).includes(norm(c))
+      );
+      if (column) {
+        fields[f.key] = column;
+        taken.add(column);
+      }
     }
-  }
+  };
+  by((f) => f.aliases);
+  by((f) => [norm(f.label)]);
   return { fields, keepUnmapped: true };
 }
 

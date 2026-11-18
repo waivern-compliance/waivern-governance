@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -72,6 +72,7 @@ import {
 import {
   clockStartsAt,
   exemptionsFor,
+  feeLapsesAt,
   FOI_ACT_REGIMES,
   informationRequestClock,
   informationRequestReviewClock,
@@ -79,6 +80,8 @@ import {
   OWN_DATA_PROVISIONS,
   REGIME,
   responseDeadline,
+  reviewAskedLate,
+  type FeePauses,
   type FoiAct,
   type FoiRegime,
   type TimeProfile
@@ -2868,6 +2871,8 @@ function exemptionNamed(given: string, regimes: readonly FoiRegime[]) {
 /** A decision a request comes in with: an extension, or a ground it was refused on. */
 type FoiDecision = {
   kind:
+    | 'fees_notice'
+    | 'fee_paid'
     | 'complexity_extension'
     | 'public_interest_extension'
     | 'exemption'
@@ -2878,6 +2883,8 @@ type FoiDecision = {
   provision: string | null;
   detail: Record<string, unknown>;
   effectiveAt: Date;
+  /** An exemption whose public interest test is part of the record. */
+  weighed?: boolean;
 };
 
 /** The latest review a request comes in with. */
@@ -2886,6 +2893,10 @@ type FoiReview = {
   decidedAt: Date | null;
   outcome: 'upheld' | 'varied' | 'reversed' | 'declined' | null;
   aboutNoResponse: boolean;
+  /** Asked for after the last day, and accepted rather than declined. */
+  acceptedLate: boolean;
+  /** Decided after its time. */
+  late: boolean;
 };
 
 const REFUSED_AS: Record<
@@ -3050,11 +3061,76 @@ async function informationRequestResolver(
       clarificationSoughtAt,
       clarificationReceivedAt
     });
+    const decisions: FoiDecision[] = [];
+    // A fee pauses the part it was charged under (FOIA s.10(2), EIR reg 8),
+    // so it comes in first: every other date is checked against the time it
+    // leaves.
+    const feeNoticeAt = at(data.feeNoticeAt);
+    const feePaidAt = at(data.feePaidAt);
+    const feePauses: FeePauses = {};
+    if ((data.feeAmount !== undefined || feePaidAt) && !feeNoticeAt)
+      return refuse(
+        'It gives a fee, but not when the fees notice went. The deadline cannot be worked out without it.'
+      );
+    if (feeNoticeAt) {
+      const feeRegime =
+        regimes.length === 1
+          ? regimes[0]
+          : data.feeUnder === 'environmental'
+            ? environmental
+            : data.feeUnder === 'general'
+              ? main
+              : null;
+      if (!feeRegime)
+        return refuse(
+          'It is a request under both regimes. Say which part the fee was charged under, general or environmental.'
+        );
+      if (!data.feeAmount || data.feeAmount <= 0)
+        return refuse('It gives a fees notice, but not the amount asked for.');
+      if (feePaidAt && earlierDay(feePaidAt, feeNoticeAt))
+        return refuse('It gives the fee paid before the fees notice went.');
+      const by = startsAt
+        ? responseDeadline({
+            regime: feeRegime,
+            startsAt,
+            profile: entity.profile
+          })
+        : null;
+      if (by && feeNoticeAt > by)
+        return refuse(
+          'The fees notice went after the time for responding, which the law does not allow. Leave the fee out, and it reads as late.'
+        );
+      const provision =
+        feeRegime === 'foia' || feeRegime === 'foisa' ? 's.9' : 'reg 8';
+      decisions.push({
+        kind: 'fees_notice',
+        regime: feeRegime,
+        provision,
+        detail: {
+          amount: data.feeAmount,
+          lapsesAt: feeLapsesAt(feeRegime, feeNoticeAt).toISOString()
+        },
+        effectiveAt: feeNoticeAt
+      });
+      if (feePaidAt)
+        decisions.push({
+          kind: 'fee_paid',
+          regime: feeRegime,
+          provision: null,
+          detail: {},
+          effectiveAt: feePaidAt
+        });
+      feePauses[feeRegime] = [{ from: feeNoticeAt, to: feePaidAt }];
+    }
     const ordinary = (regime: FoiRegime) =>
       startsAt
-        ? responseDeadline({ regime, startsAt, profile: entity.profile })
+        ? responseDeadline({
+            regime,
+            startsAt,
+            profile: entity.profile,
+            feePauses: feePauses[regime] ?? []
+          })
         : null;
-    const decisions: FoiDecision[] = [];
     const complexityAt = at(data.complexityExtendedAt);
     if (complexityAt) {
       if (!regimes.includes(environmental))
@@ -3145,7 +3221,8 @@ async function informationRequestResolver(
           absolute: named.exemption.absolute,
           title: named.exemption.title
         },
-        effectiveAt: respondedAt!
+        effectiveAt: respondedAt!,
+        weighed: needsPublicInterestTest(named.exemption)
       });
     }
     if (data.refusedAs) {
@@ -3208,7 +3285,9 @@ async function informationRequestResolver(
         requestedAt: reviewRequestedAt,
         decidedAt: reviewDecidedAt,
         outcome: data.reviewOutcome ?? null,
-        aboutNoResponse: !respondedAt
+        aboutNoResponse: !respondedAt,
+        acceptedLate: false,
+        late: false
       };
     }
 
@@ -3228,6 +3307,7 @@ async function informationRequestResolver(
       clarificationSoughtAt,
       clarificationReceivedAt,
       extendedForComplexity: Boolean(complexityAt),
+      feePauses,
       publicInterestDate: decisions.some(
         (d) => d.kind === 'public_interest_extension'
       )
@@ -3237,15 +3317,30 @@ async function informationRequestResolver(
       closedWithoutResponse: status === 'closed',
       now
     });
-    const reviewOverdue =
-      review !== null &&
+    const reviewClock =
+      review &&
       informationRequestReviewClock({
         regimes,
         requestedAt: review.requestedAt,
         profile: entity.profile,
         decidedAt: review.decidedAt,
         now
-      }).state === 'overdue';
+      });
+    const reviewOverdue = reviewClock?.state === 'overdue';
+    if (review && reviewClock) {
+      // As recording it here judges them: asked for after the last day and
+      // not declined, or decided after its time.
+      review.acceptedLate =
+        review.outcome !== 'declined' &&
+        'dueAt' in clock &&
+        reviewAskedLate({
+          regimes,
+          requestedAt: review.requestedAt,
+          respondedAt,
+          deadline: clock.dueAt
+        }).length > 0;
+      review.late = reviewClock.state === 'late';
+    }
     const resolved = (
       toWrite: FoiDecision[],
       reviewToWrite: FoiReview | null
@@ -3902,6 +3997,35 @@ const TABLE = {
   data_protection_complaint: dataProtectionComplaints,
   information_request: informationRequests
 } as const;
+
+/**
+ * A case a later import says has ended asks for nothing now: its open
+ * deadline tasks are retired, as answering or closing it here retires them.
+ * The sweep raises them but never takes them down.
+ */
+async function retireEndedCaseTasks(
+  c: WriteContext,
+  id: string,
+  type: (typeof tasks.$inferSelect)['type'],
+  keyPrefix?: string
+) {
+  await c.tx
+    .update(tasks)
+    .set({
+      status: 'done',
+      completedAt: c.at,
+      completedByLabel: c.actor.actorLabel
+    })
+    .where(
+      and(
+        eq(tasks.organisationId, c.batch.organisationId),
+        eq(tasks.type, type),
+        eq(tasks.subjectId, id),
+        inArray(tasks.status, ['open', 'in_progress']),
+        keyPrefix ? like(tasks.idempotencyKey, `${keyPrefix}%`) : undefined
+      )
+    );
+}
 
 /** One previewed row written: the record, and what to undo it with. */
 type Written = {
@@ -4881,6 +5005,8 @@ async function writeRequest(
       .set({ ...said(described), ...owner, ...kept })
       .where(eq(dataSubjectRequests.id, c.decision.recordId));
     id = c.decision.recordId;
+    if (described.respondedAt || described.closedAt)
+      await retireEndedCaseTasks(c, id, 'dsr_deadline', 'dsr-deadline:');
   } else {
     const reference = await nextReference(
       c.tx,
@@ -5059,6 +5185,8 @@ async function writeBreach(
       })
       .where(eq(breaches.id, c.decision.recordId));
     id = c.decision.recordId;
+    if (described.closedAt)
+      await retireEndedCaseTasks(c, id, 'breach_deadline');
   } else {
     const reference = await nextReference(
       c.tx,
@@ -5234,6 +5362,8 @@ async function writeComplaint(
       })
       .where(eq(dataProtectionComplaints.id, c.decision.recordId));
     id = c.decision.recordId;
+    if (described.outcomeAt || described.closedAt)
+      await retireEndedCaseTasks(c, id, 'complaint_deadline');
   } else {
     const reference = await nextReference(
       c.tx,
@@ -5404,6 +5534,8 @@ async function writeInformationRequest(
       })
       .where(eq(informationRequests.id, c.decision.recordId));
     id = c.decision.recordId;
+    if (resolved.status !== 'open')
+      await retireEndedCaseTasks(c, id, 'foi_deadline', 'foi-deadline:');
   } else {
     const reference = await nextReference(
       c.tx,
@@ -5441,6 +5573,10 @@ async function writeInformationRequest(
         return `The public interest was still being weighed, ${recorded}.`;
       case 'exemption':
         return `Relied on in the response, ${recorded}.`;
+      case 'fees_notice':
+        return `A fees notice was given, ${recorded}.`;
+      case 'fee_paid':
+        return `The fee was paid, ${recorded}.`;
       case 'cost_limit':
       case 'vexatious':
       case 'repeated':
@@ -5457,14 +5593,13 @@ async function writeInformationRequest(
         provision: d.provision,
         // A qualified exemption's weighing is part of the record here; the
         // source's is not known, and the record says so.
-        detail:
-          d.kind === 'exemption' && d.detail.absolute === false
-            ? {
-                ...d.detail,
-                factorsFor: `${c.sourceName} recorded no factors.`,
-                factorsAgainst: `${c.sourceName} recorded no factors.`
-              }
-            : d.detail,
+        detail: d.weighed
+          ? {
+              ...d.detail,
+              factorsFor: `${c.sourceName} recorded no factors.`,
+              factorsAgainst: `${c.sourceName} recorded no factors.`
+            }
+          : d.detail,
         rationale: rationaleOf(d),
         effectiveAt: d.effectiveAt,
         decidedByLabel: `In ${c.sourceName}`,
@@ -5483,6 +5618,14 @@ async function writeInformationRequest(
         data.reviewGrounds ??
         `${c.sourceName} did not export what the review was about.`,
       aboutNoResponse: resolved.review.aboutNoResponse,
+      // Where it was late, as recording it here keeps the reason; where the
+      // source gave none, the record says so rather than nothing.
+      lateAcceptedReason: resolved.review.acceptedLate
+        ? `Accepted although asked for after the last day; ${c.sourceName} recorded no reason.`
+        : null,
+      lateReason: resolved.review.late
+        ? `${c.sourceName} recorded no reason.`
+        : null,
       status: resolved.review.decidedAt ? 'decided' : 'open',
       outcome: resolved.review.outcome,
       decidedAt: resolved.review.decidedAt,

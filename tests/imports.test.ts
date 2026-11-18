@@ -21,6 +21,7 @@ import {
 } from '@/db/schema';
 import {
   convertRow,
+  FIELDS,
   guessMapping,
   readDate,
   readTransfers,
@@ -92,6 +93,33 @@ describe('reading a row', () => {
       ]).fields,
       { externalRef: 'ID', name: 'Activity Name', lawfulBasis: 'Legal Basis' }
     );
+  });
+
+  it("matches a column named as a field's own label, and no label is another field's name", () => {
+    assert.deepEqual(
+      guessMapping('information_request', [
+        'ID',
+        'Review asked for on',
+        'Fee charged under'
+      ]).fields,
+      {
+        externalRef: 'ID',
+        reviewRequestedAt: 'Review asked for on',
+        feeUnder: 'Fee charged under'
+      }
+    );
+    const norm = (v: string) =>
+      v
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]+/g, ' ');
+    for (const [type, defs] of Object.entries(FIELDS))
+      for (const a of defs)
+        for (const b of defs)
+          assert.ok(
+            a === b || !b.aliases.includes(norm(a.label)),
+            `${type}: ${a.key}'s label is one of ${b.key}'s names`
+          );
   });
 
   it('reads lists, dates, roles and transfers, and refuses what it cannot read', () => {
