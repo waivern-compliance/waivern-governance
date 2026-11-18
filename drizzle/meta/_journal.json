@@ -967,6 +967,20 @@
       "when": 1795043114073,
       "tag": "0137_network_and_server_asset_types",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795044731256,
+      "tag": "0138_cyber_essentials_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795044733207,
+      "tag": "0139_cyber_essentials_scope_guards",
+      "breakpoints": true
     }
   ]
 }

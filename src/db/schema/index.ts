@@ -27,3 +27,4 @@ export * from './trials';
 export * from './assets';
 export * from './contracts';
 export * from './policies';
+export * from './cyber-essentials';

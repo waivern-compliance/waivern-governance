@@ -569,6 +569,7 @@ export const ERASED_BY_ENTITY = [
   'digital_property',
   'marketing_activity',
   'sharing_agreement',
+  'cyber_scope',
   'information_asset',
   'supplier_contract',
   'processing_activity',
@@ -593,6 +594,8 @@ export const KEPT_WITH_ENTITY_ID: Record<string, string> = {
     "Waivern's own record of the terms and DPA accepted; detached from the entity.",
   retention_profile: 'Deleted with the entity, by cascade.',
   role_assignment: 'Deleted with the entity, by cascade.',
+  cyber_scope_entity:
+    "Deleted with the entity, by cascade: another entity's scope stops covering it.",
   entity_erasure: 'The record that the entity was deleted, by whom and when.'
 };
 

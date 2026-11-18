@@ -91,7 +91,9 @@ export const recordType = pgEnum('record_type', [
   'supplier_contract',
   // Added with the policy register.
   'policy',
-  'policy_version'
+  'policy_version',
+  // Added with Cyber Essentials.
+  'cyber_scope'
 ]);
 
 /**

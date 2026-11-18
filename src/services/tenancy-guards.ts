@@ -104,7 +104,8 @@ const OWN_TABLE: ReadonlySet<RecordType> = new Set<RecordType>([
   'information_asset',
   'supplier_contract',
   'policy',
-  'policy_version'
+  'policy_version',
+  'cyber_scope'
 ]);
 
 /** Records that reach their organisation through one parent. */

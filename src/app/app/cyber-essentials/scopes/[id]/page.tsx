@@ -1,0 +1,348 @@
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { asc, eq } from 'drizzle-orm';
+
+import { EditForm } from '@/components/EditForm';
+import { HelpLink } from '@/components/help/HelpLink';
+import { NotPermitted } from '@/components/NotPermitted';
+import { db, scoped } from '@/db/client';
+import { entities } from '@/db/schema';
+import { outOfSupport, typeLabel } from '@/lib/assets/types';
+import { OUT_OF_SCOPE_REASONS } from '@/lib/cyber-essentials/scope';
+import {
+  isCloudService,
+  SCOPE_KIND_LABEL,
+  scopeFindings,
+  type ScopeAsset
+} from '@/lib/cyber-essentials/scope-checks';
+import { can } from '@/lib/rbac';
+import { savedKey } from '@/lib/saved-key';
+import { getActiveSession } from '@/lib/session';
+import { assetTypology } from '@/services/asset-types';
+import { cyberEssentialsEnabled, loadScope } from '@/services/cyber-essentials';
+import { candidatesFor } from '@/services/handover';
+
+import { inputClass, Label } from '../../../requests/fields';
+import {
+  placeAssetAction,
+  unplaceAssetAction,
+  updateScopeAction
+} from '../../actions';
+import { ScopeFields } from '../../ScopeFields';
+
+const REASON_LABEL: Record<string, string> = Object.fromEntries(
+  OUT_OF_SCOPE_REASONS.map((r) => [r.value, r.label])
+);
+
+const button =
+  'rounded border border-line px-3 py-2 text-sm hover:border-brand';
+
+/** One certification scope: what it covers, and what stands before assessment. */
+export default async function ScopePage({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const active = await getActiveSession();
+  if (!active) redirect('/sign-in');
+  const org = active.membership.organisationId;
+  if (!(await cyberEssentialsEnabled(org))) redirect('/app/cyber-essentials');
+  const loaded = await loadScope(org, id);
+  if (!loaded) notFound();
+  const { scope, placements, candidates } = loaded;
+  if (!can(active.membership.grants, 'record.read', scope.entityId))
+    return (
+      <NotPermitted
+        what="This Cyber Essentials scope"
+        organisationName={active.membership.organisationName}
+      />
+    );
+  const mayEdit = can(active.membership.grants, 'record.write', scope.entityId);
+
+  const [types, orgEntities, members] = await Promise.all([
+    assetTypology(org),
+    scoped(org, () =>
+      db
+        .select({ id: entities.id, name: entities.name })
+        .from(entities)
+        .where(eq(entities.organisationId, org))
+        .orderBy(asc(entities.name))
+    ),
+    candidatesFor(org)
+  ]);
+
+  const now = new Date();
+  const findings = scopeFindings(scope, placements, candidates, now);
+  const byId = new Map(candidates.map((a) => [a.id, a]));
+  const placed = placements.flatMap((p) => {
+    const asset = byId.get(p.assetId);
+    return asset ? [{ ...p, asset }] : [];
+  });
+  const inScope = placed.filter((p) => p.inScope);
+  const leftOut = placed.filter((p) => !p.inScope);
+  const unplaced = candidates.filter(
+    (a) => !a.retiredAt && !placements.some((p) => p.assetId === a.id)
+  );
+
+  const describe = (a: ScopeAsset) =>
+    [
+      typeLabel(types, a.assetType),
+      a.details.quantity ? `${a.details.quantity} of them` : null,
+      isCloudService(a) ? 'cloud service' : null,
+      outOfSupport(a.details, now) ? 'out of vendor support' : null,
+      a.retiredAt ? 'retired' : null
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+  const row = (p: (typeof placed)[number]) => (
+    <li
+      key={p.assetId}
+      className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2 text-sm"
+    >
+      <span className="space-y-0.5">
+        <Link
+          href={`/app/assets/${p.asset.id}`}
+          className="hover:text-brand"
+        >
+          {p.asset.reference} {p.asset.name}
+        </Link>
+        <span className="block text-xs text-ink-soft">
+          {describe(p.asset)}
+          {p.reason ? ` · ${REASON_LABEL[p.reason]}` : ''}
+          {p.note ? `: ${p.note}` : ''}
+        </span>
+      </span>
+      {mayEdit ? (
+        <EditForm action={unplaceAssetAction.bind(null, scope.id, p.assetId)}>
+          <button
+            type="submit"
+            className="text-xs text-red-900 hover:underline"
+          >
+            Take off the list
+          </button>
+        </EditForm>
+      ) : null}
+    </li>
+  );
+
+  return (
+    <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
+      <header className="space-y-2 border-b border-line pb-6">
+        <Link
+          href="/app/cyber-essentials"
+          className="text-xs text-ink-soft hover:text-brand"
+        >
+          ← Cyber Essentials
+        </Link>
+        <p className="font-mono text-xs text-ink-soft">{scope.reference}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{scope.name}</h1>
+        <p className="text-sm text-ink-soft">
+          {SCOPE_KIND_LABEL[scope.kind]} · covers{' '}
+          {loaded.entities.map((e) => e.name).join(', ')} · prepared against{' '}
+          <Link
+            href={`/app/cyber-essentials/requirements?edition=${scope.edition}`}
+            className="text-brand hover:underline"
+          >
+            requirements {scope.edition}
+          </Link>
+        </p>
+      </header>
+
+      <HelpLink topic="cyber-essentials" />
+
+      <section className="space-y-3">
+        <h2 className="border-b border-line pb-2 text-lg font-semibold">
+          Before assessment
+        </h2>
+        {findings.length === 0 ? (
+          <p className="text-sm text-ink-soft">
+            Nothing outstanding in what the scope says.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {findings.map((f, i) => (
+              <li
+                key={i}
+                className="rounded border border-amber-700 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              >
+                <p>{f.message}</p>
+                {f.assets.length ? (
+                  <p className="mt-1 text-xs">
+                    {f.assets.map((a) => `${a.reference} ${a.name}`).join(', ')}
+                  </p>
+                ) : null}
+                <p className="mt-1 font-mono text-[11px]">
+                  <Link
+                    href={`/app/cyber-essentials/requirements?edition=${scope.edition}#${f.code}`}
+                    className="hover:underline"
+                  >
+                    {f.code}
+                  </Link>
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="border-b border-line pb-2 text-lg font-semibold">
+          In scope ({inScope.length})
+        </h2>
+        {inScope.length ? (
+          <ul className="divide-y divide-line rounded border border-line bg-surface">
+            {inScope.map(row)}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink-soft">Nothing yet.</p>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="border-b border-line pb-2 text-lg font-semibold">
+          Left out ({leftOut.length})
+        </h2>
+        {leftOut.length ? (
+          <ul className="divide-y divide-line rounded border border-line bg-surface">
+            {leftOut.map(row)}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink-soft">Nothing left out.</p>
+        )}
+      </section>
+
+      {mayEdit && unplaced.length > 0 ? (
+        <EditForm
+          action={placeAssetAction.bind(null, scope.id)}
+          className="space-y-3 rounded border border-line bg-surface p-5"
+        >
+          <h2 className="text-sm font-semibold">Place an asset</h2>
+          <p className="max-w-prose text-xs text-ink-soft">
+            Assets of the covered entities, from the information asset register.
+            Record alike devices as one asset with how many there are. Cloud
+            services cannot be left out.
+          </p>
+          <label className="block space-y-1">
+            <Label text="Asset" />
+            <select
+              name="assetId"
+              className={inputClass}
+            >
+              {unplaced.map((a) => (
+                <option
+                  key={a.id}
+                  value={a.id}
+                >
+                  {a.reference} {a.name} ({describe(a)})
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset className="flex gap-4 text-sm">
+            <legend className="sr-only">In or out</legend>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="placement"
+                value="in"
+                defaultChecked
+              />
+              In scope
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="placement"
+                value="out"
+              />
+              Left out
+            </label>
+          </fieldset>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <Label
+                text="Why it is left out"
+                hint="Only for an asset left out."
+              />
+              <select
+                name="reason"
+                defaultValue=""
+                className={inputClass}
+              >
+                <option value="">Choose</option>
+                {OUT_OF_SCOPE_REASONS.map((r) => (
+                  <option
+                    key={r.value}
+                    value={r.value}
+                  >
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <Label
+                text="Note"
+                hint="Needed for any other reason."
+              />
+              <input
+                name="note"
+                className={inputClass}
+              />
+            </label>
+          </div>
+          <button
+            type="submit"
+            className={button}
+          >
+            Place it
+          </button>
+        </EditForm>
+      ) : null}
+
+      {mayEdit ? (
+        <EditForm
+          key={savedKey(scope)}
+          action={updateScopeAction.bind(null, scope.id)}
+          className="space-y-4 rounded border border-line bg-surface p-5"
+        >
+          <h2 className="text-sm font-semibold">The scope</h2>
+          <ScopeFields
+            values={{
+              ...scope,
+              entityIds: loaded.entities.map((e) => e.id)
+            }}
+            entities={orgEntities}
+            home={scope.entityId}
+            members={members}
+          />
+          <button
+            type="submit"
+            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            Save the scope
+          </button>
+        </EditForm>
+      ) : (
+        <section className="space-y-2 rounded border border-line bg-surface p-5 text-sm">
+          <p>
+            <span className="text-ink-soft">Boundary:</span>{' '}
+            {scope.boundary ?? 'Not recorded'}
+          </p>
+          {scope.segregation ? (
+            <p>
+              <span className="text-ink-soft">Separated by:</span>{' '}
+              {scope.segregation}
+            </p>
+          ) : null}
+          <p>
+            <span className="text-ink-soft">Left out:</span>{' '}
+            {scope.exclusions ?? 'Nothing recorded'}
+          </p>
+        </section>
+      )}
+    </main>
+  );
+}
