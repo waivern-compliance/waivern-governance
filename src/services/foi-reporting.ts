@@ -100,7 +100,8 @@ export async function foiReport(
                 ])
               )
             : undefined,
-        outcome: r.outcome
+        outcome: r.outcome,
+        imported: r.importBatchId !== null
       })),
       refusals: [...decisions.values()]
         .flat()

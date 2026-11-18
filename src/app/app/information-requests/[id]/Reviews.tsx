@@ -318,9 +318,9 @@ function ReviewCard({
         <h3 className="font-semibold first-letter:uppercase">{names}</h3>
         <span className="text-xs text-ink-soft">
           asked for {longDate(review.requestedAt)} by{' '}
-          {(FOI_CHANNEL_LABEL[review.channel] ?? review.channel)
-            .replace(' (environmental only)', '')
-            .toLowerCase()}
+          {FOI_CHANNEL_LABEL[review.channel]
+            ?.replace(' (environmental only)', '')
+            .toLowerCase() ?? review.channel}
         </span>
       </header>
       <ReviewClock clock={review.clock} />

@@ -163,6 +163,8 @@ export type ReportRequest = {
   /** From the request's clock now. */
   clockState: string;
   outcome: Outcome | null;
+  /** Brought in from another platform, with its real dates. */
+  imported?: boolean;
 };
 
 /** A refusing decision: an exemption, exception, or a refusal of the whole request. */
@@ -209,6 +211,8 @@ export type RefusalCount = {
 
 export type FoiFigures = {
   total: Timeliness;
+  /** Of the requests received, how many were imported from another platform. */
+  imported: number;
   byRegime: Array<
     Timeliness & { regime: FoiRegime; label: string; short: string }
   >;
@@ -337,6 +341,7 @@ export function foiFigures(input: {
 
   return {
     total: timeliness(requests),
+    imported: requests.filter((r) => r.imported).length,
     byRegime,
     outcomes,
     refusals,

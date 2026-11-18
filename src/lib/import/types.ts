@@ -5,6 +5,7 @@ import type {
   ComplaintIn,
   DataSubjectRequestIn,
   InformationAssetIn,
+  InformationRequestIn,
   MitigationIn,
   PolicyDocumentIn,
   PolicyIn,
@@ -175,5 +176,10 @@ export type ImportRecord =
   | {
       kind: 'data_protection_complaint';
       data: ComplaintIn & { file?: string };
+      legacy: Legacy;
+    }
+  | {
+      kind: 'information_request';
+      data: InformationRequestIn & { file?: string };
       legacy: Legacy;
     };

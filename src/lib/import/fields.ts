@@ -8,6 +8,7 @@ import {
   dpaIn,
   evidenceIn,
   informationAssetIn,
+  informationRequestIn,
   mitigationIn,
   policyDocumentIn,
   policyIn,
@@ -38,7 +39,8 @@ export type RecordType =
   | 'assessment'
   | 'data_subject_request'
   | 'breach'
-  | 'data_protection_complaint';
+  | 'data_protection_complaint'
+  | 'information_request';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -51,7 +53,8 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'assessment',
   'data_subject_request',
   'breach',
-  'data_protection_complaint'
+  'data_protection_complaint',
+  'information_request'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -63,14 +66,16 @@ export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
   'assessment',
   'data_subject_request',
   'breach',
-  'data_protection_complaint'
+  'data_protection_complaint',
+  'information_request'
 ]);
 
 /** Kinds of record with a statutory clock, imported with their history. */
 export const CASE_HISTORY: ReadonlySet<RecordType> = new Set([
   'data_subject_request',
   'breach',
-  'data_protection_complaint'
+  'data_protection_complaint',
+  'information_request'
 ]);
 
 type FieldKind =
@@ -2253,6 +2258,377 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       ]
     },
     FILE
+  ],
+  information_request: [
+    ID,
+    {
+      key: 'requesterName',
+      label: 'Requester',
+      kind: 'text',
+      required: true,
+      aliases: [
+        'requester',
+        'requester name',
+        'applicant',
+        'applicant name',
+        'name',
+        'full name'
+      ]
+    },
+    {
+      key: 'correspondenceAddress',
+      label: 'Address for correspondence',
+      kind: 'text',
+      aliases: [
+        'email',
+        'address',
+        'correspondence address',
+        'contact',
+        'email address',
+        'contact details'
+      ]
+    },
+    {
+      key: 'kind',
+      label: 'Kind of information',
+      kind: 'choice',
+      hint: "Empty: general. Environmental goes under the entity's environmental regulations; both, under both.",
+      aliases: ['regime', 'request type', 'legislation', 'kind of information'],
+      choices: [
+        choice(
+          'general',
+          'General',
+          'general',
+          'foi',
+          'foia',
+          'freedom of information',
+          'foisa'
+        ),
+        choice(
+          'environmental',
+          'Environmental',
+          'environmental',
+          'eir',
+          'eisr',
+          'environmental information'
+        ),
+        choice(
+          'both',
+          'Both',
+          'both',
+          'foi and eir',
+          'foia and eir',
+          'foi/eir',
+          'foisa and eisr'
+        )
+      ]
+    },
+    {
+      key: 'channel',
+      label: 'How it arrived',
+      kind: 'choice',
+      hint: 'A request that is not environmental must be in writing, so one by phone or in person is not imported.',
+      aliases: ['channel', 'received via', 'submitted via'],
+      choices: [
+        choice('email', 'Email', 'email', 'e-mail'),
+        choice(
+          'web_form',
+          'Web form',
+          'web form',
+          'online form',
+          'webform',
+          'website',
+          'portal'
+        ),
+        choice('post', 'Post', 'post', 'letter', 'mail'),
+        choice('social_media', 'Social media', 'social media', 'twitter', 'x'),
+        choice('phone', 'Phone', 'phone', 'telephone'),
+        choice('in_person', 'In person', 'in person', 'face to face')
+      ]
+    },
+    {
+      key: 'receivedAt',
+      label: 'Received on',
+      kind: 'date',
+      aliases: [
+        'received',
+        'received on',
+        'date received',
+        'submitted',
+        'submitted on',
+        'created',
+        'created on',
+        'opened'
+      ]
+    },
+    {
+      key: 'description',
+      label: 'What was asked for',
+      kind: 'text',
+      aliases: [
+        'description',
+        'request',
+        'details',
+        'request details',
+        'subject'
+      ]
+    },
+    {
+      key: 'owner',
+      label: 'Handler',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no handler.',
+      aliases: ['owner', 'handler', 'assignee', 'assigned to', 'owner email']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'Empty: worked out from its dates. Responded needs its response date; closed, with no response owed, its closing date.',
+      aliases: ['status', 'state', 'stage'],
+      choices: [
+        choice('open', 'Open', 'open', 'new', 'in progress', 'received'),
+        choice(
+          'responded',
+          'Responded',
+          'responded',
+          'answered',
+          'completed',
+          'complete',
+          'closed responded'
+        ),
+        choice(
+          'closed',
+          'Closed, no response owed',
+          'closed',
+          'withdrawn',
+          'duplicate',
+          'cancelled'
+        )
+      ]
+    },
+    {
+      key: 'clarificationSoughtAt',
+      label: 'Clarification asked for on',
+      kind: 'date',
+      aliases: [
+        'clarification sought',
+        'clarification requested',
+        'clarification asked'
+      ]
+    },
+    {
+      key: 'clarificationReceivedAt',
+      label: 'Clarification received on',
+      kind: 'date',
+      aliases: ['clarification received', 'clarification answered']
+    },
+    {
+      key: 'complexityExtendedAt',
+      label: 'Extended for complexity on',
+      kind: 'date',
+      hint: 'Environmental information only (reg 7): the day the requester was told it is complex and voluminous.',
+      aliases: [
+        'complexity extension',
+        'extended for complexity',
+        'reg 7 extension'
+      ]
+    },
+    {
+      key: 'publicInterestNoticeAt',
+      label: 'Public interest notice sent on',
+      kind: 'date',
+      hint: 'FOIA only (s.10(3)): the notice saying the public interest is still being weighed. Give the exemption and the date it gave too.',
+      aliases: [
+        'public interest extension',
+        'pit extension',
+        'public interest notice'
+      ]
+    },
+    {
+      key: 'publicInterestDate',
+      label: 'Public interest decision due',
+      kind: 'date',
+      aliases: ['public interest date', 'pit date', 'extended to']
+    },
+    {
+      key: 'publicInterestExemption',
+      label: 'Exemption being weighed',
+      kind: 'text',
+      aliases: ['public interest exemption', 'pit exemption']
+    },
+    {
+      key: 'respondedAt',
+      label: 'Responded on',
+      kind: 'date',
+      aliases: [
+        'responded',
+        'responded on',
+        'response date',
+        'date responded',
+        'response sent',
+        'completed on'
+      ]
+    },
+    {
+      key: 'outcome',
+      label: 'Outcome',
+      kind: 'choice',
+      hint: 'Withheld or refused in any part needs the exemptions, or what it was refused as.',
+      aliases: ['outcome', 'result', 'response type', 'disclosure'],
+      choices: [
+        choice(
+          'released_in_full',
+          'Released in full',
+          'released in full',
+          'disclosed in full',
+          'granted in full',
+          'full disclosure'
+        ),
+        choice(
+          'released_in_part',
+          'Released in part',
+          'released in part',
+          'disclosed in part',
+          'partially disclosed',
+          'part disclosure',
+          'granted in part'
+        ),
+        choice(
+          'withheld_in_full',
+          'Withheld in full',
+          'withheld in full',
+          'withheld',
+          'refused in full'
+        ),
+        choice(
+          'refused_request',
+          'Request refused as a whole',
+          'request refused',
+          'refused as a whole'
+        ),
+        choice('not_held', 'Not held', 'not held', 'information not held')
+      ]
+    },
+    {
+      key: 'responseSummary',
+      label: 'What the response said',
+      kind: 'text',
+      aliases: ['response summary', 'response', 'resolution']
+    },
+    {
+      key: 'exemptions',
+      label: 'Exemptions relied on',
+      kind: 'list',
+      hint: 'By section or regulation, such as "s.40(2); s.43" or "reg 12(5)(e)". Separate several with ";".',
+      aliases: [
+        'exemptions',
+        'exemptions applied',
+        'exceptions',
+        'exceptions applied'
+      ]
+    },
+    {
+      key: 'refusedAs',
+      label: 'Refused as',
+      kind: 'choice',
+      hint: 'For a request refused as a whole other than under an exception. Not for environmental information.',
+      aliases: ['refused as', 'refusal reason', 'refusal ground'],
+      choices: [
+        choice(
+          'cost_limit',
+          'Over the cost limit',
+          'cost limit',
+          's.12',
+          'section 12'
+        ),
+        choice('vexatious', 'Vexatious', 'vexatious', 's.14(1)'),
+        choice('repeated', 'Repeated', 'repeated', 'repeat request', 's.14(2)')
+      ]
+    },
+    {
+      key: 'lateReason',
+      label: 'Why it was late',
+      kind: 'text',
+      aliases: ['late reason', 'reason for delay', 'delay reason']
+    },
+    {
+      key: 'published',
+      label: 'On the disclosure log',
+      kind: 'yesno',
+      aliases: ['published', 'disclosure log', 'on disclosure log']
+    },
+    {
+      key: 'closedAt',
+      label: 'Closed on',
+      kind: 'date',
+      aliases: ['closed on', 'date closed', 'withdrawn on']
+    },
+    {
+      key: 'closureRationale',
+      label: 'Why no response was owed',
+      kind: 'text',
+      aliases: ['closure reason', 'reason closed', 'closure rationale']
+    },
+    {
+      key: 'reviewRequestedAt',
+      label: 'Review asked for on',
+      kind: 'date',
+      hint: 'The latest internal review, where there was one.',
+      aliases: [
+        'internal review requested',
+        'review requested',
+        'review requested on',
+        'internal review date'
+      ]
+    },
+    {
+      key: 'reviewGrounds',
+      label: 'What the review was about',
+      kind: 'text',
+      aliases: ['review grounds', 'internal review grounds', 'grounds']
+    },
+    {
+      key: 'reviewDecidedAt',
+      label: 'Review decided on',
+      kind: 'date',
+      aliases: [
+        'review decided',
+        'review completed',
+        'internal review completed',
+        'review outcome date'
+      ]
+    },
+    {
+      key: 'reviewOutcome',
+      label: 'Review outcome',
+      kind: 'choice',
+      aliases: ['review outcome', 'internal review outcome', 'review result'],
+      choices: [
+        choice('upheld', 'Upheld', 'upheld', 'original decision upheld'),
+        choice(
+          'varied',
+          'Varied',
+          'varied',
+          'partly upheld',
+          'partially upheld'
+        ),
+        choice('reversed', 'Reversed', 'reversed', 'overturned'),
+        choice(
+          'declined',
+          'Declined, asked too late',
+          'declined',
+          'out of time'
+        )
+      ]
+    },
+    {
+      key: 'reviewSummary',
+      label: 'What the review decided',
+      kind: 'text',
+      aliases: ['review summary', 'internal review summary']
+    },
+    FILE
   ]
 };
 
@@ -2278,8 +2654,11 @@ export function guessMapping(
   const fields: Record<string, string> = {};
   const taken = new Set<string>();
   for (const f of FIELDS[recordType]) {
+    // A field's own label too, so a file laid out with Govern's names matches.
     const column = columns.find(
-      (c) => !taken.has(c) && f.aliases.includes(norm(c))
+      (c) =>
+        !taken.has(c) &&
+        (f.aliases.includes(norm(c)) || norm(f.label) === norm(c))
     );
     if (column) {
       fields[f.key] = column;
@@ -2412,6 +2791,12 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
     const discovered = valueOf('discoveredAt');
     return title && discovered ? `${title} / ${discovered}` : null;
   }
+  if (recordType === 'information_request') {
+    // Who and when tell two requests apart where the source gave no ID.
+    const name = valueOf('requesterName');
+    const received = valueOf('receivedAt');
+    return name && received ? `${name} / ${received}` : null;
+  }
   if (recordType === 'data_protection_complaint') {
     // Who and when tell two complaints apart where the source gave no ID.
     const name = valueOf('complainantName');
@@ -2481,6 +2866,10 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
     case 'data_protection_complaint': {
       const { file: _file, ...rest } = data;
       return complaintIn.safeParse(rest);
+    }
+    case 'information_request': {
+      const { file: _file, ...rest } = data;
+      return informationRequestIn.safeParse(rest);
     }
   }
 }

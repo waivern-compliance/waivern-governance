@@ -70,7 +70,7 @@ Every help topic the application carries, in the order it presents them.
 - [Who approves what, and changing it](#who-approves-what-and-changing-it) - Approvers are named by role rather than by person, so a departure is handled by moving the role - and both are managed on one screen.
 - [AI governance framework](#ai-governance-framework) - Whether AI risk follows the UK framework or NIST AI RMF, and what changes when the organisation moves from one to the other.
 - [Connected tools](#connected-tools) - Signed endpoints that let the Compliance Portal and scanning tools push records in and pull current state out.
-- [Importing records from another platform](#importing-records-from-another-platform) - Bring records, files, assets, risks, policies, assessments, and request, breach and complaint history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
+- [Importing records from another platform](#importing-records-from-another-platform) - Bring records, files, risks, policies, assessments and case history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.
 - [The organisation and its legal entities](#the-organisation-and-its-legal-entities) - What this organisation is called, the legal entities within it, and who may add them.
 - [Deleting a legal entity](#deleting-a-legal-entity) - Permanently deletes one legal entity and every record held for it. Irrevocable, so it is confirmed from an emailed link.
 - [Accepting Waivern's terms and Data Processing Agreement](#accepting-waiverns-terms-and-data-processing-agreement) - On Waivern's hosted service, every person accepts the terms for themselves, and each legal entity accepts the terms and a Data Processing Agreement before anybody works in it.
@@ -1195,6 +1195,8 @@ Anyone can ask, for any reason, and need not name the law. Do not ask why they w
 
 Under the Acts a pseudonym makes a request invalid, so mark a name that looks like one and ask for the real name. Record only the name, the address and what was asked. The register is restricted to the people who handle requests, because the name and address are the requester's personal data.
 
+A request imported from another platform keeps its real dates, so its twenty working days and any review read as they would have here. Its extensions, the grounds it was refused on and its review show as recorded in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it. Imported requests count in the figures by their real dates, and the figures say how many were imported.
+
 ### How the twenty working days are counted
 
 From the day after the request arrives. Under FOIA and the EIR, a working day is not a weekend, Christmas Day, Good Friday or a bank holiday in any part of the UK, so a Scottish or Northern Irish bank holiday stops an English authority's clock too. Under the Scottish Acts, only Scotland's bank holidays count.
@@ -2038,7 +2040,7 @@ The Portal reads the register back, with each system's gaps and its latest appro
 
 ## Importing records from another platform
 
-*Bring records, files, assets, risks, policies, assessments, and request, breach and complaint history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
+*Bring records, files, risks, policies, assessments and case history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.*
 
 **Screen:** `/app/admin/imports`
 
@@ -2120,6 +2122,14 @@ A closed complaint needs its outcome and the date it was closed, as here; one th
 
 The retention cut-off leaves out complaints closed before it. Imported complaints count in the complaints summary by their real dates, marked as imported. Importing again updates a complaint's details and adds a step recorded there since, such as a later update; a step it came in with is not rewritten, so a row dating it differently is not imported. A complaint worked on here since it was imported is not written over.
 
+### Freedom of information requests
+
+Each request needs who asked and when it arrived, and goes to an entity recorded as answering under FOIA or the Scottish Act; say whether it was for environmental information, or both. Its dates are kept as the old platform recorded them, so its twenty working days run here as they would have had it been recorded here. Asking for clarification, extending for complexity under the environmental regulations, and a FOIA public interest extension come in with their dates, checked as they would be here: an extension given after the first twenty working days is not imported, because the law does not allow it. Fees are not imported; record a fee notice on the request's page.
+
+A response that withheld anything needs the exemptions relied on, by section or regulation, or what the request was refused as: the cost limit, vexatious or repeated. They come in as the grounds the figures count. A request closed with no response owed needs the date it was closed; one closed after it was answered comes in as answered. An open request already past its deadline, or a review past its time, is overdue here too; the preview says how many there are before anything is written, and they raise tasks once imported. Nothing is sent to the requester.
+
+The latest internal review comes in with the request: when it was asked for, and when it was decided and what it decided, where it was. The retention cut-off leaves out requests that ended before it, counting a review's decision. Importing again updates a request's details and adds an extension, ground or review recorded there since; one it came in with is not rewritten, so a row telling it differently is not imported. A request worked on here since it was imported, including one taken to the regulator, is not written over.
+
 ### Information assets
 
 Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.
@@ -2138,7 +2148,7 @@ The matching of columns is remembered for each platform and kind of record, and 
 
 Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.
 
-An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request, breach or complaint shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
+An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request, breach, complaint or FOI request shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.
 
 ### Undoing an import
 

@@ -537,7 +537,13 @@ const WITHHOLDING: readonly ResponseOutcome[] = [
 ];
 
 /** A refusing decision that withholds something: not an exemption outweighed by the public interest. */
-export function withholds(d: InformationRequestDecision): boolean {
+/** What deciding a response's outcome reads of a decision. */
+type OutcomeGround = Pick<
+  InformationRequestDecision,
+  'kind' | 'detail' | 'provision' | 'effectiveAt'
+>;
+
+export function withholds(d: Pick<OutcomeGround, 'kind' | 'detail'>): boolean {
   return REFUSING.includes(d.kind) && d.detail.applied !== false;
 }
 
@@ -554,7 +560,7 @@ const WHOLE_REQUEST: readonly string[] = ['reg 12(4)(b)', 'reg 10(4)(b)'];
  */
 export function checkOutcome(
   outcome: ResponseOutcome,
-  decisions: readonly InformationRequestDecision[]
+  decisions: readonly OutcomeGround[]
 ) {
   if (!RESPONSE_OUTCOMES.includes(outcome))
     throw new InformationRequestRefused(

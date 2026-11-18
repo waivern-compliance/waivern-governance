@@ -14,7 +14,8 @@ export const RECORD_TYPE_LABEL: Record<string, string> = {
   assessment: 'Assessments',
   data_subject_request: 'Data subject requests (history)',
   breach: 'Breaches (history)',
-  data_protection_complaint: 'Complaints (history)'
+  data_protection_complaint: 'Complaints (history)',
+  information_request: 'FOI and EIR requests (history)'
 };
 
 /** Where a record of each kind is opened. */
@@ -39,6 +40,8 @@ export function recordHref(
       return `/app/breaches/${id}`;
     case 'data_protection_complaint':
       return `/app/complaints/${id}`;
+    case 'information_request':
+      return `/app/information-requests/${id}`;
     case 'policy_document':
       return `/app/policy-documents/${id}`;
     case 'supplier':

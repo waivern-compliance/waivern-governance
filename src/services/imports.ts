@@ -25,6 +25,10 @@ import {
   informationAssetRisks,
   informationAssets,
   informationAssetSuppliers,
+  informationRequestDecisions,
+  informationRequestRegulatorEvents,
+  informationRequestReviews,
+  informationRequests,
   memberships,
   mitigations,
   organisations,
@@ -65,6 +69,20 @@ import {
   RIGHTS,
   type Right
 } from '@/lib/dsr/statutory';
+import {
+  clockStartsAt,
+  exemptionsFor,
+  FOI_ACT_REGIMES,
+  informationRequestClock,
+  informationRequestReviewClock,
+  needsPublicInterestTest,
+  OWN_DATA_PROVISIONS,
+  REGIME,
+  responseDeadline,
+  type FoiAct,
+  type FoiRegime,
+  type TimeProfile
+} from '@/lib/foi/statutory';
 import {
   authorityByCode,
   isEeaState,
@@ -111,6 +129,11 @@ import {
 import { checkFile, insertDocument, UploadRefused } from './documents';
 import { ExtractionUnavailable, runExtraction } from './extraction';
 import { classificationSchemeOf } from './information-assets';
+import {
+  checkOutcome,
+  earlierDay,
+  InformationRequestRefused
+} from './information-requests';
 import { canonicalise as canonicaliseByPush } from './ingest';
 import { riskScaleOf } from './risks';
 import { cleanLawfulBases, cleanRecordLaws, RecordLawsRefused } from './ropa';
@@ -761,6 +784,24 @@ type ComplaintResolved = {
   overdue: boolean;
 };
 
+/** A freedom of information request read into this organisation's terms, with where its clocks stand. */
+type InformationRequestResolved = {
+  act: FoiAct;
+  regimes: FoiRegime[];
+  timeProfile: TimeProfile;
+  status: 'open' | 'responded' | 'closed';
+  closedAt: Date | null;
+  extendedForComplexity: boolean;
+  ownerId: string | null;
+  /** Responded after its deadline. */
+  late: boolean;
+  /** The decisions and review to write: all when it is new, and on a later import only those it did not come in with. */
+  decisions: FoiDecision[];
+  review: FoiReview | null;
+  /** Still owed a response or a review decision, and past its time: it raises a task once imported. */
+  overdue: boolean;
+};
+
 type Resolved = {
   /** The supplier an agreement belongs to, or an AI system is linked to. */
   supplierId?: string | null;
@@ -774,6 +815,7 @@ type Resolved = {
   request?: RequestResolved;
   breach?: BreachResolved;
   complaint?: ComplaintResolved;
+  informationRequest?: InformationRequestResolved;
 };
 
 type Decision =
@@ -1062,6 +1104,13 @@ async function matcher(
       const resolve = await requestResolver(tx, batch, refs);
       return (record, sourceRef) => {
         const { data } = record as Of<'data_subject_request'>;
+        return missingFile(data.file) ?? resolve(data, sourceRef);
+      };
+    }
+    case 'information_request': {
+      const resolve = await informationRequestResolver(tx, batch, refs);
+      return (record, sourceRef) => {
+        const { data } = record as Of<'information_request'>;
         return missingFile(data.file) ?? resolve(data, sourceRef);
       };
     }
@@ -1865,7 +1914,8 @@ function rightFrom(given: string): Right | null {
 type CaseTable =
   | typeof dataSubjectRequests
   | typeof breaches
-  | typeof dataProtectionComplaints;
+  | typeof dataProtectionComplaints
+  | typeof informationRequests;
 
 /**
  * Cases brought in before from the batch's platform that the rows about to
@@ -2791,6 +2841,475 @@ async function complaintResolver(
   };
 }
 
+/** A provision as sources write it, made comparable: "Section 40 (2)" is "s.40(2)". */
+const provisionKey = (p: string) => {
+  const v = p
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/^regulation/, 'reg')
+    .replace(/^section/, 's');
+  return v.startsWith('reg')
+    ? v.replace(/^reg\.?/, 'reg')
+    : v.replace(/^s\.?/, 's.');
+};
+
+/** The exemption or exception a provision names under one of the regimes. */
+function exemptionNamed(given: string, regimes: readonly FoiRegime[]) {
+  const key = provisionKey(given);
+  for (const regime of regimes) {
+    const exemption = exemptionsFor(regime).find(
+      (e) => provisionKey(e.provision) === key
+    );
+    if (exemption) return { regime, exemption };
+  }
+  return null;
+}
+
+/** A decision a request comes in with: an extension, or a ground it was refused on. */
+type FoiDecision = {
+  kind:
+    | 'complexity_extension'
+    | 'public_interest_extension'
+    | 'exemption'
+    | 'cost_limit'
+    | 'vexatious'
+    | 'repeated';
+  regime: FoiRegime;
+  provision: string | null;
+  detail: Record<string, unknown>;
+  effectiveAt: Date;
+};
+
+/** The latest review a request comes in with. */
+type FoiReview = {
+  requestedAt: Date;
+  decidedAt: Date | null;
+  outcome: 'upheld' | 'varied' | 'reversed' | 'declined' | null;
+  aboutNoResponse: boolean;
+};
+
+const REFUSED_AS: Record<
+  NonNullable<Of<'information_request'>['data']['refusedAs']>,
+  { provision: string; label: string }
+> = {
+  cost_limit: { provision: 's.12', label: 'over the cost limit' },
+  vexatious: { provision: 's.14(1)', label: 'vexatious' },
+  repeated: { provision: 's.14(2)', label: 'repeated' }
+};
+
+/**
+ * Freedom of information requests to the batch's entity, each read into this
+ * organisation's terms: its regimes from the entity's Act, its dates checked
+ * for what its status needs, its extensions and grounds checked as recording
+ * them here would check them, and its twenty working days and its review
+ * worked out as they would be had it been recorded here. A closed one that
+ * ended before the batch's retention cut-off is left out (decision 10). One
+ * worked on here since it was imported is not written over.
+ */
+async function informationRequestResolver(
+  tx: Tx,
+  batch: Batch,
+  refs: readonly string[]
+) {
+  const [[entity], memberOf, earlier] = await Promise.all([
+    tx
+      .select({
+        name: entities.name,
+        act: entities.foiAct,
+        profile: entities.foiTimeProfile
+      })
+      .from(entities)
+      .where(eq(entities.id, batch.entityId!)),
+    membersByEmail(tx, batch.organisationId),
+    priorCases(tx, batch, informationRequests, refs)
+  ]);
+  const own = new Map(earlier.map((r) => [r.ref?.toLowerCase(), r]));
+  const ids = earlier.map((r) => r.id);
+  // What each earlier request came in with, and whether anything was
+  // recorded on it here: a decision, a review, or a step with the regulator.
+  const [hadDecisions, hadReviews, regulated] = ids.length
+    ? await Promise.all([
+        tx
+          .select({
+            requestId: informationRequestDecisions.requestId,
+            kind: informationRequestDecisions.kind,
+            provision: informationRequestDecisions.provision,
+            effectiveAt: informationRequestDecisions.effectiveAt,
+            importBatchId: informationRequestDecisions.importBatchId
+          })
+          .from(informationRequestDecisions)
+          .where(inArray(informationRequestDecisions.requestId, ids)),
+        tx
+          .select({
+            requestId: informationRequestReviews.requestId,
+            requestedAt: informationRequestReviews.requestedAt,
+            decidedAt: informationRequestReviews.decidedAt,
+            outcome: informationRequestReviews.outcome,
+            importBatchId: informationRequestReviews.importBatchId
+          })
+          .from(informationRequestReviews)
+          .where(inArray(informationRequestReviews.requestId, ids)),
+        tx
+          .selectDistinct({
+            requestId: informationRequestRegulatorEvents.requestId
+          })
+          .from(informationRequestRegulatorEvents)
+          .where(inArray(informationRequestRegulatorEvents.requestId, ids))
+      ])
+    : [[], [], []];
+  const decisionsOf = Map.groupBy(hadDecisions, (d) => d.requestId);
+  const reviewsOf = Map.groupBy(hadReviews, (r) => r.requestId);
+  const withRegulator = new Set(regulated.map((r) => r.requestId));
+  const cutOff = cutOffOf(batch);
+  const now = new Date();
+  return (
+    data: Of<'information_request'>['data'],
+    sourceRef: string
+  ): Decision => {
+    const refuse = (reason: string): Decision => ({ action: 'refuse', reason });
+    if (!entity.act)
+      return refuse(
+        `${entity.name} is not recorded as answering freedom of information requests. Set which Act applies on the Organisation page first.`
+      );
+    const act = entity.act;
+    const [main, environmental] = FOI_ACT_REGIMES[act];
+    const regimes: FoiRegime[] =
+      data.kind === 'environmental'
+        ? [environmental]
+        : data.kind === 'both'
+          ? [main, environmental]
+          : [main];
+    const written = regimes.filter((r) => REGIME[r].mustBeInWriting);
+    if (
+      (data.channel === 'phone' || data.channel === 'in_person') &&
+      written.length
+    )
+      return refuse(
+        `A request under the ${REGIME[written[0]].label} must be in writing, so one by ${data.channel === 'phone' ? 'phone' : 'word of mouth'} is not one. Mark it environmental if it was for environmental information.`
+      );
+
+    const at = (iso?: string) => (iso ? new Date(iso) : null);
+    const receivedAt = new Date(data.receivedAt);
+    if (receivedAt > now)
+      return refuse('It cannot have arrived in the future.');
+    const dated = [
+      ['clarification was asked for', data.clarificationSoughtAt],
+      ['clarification came', data.clarificationReceivedAt],
+      ['it was extended for complexity', data.complexityExtendedAt],
+      ['the public interest notice went', data.publicInterestNoticeAt],
+      ['it was responded to', data.respondedAt],
+      ['it was closed', data.closedAt],
+      ['a review was asked for', data.reviewRequestedAt],
+      ['the review was decided', data.reviewDecidedAt]
+    ] as const;
+    for (const [what, iso] of dated) {
+      const when = at(iso);
+      if (when && earlierDay(when, receivedAt))
+        return refuse(`It gives a date ${what} before it arrived.`);
+      if (when && when > now)
+        return refuse(`It gives a date ${what} in the future.`);
+    }
+    const clarificationSoughtAt = at(data.clarificationSoughtAt);
+    const clarificationReceivedAt = at(data.clarificationReceivedAt);
+    if (clarificationReceivedAt && !clarificationSoughtAt)
+      return refuse(
+        'It says clarification came, but not when it was asked for. Both dates are needed to work out the deadline.'
+      );
+    if (
+      clarificationSoughtAt &&
+      clarificationReceivedAt &&
+      earlierDay(clarificationReceivedAt, clarificationSoughtAt)
+    )
+      return refuse('It gives clarification coming before it was asked for.');
+
+    // Responded, or closed with no response owed: a source that closes a
+    // request once answered has it answered.
+    const respondedAt = at(data.respondedAt);
+    const status =
+      respondedAt && data.status !== 'open'
+        ? 'responded'
+        : (data.status ?? (data.closedAt ? 'closed' : 'open'));
+    if (status === 'responded' && !respondedAt)
+      return refuse('It is responded to there, but gives no date it was.');
+    if (status === 'closed' && !data.closedAt)
+      return refuse('It is closed there, but gives no date it was closed.');
+    if (status === 'open' && (respondedAt || data.closedAt))
+      return refuse(
+        `It is open there, but gives a date it was ${respondedAt ? 'responded to' : 'closed'}. Say which it is.`
+      );
+    const closedAt = status === 'closed' ? at(data.closedAt) : null;
+    if (data.outcome && !respondedAt)
+      return refuse(
+        'It gives what the response came to, but no date it was sent.'
+      );
+
+    // The ordinary time for one regime, before any extension, to check an
+    // extension against as recording it here does.
+    const startsAt = clockStartsAt({
+      receivedAt,
+      clarificationSoughtAt,
+      clarificationReceivedAt
+    });
+    const ordinary = (regime: FoiRegime) =>
+      startsAt
+        ? responseDeadline({ regime, startsAt, profile: entity.profile })
+        : null;
+    const decisions: FoiDecision[] = [];
+    const complexityAt = at(data.complexityExtendedAt);
+    if (complexityAt) {
+      if (!regimes.includes(environmental))
+        return refuse(
+          'Only environmental information can be extended for complexity and volume (reg 7). Mark it environmental, or leave the extension out.'
+        );
+      const by = ordinary(environmental);
+      if (by && complexityAt > by)
+        return refuse(
+          'It was extended for complexity after the first twenty working days, which reg 7(2) does not allow. Leave the extension out, and it reads as late.'
+        );
+      decisions.push({
+        kind: 'complexity_extension',
+        regime: environmental,
+        provision: 'reg 7',
+        detail: {},
+        effectiveAt: complexityAt
+      });
+    }
+    const pi = [
+      data.publicInterestNoticeAt,
+      data.publicInterestDate,
+      data.publicInterestExemption
+    ];
+    if (pi.some(Boolean)) {
+      if (!pi.every(Boolean))
+        return refuse(
+          'A public interest extension needs the day the notice went, the date it gave, and the exemption being weighed.'
+        );
+      if (!regimes.includes('foia'))
+        return refuse(
+          `Only FOIA allows more time to weigh the public interest. Under the ${REGIME[regimes[0]].label} it is weighed within the ordinary time.`
+        );
+      const named = exemptionNamed(data.publicInterestExemption!, ['foia']);
+      if (!named || !needsPublicInterestTest(named.exemption))
+        return refuse(
+          `"${data.publicInterestExemption}" is not a qualified FOIA exemption, so there is no public interest to weigh under it.`
+        );
+      const noticeAt = new Date(data.publicInterestNoticeAt!);
+      const estimated = new Date(data.publicInterestDate!);
+      const by = ordinary('foia');
+      if (by && estimated <= by)
+        return refuse(
+          'The public interest date it gives is not after the ordinary deadline, so it extends nothing.'
+        );
+      if (by && noticeAt > by)
+        return refuse(
+          'The public interest notice went after the ordinary deadline, which s.17(2) does not allow. Leave the extension out, and it reads as late.'
+        );
+      decisions.push({
+        kind: 'public_interest_extension',
+        regime: 'foia',
+        provision: named.exemption.provision,
+        detail: { estimatedDate: estimated.toISOString() },
+        effectiveAt: noticeAt
+      });
+    }
+
+    // The grounds for what was withheld, as recording the response here
+    // needs them.
+    if ((data.exemptions?.length || data.refusedAs) && !respondedAt)
+      return refuse(
+        'It gives grounds for refusing, but no date the response went.'
+      );
+    for (const given of data.exemptions ?? []) {
+      const named = exemptionNamed(given, regimes);
+      if (!named)
+        return refuse(
+          `"${given}" is not an exemption or exception under the ${regimes.map((r) => REGIME[r].label).join(' or the ')}.`
+        );
+      if (OWN_DATA_PROVISIONS.includes(named.exemption.provision))
+        return refuse(
+          "The requester's own personal data is a subject access request, not a refusal. Import it as a data subject request instead."
+        );
+      if (
+        decisions.some(
+          (d) =>
+            d.kind === 'exemption' && d.provision === named.exemption.provision
+        )
+      )
+        continue;
+      decisions.push({
+        kind: 'exemption',
+        regime: named.regime,
+        provision: named.exemption.provision,
+        detail: {
+          applied: true,
+          absolute: named.exemption.absolute,
+          title: named.exemption.title
+        },
+        effectiveAt: respondedAt!
+      });
+    }
+    if (data.refusedAs) {
+      if (!regimes.includes(main))
+        return refuse(
+          'The environmental regulations have no cost limit and no vexatious or repeated request provision. Give the reg 12(4)(b) exception instead.'
+        );
+      decisions.push({
+        kind: data.refusedAs,
+        regime: main,
+        provision: REFUSED_AS[data.refusedAs].provision,
+        detail: {},
+        effectiveAt: respondedAt!
+      });
+    }
+    if (data.outcome) {
+      try {
+        checkOutcome(data.outcome, decisions);
+      } catch (error) {
+        if (error instanceof InformationRequestRefused)
+          return refuse(
+            error.message.replace(
+              /Record the exemption, exception or other ground first/,
+              'Give the exemptions relied on, or what it was refused as'
+            )
+          );
+        throw error;
+      }
+    }
+
+    // Its latest review, as recording it here would take it.
+    let review: FoiReview | null = null;
+    const reviewRequestedAt = at(data.reviewRequestedAt);
+    const reviewDecidedAt = at(data.reviewDecidedAt);
+    if (
+      !reviewRequestedAt &&
+      (reviewDecidedAt || data.reviewOutcome || data.reviewGrounds)
+    )
+      return refuse(
+        'It gives a review, but not when it was asked for. Its time runs from then.'
+      );
+    if (reviewRequestedAt) {
+      if (status === 'closed')
+        return refuse(
+          'It was closed with no response owed, so there is nothing to review.'
+        );
+      if (respondedAt && earlierDay(reviewRequestedAt, respondedAt))
+        return refuse(
+          'It gives a review asked for before the response went. A review asked for before any response is about no response: leave the response date out.'
+        );
+      if (Boolean(reviewDecidedAt) !== Boolean(data.reviewOutcome))
+        return refuse(
+          reviewDecidedAt
+            ? 'It gives a date the review was decided, but not what it decided.'
+            : 'It gives what the review decided, but not when.'
+        );
+      if (reviewDecidedAt && earlierDay(reviewDecidedAt, reviewRequestedAt))
+        return refuse('It gives the review decided before it was asked for.');
+      review = {
+        requestedAt: reviewRequestedAt,
+        decidedAt: reviewDecidedAt,
+        outcome: data.reviewOutcome ?? null,
+        aboutNoResponse: !respondedAt
+      };
+    }
+
+    const ended =
+      review && !review.decidedAt
+        ? null
+        : ([respondedAt, closedAt, review?.decidedAt ?? null]
+            .filter((d): d is Date => d !== null)
+            .sort((a, b) => b.getTime() - a.getTime())[0] ?? null);
+    const skipped = beforeCutOff(ended, cutOff);
+    if (skipped) return skipped;
+
+    const clock = informationRequestClock({
+      regimes,
+      receivedAt,
+      profile: entity.profile,
+      clarificationSoughtAt,
+      clarificationReceivedAt,
+      extendedForComplexity: Boolean(complexityAt),
+      publicInterestDate: decisions.some(
+        (d) => d.kind === 'public_interest_extension'
+      )
+        ? new Date(data.publicInterestDate!)
+        : null,
+      respondedAt,
+      closedWithoutResponse: status === 'closed',
+      now
+    });
+    const reviewOverdue =
+      review !== null &&
+      informationRequestReviewClock({
+        regimes,
+        requestedAt: review.requestedAt,
+        profile: entity.profile,
+        decidedAt: review.decidedAt,
+        now
+      }).state === 'overdue';
+    const resolved = (
+      toWrite: FoiDecision[],
+      reviewToWrite: FoiReview | null
+    ): InformationRequestResolved => ({
+      act,
+      regimes,
+      timeProfile: entity.profile,
+      status,
+      closedAt,
+      extendedForComplexity: Boolean(complexityAt),
+      ownerId: data.owner ? memberOf(data.owner) : null,
+      late: clock.state === 'late',
+      decisions: toWrite,
+      review: reviewToWrite,
+      // The sweep reads only requests still open, and reviews still owed.
+      overdue: (status === 'open' && clock.state === 'overdue') || reviewOverdue
+    });
+
+    const found = own.get(sourceRef.toLowerCase());
+    if (!found)
+      return {
+        action: 'create',
+        recordId: null,
+        informationRequest: resolved(decisions, review)
+      };
+    const had = decisionsOf.get(found.id) ?? [];
+    const hadReviews = reviewsOf.get(found.id) ?? [];
+    const refusal = priorCaseRefusal(
+      found,
+      batch,
+      had.some((d) => d.importBatchId === null) ||
+        hadReviews.some((r) => r.importBatchId === null) ||
+        withRegulator.has(found.id)
+    );
+    if (refusal) return refuse(refusal);
+    // What it came in with stands as it came in; a decision or a review the
+    // source has recorded since is added, and one it now tells differently
+    // is refused rather than rewriting the record of how it was handled.
+    const same = (d: FoiDecision, h: (typeof had)[number]) =>
+      d.kind === h.kind &&
+      d.provision === h.provision &&
+      d.effectiveAt.getTime() === h.effectiveAt.getTime();
+    const hadReview = hadReviews[0];
+    const reviewChanged =
+      hadReview &&
+      (!review ||
+        review.requestedAt.getTime() !== hadReview.requestedAt.getTime() ||
+        review.decidedAt?.getTime() !== hadReview.decidedAt?.getTime() ||
+        review.outcome !== hadReview.outcome);
+    if (had.some((h) => !decisions.some((d) => same(d, h))) || reviewChanged)
+      return refuse(
+        `${found.reference} came in saying something different about its extensions, its grounds for refusing or its review. What came in once is not rewritten: record what changed on its page.`
+      );
+    return {
+      action: 'update',
+      recordId: found.id,
+      informationRequest: resolved(
+        decisions.filter((d) => !had.some((h) => same(d, h))),
+        hadReview ? null : review
+      )
+    };
+  };
+}
+
 /** What makes two rows of one file the same record. */
 function sameRecordKeys(record: ImportRecord, sourceRef: string) {
   const keys = [`ref:${sourceRef.toLowerCase()}`];
@@ -2927,7 +3446,12 @@ export async function previewImport(input: {
         // Only new ones: a case imported before is already raising its tasks.
         if (
           decision.action === 'create' &&
-          (decision.request ?? decision.breach ?? decision.complaint)?.overdue
+          (
+            decision.request ??
+            decision.breach ??
+            decision.complaint ??
+            decision.informationRequest
+          )?.overdue
         )
           overdue += 1;
         rows.push({
@@ -3187,6 +3711,29 @@ const KEYS: Record<RecordType, string[]> = {
     'closureRationale',
     ...IMPORT_KEYS
   ],
+  information_request: [
+    'act',
+    'regimes',
+    'timeProfile',
+    'channel',
+    'receivedAt',
+    'description',
+    'requesterName',
+    'correspondenceAddress',
+    'status',
+    'ownerId',
+    'clarificationSoughtAt',
+    'clarificationReceivedAt',
+    'extendedForComplexity',
+    'respondedAt',
+    'responseSummary',
+    'outcome',
+    'lateReason',
+    'published',
+    'closedAt',
+    'closureRationale',
+    ...IMPORT_KEYS
+  ],
   data_protection_complaint: [
     'jurisdiction',
     'controllerRole',
@@ -3313,7 +3860,9 @@ const DATE_KEYS = new Set([
   'occurredAt',
   'containedAt',
   'acknowledgedAt',
-  'outcomeAt'
+  'outcomeAt',
+  'clarificationSoughtAt',
+  'clarificationReceivedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -3350,7 +3899,8 @@ const TABLE = {
   assessment: assessments,
   data_subject_request: dataSubjectRequests,
   breach: breaches,
-  data_protection_complaint: dataProtectionComplaints
+  data_protection_complaint: dataProtectionComplaints,
+  information_request: informationRequests
 } as const;
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -3428,7 +3978,8 @@ async function attachImportFile(
       | 'assessment'
       | 'data_subject_request'
       | 'breach'
-      | 'data_protection_complaint';
+      | 'data_protection_complaint'
+      | 'information_request';
     id: string;
     /** The entity the file is for, where the record has one. */
     entityId?: string | null;
@@ -3875,6 +4426,8 @@ function write(c: WriteContext, record: ImportRecord): Promise<Written> {
       return writeBreach(c, record);
     case 'data_protection_complaint':
       return writeComplaint(c, record);
+    case 'information_request':
+      return writeInformationRequest(c, record);
   }
 }
 
@@ -4772,6 +5325,205 @@ async function writeComplaint(
   };
 }
 
+/**
+ * A freedom of information request handled in another platform, written with
+ * its real dates. Nothing is sent to the requester and no task is raised
+ * here; the sweep reads its clocks from those dates afterwards. Its
+ * extensions, the grounds it was refused on and its latest review come in
+ * said to have been recorded there, and marked with this import. A later
+ * import adds what the source has recorded since and leaves the rest as they
+ * came in.
+ */
+async function writeInformationRequest(
+  c: WriteContext,
+  record: Of<'information_request'>
+): Promise<Written> {
+  const resolved = c.decision.informationRequest!;
+  const { data } = record;
+  const at = (iso?: string) => (iso ? new Date(iso) : null);
+  const was = c.decision.recordId
+    ? await rowBefore(c, 'information_request', c.decision.recordId)
+    : null;
+  const recorded = `as ${c.sourceName} recorded it`;
+  const respondedAt =
+    resolved.status === 'responded' ? at(data.respondedAt) : null;
+  const described = {
+    act: resolved.act,
+    regimes: resolved.regimes,
+    timeProfile: resolved.timeProfile,
+    channel: data.channel,
+    receivedAt: new Date(data.receivedAt),
+    description: data.description,
+    requesterName: data.requesterName,
+    correspondenceAddress: data.correspondenceAddress ?? null,
+    status: resolved.status,
+    clarificationSoughtAt: at(data.clarificationSoughtAt),
+    clarificationReceivedAt: at(data.clarificationReceivedAt),
+    extendedForComplexity: resolved.extendedForComplexity,
+    respondedAt,
+    responseSummary:
+      data.responseSummary ??
+      (respondedAt ? `Responded, ${recorded}; it gave no summary.` : null),
+    outcome: data.outcome ?? null,
+    // Only where it was late, as recording the response here keeps it;
+    // where the source gave no reason, the record says so rather than nothing.
+    lateReason: resolved.late
+      ? (data.lateReason ?? `${c.sourceName} recorded no reason.`)
+      : null,
+    published: data.published ?? null,
+    closedAt: resolved.closedAt,
+    closureRationale:
+      resolved.status === 'closed'
+        ? (data.closureRationale ??
+          `Closed with no response owed, ${recorded}; it gave no reason.`)
+        : null
+  };
+  const owner = resolved.ownerId ? { ownerId: resolved.ownerId } : {};
+  const kept = provenance(c, {
+    ...record,
+    legacy: {
+      ...record.legacy,
+      ...(data.owner && !resolved.ownerId ? { Handler: data.owner } : {})
+    }
+  });
+  let id: string;
+  if (c.decision.recordId) {
+    // Its status and dates follow the source exactly, emptied ones too: the
+    // clock and the sweep read them.
+    await c.tx
+      .update(informationRequests)
+      .set({
+        ...said(described),
+        clarificationSoughtAt: described.clarificationSoughtAt,
+        clarificationReceivedAt: described.clarificationReceivedAt,
+        respondedAt: described.respondedAt,
+        lateReason: described.lateReason,
+        closedAt: described.closedAt,
+        ...owner,
+        ...kept
+      })
+      .where(eq(informationRequests.id, c.decision.recordId));
+    id = c.decision.recordId;
+  } else {
+    const reference = await nextReference(
+      c.tx,
+      c.batch.organisationId,
+      'FOI',
+      c.at.getUTCFullYear()
+    );
+    const [created] = await c.tx
+      .insert(informationRequests)
+      .values({
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId!,
+        reference,
+        importSourceId: c.batch.sourceId,
+        externalRef: c.sourceRef,
+        createdAt: c.at,
+        ...described,
+        // Required here; a source that kept neither still had a request.
+        channel:
+          described.channel ?? `a channel ${c.sourceName} did not record`,
+        description:
+          described.description ??
+          `Imported from ${c.sourceName}, which did not export what was asked for.`,
+        ...owner,
+        ...kept
+      })
+      .returning({ id: informationRequests.id });
+    id = created.id;
+  }
+  const rationaleOf = (d: FoiDecision) => {
+    switch (d.kind) {
+      case 'complexity_extension':
+        return `Extended for complexity and volume, ${recorded}.`;
+      case 'public_interest_extension':
+        return `The public interest was still being weighed, ${recorded}.`;
+      case 'exemption':
+        return `Relied on in the response, ${recorded}.`;
+      case 'cost_limit':
+      case 'vexatious':
+      case 'repeated':
+        return `Refused as ${REFUSED_AS[d.kind].label}, ${recorded}.`;
+    }
+  };
+  if (resolved.decisions.length)
+    await c.tx.insert(informationRequestDecisions).values(
+      resolved.decisions.map((d) => ({
+        organisationId: c.batch.organisationId,
+        requestId: id,
+        kind: d.kind,
+        regime: d.regime,
+        provision: d.provision,
+        // A qualified exemption's weighing is part of the record here; the
+        // source's is not known, and the record says so.
+        detail:
+          d.kind === 'exemption' && d.detail.absolute === false
+            ? {
+                ...d.detail,
+                factorsFor: `${c.sourceName} recorded no factors.`,
+                factorsAgainst: `${c.sourceName} recorded no factors.`
+              }
+            : d.detail,
+        rationale: rationaleOf(d),
+        effectiveAt: d.effectiveAt,
+        decidedByLabel: `In ${c.sourceName}`,
+        decidedAt: c.at,
+        importBatchId: c.batch.id
+      }))
+    );
+  if (resolved.review)
+    await c.tx.insert(informationRequestReviews).values({
+      organisationId: c.batch.organisationId,
+      requestId: id,
+      regimes: resolved.regimes,
+      requestedAt: resolved.review.requestedAt,
+      channel: `a channel ${c.sourceName} did not record`,
+      grounds:
+        data.reviewGrounds ??
+        `${c.sourceName} did not export what the review was about.`,
+      aboutNoResponse: resolved.review.aboutNoResponse,
+      status: resolved.review.decidedAt ? 'decided' : 'open',
+      outcome: resolved.review.outcome,
+      decidedAt: resolved.review.decidedAt,
+      outcomeSummary: resolved.review.decidedAt
+        ? (data.reviewSummary ?? `Decided, ${recorded}; it gave no summary.`)
+        : null,
+      importBatchId: c.batch.id
+    });
+  const earlier = was
+    ? await earlierImports(c, 'information_request', id)
+    : null;
+  const { documentId } = await attachImportFile(
+    c,
+    data.file,
+    { type: 'information_request', id, entityId: c.batch.entityId },
+    earlier?.documentIds
+  );
+  // The requester's name and address stay out of the audit chain, as for a
+  // request recorded here.
+  await appendAuditEvent(c.tx, {
+    ...c.actor,
+    organisationId: c.batch.organisationId,
+    entityId: c.batch.entityId ?? undefined,
+    action: was ? 'foi.updated' : 'foi.recorded',
+    subjectType: 'information_request',
+    subjectId: id,
+    after: {
+      act: resolved.act,
+      regimes: resolved.regimes,
+      receivedAt: data.receivedAt,
+      status: resolved.status,
+      imported: { batch: c.batch.id, ref: c.sourceRef }
+    }
+  });
+  return {
+    id,
+    before: was && snapshot(was, KEYS.information_request),
+    documentId
+  };
+}
+
 const TEMPLATE_KIND_NAME: Record<Of<'assessment'>['data']['kind'], string> = {
   dpia: 'DPIA',
   lia: 'Legitimate interests assessment',
@@ -5640,6 +6392,14 @@ export async function undoImport(input: {
         await tx
           .delete(dataProtectionComplaintEvents)
           .where(eq(dataProtectionComplaintEvents.importBatchId, batch.id));
+      if (kind === 'information_request') {
+        await tx
+          .delete(informationRequestDecisions)
+          .where(eq(informationRequestDecisions.importBatchId, batch.id));
+        await tx
+          .delete(informationRequestReviews)
+          .where(eq(informationRequestReviews.importBatchId, batch.id));
+      }
       const created = rows
         .filter((r) => r.action === 'create')
         .map((r) => r.recordId!);
@@ -5760,7 +6520,8 @@ export type Confirmable =
   | 'assessment'
   | 'data_subject_request'
   | 'breach'
-  | 'data_protection_complaint';
+  | 'data_protection_complaint'
+  | 'information_request';
 
 /**
  * A mitigation has no organisation of its own: it is its risk's. Confirmed

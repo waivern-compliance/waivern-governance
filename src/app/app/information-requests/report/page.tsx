@@ -143,6 +143,14 @@ export default async function InformationRequestsReport({
                 counted under each, and once in all requests.
               </p>
             ) : null}
+            {f.imported > 0 ? (
+              <p className="text-xs text-ink-soft">
+                {f.imported} of these {f.imported === 1 ? 'was' : 'were'}{' '}
+                imported from another platform, and{' '}
+                {f.imported === 1 ? 'is' : 'are'} counted by
+                {f.imported === 1 ? ' its' : ' their'} real dates.
+              </p>
+            ) : null}
           </Section>
 
           <Section

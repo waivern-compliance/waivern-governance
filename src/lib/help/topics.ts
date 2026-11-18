@@ -1293,7 +1293,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Record it the day it arrives',
         body: [
           "Anyone can ask, for any reason, and need not name the law. Do not ask why they want it. A request under either Act must be in writing - an email, a letter, a web form or a social media message all count - with the requester's name and an address for the reply. A request for environmental information need not be: record a phone call or a conversation too.",
-          "Under the Acts a pseudonym makes a request invalid, so mark a name that looks like one and ask for the real name. Record only the name, the address and what was asked. The register is restricted to the people who handle requests, because the name and address are the requester's personal data."
+          "Under the Acts a pseudonym makes a request invalid, so mark a name that looks like one and ask for the real name. Record only the name, the address and what was asked. The register is restricted to the people who handle requests, because the name and address are the requester's personal data.",
+          'A request imported from another platform keeps its real dates, so its twenty working days and any review read as they would have here. Its extensions, the grounds it was refused on and its review show as recorded in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it. Imported requests count in the figures by their real dates, and the figures say how many were imported.'
         ]
       },
       {
@@ -2281,7 +2282,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records, files, assets, risks, policies, assessments, and request, breach and complaint history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
+      'Bring records, files, risks, policies, assessments and case history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2375,6 +2376,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Freedom of information requests',
+        body: [
+          "Each request needs who asked and when it arrived, and goes to an entity recorded as answering under FOIA or the Scottish Act; say whether it was for environmental information, or both. Its dates are kept as the old platform recorded them, so its twenty working days run here as they would have had it been recorded here. Asking for clarification, extending for complexity under the environmental regulations, and a FOIA public interest extension come in with their dates, checked as they would be here: an extension given after the first twenty working days is not imported, because the law does not allow it. Fees are not imported; record a fee notice on the request's page.",
+          'A response that withheld anything needs the exemptions relied on, by section or regulation, or what the request was refused as: the cost limit, vexatious or repeated. They come in as the grounds the figures count. A request closed with no response owed needs the date it was closed; one closed after it was answered comes in as answered. An open request already past its deadline, or a review past its time, is overdue here too; the preview says how many there are before anything is written, and they raise tasks once imported. Nothing is sent to the requester.',
+          "The latest internal review comes in with the request: when it was asked for, and when it was decided and what it decided, where it was. The retention cut-off leaves out requests that ended before it, counting a review's decision. Importing again updates a request's details and adds an extension, ground or review recorded there since; one it came in with is not rewritten, so a row telling it differently is not imported. A request worked on here since it was imported, including one taken to the regulator, is not written over."
+        ]
+      },
+      {
         heading: 'Information assets',
         body: [
           "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
@@ -2393,7 +2402,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request, breach or complaint shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request, breach, complaint or FOI request shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {
