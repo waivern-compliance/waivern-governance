@@ -1177,7 +1177,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Record it before you assess it',
         body: [
           'The seventy-two hours runs from when the organisation became aware, not from when the breach happened, and not from when somebody finished deciding what it amounted to. So the form asks for four facts and the time you became aware, and the assessment comes afterwards.',
-          'Every breach goes on the register, including the ones you decide not to report. Article 33(5) requires all of them to be documented, and an absence of notification with nothing written down is indistinguishable from an oversight.'
+          'Every breach goes on the register, including the ones you decide not to report. Article 33(5) requires all of them to be documented, and an absence of notification with nothing written down is indistinguishable from an oversight.',
+          'A breach imported from another platform keeps its real dates, so its clocks read as they did there. Its notifications show as decided in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it.'
         ]
       },
       {
@@ -2279,7 +2280,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'imports',
     title: 'Importing records from another platform',
     summary:
-      'Bring records, files, assets, risks, policies, assessments and request history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
+      'Bring records, files, assets, risks, policies, assessments, and request and breach history in from OneTrust, Vanta or a spreadsheet: match the columns, preview every row, then import.',
     path: '/app/admin/imports',
     keywords: [
       'import',
@@ -2357,6 +2358,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Breaches',
+        body: [
+          'Each breach needs a title and the date the organisation became aware of it, which starts the seventy-two hours. Its dates are kept as the old platform recorded them, so its clocks run here as they would have had it been recorded here. Notifying the supervisory authority or judging that it did not need notifying, telling the people affected or judging that they did not need telling, and, for a communications provider, telling the Information Commission under PECR come in with their dates, said to have been done in the old platform. A notification with no date is not imported, because whether it was in time cannot be worked out without it, and neither is one dated before the breach was discovered. Where a breach is owed to more than one authority, say which one was notified; it shows as notified once every authority it is owed to has been told, as one recorded here does.',
+          'A closed breach needs the date it was closed: with it, no clock runs and no task is raised, however old it is. An open breach never notified is overdue here too; the preview says how many there are before anything is written, and they raise tasks once imported. Nobody is notified by the import. Columns no field reads are not kept. A breach under EU law at an entity under UK law only, or under PECR at an entity that is not a communications provider, is not imported.',
+          "The retention cut-off leaves out breaches closed before it. A case file named in a row is attached to the breach. Importing again updates a breach's details and adds any notification recorded there since; a decision it came in with is not rewritten, so a row telling it differently is not imported. A breach worked on here since it was imported is not written over."
+        ]
+      },
+      {
         heading: 'Information assets',
         body: [
           "Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.",
@@ -2375,7 +2384,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         heading: 'Where imported records stand',
         body: [
           'Each imported record says which platform and import it came from. Columns no field reads are kept with it, to read, so nothing from the old platform is lost. Switch that off when matching if the file holds columns you do not want kept.',
-          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment or data subject request shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
+          'An imported processing activity, agreement, piece of evidence, AI system, information asset, risk, mitigation, policy, appropriate policy document, assessment, data subject request or breach shows as not yet confirmed until a person checks it and confirms it on its page; an imported supplier waits for confirmation in the same way as one a tool reported. Importing a record again makes it wait for confirmation again.'
         ]
       },
       {

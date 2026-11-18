@@ -12,7 +12,8 @@ export const RECORD_TYPE_LABEL: Record<string, string> = {
   policy_document: 'Appropriate policy documents',
   policy: 'Policies',
   assessment: 'Assessments',
-  data_subject_request: 'Data subject requests (history)'
+  data_subject_request: 'Data subject requests (history)',
+  breach: 'Breaches (history)'
 };
 
 /** Where a record of each kind is opened. */
@@ -33,6 +34,8 @@ export function recordHref(
       return `/app/assessments/${id}`;
     case 'data_subject_request':
       return `/app/requests/${id}`;
+    case 'breach':
+      return `/app/breaches/${id}`;
     case 'policy_document':
       return `/app/policy-documents/${id}`;
     case 'supplier':

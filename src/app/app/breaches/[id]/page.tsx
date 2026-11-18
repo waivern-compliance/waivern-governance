@@ -4,7 +4,10 @@ import { asc, eq } from 'drizzle-orm';
 
 import { Clock } from '@/components/breach/Clock';
 import { Discussion } from '@/components/Discussion';
+import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
+import { ConfirmImported } from '@/components/imports/ConfirmImported';
+import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
@@ -15,6 +18,8 @@ import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { loadBreach, severitySuggestion } from '@/services/breaches';
+import { documentsFor } from '@/services/documents';
+import { importSourceName } from '@/services/imports';
 
 import {
   detachAssessmentAction,
@@ -90,6 +95,10 @@ export default async function BreachPage({
     breach.entityId
   );
   const suggestion = await severitySuggestion(breach);
+  // Only an imported breach can have files: the case file it came with.
+  const files = breach.importSourceId
+    ? await documentsFor(active.membership.organisationId, 'breach', breach.id)
+    : [];
 
   const colleagues = await scoped(active.membership.organisationId, () =>
     db
@@ -138,6 +147,41 @@ export default async function BreachPage({
           />
         ) : null}
       </header>
+
+      {breach.importSourceId ? (
+        <ImportedFrom
+          sourceName={
+            (await importSourceName(
+              active.membership.organisationId,
+              breach.importSourceId
+            )) ?? 'another platform'
+          }
+          batchId={breach.importBatchId}
+          confirmed={breach.importConfirmedAt !== null}
+          legacy={breach.legacy}
+          confirm={
+            mayEdit ? (
+              <ConfirmImported
+                type="breach"
+                id={breach.id}
+                revalidate={`/app/breaches/${breach.id}`}
+                what="this breach"
+              />
+            ) : null
+          }
+        />
+      ) : null}
+      {files.length > 0 ? (
+        <Attachments
+          subjectType="breach"
+          subjectId={breach.id}
+          entityId={breach.entityId}
+          revalidate={`/app/breaches/${breach.id}`}
+          documents={files}
+          mayEdit={false}
+          what="The case file it came with"
+        />
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Severity</h2>

@@ -94,9 +94,11 @@ export type LoadedBreach = {
 
 /** The reg 5A clock for a breach, or null where reg 5A does not apply. */
 function pecrClockOf(
-  breach: Breach,
+  breach: Pick<Breach, 'discoveredAt' | 'pecrServiceBreach'>,
   provider: boolean,
-  decisions: readonly BreachDecision[],
+  decisions: ReadonlyArray<
+    Pick<BreachDecision, 'kind' | 'outcome' | 'completedAt'>
+  >,
   now: Date
 ) {
   if (!reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach }))
@@ -119,7 +121,7 @@ const ENTITY_LAW = {
   euLeadAuthority: entities.euLeadAuthority
 };
 
-type EntityLaw = {
+export type EntityLaw = {
   entityLaw: DataProtectionLaw;
   euEstablishments: string[];
   euMainEstablishment: string | null;
@@ -132,7 +134,7 @@ type EntityLaw = {
  * one authority to tell. A placeholder (a German Land not yet chosen) is met
  * by a notification to any authority of its State.
  */
-function concerns(
+export function concerns(
   d: Pick<BreachDecision, 'authorityCode'>,
   t: NotifyTarget,
   only: boolean
@@ -148,7 +150,7 @@ function concerns(
 }
 
 /** Whether every authority owed a notification has had one. */
-function everyAuthorityTold(
+export function everyAuthorityTold(
   targets: readonly NotifyTarget[],
   decisions: ReadonlyArray<
     Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode'>
@@ -165,13 +167,63 @@ function everyAuthorityTold(
 }
 
 /** The authorities a breach must be notified to, under its laws. */
-export function targetsOf(breach: Breach, entity: EntityLaw): NotifyTarget[] {
+export function targetsOf(
+  breach: Pick<Breach, 'laws' | 'affectedStates' | 'regime'>,
+  entity: EntityLaw
+): NotifyTarget[] {
   return authoritiesToNotify({
     laws: effectiveLaws(entity.entityLaw, breach.laws),
     establishment: entity,
     affectedStates: breach.affectedStates,
     part3: breach.regime === 'dpa_part3'
   });
+}
+
+/**
+ * Whether any of a breach's clocks, Article 33 to each authority owed or PECR
+ * reg 5A, is already past. For a breach brought in from another platform,
+ * before it is written: the sweep will raise a task for it at once.
+ */
+export function anyClockOverdue(input: {
+  breach: Pick<
+    Breach,
+    'controllerRole' | 'discoveredAt' | 'regime' | 'pecrServiceBreach'
+  >;
+  decisions: ReadonlyArray<
+    Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode' | 'completedAt'>
+  >;
+  /** The authorities it is owed to, from {@link targetsOf}. */
+  targets: readonly NotifyTarget[];
+  provider: boolean;
+  now: Date;
+}): boolean {
+  const { breach, decisions, targets, now } = input;
+  const notRequired = decisions.some(
+    (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
+  );
+  const clock = (notifiedAt: Date | null) =>
+    clockFor({
+      role: breach.controllerRole as ControllerRole,
+      discoveredAt: breach.discoveredAt,
+      notifiedAt,
+      notRequired,
+      now,
+      regime: breach.regime
+    });
+  const clocks = targets.length
+    ? targets.map((t) =>
+        clock(
+          decisions.find(
+            (d) =>
+              d.kind === 'supervisory_authority' &&
+              d.outcome === 'done' &&
+              concerns(d, t, targets.length === 1)
+          )?.completedAt ?? null
+        )
+      )
+    : [clock(null)];
+  const pecr = pecrClockOf(breach, input.provider, decisions, now);
+  return [...clocks, pecr].some((c) => c?.state === 'overdue');
 }
 
 function assemble(

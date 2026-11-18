@@ -1,6 +1,7 @@
 import {
   aiUseCaseIn,
   assessmentIn,
+  breachIn,
   dataSubjectRequestIn,
   dpaIn,
   evidenceIn,
@@ -33,7 +34,8 @@ export type RecordType =
   | 'policy_document'
   | 'policy'
   | 'assessment'
-  | 'data_subject_request';
+  | 'data_subject_request'
+  | 'breach';
 
 /** Kinds of record that belong to a legal entity, which the upload names. */
 export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
@@ -44,7 +46,8 @@ export const ENTITY_SCOPED: ReadonlySet<RecordType> = new Set([
   'risk',
   'mitigation',
   'assessment',
-  'data_subject_request'
+  'data_subject_request',
+  'breach'
 ]);
 
 /** Kinds of record whose rows can name a file added to the import. */
@@ -54,12 +57,14 @@ export const CARRIES_FILES: ReadonlySet<RecordType> = new Set([
   'policy_document',
   'policy',
   'assessment',
-  'data_subject_request'
+  'data_subject_request',
+  'breach'
 ]);
 
 /** Kinds of record with a statutory clock, imported with their history. */
 export const CASE_HISTORY: ReadonlySet<RecordType> = new Set([
-  'data_subject_request'
+  'data_subject_request',
+  'breach'
 ]);
 
 type FieldKind =
@@ -1560,6 +1565,320 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['closure reason', 'reason closed', 'closure rationale']
     },
     FILE
+  ],
+  breach: [
+    ID,
+    {
+      key: 'title',
+      label: 'Title',
+      kind: 'text',
+      required: true,
+      aliases: ['title', 'name', 'breach', 'incident', 'summary', 'subject']
+    },
+    {
+      key: 'description',
+      label: 'What happened',
+      kind: 'text',
+      aliases: ['description', 'details', 'what happened', 'incident details']
+    },
+    {
+      key: 'controllerRole',
+      label: 'Our role',
+      kind: 'choice',
+      hint: "A processor tells the controller; the seventy-two hours to the authority is the controller's.",
+      aliases: ['role', 'our role', 'controller or processor'],
+      choices: [
+        choice('controller', 'Controller', 'controller'),
+        choice('joint_controller', 'Joint controller', 'joint controller'),
+        choice('processor', 'Processor', 'processor')
+      ]
+    },
+    {
+      key: 'laws',
+      label: 'Law',
+      kind: 'choice',
+      hint: "Empty: the entity's. A breach under EU law at an entity under UK law only is not imported.",
+      aliases: ['jurisdiction', 'law', 'laws', 'regulation'],
+      choices: [
+        choice('uk', 'UK law', 'uk', 'uk gdpr', 'united kingdom'),
+        choice(
+          'eu',
+          'EU law',
+          'eu',
+          'eu gdpr',
+          'gdpr',
+          'ireland',
+          'european union'
+        ),
+        choice('uk_eu', 'Both', 'uk and eu', 'both', 'uk_eu')
+      ]
+    },
+    {
+      key: 'regime',
+      label: 'Regime',
+      kind: 'choice',
+      hint: 'Part 3 of the Data Protection Act 2018 is for law enforcement processing by a competent authority.',
+      aliases: ['regime', 'processing regime'],
+      choices: [
+        choice('gdpr', 'UK GDPR', 'gdpr', 'general processing'),
+        choice('dpa_part3', 'Part 3', 'law enforcement', 'part 3', 'dpa part 3')
+      ]
+    },
+    {
+      key: 'affectedStates',
+      label: 'Member States affected',
+      kind: 'list',
+      hint: 'EEA countries where affected people live, by two-letter code, such as "IE; FR".',
+      aliases: ['affected states', 'member states', 'countries affected']
+    },
+    {
+      key: 'discoveredAt',
+      label: 'Discovered on',
+      kind: 'date',
+      hint: 'When the organisation became aware. The seventy-two hours runs from this.',
+      aliases: [
+        'discovered',
+        'discovered on',
+        'date discovered',
+        'identified',
+        'identified on',
+        'date identified',
+        'aware',
+        'became aware',
+        'reported internally'
+      ]
+    },
+    {
+      key: 'occurredAt',
+      label: 'Happened on',
+      kind: 'date',
+      aliases: ['occurred', 'occurred on', 'date occurred', 'incident date']
+    },
+    {
+      key: 'containedAt',
+      label: 'Contained on',
+      kind: 'date',
+      aliases: ['contained', 'contained on', 'date contained']
+    },
+    {
+      key: 'categories',
+      label: 'Kind of breach',
+      kind: 'list',
+      hint: 'Confidentiality, integrity or availability. Separate several with ";".',
+      aliases: ['category', 'categories', 'breach type', 'breach category']
+    },
+    {
+      key: 'subjectsAffected',
+      label: 'People affected',
+      kind: 'number',
+      aliases: [
+        'people affected',
+        'subjects affected',
+        'data subjects affected',
+        'number of data subjects',
+        'individuals affected'
+      ]
+    },
+    {
+      key: 'recordsAffected',
+      label: 'Records affected',
+      kind: 'number',
+      aliases: ['records affected', 'number of records']
+    },
+    {
+      key: 'specialCategory',
+      label: 'Special category data',
+      kind: 'yesno',
+      aliases: ['special category', 'special category data', 'sensitive data']
+    },
+    {
+      key: 'likelyConsequences',
+      label: 'Likely consequences',
+      kind: 'text',
+      aliases: ['consequences', 'likely consequences', 'impact']
+    },
+    {
+      key: 'measuresTaken',
+      label: 'Measures taken',
+      kind: 'text',
+      aliases: [
+        'measures',
+        'measures taken',
+        'remediation',
+        'actions taken',
+        'containment'
+      ]
+    },
+    {
+      key: 'dataUnintelligible',
+      label: 'Data unintelligible',
+      kind: 'yesno',
+      hint: 'Encrypted or otherwise unreadable to whoever got it.',
+      aliases: ['encrypted', 'data encrypted', 'unintelligible']
+    },
+    {
+      key: 'pecrServiceBreach',
+      label: 'In providing a communications service',
+      kind: 'yesno',
+      hint: 'Only for a provider of a public electronic communications service (PECR reg 5A).',
+      aliases: ['pecr', 'pecr breach', 'communications service breach']
+    },
+    {
+      key: 'owner',
+      label: 'Handler',
+      kind: 'text',
+      hint: 'Their email address. Someone who is not a member here is kept with it, and it shows no handler.',
+      aliases: ['owner', 'handler', 'assignee', 'assigned to', 'owner email']
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      kind: 'choice',
+      hint: 'Empty: worked out from its dates. A closed one needs its date.',
+      aliases: ['status', 'state', 'stage'],
+      choices: [
+        choice('discovered', 'Discovered', 'new', 'open', 'reported', 'logged'),
+        choice(
+          'assessing',
+          'Assessing',
+          'assessing',
+          'investigating',
+          'in progress',
+          'under investigation'
+        ),
+        choice('contained', 'Contained', 'contained', 'remediated'),
+        choice('notified', 'Notified', 'notified', 'reported to regulator'),
+        choice('closed', 'Closed', 'closed', 'resolved', 'complete', 'archived')
+      ]
+    },
+    {
+      key: 'authorityDecision',
+      label: 'The supervisory authority',
+      kind: 'choice',
+      hint: 'Whether it was notified, or judged not to need notifying. Empty: not decided there.',
+      aliases: [
+        'reported to regulator',
+        'reported to ico',
+        'notifiable',
+        'regulator notified',
+        'ico notified',
+        'authority notified'
+      ],
+      choices: [
+        choice('notified', 'Notified', 'yes', 'notified', 'reported', 'true'),
+        choice(
+          'not_required',
+          'Not required',
+          'no',
+          'not required',
+          'not notifiable',
+          'not reportable',
+          'false'
+        )
+      ]
+    },
+    {
+      key: 'authority',
+      label: 'Which authority',
+      kind: 'text',
+      hint: 'Needed only where the breach is owed to more than one, such as under both UK and EU law. By name or code, such as "ICO" or "ie-dpc".',
+      aliases: ['authority', 'regulator', 'supervisory authority']
+    },
+    {
+      key: 'authorityNotifiedAt',
+      label: 'Authority notified on',
+      kind: 'date',
+      hint: 'Needed for a notified breach: whether it was in time is read from it.',
+      aliases: [
+        'date reported to regulator',
+        'regulator notified on',
+        'ico notified on',
+        'authority notified on',
+        'date notified',
+        'notified on'
+      ]
+    },
+    {
+      key: 'authorityRef',
+      label: "Authority's reference",
+      kind: 'text',
+      aliases: ['regulator reference', 'ico reference', 'case number']
+    },
+    {
+      key: 'authorityRationale',
+      label: 'Why (the authority)',
+      kind: 'text',
+      aliases: [
+        'notification rationale',
+        'reason not reported',
+        'reason not notified'
+      ]
+    },
+    {
+      key: 'lateReason',
+      label: 'Why it was late',
+      kind: 'text',
+      aliases: ['late reason', 'reason for delay', 'delay reason']
+    },
+    {
+      key: 'subjectsDecision',
+      label: 'The people affected',
+      kind: 'choice',
+      hint: 'Whether they were told, or judged not to need telling. Empty: not decided there, or told on the date given.',
+      aliases: [
+        'individuals notified',
+        'data subjects notified',
+        'subjects notified'
+      ],
+      choices: [
+        choice('told', 'Told', 'yes', 'told', 'notified', 'true'),
+        choice('not_required', 'Not required', 'no', 'not required', 'false')
+      ]
+    },
+    {
+      key: 'subjectsNotifiedAt',
+      label: 'People affected told on',
+      kind: 'date',
+      aliases: [
+        'individuals notified on',
+        'data subjects notified on',
+        'subjects notified on',
+        'date individuals notified'
+      ]
+    },
+    {
+      key: 'subjectsRationale',
+      label: 'Why (the people affected)',
+      kind: 'text',
+      aliases: [
+        'reason individuals not notified',
+        'reason subjects not notified'
+      ]
+    },
+    {
+      key: 'pecrNotifiedAt',
+      label: 'Commissioner told under PECR on',
+      kind: 'date',
+      aliases: ['pecr notified', 'pecr notified on', 'pecr report date']
+    },
+    {
+      key: 'closedAt',
+      label: 'Closed on',
+      kind: 'date',
+      aliases: ['closed on', 'date closed', 'resolved on']
+    },
+    {
+      key: 'closureRationale',
+      label: 'Why it was closed',
+      kind: 'text',
+      aliases: [
+        'closure reason',
+        'reason closed',
+        'closure rationale',
+        'lessons learned'
+      ]
+    },
+    FILE
   ]
 };
 
@@ -1713,6 +2032,12 @@ function refOf(recordType: RecordType, valueOf: (key: string) => string) {
     recordType === 'assessment'
   )
     return valueOf('title') || null;
+  if (recordType === 'breach') {
+    // What and when tell two breaches apart where the source gave no ID.
+    const title = valueOf('title');
+    const discovered = valueOf('discoveredAt');
+    return title && discovered ? `${title} / ${discovered}` : null;
+  }
   if (recordType === 'data_subject_request') {
     // Who and when tell two requests apart where the source gave no ID.
     const name = valueOf('requesterName');
@@ -1768,6 +2093,10 @@ function checkAs(recordType: RecordType, data: Record<string, unknown>) {
     case 'data_subject_request': {
       const { file: _file, ...rest } = data;
       return dataSubjectRequestIn.safeParse(rest);
+    }
+    case 'breach': {
+      const { file: _file, ...rest } = data;
+      return breachIn.safeParse(rest);
     }
   }
 }

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 
+import { Attachments } from '@/components/documents/Attachments';
 import { RequestClock } from '@/components/dsr/RequestClock';
 import { EditForm } from '@/components/EditForm';
 import { ConfirmImported } from '@/components/imports/ConfirmImported';
@@ -48,6 +49,7 @@ import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { complaintsAboutRequest } from '@/services/complaints';
 import { loadRequest } from '@/services/data-subject-requests';
+import { documentsFor } from '@/services/documents';
 import { importSourceName } from '@/services/imports';
 import { convertedFrom } from '@/services/information-requests';
 import { regulatorWithoutEstablishment } from '@/services/regulator';
@@ -261,6 +263,13 @@ export default async function RequestPage({
               />
             ) : null
           }
+        />
+      ) : null}
+      {request.importSourceId ? (
+        <ImportedCaseFile
+          organisationId={active.membership.organisationId}
+          requestId={request.id}
+          entityId={request.entityId}
         />
       ) : null}
 
@@ -992,4 +1001,32 @@ function DecisionDetail({
     );
   if (d.expectation) lines.push(EXPECTATION_LIMBS[d.expectation]);
   return <p className="text-xs text-ink-soft">{lines.join(' ')}</p>;
+}
+
+/** The case file an imported request came with, where it had one. */
+async function ImportedCaseFile({
+  organisationId,
+  requestId,
+  entityId
+}: {
+  organisationId: string;
+  requestId: string;
+  entityId: string;
+}) {
+  const files = await documentsFor(
+    organisationId,
+    'data_subject_request',
+    requestId
+  );
+  return files.length > 0 ? (
+    <Attachments
+      subjectType="data_subject_request"
+      subjectId={requestId}
+      entityId={entityId}
+      revalidate={`/app/requests/${requestId}`}
+      documents={files}
+      mayEdit={false}
+      what="The case file it came with"
+    />
+  ) : null;
 }
