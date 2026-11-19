@@ -410,7 +410,9 @@ export async function loadImport(batchId: string, organisationId: string) {
         .where(eq(importFiles.batchId, batch.id))
         .orderBy(importFiles.filename)
     ]);
-    const offered = batch.mapping ?? saved?.mapping;
+    // What the person had on the page when they last asked for a suggestion,
+    // then what they last previewed, then this source's last matching.
+    const offered = batch.suggestion?.basis ?? batch.mapping ?? saved?.mapping;
     const mapping: ImportMapping = offered
       ? {
           // Only columns this file has.

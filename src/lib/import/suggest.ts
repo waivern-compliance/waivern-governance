@@ -93,15 +93,16 @@ export type SuggestedColumns = {
   /** Field key to column name, as in the header row. */
   fields: Record<string, string>;
   notes: string | null;
-  /** Matches given that named a field or column that does not exist, or reused one. */
+  /** Matches given that named a field or column that does not exist, or shared one. */
   dropped: number;
 };
 
 /**
- * What of the reply is believed: a known field, a column the file has, and
- * each column once (ratings may share one, as a source with a single rating
- * is read as both likelihood and impact). Null when it is not JSON of the
- * right shape at all.
+ * What of the reply is believed: a known field and a column the file has. A
+ * column given to two fields is believed for neither, as the order the model
+ * happened to list them in says nothing about which is right; ratings may
+ * share one, as a source with a single rating is read as both likelihood and
+ * impact. Null when it is not JSON of the right shape at all.
  */
 export function readSuggestion(
   raw: string,
@@ -112,20 +113,23 @@ export function readSuggestion(
   if (!parsed.success) return null;
   const keys = new Set(FIELDS[recordType].map((f) => f.key));
   const byName = new Map(columns.map((c) => [c.trim().toLowerCase(), c]));
-  const fields: Record<string, string> = {};
-  const taken = new Set<string>();
-  let dropped = 0;
-  for (const [key, given] of Object.entries(parsed.data.fields)) {
+  const known = Object.entries(parsed.data.fields).flatMap(([key, given]) => {
     const column = byName.get(given.trim().toLowerCase());
-    const shared = RATINGS.has(key);
-    if (!keys.has(key) || !column || (taken.has(column) && !shared)) {
-      dropped += 1;
-      continue;
-    }
-    fields[key] = column;
-    if (!shared) taken.add(column);
-  }
-  return { fields, notes: parsed.data.notes?.trim() || null, dropped };
+    return keys.has(key) && column ? [[key, column] as const] : [];
+  });
+  const claims = new Map<string, number>();
+  for (const [key, column] of known)
+    if (!RATINGS.has(key)) claims.set(column, (claims.get(column) ?? 0) + 1);
+  const fields = Object.fromEntries(
+    known.filter(
+      ([key, column]) => RATINGS.has(key) || claims.get(column) === 1
+    )
+  );
+  return {
+    fields,
+    notes: parsed.data.notes?.trim() || null,
+    dropped: Object.keys(parsed.data.fields).length - Object.keys(fields).length
+  };
 }
 
 /**

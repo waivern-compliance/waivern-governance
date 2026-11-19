@@ -200,6 +200,14 @@ export type ImportSuggestion = {
   notes: string | null;
   /** Said to the person when anything was stripped before sending. */
   minimisation: string | null;
-  /** Why nothing could be suggested, when nothing could. */
+  /**
+   * Why the latest request suggested nothing, when it did not. An earlier
+   * suggestion's fields are kept, rather than lost to a request that failed.
+   */
   failure: string | null;
+  /**
+   * The matching as the person had it on the page when they asked, previewed
+   * or not, so asking does not undo what they had chosen.
+   */
+  basis?: ImportMapping;
 };

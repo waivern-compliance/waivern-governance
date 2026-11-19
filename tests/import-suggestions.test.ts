@@ -34,13 +34,16 @@ let model: Server;
 let modelUrl = '';
 let sent = '';
 let reply = '';
+/** Run while the model is answering, before its reply is sent. */
+let during: (() => Promise<unknown>) | null = null;
 
 before(async () => {
   model = createServer((request, response) => {
     let body = '';
     request.on('data', (chunk) => (body += chunk));
-    request.on('end', () => {
+    request.on('end', async () => {
       sent = body;
+      if (during) await during();
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(
         JSON.stringify({ content: [{ type: 'text', text: reply }] })
@@ -163,16 +166,16 @@ describe('what is sent to the model', () => {
 });
 
 describe('what of the reply is believed', () => {
-  it('drops unknown fields, unknown columns and a column given twice, but lets ratings share', () => {
+  it('drops unknown fields, unknown columns, and a column given to two fields for both, but lets ratings share', () => {
     const read = readSuggestion(
-      '```json\n{"fields": {"name": "Name", "purpose": "name", "nonsense": "Field 1", "description": "Nowhere"}}\n```',
+      '```json\n{"fields": {"name": "Name", "purpose": "name", "systemType": "Type", "nonsense": "Field 1", "description": "Nowhere"}}\n```',
       'ai_use_case',
-      ['Name', 'Field 1']
+      ['Name', 'Field 1', 'Type']
     );
     assert.deepEqual(read, {
-      fields: { name: 'Name' },
+      fields: { systemType: 'Type' },
       notes: null,
-      dropped: 3
+      dropped: 4
     });
     const ratings = readSuggestion(
       '{"fields": {"inherentLikelihood": "Rating", "inherentImpact": "Rating"}}',
@@ -213,7 +216,6 @@ describe('suggesting a matching', () => {
     reply = JSON.stringify({
       fields: {
         name: 'Ref',
-        externalRef: 'Ref',
         purpose: 'Field 1',
         systemType: 'Field 2',
         provenance: 'Origin'
@@ -337,5 +339,96 @@ describe('suggesting a matching', () => {
       }),
       /no longer being matched/
     );
+  });
+
+  it('keeps what the last request suggested when the next one fails', async () => {
+    const org = await anOrg('suggest-retry');
+    const batch = await upload(org.id, SYSTEMS);
+    reply = '{"fields": {"purpose": "Field 1", "provenance": "Origin"}}';
+    await suggestColumns({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: ACTOR
+    });
+    reply = 'Not today.';
+    const retried = await suggestColumns({
+      organisationId: org.id,
+      batchId: batch.id,
+      actor: ACTOR
+    });
+    assert.match(retried.failure ?? '', /not in a shape/);
+    const loaded = (await loadImport(batch.id, org.id))!;
+    assert.equal(loaded.mapping.fields.purpose, 'Field 1');
+    assert.equal(loaded.mapping.fields.provenance, 'Origin');
+    assert.match(loaded.batch.suggestion?.failure ?? '', /not in a shape/);
+  });
+
+  it('keeps the matching the person had on the page when they asked', async () => {
+    const org = await anOrg('suggest-basis');
+    const batch = await upload(org.id, SYSTEMS);
+    reply = '{"fields": {"purpose": "Field 1", "provenance": "Origin"}}';
+    await suggestColumns({
+      organisationId: org.id,
+      batchId: batch.id,
+      current: {
+        fields: { name: 'Ref', purpose: 'Field 2', nonsense: 'Name' },
+        keepUnmapped: false
+      },
+      actor: ACTOR
+    });
+    const loaded = (await loadImport(batch.id, org.id))!;
+    assert.equal(loaded.mapping.fields.name, 'Ref', 'not put back to Name');
+    assert.equal(loaded.mapping.fields.purpose, 'Field 2', 'not overwritten');
+    assert.equal(loaded.mapping.fields.provenance, 'Origin');
+    assert.equal(loaded.mapping.fields.nonsense, undefined);
+    assert.equal(loaded.mapping.keepUnmapped, false);
+    assert.deepEqual(loaded.suggested.differs, { purpose: 'Field 1' });
+  });
+
+  it('sets aside a reply that arrives after the import was previewed', async () => {
+    const org = await anOrg('suggest-late');
+    const batch = await upload(org.id, SYSTEMS);
+    const offered = (await loadImport(batch.id, org.id))!.mapping;
+    reply = '{"fields": {"purpose": "Field 1"}}';
+    during = () =>
+      previewImport({
+        organisationId: org.id,
+        batchId: batch.id,
+        mapping: {
+          ...offered,
+          fields: {
+            ...offered.fields,
+            purpose: 'Field 1',
+            systemType: 'Field 2',
+            provenance: 'Origin'
+          }
+        },
+        actor: ACTOR
+      });
+    try {
+      await assert.rejects(
+        suggestColumns({
+          organisationId: org.id,
+          batchId: batch.id,
+          actor: ACTOR
+        }),
+        /changed while the model was answering/
+      );
+    } finally {
+      during = null;
+    }
+    const loaded = (await loadImport(batch.id, org.id))!;
+    assert.equal(loaded.batch.status, 'previewed');
+    assert.equal(loaded.batch.suggestion, null);
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, org.id),
+          eq(auditEvents.action, 'import.mapping_suggested')
+        )
+      );
+    assert.equal((event.after as Record<string, unknown>).discarded, true);
   });
 });

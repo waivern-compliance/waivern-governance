@@ -128,6 +128,15 @@ export async function providerFor(
   });
 }
 
+/** Whether the organisation has a model and has switched this surface on. */
+export async function surfaceAvailable(
+  organisationId: string,
+  surface: Surface
+): Promise<boolean> {
+  const configured = await providerFor(organisationId);
+  return Boolean(configured?.surfaces.includes(surface));
+}
+
 export type Exchange = {
   conversationId: string;
   reply: string;

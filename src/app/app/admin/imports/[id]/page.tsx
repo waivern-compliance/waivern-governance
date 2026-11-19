@@ -12,8 +12,7 @@ import {
 import { mayImport } from '@/lib/rbac';
 import { SCALES } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
-import { extractionAvailable } from '@/services/extraction';
-import { importSuggestionsAvailable } from '@/services/import-suggestions';
+import { surfaceAvailable } from '@/services/assistant';
 import {
   agreementsToRead,
   loadImport,
@@ -36,6 +35,7 @@ import {
   recordHref,
   STATUS_LABEL
 } from '../words';
+import { SuggestButton } from './SuggestButton';
 import { ValueTranslations } from './ValueTranslations';
 
 const when = (d: Date) => d.toISOString().slice(0, 16).replace('T', ' ');
@@ -67,13 +67,13 @@ export default async function ImportBatchPage({
     batch.recordType === 'dpa' && batch.status === 'committed'
       ? await Promise.all([
           agreementsToRead(org, batch.id),
-          extractionAvailable(org)
+          surfaceAvailable(org, 'extraction')
         ])
       : [[], false];
 
   const defs = FIELDS[batch.recordType];
   const open = batch.status === 'uploaded' || batch.status === 'previewed';
-  const maySuggest = open && (await importSuggestionsAvailable(org));
+  const maySuggest = open && (await surfaceAvailable(org, 'import_mapping'));
   const suggestion = suggested.suggestion;
   // Ratings on the source's own scale, and choices in its own words, offered
   // once their columns are matched.
@@ -214,12 +214,7 @@ export default async function ImportBatchPage({
             than being guessed.
           </p>
           {maySuggest ? (
-            <RefusableForm
-              action={suggestColumnsAction.bind(null, batch.id)}
-              submit="Suggest a matching"
-              pendingLabel="Asking the model…"
-              resetOnSuccess={false}
-            >
+            <div className="space-y-3 rounded border border-line bg-surface p-5">
               <p className="max-w-prose text-sm text-ink-soft">
                 For a file whose column names are not ones Govern knows, the
                 organisation&apos;s model can suggest a matching. It sees the
@@ -227,10 +222,10 @@ export default async function ImportBatchPage({
                 {CASE_HISTORY.has(batch.recordType)
                   ? ' and nothing else: case files are mostly about the people who asked'
                   : ' and up to three rows, redacted and cut short'}
-                . It only fills fields left empty; you check them before
-                anything is previewed.
+                . It only fills fields left empty below, keeping what you have
+                chosen; you check them before anything is previewed.
               </p>
-              {suggestion && !suggestion.failure ? (
+              {suggestion && Object.keys(suggestion.fields).length > 0 ? (
                 <p className="max-w-prose text-xs text-ink-soft">
                   Suggested by {suggestion.model} on{' '}
                   {when(new Date(suggestion.at))}, asked by {suggestion.byLabel}
@@ -243,12 +238,22 @@ export default async function ImportBatchPage({
                   {suggestion.minimisation ? ` ${suggestion.minimisation}` : ''}
                 </p>
               ) : null}
-            </RefusableForm>
+              {suggestion?.failure ? (
+                <p className="max-w-prose text-xs text-amber-900">
+                  The last request suggested nothing: {suggestion.failure}
+                </p>
+              ) : null}
+              <SuggestButton
+                formId="import-matching"
+                action={suggestColumnsAction.bind(null, batch.id)}
+              />
+            </div>
           ) : null}
           <RefusableForm
             // Remounted for a new suggestion, so its matches show in the
             // selects, which otherwise keep what they first showed.
             key={suggestion?.at ?? 'matching'}
+            id="import-matching"
             action={previewImportAction.bind(null, batch.id)}
             submit={
               batch.status === 'previewed'
