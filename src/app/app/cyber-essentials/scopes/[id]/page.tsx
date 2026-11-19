@@ -9,7 +9,12 @@ import { StartAssessment } from '@/components/StartAssessment';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { outOfSupport, typeLabel } from '@/lib/assets/types';
-import { readinessOf } from '@/lib/cyber-essentials/readiness';
+import {
+  countsSummary,
+  editionAnswered,
+  readinessOf,
+  SIGN_OFF
+} from '@/lib/cyber-essentials/readiness';
 import { OUT_OF_SCOPE_REASONS } from '@/lib/cyber-essentials/scope';
 import {
   isCloudService,
@@ -80,7 +85,11 @@ export default async function ScopePage({
     candidatesFor(org),
     scopeReadiness(org, scope.id)
   ]);
-  const readiness = readinessOf(scope.edition, readinessRead.outcomes);
+  const { submitted, open } = readinessRead;
+  // Read against the edition it was answered for, not the scope's current one.
+  const answeredFor = submitted?.edition ?? scope.edition;
+  const readiness = readinessOf(answeredFor, readinessRead.outcomes);
+  const signOff = submitted && SIGN_OFF[submitted.status];
   const mayAssess = can(
     active.membership.grants,
     'assessment.create',
@@ -215,17 +224,16 @@ export default async function ScopePage({
         <h2 className="border-b border-line pb-2 text-lg font-semibold">
           Readiness
         </h2>
-        {readinessRead.submitted ? (
+        {submitted ? (
           <p className="text-sm">
             <Link
-              href={`/app/assessments/${readinessRead.submitted.id}`}
+              href={`/app/assessments/${submitted.id}`}
               className="font-mono text-xs text-ink-soft hover:text-brand"
             >
-              {readinessRead.submitted.reference}
+              {submitted.reference}
             </Link>{' '}
-            {readinessRead.submitted.scoreBand ?? 'Submitted'}:{' '}
-            {readiness.counts.met} met, {readiness.counts.not_met} not met,{' '}
-            {readiness.counts.not_applicable} not applicable.{' '}
+            {submitted.scoreBand ?? 'Submitted'}
+            {signOff ? ` (${signOff})` : ''}: {countsSummary(readiness.counts)}.{' '}
             <Link
               href={`/app/cyber-essentials/scopes/${scope.id}/readiness`}
               className="text-brand hover:underline"
@@ -239,14 +247,23 @@ export default async function ScopePage({
             scope&apos;s status against each requirement.
           </p>
         )}
-        {readinessRead.open ? (
+        {submitted && answeredFor !== scope.edition ? (
+          <p className="text-sm text-ink-soft">
+            Answered against requirements {answeredFor}; the scope is now
+            prepared against {scope.edition}, so assess it again.
+          </p>
+        ) : null}
+        {open ? (
           <p className="text-sm">
-            Being answered:{' '}
+            {open.status === 'in_review'
+              ? 'Awaiting sign-off'
+              : 'Being answered'}
+            :{' '}
             <Link
-              href={`/app/assessments/${readinessRead.open.id}`}
+              href={`/app/assessments/${open.id}`}
               className="text-brand hover:underline"
             >
-              {readinessRead.open.reference}
+              {open.reference}
             </Link>
           </p>
         ) : mayAssess ? (
@@ -255,7 +272,8 @@ export default async function ScopePage({
             subjectType="cyber_scope"
             subjectId={scope.id}
             prefer={CYBER_ESSENTIALS_READINESS_NAME}
-            missing="The readiness template is not installed. An owner can install it from the templates page."
+            fits={(definition) => editionAnswered(definition) === scope.edition}
+            missing={`No readiness template for requirements ${scope.edition} is installed. Govern ships one for v3.3: an owner can install it from the templates page, or change the scope's edition.`}
           />
         ) : null}
       </section>

@@ -13,6 +13,7 @@ import {
 } from '@/db/schema';
 import { judge, notWithinAppetite } from '@/lib/risk/appetite';
 import type { RiskTier } from '@/lib/risk/scale';
+import { TEMPLATE_KIND_LABEL } from '@/lib/templates/kinds';
 
 import { appetiteInForce } from './appetite-in-force';
 
@@ -89,19 +90,6 @@ const PIPELINE: Array<{ status: string; label: string }> = [
   { status: 'approved', label: 'Approved' },
   { status: 'rejected', label: 'Rejected' }
 ];
-
-const KIND_LABEL: Record<string, string> = {
-  dpia: 'DPIA',
-  tra: 'Transfer risk',
-  tia: 'Transfer impact',
-  ai_risk: 'AI risk',
-  screening: 'Screening',
-  supplier_record: 'Supplier',
-  eia: 'Equality impact',
-  cyber_essentials: 'Cyber Essentials',
-  breach: 'Breach',
-  custom: 'Custom'
-};
 
 export async function dashboardMetrics(
   organisationId: string,
@@ -218,7 +206,7 @@ export async function dashboardMetrics(
     const byKind = kinds
       .map((kind) => ({
         kind,
-        label: KIND_LABEL[kind] ?? kind,
+        label: TEMPLATE_KIND_LABEL[kind],
         count: kindRows.filter((k) => k.kind === kind).length,
         critical: kindRows.filter(
           (k) => k.kind === kind && k.tier === 'critical'

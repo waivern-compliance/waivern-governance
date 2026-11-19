@@ -5,11 +5,13 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { can, kindsFor } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
+import { TEMPLATE_KIND_LABEL } from '@/lib/templates/kinds';
 import { questionsOf } from '@/lib/templates/logic';
 import {
   shippedTemplatesMissing,
   shippedTemplatesOutdated,
-  templateLibrary
+  templateLibrary,
+  type TemplateKind
 } from '@/services/templates';
 
 import {
@@ -18,18 +20,22 @@ import {
   updateShippedAction
 } from './actions';
 
-const KIND_LABEL: Record<string, string> = {
-  screening: 'Screening',
-  dpia: 'DPIA',
-  tra: 'Transfer risk',
-  tia: 'Transfer impact',
-  ai_risk: 'AI risk',
-  supplier_record: 'Supplier record',
-  eia: 'Equality impact',
-  cyber_essentials: 'Cyber Essentials',
-  breach: 'Breach',
-  custom: 'Custom'
-};
+/**
+ * Kinds someone may author a template of from scratch. Cyber Essentials
+ * readiness is left out: its scoring is tied to an edition's requirements,
+ * which only the shipped template carries.
+ */
+const STARTABLE: readonly TemplateKind[] = [
+  'screening',
+  'dpia',
+  'tra',
+  'tia',
+  'ai_risk',
+  'supplier_record',
+  'eia',
+  'breach',
+  'custom'
+];
 
 export default async function Templates() {
   const active = await getActiveSession();
@@ -63,8 +69,8 @@ export default async function Templates() {
   const outdated = allOutdated.filter((t) => reaches(publishKinds, t.kind));
   const updatable = outdated.filter((t) => !t.blockedByDraft);
   const blocked = outdated.filter((t) => t.blockedByDraft);
-  const startable = Object.entries(KIND_LABEL).filter(([kind]) =>
-    reaches(authorKinds, kind)
+  const startable = STARTABLE.filter((kind) => reaches(authorKinds, kind)).map(
+    (kind) => [kind, TEMPLATE_KIND_LABEL[kind]] as const
   );
 
   return (
@@ -248,7 +254,7 @@ export default async function Templates() {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="font-medium">{template.name}</h2>
                   <span className="font-mono text-xs text-ink-soft">
-                    {KIND_LABEL[template.kind] ?? template.kind}
+                    {TEMPLATE_KIND_LABEL[template.kind]}
                     {template.jurisdiction ? ` · ${template.jurisdiction}` : ''}
                     {published ? ` · v${published.version}` : ' · unpublished'}
                   </span>

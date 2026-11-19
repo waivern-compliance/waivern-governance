@@ -3,7 +3,11 @@ import { notFound, redirect } from 'next/navigation';
 
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
-import { readinessOf } from '@/lib/cyber-essentials/readiness';
+import {
+  countsSummary,
+  readinessOf,
+  SIGN_OFF
+} from '@/lib/cyber-essentials/readiness';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
 import {
@@ -46,7 +50,10 @@ export default async function ScopeReadinessPage({
     );
 
   const { submitted, outcomes } = await scopeReadiness(org, id);
-  const readiness = readinessOf(scope.edition, outcomes);
+  // Read against the edition it was answered for, not the scope's current one.
+  const answeredFor = submitted?.edition ?? scope.edition;
+  const readiness = readinessOf(answeredFor, outcomes);
+  const signOff = submitted && SIGN_OFF[submitted.status];
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
@@ -75,8 +82,12 @@ export default async function ScopeReadinessPage({
               month: 'long',
               year: 'numeric'
             })}
-            {submitted.scoreBand ? `: ${submitted.scoreBand}` : ''}. Against
-            requirements {scope.edition}.
+            {submitted.scoreBand ? `: ${submitted.scoreBand}` : ''}
+            {signOff ? `, ${signOff}` : ''}. Against requirements {answeredFor}
+            {answeredFor !== scope.edition
+              ? `; the scope is now prepared against ${scope.edition}, so assess it again`
+              : ''}
+            .
           </p>
         ) : (
           <p className="text-sm text-ink-soft">
@@ -97,14 +108,7 @@ export default async function ScopeReadinessPage({
       ) : null}
 
       <p className="text-sm text-ink-soft">
-        {readiness.counts.met} met · {readiness.counts.not_met} not met ·{' '}
-        {readiness.counts.not_applicable} not applicable
-        {readiness.counts.unknown
-          ? ` · ${readiness.counts.unknown} not answered`
-          : ''}
-        {readiness.counts.not_asked
-          ? ` · ${readiness.counts.not_asked} not asked by the template`
-          : ''}
+        {countsSummary(readiness.counts)}.
       </p>
 
       {readiness.groups.map((g) => (
@@ -133,7 +137,7 @@ export default async function ScopeReadinessPage({
                   <span className="block">{r.summary}</span>
                   <span className="block font-mono text-[11px] text-ink-soft">
                     <Link
-                      href={`/app/cyber-essentials/requirements?edition=${scope.edition}#${r.code}`}
+                      href={`/app/cyber-essentials/requirements?edition=${answeredFor}#${r.code}`}
                       className="hover:underline"
                     >
                       {r.code}

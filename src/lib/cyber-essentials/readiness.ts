@@ -1,9 +1,16 @@
+import type { assessmentStatus } from '@/db/schema/enums';
 import type {
   RequirementOutcome,
   RequirementStatus
 } from '@/lib/templates/requirements';
+import type { TemplateDefinition } from '@/lib/templates/schema';
 
-import { isAutoFail, requirementsOf, scopeRulesOf } from './editions';
+import {
+  CE_EDITIONS,
+  isAutoFail,
+  requirementsOf,
+  scopeRulesOf
+} from './editions';
 import { CE_THEMES } from './requirements';
 import type { CeEditionId, CeThemeId } from './types';
 
@@ -24,6 +31,44 @@ export const READINESS_STATUS_LABEL: Record<ReadinessStatus, string> = {
   not_applicable: 'Not applicable',
   unknown: 'Not answered',
   not_asked: 'Not asked'
+};
+
+const FRAMEWORK = 'cyber_essentials:';
+
+/** What a readiness template's scoring names as the edition it asks against. */
+export function readinessFramework(edition: CeEditionId): string {
+  return `${FRAMEWORK}${edition}`;
+}
+
+/**
+ * The edition a readiness template asks against, or null for a template that
+ * tests no Cyber Essentials edition. A scope is assessed only with a template
+ * of its own edition, and an assessment is read against the edition it was
+ * answered for, even if the scope has moved on since.
+ */
+export function editionAnswered(
+  definition: TemplateDefinition
+): CeEditionId | null {
+  const { scoring } = definition;
+  if (scoring.method !== 'requirements') return null;
+  if (!scoring.framework.startsWith(FRAMEWORK)) return null;
+  const id = scoring.framework.slice(FRAMEWORK.length);
+  return CE_EDITIONS.find((e) => e.id === id)?.id ?? null;
+}
+
+type AssessmentStatus = (typeof assessmentStatus.enumValues)[number];
+
+/**
+ * Where a submitted readiness assessment stands with the board or director
+ * who signs it off. Its answers say the same either way; who has accepted
+ * them does not.
+ */
+export const SIGN_OFF: Partial<Record<AssessmentStatus, string>> = {
+  in_review: 'awaiting sign-off',
+  returned: 'returned for more work',
+  approved: 'signed off',
+  rejected: 'rejected at sign-off',
+  superseded: 'since reassessed'
 };
 
 export type ReadinessRow = {
@@ -93,4 +138,17 @@ export function readinessOf(
     // As the assessment's own outcome decided it, from its questions.
     autoFailed: outcomes.some((o) => o.autoFailed)
   };
+}
+
+/** The counts in words, naming the requirements nothing is known about too. */
+export function countsSummary(counts: Readiness['counts']): string {
+  return [
+    `${counts.met} met`,
+    `${counts.not_met} not met`,
+    `${counts.not_applicable} not applicable`,
+    counts.unknown ? `${counts.unknown} not answered` : null,
+    counts.not_asked ? `${counts.not_asked} not asked by the template` : null
+  ]
+    .filter(Boolean)
+    .join(', ');
 }

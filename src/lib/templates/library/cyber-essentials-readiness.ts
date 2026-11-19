@@ -1,4 +1,5 @@
 import { isAutoFail } from '@/lib/cyber-essentials/editions';
+import { readinessFramework } from '@/lib/cyber-essentials/readiness';
 import { ceReferenceCode } from '@/lib/cyber-essentials/references';
 import type { CeEditionId } from '@/lib/cyber-essentials/types';
 
@@ -476,6 +477,7 @@ export const CYBER_ESSENTIALS_READINESS: TemplateDefinition = {
   },
   scoring: {
     method: 'requirements',
+    framework: readinessFramework(EDITION),
     bands: [
       { min: 0, max: 0, label: 'Ready to apply', tier: 'low' },
       {

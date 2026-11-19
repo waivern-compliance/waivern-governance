@@ -4,6 +4,8 @@ import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
 import {
+  assessments,
+  cyberScopes,
   entities,
   organisations,
   templates,
@@ -11,7 +13,12 @@ import {
   workflowDefinitions
 } from '@/db/schema';
 import { requirementsOf, scopeRulesOf } from '@/lib/cyber-essentials/editions';
-import { readinessOf } from '@/lib/cyber-essentials/readiness';
+import {
+  countsSummary,
+  editionAnswered,
+  readinessOf,
+  SIGN_OFF
+} from '@/lib/cyber-essentials/readiness';
 import {
   CYBER_ESSENTIALS_READINESS_NAME,
   LEGAL_REFERENCES,
@@ -94,6 +101,10 @@ describe('the Cyber Essentials readiness template', () => {
     const library = new Set(LEGAL_REFERENCES.map((r) => r.code));
     for (const q of questions)
       for (const ref of q.legalRefs) assert.ok(library.has(ref), ref);
+  });
+
+  it('asks against requirements v3.3', () => {
+    assert.equal(editionAnswered(definition), 'v3.3');
   });
 
   it('marks the 14-day patching and cloud MFA questions as automatic fails, and nothing else', () => {
@@ -232,7 +243,12 @@ describe('templates that test requirements', () => {
     const band = { min: 0, max: 9, label: 'B', tier: 'low' as const };
     const d = base(
       { key: 'q', type: 'boolean' },
-      { method: 'requirements', bands: [band], autoFailBand: band }
+      {
+        method: 'requirements',
+        framework: 'example:1',
+        bands: [band],
+        autoFailBand: band
+      }
     );
     assert.ok(
       problems(d).some((m) => /needs questions that test them/.test(m))
@@ -393,11 +409,16 @@ describe("a scope's readiness", () => {
       actor: SYSTEM
     });
     const read = await scopeReadiness(org.id, scope.id);
-    assert.equal(read.open, null);
+    assert.equal(
+      read.open?.status,
+      'in_review',
+      'awaiting sign-off, so no second one is started beside it'
+    );
     assert.equal(read.submitted?.id, assessment.id);
     assert.equal(read.submitted?.scoreBand, 'Not ready: an automatic fail');
+    assert.equal(read.submitted?.edition, 'v3.3');
 
-    const readiness = readinessOf(scope.edition, read.outcomes);
+    const readiness = readinessOf(read.submitted!.edition!, read.outcomes);
     assert.equal(readiness.autoFailed, true);
     const mfa = readiness.groups
       .flatMap((g) => g.rows)
@@ -405,5 +426,79 @@ describe("a scope's readiness", () => {
     assert.equal(mfa?.status, 'not_met');
     assert.equal(mfa?.questions.length, 2);
     assert.equal(readiness.counts.not_met, 1);
+  });
+
+  it('is assessed only with a template for the edition the scope is prepared against', async () => {
+    const { org, main, scope, versionId } = await readyScope('edition');
+    await db
+      .update(cyberScopes)
+      .set({ edition: 'v3.2' })
+      .where(eq(cyberScopes.id, scope.id));
+    await assert.rejects(
+      createAssessment({
+        organisationId: org.id,
+        entityId: main.id,
+        templateVersionId: versionId,
+        title: 'Readiness',
+        subjectType: 'cyber_scope',
+        subjectId: scope.id,
+        actor: SYSTEM
+      }),
+      /asks against requirements v3.3, and the scope is prepared against v3.2/
+    );
+  });
+
+  it('keeps reading answers against their own edition, and says when sign-off rejected them', async () => {
+    const { org, main, scope, versionId } = await readyScope('moved-on');
+    const assessment = await createAssessment({
+      organisationId: org.id,
+      entityId: main.id,
+      templateVersionId: versionId,
+      title: 'Readiness',
+      subjectType: 'cyber_scope',
+      subjectId: scope.id,
+      actor: SYSTEM
+    });
+    await saveAnswers({
+      assessmentId: assessment.id,
+      organisationId: org.id,
+      answers: allMet() as Record<string, string | boolean>,
+      actor: SYSTEM
+    });
+    await submitAssessment({
+      assessmentId: assessment.id,
+      organisationId: org.id,
+      actor: SYSTEM
+    });
+    await db
+      .update(cyberScopes)
+      .set({ edition: 'v3.2' })
+      .where(eq(cyberScopes.id, scope.id));
+    await db
+      .update(assessments)
+      .set({ status: 'rejected' })
+      .where(eq(assessments.id, assessment.id));
+
+    const read = await scopeReadiness(org.id, scope.id);
+    assert.equal(read.submitted?.edition, 'v3.3');
+    assert.equal(read.open, null);
+    assert.equal(SIGN_OFF[read.submitted!.status], 'rejected at sign-off');
+  });
+});
+
+describe('readiness counts in words', () => {
+  it('names requirements nothing is known about only when there are some', () => {
+    const counts = {
+      met: 3,
+      not_met: 1,
+      not_applicable: 2,
+      unknown: 0,
+      not_asked: 0
+    };
+    assert.equal(countsSummary(counts), '3 met, 1 not met, 2 not applicable');
+    assert.equal(
+      countsSummary({ ...counts, unknown: 1, not_asked: 7 }),
+      '3 met, 1 not met, 2 not applicable, 1 not answered, 7 not asked by the template'
+    );
   });
 });

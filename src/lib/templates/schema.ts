@@ -183,6 +183,13 @@ export const scoringConfig = z.discriminatedUnion('method', [
      * fail decides the outcome however few others are missed.
      */
     method: z.literal('requirements'),
+    /**
+     * The framework and edition whose requirement codes the questions name,
+     * such as `cyber_essentials:v3.3`. Codes carry over between editions while
+     * what they ask changes, so answers are read against the edition they
+     * were given for, never whichever one the subject is on now.
+     */
+    framework: z.string().min(1),
     bands: z.array(scoreBand).min(1),
     /** The outcome when any `autoFail` question is not met. */
     autoFailBand: scoreBand

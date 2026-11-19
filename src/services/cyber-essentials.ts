@@ -16,6 +16,7 @@ import {
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { editionInForce } from '@/lib/cyber-essentials/editions';
+import { editionAnswered } from '@/lib/cyber-essentials/readiness';
 import type { OutOfScopeReason } from '@/lib/cyber-essentials/scope';
 import {
   isOutOfScopeReason,
@@ -626,13 +627,19 @@ export async function loadScope(organisationId: string, id: string) {
   });
 }
 
+/** A readiness assessment in one of these is not finished with: no new one is started. */
+const UNDER_WAY = ['draft', 'in_progress', 'returned', 'in_review'] as const;
+
 /**
  * A scope's readiness assessments: the latest one submitted, with what its
- * answers say about each requirement, and the latest still being answered.
+ * answers say about each requirement, and the latest not yet finished with,
+ * whether still being answered or awaiting sign-off.
  *
  * The status per requirement is read from the answers as they were submitted
  * (decision 2), from the revision frozen at submission, so later edits to a
- * returned assessment do not change it until it is submitted again.
+ * returned assessment do not change it until it is submitted again. It is
+ * read against the edition the template asked about, which is the scope's
+ * own when the assessment was started.
  */
 export async function scopeReadiness(organisationId: string, scopeId: string) {
   return withOrganisation(organisationId, async () => {
@@ -646,7 +653,7 @@ export async function scopeReadiness(organisationId: string, scopeId: string) {
         scoreValue: assessments.scoreValue,
         scoreBand: assessments.scoreBand,
         scoreTier: assessments.scoreTier,
-        definition: templateVersions.definition
+        templateVersionId: assessments.templateVersionId
       })
       .from(assessments)
       .innerJoin(
@@ -664,45 +671,48 @@ export async function scopeReadiness(organisationId: string, scopeId: string) {
         )
       )
       .orderBy(desc(assessments.createdAt));
-    const draft =
-      rows.find((r) =>
-        (['draft', 'in_progress', 'returned'] as const).some(
-          (s) => s === r.status
-        )
-      ) ?? null;
+    const underWay =
+      rows.find((r) => UNDER_WAY.some((s) => s === r.status)) ?? null;
+    const open = underWay && {
+      id: underWay.id,
+      reference: underWay.reference,
+      status: underWay.status
+    };
     const submitted =
       rows
         .filter((r) => r.submittedAt)
         .sort((a, b) => b.submittedAt!.getTime() - a.submittedAt!.getTime())
         .at(0) ?? null;
-    const open = draft && {
-      id: draft.id,
-      reference: draft.reference,
-      status: draft.status
-    };
     if (!submitted) return { submitted: null, outcomes: [], open };
 
-    const [revision] = await db
-      .select({
-        answers: assessmentRevisions.answers,
-        evaluation: assessmentRevisions.evaluation
-      })
-      .from(assessmentRevisions)
-      .where(
-        and(
-          eq(assessmentRevisions.assessmentId, submitted.id),
-          eq(assessmentRevisions.reason, 'submitted')
+    const [[version], [revision]] = await Promise.all([
+      db
+        .select({ definition: templateVersions.definition })
+        .from(templateVersions)
+        .where(eq(templateVersions.id, submitted.templateVersionId)),
+      db
+        .select({
+          answers: assessmentRevisions.answers,
+          evaluation: assessmentRevisions.evaluation
+        })
+        .from(assessmentRevisions)
+        .where(
+          and(
+            eq(assessmentRevisions.assessmentId, submitted.id),
+            eq(assessmentRevisions.reason, 'submitted')
+          )
         )
-      )
-      .orderBy(desc(assessmentRevisions.revision))
-      .limit(1);
-    const outcomes = revision
-      ? requirementOutcomes(
-          submitted.definition.schema,
-          revision.answers,
-          revision.evaluation
-        )
-      : [];
+        .orderBy(desc(assessmentRevisions.revision))
+        .limit(1)
+    ]);
+    const outcomes =
+      version && revision
+        ? requirementOutcomes(
+            version.definition.schema,
+            revision.answers,
+            revision.evaluation
+          )
+        : [];
     return {
       submitted: {
         id: submitted.id,
@@ -712,7 +722,8 @@ export async function scopeReadiness(organisationId: string, scopeId: string) {
         submittedAt: submitted.submittedAt!,
         scoreValue: submitted.scoreValue,
         scoreBand: submitted.scoreBand,
-        scoreTier: submitted.scoreTier
+        scoreTier: submitted.scoreTier,
+        edition: version ? editionAnswered(version.definition) : null
       },
       outcomes,
       open
