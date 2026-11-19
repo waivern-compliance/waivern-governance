@@ -6,6 +6,7 @@ import { db, withOrganisation } from '@/db/client';
 import {
   memberships,
   organisationDomains,
+  organisationEntraTenants,
   roleAssignments,
   users
 } from '@/db/schema';
@@ -182,6 +183,12 @@ export async function removeDomain(input: {
 }) {
   return withOrganisation(input.organisationId, async () => {
     return db.transaction(async (tx) => {
+      // A tenant trusted through the domain goes with it (the foreign key
+      // cascades), so its removal is recorded too.
+      const trusts = await tx
+        .select({ tenantId: organisationEntraTenants.tenantId })
+        .from(organisationEntraTenants)
+        .where(eq(organisationEntraTenants.domainId, input.claimId));
       const [row] = await tx
         .delete(organisationDomains)
         .where(
@@ -201,6 +208,16 @@ export async function removeDomain(input: {
         subjectId: input.organisationId,
         before: { domain: row.domain, verified: row.verifiedAt !== null }
       });
+      for (const trust of trusts) {
+        await appendAuditEvent(tx, {
+          ...input.actor,
+          organisationId: input.organisationId,
+          action: 'organisation_entra_tenant.removed',
+          subjectType: 'organisation',
+          subjectId: input.organisationId,
+          before: { tenantId: trust.tenantId, domain: row.domain }
+        });
+      }
       return row;
     });
   });

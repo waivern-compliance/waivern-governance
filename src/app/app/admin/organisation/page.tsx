@@ -7,6 +7,7 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
+import { multiTenantEntraConfigured } from '@/lib/auth/entra';
 import { waivernHosted } from '@/lib/hosting';
 import { ieEprivacySuggested } from '@/lib/ie-eprivacy/scope';
 import { currentDocument, refOf } from '@/lib/legal/documents';
@@ -19,6 +20,7 @@ import { organisationDetail } from '@/services/access';
 import { agreementsOf } from '@/services/agreements';
 import { domainsFor } from '@/services/domains';
 import { dpoPosition, entitiesOf, establishmentOf } from '@/services/entities';
+import { tenantsFor } from '@/services/entra-tenants';
 import {
   classificationSchemeOf,
   classifiedAssetCount
@@ -51,6 +53,9 @@ export default async function OrganisationPage() {
   if (!org) redirect('/app');
 
   const hosted = waivernHosted();
+  const tenants = can(active.membership.grants, 'member.manage')
+    ? await tenantsFor(org.id)
+    : [];
   const [
     legalEntities,
     scale,
@@ -204,7 +209,9 @@ export default async function OrganisationPage() {
 
       {can(active.membership.grants, 'member.manage') ? (
         <DomainsPanel
+          entraMultiTenant={multiTenantEntraConfigured()}
           claims={domains.map((d) => ({
+            tenant: tenantOf(tenants, d.id),
             id: d.id,
             domain: d.domain,
             verifiedAt: d.verifiedAt
@@ -244,4 +251,12 @@ export default async function OrganisationPage() {
       </section>
     </main>
   );
+}
+
+function tenantOf(
+  tenants: Awaited<ReturnType<typeof tenantsFor>>,
+  domainId: string
+) {
+  const trust = tenants.find((t) => t.domainId === domainId);
+  return trust ? { id: trust.id, tenantId: trust.tenantId } : null;
 }

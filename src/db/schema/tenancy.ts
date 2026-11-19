@@ -306,6 +306,13 @@ export const users = pgTable('app_user', {
   name: text('name'),
   /** Stable subject claim from the identity provider, once they have signed in. */
   ssoSubject: text('sso_subject').unique(),
+  /**
+   * The Microsoft Entra account this person is bound to, as
+   * `entra:<tenant id>:<object id>`, once they have signed in through a
+   * multi-tenant registration. Kept apart from `ssoSubject`, which follows
+   * whichever provider they last used: a Google sign-in must not unbind them.
+   */
+  entraSubject: text('entra_subject').unique(),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -448,6 +455,36 @@ export const organisationDomains = pgTable(
     uniqueIndex('organisation_domain_verified_key')
       .on(t.domain)
       .where(sql`${t.verifiedAt} is not null`)
+  ]
+);
+
+/**
+ * A Microsoft Entra tenant an organisation trusts, found through one of its
+ * verified domains: Microsoft names the tenant that has verified the same
+ * domain, so both proofs rest on DNS. Removing the domain removes the trust.
+ */
+export const organisationEntraTenants = pgTable(
+  'organisation_entra_tenant',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id, { onDelete: 'cascade' }),
+    domainId: uuid('domain_id')
+      .notNull()
+      .references(() => organisationDomains.id, { onDelete: 'cascade' }),
+    tenantId: text('tenant_id').notNull(),
+    trustedBy: uuid('trusted_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+  },
+  (t) => [
+    // People from a tenant join one organisation, as with a domain.
+    uniqueIndex('organisation_entra_tenant_tenant_key').on(t.tenantId),
+    index('organisation_entra_tenant_domain_idx').on(t.domainId)
   ]
 );
 

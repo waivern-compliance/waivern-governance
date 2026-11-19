@@ -56,6 +56,11 @@ import {
   setPublicAuthority,
   setPublicCommsProvider
 } from '@/services/entities';
+import {
+  removeTenant,
+  TenantRefused,
+  trustTenant
+} from '@/services/entra-tenants';
 import { handOver, HandoverRefused } from '@/services/handover';
 import { setRiskScale } from '@/services/risk-policy';
 import { NotInOrganisation } from '@/services/tenancy-guards';
@@ -362,7 +367,7 @@ async function domainResult(work: () => Promise<string>): Promise<AdminResult> {
     revalidatePath('/app/admin/organisation');
     return { ok: true, message };
   } catch (error) {
-    if (error instanceof DomainRefused)
+    if (error instanceof DomainRefused || error instanceof TenantRefused)
       return { ok: false, message: error.message };
     throw error;
   }
@@ -415,6 +420,44 @@ export async function removeDomainAction(
     });
     return removed
       ? `${removed.domain} removed. Nobody already in has lost access.`
+      : 'Already gone.';
+  });
+}
+
+/**
+ * Microsoft tenants, found through a verified domain. The owner's alone, for
+ * the same reason: people from a trusted tenant join without an invitation.
+ */
+export async function trustTenantAction(
+  domainId: string,
+  _prev: AdminResult
+): Promise<AdminResult> {
+  const refusal = await refusedUnless('member.manage');
+  if (refusal) return refusal;
+  const active = await requireCapability('org.manage');
+  return domainResult(async () => {
+    const trust = await trustTenant({
+      organisationId: active.membership.organisationId,
+      domainId,
+      actor: actorOf(active)
+    });
+    return `Tenant ${trust.tenantId} is trusted.`;
+  });
+}
+
+export async function removeTenantAction(
+  trustId: string,
+  _prev: AdminResult
+): Promise<AdminResult> {
+  const active = await requireCapability('org.manage');
+  return domainResult(async () => {
+    const removed = await removeTenant({
+      organisationId: active.membership.organisationId,
+      trustId,
+      actor: actorOf(active)
+    });
+    return removed
+      ? `Tenant ${removed.tenantId} is no longer trusted. Nobody already in has lost access.`
       : 'Already gone.';
   });
 }

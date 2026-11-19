@@ -960,6 +960,20 @@
       "when": 1795034745540,
       "tag": "0136_import_information_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1795045973338,
+      "tag": "0137_entra_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795045978514,
+      "tag": "0138_entra_tenant_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -83,6 +83,10 @@ const SERVICE_EXEMPT: Record<string, string> = {
     "creates a new organisation's first owner; a trial is made through it, with that owner as its only member",
   'trial-demo.addSimulatedColleagues':
     "adds a trial's fictional colleagues, at simulated.invalid, which cannot sign in or be mailed (migration 0115 and sendEmail refuse them)",
+  'entra-tenants.microsoftTenantLookup':
+    'asks Microsoft which tenant has verified a domain; only trustTenant calls it, and that refuses a trial',
+  'entra-tenants.joinByTrustedTenant':
+    'joins an organisation that trusts a tenant, which a trial cannot (trustTenant refuses), and the database refuses a trial a second member (migration 0115)',
   'domains.joinByVerifiedDomain':
     'joins an organisation that has verified a domain, which a trial cannot (claimDomain and verifyDomain refuse), and the database refuses a trial a second member (migration 0115)',
   'documents.insertDocument':
@@ -194,7 +198,8 @@ const GATED: Record<string, (typeof TRIAL_WITHHELD)[number]> = {
   'src/app/app/admin/actions.ts setPersonaAction': 'member.manage',
   'src/app/app/admin/actions.ts handOverAction': 'member.manage',
   'src/app/app/admin/actions.ts claimDomainAction': 'member.manage',
-  'src/app/app/admin/actions.ts verifyDomainAction': 'member.manage'
+  'src/app/app/admin/actions.ts verifyDomainAction': 'member.manage',
+  'src/app/app/admin/actions.ts trustTenantAction': 'member.manage'
 };
 
 /** Actions and routes that call a guarded service without a gate of their own, and why. */

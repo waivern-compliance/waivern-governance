@@ -5,6 +5,8 @@ import { useRefusableAction } from '@/lib/use-refusable-action';
 import {
   claimDomainAction,
   removeDomainAction,
+  removeTenantAction,
+  trustTenantAction,
   verifyDomainAction,
   type AdminResult
 } from '../actions';
@@ -16,6 +18,8 @@ type Claim = {
   verifiedAt: string | null;
   recordName: string;
   recordValue: string;
+  /** The Microsoft tenant trusted through this domain, if any. */
+  tenant: { id: string; tenantId: string } | null;
 };
 
 /**
@@ -26,7 +30,14 @@ type Claim = {
  * front door, so it is the owner's to open. Proof is a DNS record only the
  * domain's owner can publish.
  */
-export function DomainsPanel({ claims }: { claims: Claim[] }) {
+export function DomainsPanel({
+  claims,
+  entraMultiTenant
+}: {
+  claims: Claim[];
+  /** Whether anybody's Microsoft directory may sign in here. */
+  entraMultiTenant: boolean;
+}) {
   const add = useRefusableAction<AdminResult>(claimDomainAction);
 
   return (
@@ -40,6 +51,13 @@ export function DomainsPanel({ claims }: { claims: Claim[] }) {
           removed is never let back in this way, and public email domains such
           as gmail.com cannot be claimed.
         </p>
+        {entraMultiTenant ? (
+          <p className="max-w-prose text-sm text-ink-soft">
+            For Microsoft sign-in, trust the Microsoft Entra tenant that has
+            verified the same domain. People from it can then sign in at
+            addresses on that domain, and join as contributors.
+          </p>
+        ) : null}
       </div>
 
       {claims.length > 0 ? (
@@ -48,6 +66,7 @@ export function DomainsPanel({ claims }: { claims: Claim[] }) {
             <ClaimRow
               key={c.id}
               claim={c}
+              entraMultiTenant={entraMultiTenant}
             />
           ))}
         </ul>
@@ -85,7 +104,13 @@ export function DomainsPanel({ claims }: { claims: Claim[] }) {
   );
 }
 
-function ClaimRow({ claim }: { claim: Claim }) {
+function ClaimRow({
+  claim,
+  entraMultiTenant
+}: {
+  claim: Claim;
+  entraMultiTenant: boolean;
+}) {
   const verify = useRefusableAction<AdminResult>(
     verifyDomainAction.bind(null, claim.id),
     { resetOnSuccess: false }
@@ -149,8 +174,72 @@ function ClaimRow({ claim }: { claim: Claim }) {
           </button>
         </form>
       </div>
+      {claim.verifiedAt && (entraMultiTenant || claim.tenant) ? (
+        <TenantRow
+          domainId={claim.id}
+          tenant={claim.tenant}
+        />
+      ) : null}
       <Outcome result={verify.result} />
       <Outcome result={remove.result} />
     </li>
+  );
+}
+
+function TenantRow({
+  domainId,
+  tenant
+}: {
+  domainId: string;
+  tenant: Claim['tenant'];
+}) {
+  const trust = useRefusableAction<AdminResult>(
+    trustTenantAction.bind(null, domainId),
+    { resetOnSuccess: false }
+  );
+  const remove = useRefusableAction<AdminResult>(
+    removeTenantAction.bind(null, tenant?.id ?? ''),
+    { resetOnSuccess: false }
+  );
+
+  return (
+    <div className="space-y-2 rounded bg-ground px-3 py-2 text-xs">
+      {tenant ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Microsoft tenant{' '}
+            <span className="break-all font-mono">{tenant.tenantId}</span>{' '}
+            trusted
+          </span>
+          <form {...remove.formProps}>
+            <button
+              type="submit"
+              disabled={remove.pending}
+              className="rounded border border-line bg-surface px-3 py-1.5 hover:border-red-700 disabled:opacity-50"
+            >
+              Stop trusting
+            </button>
+          </form>
+        </div>
+      ) : (
+        <form
+          {...trust.formProps}
+          className="flex flex-wrap items-center justify-between gap-2"
+        >
+          <span className="text-ink-soft">
+            Microsoft is asked which tenant has verified this domain.
+          </span>
+          <button
+            type="submit"
+            disabled={trust.pending}
+            className="rounded border border-line bg-surface px-3 py-1.5 hover:border-brand disabled:opacity-50"
+          >
+            {trust.pending ? 'Asking Microsoft…' : 'Trust its Microsoft tenant'}
+          </button>
+        </form>
+      )}
+      <Outcome result={trust.result} />
+      <Outcome result={remove.result} />
+    </div>
   );
 }

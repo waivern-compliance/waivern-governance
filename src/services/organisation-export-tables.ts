@@ -127,6 +127,7 @@ export const TABLES: readonly TableRule[] = [
         'The value published in DNS to prove the domain. It proves nothing once the organisation has left.'
     }
   }),
+  own('organisation_entra_tenant'),
   own('retention_profile'),
   own('reference_counter'),
   own('framework_profile_item'),
