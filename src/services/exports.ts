@@ -1083,8 +1083,10 @@ export async function exportBreaches(
         'Entity',
         'What happened',
         'Description',
+        'Breach or near miss',
         'Our role',
         'Became aware',
+        'Known to be a breach',
         'Occurred',
         'Contained',
         'Kind',
@@ -1127,8 +1129,12 @@ export async function exportBreaches(
           row.entityName,
           b.title,
           b.description,
+          b.classification === 'near_miss' ? 'near miss' : 'breach',
           b.controllerRole,
           b.discoveredAt,
+          // Only where it was first recorded as a near miss and its clock was
+          // started later than its discovery.
+          b.awareAt,
           b.occurredAt,
           b.containedAt,
           (b.categories ?? []).join('; '),

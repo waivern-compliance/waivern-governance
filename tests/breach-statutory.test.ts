@@ -265,12 +265,13 @@ describe('the deadline the sweep puts on a task', () => {
   it('is the statutory one, not counted from when the task was raised', () => {
     // The sweep raised a task inheriting 72 hours from its own creation, so a
     // breach discovered 60 hours ago showed as due in four days. The task must
-    // carry notificationDeadline(discoveredAt) or the task list misleads
+    // carry the deadline from when its clock started (discovery, or later
+    // awareness for a near miss reclassified) or the task list misleads
     // exactly the person who has least time to spare.
     const source = readFileSync('src/services/sweep.ts', 'utf8');
     assert.match(
       source,
-      /dueAt: notificationDeadline\(breach\.discoveredAt\)/,
+      /dueAt: notificationDeadline\(clockStart\(breach\)\)/,
       'the breach deadline task must carry the statutory deadline'
     );
   });

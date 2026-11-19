@@ -27,12 +27,46 @@ export function RecordBreachForm({
       open={Boolean(result && !result.ok)}
     >
       <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-        Record a breach
+        Record a breach or near miss
       </summary>
       <form
         action={action}
         className="space-y-3 border-t border-line p-4"
       >
+        <fieldset className="space-y-1.5">
+          <legend className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+            Breach or near miss
+          </legend>
+          {[
+            [
+              'breach',
+              'A breach - personal data was lost, seen, altered or made unavailable'
+            ],
+            [
+              'near_miss',
+              'A near miss - personal data was put at risk but not compromised, such as an email recalled unread'
+            ]
+          ].map(([value, label]) => (
+            <label
+              key={value}
+              className="flex items-start gap-2.5 text-sm"
+            >
+              <input
+                type="radio"
+                name="classification"
+                value={value}
+                defaultChecked={value === 'breach'}
+                className="mt-1 accent-brand"
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+          <p className="text-xs text-ink-soft">
+            Not sure? Record it as a breach: the clock runs while you find out,
+            and it can be reclassified.
+          </p>
+        </fieldset>
+
         <label className="block space-y-1">
           <Label text="What happened?" />
           <input
@@ -59,7 +93,7 @@ export function RecordBreachForm({
           <label className="block space-y-1">
             <Label
               text="When did you become aware?"
-              hint="This starts the seventy-two hours - not when it happened."
+              hint="For a breach, this starts the seventy-two hours - not when it happened."
             />
             <input
               name="discoveredAt"
@@ -118,7 +152,7 @@ export function RecordBreachForm({
 
         <fieldset className="space-y-1.5">
           <legend className="text-xs font-medium uppercase tracking-wider text-ink-soft">
-            What kind of breach
+            What was, or could have been, affected
           </legend>
           {[
             [

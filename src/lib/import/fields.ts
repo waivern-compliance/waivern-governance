@@ -1683,6 +1683,28 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['description', 'details', 'what happened', 'incident details']
     },
     {
+      key: 'classification',
+      label: 'Breach or near miss',
+      kind: 'choice',
+      hint: 'Empty: a breach. A near miss compromised no personal data, so it comes in with nobody told and no clock running.',
+      aliases: [
+        'classification',
+        'breach or near miss',
+        'incident classification'
+      ],
+      choices: [
+        choice(
+          'breach',
+          'Breach',
+          'breach',
+          'personal data breach',
+          'data breach',
+          'confirmed breach'
+        ),
+        choice('near_miss', 'Near miss', 'near miss', 'near-miss', 'nearmiss')
+      ]
+    },
+    {
       key: 'controllerRole',
       label: 'Our role',
       kind: 'choice',

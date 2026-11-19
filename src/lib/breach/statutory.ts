@@ -8,6 +8,31 @@
  * makes each call and records why.
  */
 
+/**
+ * A breach, or a near miss: personal data put at risk but not compromised.
+ * Article 4(12) defines a breach by what happened to the data, so a near miss
+ * engages neither Article 33 nor 34.
+ */
+export const BREACH_CLASSIFICATIONS = ['breach', 'near_miss'] as const;
+export type BreachClassification = (typeof BREACH_CLASSIFICATIONS)[number];
+
+export function isBreachClassification(
+  value: unknown
+): value is BreachClassification {
+  return BREACH_CLASSIFICATIONS.includes(value as BreachClassification);
+}
+
+/**
+ * When the seventy-two hours starts: on awareness that it was a breach, which
+ * for one first recorded as a near miss may have been recorded separately.
+ */
+export function clockStart(breach: {
+  discoveredAt: Date;
+  awareAt: Date | null;
+}): Date {
+  return breach.awareAt ?? breach.discoveredAt;
+}
+
 /** Article 33(1). Seventy-two hours, from awareness rather than occurrence. */
 export const NOTIFICATION_WINDOW_HOURS = 72;
 

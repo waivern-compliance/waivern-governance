@@ -1172,7 +1172,8 @@ export const HELP_TOPICS: HelpTopic[] = [
       'part 3',
       'law enforcement',
       'section 67',
-      'section 68'
+      'section 68',
+      'near miss'
     ],
     sections: [
       {
@@ -1181,6 +1182,15 @@ export const HELP_TOPICS: HelpTopic[] = [
           'The seventy-two hours runs from when the organisation became aware, not from when the breach happened, and not from when somebody finished deciding what it amounted to. So the form asks for four facts and the time you became aware, and the assessment comes afterwards.',
           'Every breach goes on the register, including the ones you decide not to report. Article 33(5) requires all of them to be documented, and an absence of notification with nothing written down is indistinguishable from an oversight.',
           'A breach imported from another platform keeps its real dates, so its clocks read as they did there. Its notifications show as decided in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it.'
+        ]
+      },
+      {
+        heading: 'Near misses',
+        body: [
+          'A near miss is an incident that put personal data at risk without compromising it: an email to the wrong person recalled unread, a lost laptop found before anyone opened it. It is not a personal data breach under Article 4(12), so Articles 33 and 34 do not apply, but it shows where a breach nearly happened, and that is worth keeping.',
+          'Record it on the same form, as a near miss. It has everything a breach has - its facts, its handler, its decisions, its discussion, its closing - except the clocks: no seventy-two hours runs, no deadline task is raised and no notification is offered. You can still record what you chose to do, such as telling an insurer.',
+          'Not sure? Record it as a breach. The clock runs while you find out, and either can be reclassified with the reason why.',
+          'A near miss later found to be a breach asks when its seventy-two hours runs from. From its discovery is the default, because that is where regulators are likely to count from: awareness is when you could reasonably have known. A later date is for when something new came to light, and the reason should say what. A breach found to be a near miss stops its clocks and retires its deadline tasks; any notification already made stays on the record.'
         ]
       },
       {
