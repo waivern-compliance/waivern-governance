@@ -144,6 +144,7 @@ export default async function OrganisationPage() {
           publicAuthority: e.publicAuthority,
           competentAuthority: e.competentAuthority,
           dataProtectionLaw: e.dataProtectionLaw,
+          dataProtectionLawApplies: e.dataProtectionLawApplies,
           defaultRegime: e.defaultRegime,
           foiAct: e.foiAct,
           foiTimeProfile: e.foiTimeProfile,
@@ -187,11 +188,16 @@ export default async function OrganisationPage() {
         </section>
       ) : null}
 
-      <DpoPanel
-        mayManage={mayManageEntities(active.membership.grants)}
-        position={dpo}
-        members={members}
-      />
+      {/* A DPO is the GDPR's (Articles 37-39). With no entity under it, the
+          panel would ask a US company for an office it has no use for. */}
+      {legalEntities.length === 0 ||
+      legalEntities.some((e) => e.dataProtectionLawApplies) ? (
+        <DpoPanel
+          mayManage={mayManageEntities(active.membership.grants)}
+          position={dpo}
+          members={members}
+        />
+      ) : null}
 
       <ScaleForm
         current={scale}

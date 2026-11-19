@@ -4,7 +4,12 @@ import { useTransition } from 'react';
 import Link from 'next/link';
 
 import { setGuidanceAction } from '@/app/app/actions';
-import { STAGE_BLURB, STAGE_LABEL, type Stage } from '@/lib/guidance/steps';
+import {
+  FUNCTION_LABEL,
+  STAGE_BLURB,
+  STAGE_LABEL,
+  type Stage
+} from '@/lib/guidance/steps';
 import type { Guidance } from '@/services/guidance';
 
 /**
@@ -16,8 +21,8 @@ import type { Guidance } from '@/services/guidance';
  * "done" means something exists, not that somebody ticked a box.
  *
  * It explains and never decides. Every step ends at a screen where a named
- * person makes the judgement; nothing here says whether a basis is lawful or
- * whether a DPIA is required for you.
+ * person makes the judgement; nothing here says whether a basis is lawful,
+ * whether a DPIA is required for you, or whether an AI system is safe to run.
  */
 export function Guide({ guidance }: { guidance: Guidance }) {
   const [pending, startTransition] = useTransition();
@@ -83,6 +88,13 @@ export function Guide({ guidance }: { guidance: Guidance }) {
                     {step.done ? ' - done' : ' - not done yet'}
                   </span>
                 </span>
+                {guidance.functions && step.fn ? (
+                  // The NIST AI RMF function the step serves, so the guide
+                  // reads as the framework's order and not only Govern's.
+                  <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-soft">
+                    {FUNCTION_LABEL[step.fn]}
+                  </span>
+                ) : null}
                 <span className="font-mono text-[11px] text-ink-soft">
                   {step.measure}
                 </span>

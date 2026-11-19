@@ -1,0 +1,1 @@
+ALTER TABLE "entity" ADD COLUMN "data_protection_law_applies" boolean DEFAULT true NOT NULL;

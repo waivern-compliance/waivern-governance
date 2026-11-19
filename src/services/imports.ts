@@ -2056,6 +2056,7 @@ async function requestResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
       .select({
         name: entities.name,
         law: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies,
         competentAuthority: entities.competentAuthority
       })
       .from(entities)
@@ -2258,6 +2259,7 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
       .select({
         name: entities.name,
         law: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies,
         competentAuthority: entities.competentAuthority,
         provider: entities.publicCommsProvider,
         euEstablishments: entities.euEstablishments,
@@ -2619,7 +2621,11 @@ async function complaintResolver(
 ) {
   const [[entity], memberOf, earlier, [targets], requests] = await Promise.all([
     tx
-      .select({ name: entities.name, law: entities.dataProtectionLaw })
+      .select({
+        name: entities.name,
+        law: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies
+      })
       .from(entities)
       .where(eq(entities.id, batch.entityId!)),
     membersByEmail(tx, batch.organisationId),

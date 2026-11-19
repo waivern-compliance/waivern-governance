@@ -147,7 +147,8 @@ export default async function ProfilePage({
         return (
           <section
             key={fn.fn}
-            className="space-y-4"
+            id={fn.fn.toLowerCase()}
+            className="scroll-mt-6 space-y-4"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
               <h2 className="text-lg font-semibold">{fn.label}</h2>

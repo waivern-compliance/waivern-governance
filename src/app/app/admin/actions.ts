@@ -6,7 +6,8 @@ import { unresolvedPlaceholder } from '@/lib/assistant/models';
 import type { ProviderKind } from '@/lib/assistant/providers';
 import {
   DATA_PROTECTION_LAWS,
-  isDataProtectionLaw
+  isDataProtectionLaw,
+  NO_DATA_PROTECTION_LAW
 } from '@/lib/dpa2018/applies';
 import { DpoRefused } from '@/lib/dpa2018/public-authority';
 import { refusable, type EditResult } from '@/lib/edit-result';
@@ -53,6 +54,7 @@ import {
   setFreedomOfInformation,
   setIeCommsProvider,
   setIeEprivacy,
+  setOutsideDataProtectionLaw,
   setPublicAuthority,
   setPublicCommsProvider
 } from '@/services/entities';
@@ -623,7 +625,7 @@ export async function setPublicAuthorityAction(
   });
 }
 
-/** Which data protection law an entity is subject to: UK, EU or both. */
+/** Which data protection law an entity is subject to: UK, EU, both or neither. */
 export async function setDataProtectionLawAction(
   entityId: string,
   _prev: AdminResult,
@@ -631,8 +633,16 @@ export async function setDataProtectionLawAction(
 ): Promise<AdminResult> {
   return entityResult(async (active) => {
     const law = String(formData.get('dataProtectionLaw') ?? '');
+    if (law === NO_DATA_PROTECTION_LAW) {
+      const updated = await setOutsideDataProtectionLaw({
+        organisationId: active.membership.organisationId,
+        entityId,
+        actor: actorOf(active)
+      });
+      return `${updated.name} is subject to neither UK nor EU data protection law. The privacy programme's registers and questions are no longer offered for it.`;
+    }
     if (!isDataProtectionLaw(law))
-      throw new Error('Choose UK law, EU law, or both.');
+      throw new Error('Choose UK law, EU law, both, or neither.');
     const updated = await setDataProtectionLaw({
       organisationId: active.membership.organisationId,
       entityId,

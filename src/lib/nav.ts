@@ -17,6 +17,12 @@ export type NavItem = {
   hint: string;
   /** Absent means everybody signed in. */
   capability?: Capability;
+  /**
+   * Offered only where some entity is subject to UK or EU data protection
+   * law: the page belongs to the privacy programme, and an organisation
+   * using Govern for AI governance alone has no use for it.
+   */
+  privacy?: true;
   /** Offered only where some entity is subject to UK law: the page is the Data Protection Act 2018's. */
   ukLaw?: true;
   /** Offered only where some entity answers freedom of information requests. */
@@ -69,7 +75,8 @@ export const NAV: NavItem[] = [
     href: '/app/ropa',
     label: 'Processing register',
     hint: 'Article 30 records, and which would fail an inspection',
-    capability: 'record.read'
+    capability: 'record.read',
+    privacy: true
   },
   {
     href: '/app/policies',
@@ -82,6 +89,7 @@ export const NAV: NavItem[] = [
     label: 'Appropriate policy documents',
     hint: 'Schedule 1 conditions, and what no current document covers',
     capability: 'record.read',
+    privacy: true,
     ukLaw: true
   },
   {
@@ -89,12 +97,13 @@ export const NAV: NavItem[] = [
     label: 'Data sharing agreements',
     hint: 'sharing with other controllers, and what no agreement covers',
     capability: 'record.read',
+    privacy: true,
     ukLaw: true
   },
   {
     href: '/app/third-parties',
     label: 'Third parties',
-    hint: 'processors, agreements, and which are not covered',
+    hint: 'suppliers, their agreements, and which are not covered',
     capability: 'record.read'
   },
   {
@@ -123,6 +132,24 @@ export const NAV: NavItem[] = [
     capability: 'record.read'
   },
   {
+    href: '/app/ai/intake',
+    label: 'AI intake',
+    hint: 'proposals to use AI, before anything is built or bought',
+    capability: 'record.read'
+  },
+  {
+    href: '/app/ai/incidents',
+    label: 'AI incidents and concerns',
+    hint: 'harm reported, and what was done about it',
+    capability: 'record.read'
+  },
+  {
+    href: '/app/ai/profile',
+    label: 'NIST AI RMF profile',
+    hint: 'Govern, Map, Measure and Manage: where you stand and where you aim to',
+    capability: 'record.read'
+  },
+  {
     href: '/app/evidence',
     label: 'Evidence',
     hint: 'what supports your records, and what nobody has confirmed',
@@ -132,19 +159,22 @@ export const NAV: NavItem[] = [
     href: '/app/breaches',
     label: 'Breaches',
     hint: 'the Article 33(5) register, and the seventy-two hours',
-    capability: 'record.read'
+    capability: 'record.read',
+    privacy: true
   },
   {
     href: '/app/requests',
     label: 'Data subject requests',
     hint: 'access, objection and the other rights, and the month to answer',
-    capability: 'dsr.handle'
+    capability: 'dsr.handle',
+    privacy: true
   },
   {
     href: '/app/cookies',
     label: 'Cookies and similar technologies',
     hint: 'the inventory, and the ePrivacy basis for each',
     capability: 'record.read',
+    privacy: true,
     eprivacy: true
   },
   {
@@ -152,13 +182,15 @@ export const NAV: NavItem[] = [
     label: 'Electronic marketing',
     hint: 'email, text and calls, and the ePrivacy basis for each',
     capability: 'record.read',
+    privacy: true,
     eprivacy: true
   },
   {
     href: '/app/complaints',
     label: 'Data protection complaints',
     hint: 'complaints made to you, and the 30 days to acknowledge them',
-    capability: 'dsr.handle'
+    capability: 'dsr.handle',
+    privacy: true
   },
   {
     href: '/app/information-requests',
@@ -184,13 +216,15 @@ export const NAV: NavItem[] = [
     href: '/app/countries',
     label: 'Country library',
     hint: 'UK approval, adequacy, transfer risk, and when it was last checked',
-    capability: 'record.read'
+    capability: 'record.read',
+    privacy: true
   },
   {
     href: '/app/authorities',
     label: 'Supervisory authorities',
     hint: "the UK regulator and each EEA State's, as complaints and refusals name them",
-    capability: 'record.read'
+    capability: 'record.read',
+    privacy: true
   },
   {
     href: '/app/exports',
@@ -206,7 +240,7 @@ export const NAV: NavItem[] = [
   {
     href: '/app/templates',
     label: 'Assessment templates',
-    hint: 'DPIA, transfer risk and impact, AI risk, screening',
+    hint: 'the questions each kind of assessment asks',
     capability: 'record.read'
   },
   {
@@ -242,6 +276,7 @@ export const NAV: NavItem[] = [
 export function navFor(
   grants: readonly Grant[],
   options: {
+    privacy?: boolean;
     ukLaw?: boolean;
     foi?: boolean;
     eprivacy?: boolean;
@@ -251,6 +286,7 @@ export function navFor(
   return NAV.filter(
     (item) =>
       (!item.capability || can(grants, item.capability)) &&
+      (options.privacy !== false || !item.privacy) &&
       (options.ukLaw !== false || !item.ukLaw) &&
       (options.foi !== false || !item.foi) &&
       (options.eprivacy !== false || !item.eprivacy) &&

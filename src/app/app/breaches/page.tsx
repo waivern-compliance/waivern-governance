@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { Clock } from '@/components/breach/Clock';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { OutsideProgrammeNote } from '@/components/OutsideProgrammeNote';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { can } from '@/lib/rbac';
@@ -74,6 +75,11 @@ export default async function BreachesPage({
       </header>
 
       <HelpLink topic="breaches" />
+
+      <OutsideProgrammeNote
+        organisationId={org}
+        what="personal data breach records"
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat

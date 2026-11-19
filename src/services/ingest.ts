@@ -14,7 +14,10 @@ import {
   suppliers
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
+import {
+  outsideLawRefusal,
+  type DataProtectionLaw
+} from '@/lib/dpa2018/applies';
 import {
   AutomatedDecisionRefused,
   cleanAdm
@@ -110,7 +113,14 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  * wrong one is worse than rejecting the batch.
  */
 type ResolvedEntity =
-  | { ok: true; entityId: string; law: DataProtectionLaw }
+  | {
+      ok: true;
+      entityId: string;
+      name: string;
+      law: DataProtectionLaw;
+      /** False: under neither UK nor EU law, so no processing record is kept for it. */
+      applies: boolean;
+    }
   | { ok: false; reason: string };
 
 /**
@@ -151,7 +161,13 @@ async function resolveEntity(
         )
       );
     return fallback
-      ? { ok: true, entityId: fallback.id, law: fallback.dataProtectionLaw }
+      ? {
+          ok: true,
+          entityId: fallback.id,
+          name: fallback.name,
+          law: fallback.dataProtectionLaw,
+          applies: fallback.dataProtectionLawApplies
+        }
       : { ok: false, reason: 'No entity named and no default configured' };
   }
 
@@ -165,7 +181,13 @@ async function resolveEntity(
       )
     );
   return match
-    ? { ok: true, entityId: match.id, law: match.dataProtectionLaw }
+    ? {
+        ok: true,
+        entityId: match.id,
+        name: match.name,
+        law: match.dataProtectionLaw,
+        applies: match.dataProtectionLawApplies
+      }
     : { ok: false, reason: `Unknown entity "${named}"` };
 }
 
@@ -201,6 +223,13 @@ export async function ingestProcessingActivities(
         outcome.skipped.push({
           externalRef: r.externalRef,
           reason: entity.reason
+        });
+        continue;
+      }
+      if (!entity.applies) {
+        outcome.skipped.push({
+          externalRef: r.externalRef,
+          reason: outsideLawRefusal(entity.name, 'a processing record')
         });
         continue;
       }
@@ -289,7 +318,11 @@ export async function ingestProcessingActivities(
           // the push names. As sent, else as recorded, else the entity's; one
           // outside the entity's, or Part 3 off UK law, skips the record.
           const [owner] = await tx
-            .select({ name: entities.name, law: entities.dataProtectionLaw })
+            .select({
+              name: entities.name,
+              law: entities.dataProtectionLaw,
+              applies: entities.dataProtectionLawApplies
+            })
             .from(entities)
             .where(eq(entities.id, existing?.entityId ?? entity.entityId));
           const laws = r.laws

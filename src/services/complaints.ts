@@ -278,7 +278,11 @@ export async function recordComplaint(input: {
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     const [entity] = await db
-      .select({ name: entities.name, law: entities.dataProtectionLaw })
+      .select({
+        name: entities.name,
+        law: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies
+      })
       .from(entities)
       .where(eq(entities.id, input.entityId));
     const jurisdiction = input.jurisdiction ?? entity.law;

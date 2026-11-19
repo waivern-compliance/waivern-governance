@@ -12,9 +12,9 @@ import { NOTICE_WORDS, noticeStillOpen } from '@/lib/renewals';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { complaintRegister } from '@/services/complaints';
 import { requestRegister } from '@/services/data-subject-requests';
-import { anyEntityUnderFoi, anyEntityUnderUkLaw } from '@/services/entities';
 import { foiAttention } from '@/services/foi-reporting';
 import { dashboardMetrics } from '@/services/metrics';
+import { programmeScope } from '@/services/programme-scope';
 import { upcomingRenewals } from '@/services/renewals';
 import { propertyRegister } from '@/services/storage-inventory';
 
@@ -41,18 +41,27 @@ export default async function Dashboard() {
   // Cookies hold nobody's personal data, so anyone who may read records sees them.
   // Renewals show dates only, never a contract's terms, so anyone who may
   // read records sees them.
+  // Requests only where some entity is under data protection law at all: an
+  // organisation using Govern for AI governance alone has no statutory month.
+  // The scope is read only for somebody who would see those tiles, and
+  // alongside everything else rather than before it.
+  const handlesRequests = can(grants, 'dsr.handle');
+  const handlesFoi = can(grants, 'foi.handle');
+  const scope =
+    handlesRequests || handlesFoi ? programmeScope(org) : Promise.resolve(null);
   const [m, requests, complaints, foi, allProperties, renewals] =
     await Promise.all([
       dashboardMetrics(org, visibleEntityIds(active)),
-      can(grants, 'dsr.handle')
-        ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
-        : null,
       (async () =>
-        can(grants, 'dsr.handle') && (await anyEntityUnderUkLaw(org))
+        handlesRequests && (await scope)?.privacy
+          ? requestRegister(org, visibleEntityIds(active, 'dsr.handle'))
+          : null)(),
+      (async () =>
+        handlesRequests && (await scope)?.ukLaw
           ? complaintRegister(org, visibleEntityIds(active, 'dsr.handle'))
           : null)(),
       (async () =>
-        can(grants, 'foi.handle') && (await anyEntityUnderFoi(org))
+        handlesFoi && (await scope)?.foi
           ? foiAttention(org, visibleEntityIds(active, 'foi.handle'))
           : null)(),
       propertyRegister(org, visibleEntityIds(active)),

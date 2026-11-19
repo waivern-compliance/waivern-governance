@@ -32,7 +32,6 @@ import {
   unmetConditions,
   type Stage
 } from '@/lib/ai/lifecycle';
-import { unionOfLaws } from '@/lib/gdpr/regimes';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
@@ -46,6 +45,7 @@ import {
 import { gateContext, historyFor } from '@/services/ai-lifecycle';
 import {
   DEPLOYMENT_PATTERN_LABEL,
+  lawsOfUseCase,
   loadUseCase,
   PROVENANCE_LABEL,
   STAGE_LABEL,
@@ -114,13 +114,14 @@ export default async function UseCasePage({
   }
   // Its own laws come from the processing it is used in; until it is linked,
   // from its entity.
-  const [{ law: useCaseLaw }] = await scoped(
-    active.membership.organisationId,
-    () =>
-      db
-        .select({ law: entities.dataProtectionLaw })
-        .from(entities)
-        .where(eq(entities.id, useCase.entityId))
+  const [entityLaw] = await scoped(active.membership.organisationId, () =>
+    db
+      .select({
+        law: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies
+      })
+      .from(entities)
+      .where(eq(entities.id, useCase.entityId))
   );
   const mayEdit = can(
     active.membership.grants,
@@ -189,6 +190,14 @@ export default async function UseCasePage({
         )
       : Promise.resolve([])
   ]);
+  const useCaseLaw = lawsOfUseCase(
+    linkedActivities.flatMap((a) => (a.laws ? [a.laws] : [])),
+    entityLaw
+  );
+  const linkCandidates = activityOptions
+    .filter((a) => can(active.membership.grants, 'record.read', a.entityId))
+    .filter((a) => !linkedActivities.some((l) => l.id === a.id))
+    .map((a) => ({ id: a.id, label: `${a.reference} ${a.name}` }));
   // Article 22B(4) turns on the processing's bases, which live on the
   // activities this system is used in.
   const linkedBases = [
@@ -674,27 +683,25 @@ export default async function UseCasePage({
         )}
       </section>
 
-      <AutomatedDecisions
-        side="ai_use_case"
-        recordId={id}
-        record={useCase}
-        bases={linkedBases}
-        linked={linkedActivities}
-        mayEdit={mayEdit}
-        laws={unionOfLaws(
-          linkedActivities.flatMap((a) => (a.laws ? [a.laws] : [])),
-          useCaseLaw
-        )}
-        regime={regimeOfUseCase(
-          linkedActivities.map((a) => ({ regime: a.regime ?? 'gdpr' }))
-        )}
-        linkCandidates={activityOptions
-          .filter((a) =>
-            can(active.membership.grants, 'record.read', a.entityId)
-          )
-          .filter((a) => !linkedActivities.some((l) => l.id === a.id))
-          .map((a) => ({ id: a.id, label: `${a.reference} ${a.name}` }))}
-      />
+      {/* Articles 22 and 22A-22D where some data protection law reaches the
+          system. Under neither, only the links, and only where there is
+          processing to link: an organisation doing AI governance alone has
+          none, and an empty box would ask it about a register it does not keep. */}
+      {useCaseLaw !== null || linkCandidates.length > 0 ? (
+        <AutomatedDecisions
+          side="ai_use_case"
+          recordId={id}
+          record={useCase}
+          bases={linkedBases}
+          linked={linkedActivities}
+          mayEdit={mayEdit}
+          laws={useCaseLaw}
+          regime={regimeOfUseCase(
+            linkedActivities.map((a) => ({ regime: a.regime ?? 'gdpr' }))
+          )}
+          linkCandidates={linkCandidates}
+        />
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">

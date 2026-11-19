@@ -20,6 +20,23 @@
 
 export type Stage = 'setup' | 'maintain';
 
+/**
+ * Which programme a guide is for. The privacy programme's steps are what the
+ * law asks of a controller; the AI programme's are what an AI governance
+ * framework asks, for an organisation that uses Govern for that alone.
+ */
+export type Programme = 'privacy' | 'ai';
+
+/** The NIST AI RMF function a step serves, shown beside it under that framework. */
+export type NistFunctionTag = 'GOVERN' | 'MAP' | 'MEASURE' | 'MANAGE';
+
+export const FUNCTION_LABEL: Record<NistFunctionTag, string> = {
+  GOVERN: 'Govern',
+  MAP: 'Map',
+  MEASURE: 'Measure',
+  MANAGE: 'Manage'
+};
+
 export type Step = {
   /** Stable, because progress is looked up by it and it appears in the URL. */
   id: string;
@@ -35,6 +52,10 @@ export type Step = {
   ukLaw?: true;
   /** Shown only where some entity is under UK PECR or the Irish ePrivacy Regulations. */
   eprivacy?: true;
+  /** On the AI programme's steps: the NIST AI RMF function it serves. */
+  fn?: NistFunctionTag;
+  /** Shown only where the organisation follows the NIST AI RMF. */
+  nist?: true;
   /**
    * Said when somebody is likely to get this wrong in a way that costs them
    * later. Omitted where there is nothing worth warning about — a caution on
@@ -401,4 +422,253 @@ export const MAINTAIN: Step[] = [
 export const STEPS: Record<Stage, Step[]> = {
   setup: SETUP,
   maintain: MAINTAIN
+};
+
+/**
+ * The guide for an organisation using Govern for AI governance alone: no
+ * entity under UK or EU data protection law, so nothing here asks for a
+ * processing record, a DPIA or a statutory clock. Ordered as the NIST AI RMF
+ * is - Govern first, because the other three functions assume it - and each
+ * reason names the subcategory it serves, after the plain sentence.
+ */
+export const AI_SETUP: Step[] = [
+  {
+    id: 'ai-entities',
+    fn: 'GOVERN',
+    title: 'Say which organisations are covered',
+    what:
+      'Add each legal entity whose AI you are governing. One company is one entity. For each, ' +
+      'say whether UK or EU data protection law applies to it. A company established in neither, ' +
+      'that does not sell to or monitor people there, is subject to neither.',
+    why:
+      'Every AI system, assessment and risk belongs to an entity, which is how a customer, an ' +
+      'insurer or a regulator is shown the record of the company they deal with. Saying which ' +
+      'law applies is also what keeps questions you do not have to answer off your screens.',
+    finishedWhen:
+      'At least one entity exists, its name matches your contracts, and the law it is under is right.',
+    href: '/app/admin/organisation',
+    watchOut:
+      'UK and EU data protection law can reach a company outside both that offers goods or ' +
+      'services to people there, or monitors them. Check before you record neither.'
+  },
+  {
+    id: 'ai-people',
+    fn: 'GOVERN',
+    title: 'Name who is accountable for AI',
+    what:
+      'Invite your colleagues and give each a role. Name an AI governance lead, and the people ' +
+      'who approve an assessment or accept a risk.',
+    why:
+      'Work is routed to named people, so until somebody is named nothing moves. Clear roles and ' +
+      'lines of accountability for mapping, measuring and managing AI risk are what the NIST AI ' +
+      'RMF asks for first (GOVERN 2.1).',
+    finishedWhen:
+      'Everyone who needs to approve or answer something can sign in and has a role.',
+    href: '/app/admin/people',
+    watchOut:
+      'Whoever approves an assessment should not be the person who wrote it. The tool allows ' +
+      'it, because a small team may have nobody else, but it is worth knowing you are doing it.'
+  },
+  {
+    id: 'ai-appetite',
+    fn: 'GOVERN',
+    title: 'Say how much AI risk you will accept',
+    what:
+      'Write down, for each kind of AI risk, how much the organisation is prepared to live with, ' +
+      'and have it signed off. Risks above it then show as outside appetite.',
+    why:
+      'Without a stated tolerance every risk decision is made afresh by whoever is in the room. ' +
+      'Documenting it is GOVERN 1.3 and MAP 1.5 of the NIST AI RMF.',
+    finishedWhen: 'At least one appetite statement has been approved.',
+    href: '/app/risks/appetite'
+  },
+  {
+    id: 'ai-templates',
+    fn: 'GOVERN',
+    title: 'Publish the AI assessment you will use',
+    what:
+      'The tool ships an AI risk assessment and a short intake form for proposals. Publish them, ' +
+      'reading every question first, so each system is asked the same things.',
+    why:
+      'The same questions every time are what make twenty assessments comparable rather than ' +
+      'twenty essays, and a repeatable process is what GOVERN 1.4 asks for.',
+    finishedWhen: 'An AI risk assessment template is published.',
+    href: '/app/templates',
+    watchOut:
+      'Start with the shipped template. Rewriting it before you have run one assessment is how ' +
+      'you end up with questions nobody can answer.'
+  },
+  {
+    id: 'ai-register',
+    fn: 'MAP',
+    title: 'List the AI you use',
+    what:
+      'One entry per system: a chatbot, a scoring tool, a transcription service, a model you ' +
+      'built, and AI features inside software you already buy. Say what it is for, who owns it ' +
+      'and what stage it is at.',
+    why:
+      'You cannot assess what you have not listed. An inventory of AI systems is GOVERN 1.6, and ' +
+      'knowing what each is for and who it affects is the whole of MAP 1.',
+    finishedWhen:
+      'Every AI system in use appears, including ones bought as a feature of something else.',
+    href: '/app/ai',
+    watchOut:
+      "'We do not use AI' is worth checking rather than assuming. Features inside tools you " +
+      'already buy are the ones that get missed.'
+  },
+  {
+    id: 'ai-suppliers',
+    fn: 'MAP',
+    title: 'Name the supplier behind each bought-in system',
+    what:
+      "For each system you bought, or use through somebody else's service, record the supplier " +
+      'and link it, so its contract and its own assessment sit beside the system.',
+    why:
+      "A bought-in system is only as well governed as its supplier's data use, testing and " +
+      'terms. The NIST AI RMF puts third-party risk inside yours (GOVERN 6.1, MAP 4.1).',
+    finishedWhen: 'No bought-in system is missing its supplier.',
+    href: '/app/ai'
+  },
+  {
+    id: 'ai-assessments',
+    fn: 'MEASURE',
+    title: 'Assess each system, and have it approved',
+    what:
+      'Run the AI risk assessment on each system, starting with what is live or makes decisions ' +
+      'about people. Have each approved by somebody other than the person who wrote it.',
+    why:
+      'An assessment is where the risks are named, rated and tested against your appetite: the ' +
+      'trustworthiness characteristics of MEASURE 2, and the go-live gate the register enforces.',
+    finishedWhen: 'Every system on the register has an approved AI assessment.',
+    href: '/app/ai',
+    watchOut:
+      'A system can be assessed and still be unmonitored. The register flags that separately.'
+  },
+  {
+    id: 'ai-profile',
+    fn: 'MANAGE',
+    nist: true,
+    title: 'Say where you stand on the framework, and where you aim to be',
+    what:
+      'Go through the NIST AI RMF profile and, for each outcome, say how far you meet it now and ' +
+      'how far you mean to. Govern shows the evidence it already holds beside each one.',
+    why:
+      'A current and a target profile is how the NIST AI RMF expects an organisation to describe ' +
+      'its own use of the framework, and the gap between them is your plan.',
+    finishedWhen: 'At least one target is set in each function.',
+    href: '/app/ai/profile',
+    watchOut:
+      'Not applicable is an answer worth giving, with a reason. Leaving an outcome blank says ' +
+      'nobody looked.'
+  }
+];
+
+export const AI_MAINTAIN: Step[] = [
+  {
+    ...MAINTAIN.find((s) => s.id === 'tasks')!,
+    fn: 'GOVERN'
+  },
+  {
+    id: 'ai-intake',
+    fn: 'MAP',
+    title: 'Catch new AI before it is built or bought',
+    what:
+      'Point people at the intake form when they want to use AI for something new. Each proposal ' +
+      'is triaged, and the ones that go ahead join the register.',
+    why:
+      'The cheapest moment to shape a system is before it exists. Deciding whether to proceed is ' +
+      'MAP 1.1 and MANAGE 1.1 of the NIST AI RMF.',
+    finishedWhen: 'Nothing on the intake list is waiting for a decision.',
+    href: '/app/ai/intake'
+  },
+  {
+    id: 'ai-changes',
+    fn: 'MAP',
+    title: 'Keep the register true when a system changes',
+    what:
+      'A new model, new data or a new use is recorded on the system before it goes live. The ' +
+      'register then asks for the assessment to be looked at again.',
+    why:
+      'An assessment describes the system on the day it was written. Tracking changes is what ' +
+      'keeps it describing the system you run (MANAGE 4.1).',
+    finishedWhen: 'Nothing is running that the register does not describe.',
+    href: '/app/ai',
+    watchOut:
+      'The change that matters is rarely a new system. It is an existing one being used for ' +
+      'something new, or a supplier changing the model underneath you.'
+  },
+  {
+    id: 'ai-testing',
+    fn: 'MEASURE',
+    title: 'Test what is live, and keep the results',
+    what:
+      'Record each test of a live system - accuracy, bias, robustness - with who ran it and ' +
+      'what it found. Independent testing counts for more on the systems that decide things.',
+    why:
+      'Evidence that a system still behaves as assessed is what MEASURE 2 and MANAGE 4.1 ask for, ' +
+      'and the register flags a live system nobody has tested.',
+    finishedWhen:
+      'No live system is flagged as never tested or failing its last test.',
+    href: '/app/ai'
+  },
+  {
+    ...MAINTAIN.find((s) => s.id === 'risks')!,
+    fn: 'MANAGE'
+  },
+  {
+    id: 'ai-incidents',
+    fn: 'MANAGE',
+    title: 'Know what happens when AI causes harm',
+    what:
+      'Read this before you need it. Harm, a challenged outcome or a concern about an AI system ' +
+      'is reported here, goes to a named person, and what was done about it is kept.',
+    why:
+      'Incidents tracked, responded to and communicated, including to the people affected, are ' +
+      'MANAGE 4.3 of the NIST AI RMF.',
+    finishedWhen:
+      'Nothing reported is still open without somebody working on it.',
+    href: '/app/ai/incidents',
+    watchOut:
+      'A concern can be raised in confidence. Only the person handling it, and those allowed to ' +
+      'see confidential concerns, see who raised it.'
+  },
+  {
+    id: 'ai-reviews',
+    fn: 'MANAGE',
+    title: 'Reassess what has come round',
+    what:
+      'When an assessment reaches its review date, read it again against the system as it runs ' +
+      'now, change what has changed, and have it re-approved.',
+    why:
+      'Periodic review of how risk is managed is GOVERN 1.5, and a system past its review date ' +
+      'cannot go further live through the register.',
+    finishedWhen: 'No approved assessment is past its review date.',
+    href: '/app/reviews',
+    watchOut:
+      'Re-approving without reading it is worse than letting it lapse, because it puts a fresh ' +
+      'signature on a stale claim.'
+  },
+  {
+    id: 'ai-evidence',
+    fn: 'GOVERN',
+    title: 'Take an export when you need to show your work',
+    what:
+      'Export the register, the profile and the audit trail before a customer questionnaire, an ' +
+      'insurer or a board asks, not during.',
+    why:
+      'The audit trail here is hash-linked, so an export can be shown as evidence rather than ' +
+      'asserted as a summary. Documentation others can rely on is GOVERN 4.2.',
+    finishedWhen: 'You have taken an export and know what is in it.',
+    href: '/app/exports'
+  }
+];
+
+export const AI_STEPS: Record<Stage, Step[]> = {
+  setup: AI_SETUP,
+  maintain: AI_MAINTAIN
+};
+
+export const PROGRAMME_STEPS: Record<Programme, Record<Stage, Step[]>> = {
+  privacy: STEPS,
+  ai: AI_STEPS
 };

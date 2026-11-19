@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { ComplaintClock } from '@/components/complaints/ComplaintClock';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { OutsideProgrammeNote } from '@/components/OutsideProgrammeNote';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import {
@@ -101,6 +102,11 @@ export default async function ComplaintsPage({
       </header>
 
       <HelpLink topic="complaints" />
+
+      <OutsideProgrammeNote
+        organisationId={org}
+        what="data protection complaints"
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat

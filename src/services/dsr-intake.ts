@@ -23,7 +23,7 @@ import {
   acknowledgementDeadline,
   s164aApplies
 } from '@/lib/complaints/statutory';
-import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { outsideLawRefusal, ukLawApplies } from '@/lib/dpa2018/applies';
 import { requestClock } from '@/lib/dsr/statutory';
 import { FrameOriginRefused, normaliseOrigins } from '@/lib/embedding';
 import { regulatorFor } from '@/lib/gdpr/establishment';
@@ -110,6 +110,18 @@ export async function issueIntakeLink(input: {
       if (!entity?.foiAct)
         throw new RequestRefused(
           'No freedom of information Act applies to this entity. An owner sets that on the Organisation page.'
+        );
+    } else {
+      const [entity] = await db
+        .select({
+          name: entities.name,
+          applies: entities.dataProtectionLawApplies
+        })
+        .from(entities)
+        .where(eq(entities.id, input.entityId));
+      if (entity && !entity.applies)
+        throw new RequestRefused(
+          outsideLawRefusal(entity.name, 'a data protection request form')
         );
     }
     return db.transaction(async (tx) => {
@@ -225,6 +237,7 @@ export async function openIntakeLink(slug: string) {
       foiAct: entities.foiAct,
       foiTimeProfile: entities.foiTimeProfile,
       dataProtectionLaw: entities.dataProtectionLaw,
+      dataProtectionLawApplies: entities.dataProtectionLawApplies,
       ieEprivacy: entities.ieEprivacy,
       euLeadAuthority: entities.euLeadAuthority,
       euEstablishments: entities.euEstablishments,
@@ -241,6 +254,10 @@ export async function openIntakeLink(slug: string) {
       and(eq(dsrIntakeLinks.slug, slug), isNull(dsrIntakeLinks.revokedAt))
     );
   if (!row || !formIsOpen({ ...row.link, foiAct: row.foiAct })) return null;
+  // A data protection form for an entity under neither law would promise
+  // rights and a regulator its stored, dormant law names. Closed instead.
+  if (row.link.kind === 'data_protection' && !row.dataProtectionLawApplies)
+    return null;
   // The other kind of form for the same entity, if one is open, so each form
   // can send people to the other when they have come to the wrong one.
   const otherKind = row.link.kind === 'foi' ? 'data_protection' : 'foi';

@@ -1009,6 +1009,20 @@
       "when": 1795087082109,
       "tag": "0143_cyber_essentials_template_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1795129898627,
+      "tag": "0144_entity_data_protection_law_applies",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1795131274685,
+      "tag": "0145_privacy_records_need_data_protection_law",
+      "breakpoints": true
     }
   ]
 }

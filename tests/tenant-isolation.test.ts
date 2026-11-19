@@ -2632,6 +2632,15 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'setOutsideDataProtectionLaw',
+      () =>
+        entitiesSvc.setOutsideDataProtectionLaw({
+          organisationId: A.org.id,
+          entityId: B.entity.id,
+          actor: as()
+        })
+    ],
+    [
       'setEstablishment',
       () =>
         entitiesSvc.setEstablishment({
@@ -4182,6 +4191,10 @@ describe('lists', () => {
           entitiesSvc.anyEntityUnderFoi(o)
         ] as const,
         [
+          'entitiesSvc.anyEntityUnderDataProtectionLaw',
+          entitiesSvc.anyEntityUnderDataProtectionLaw(o)
+        ] as const,
+        [
           'entitiesSvc.anyEntityUnderEprivacy',
           entitiesSvc.anyEntityUnderEprivacy(o)
         ] as const,
@@ -4575,10 +4588,13 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "acts on the caller's own organisation",
   'ai-profile.featureEvidence': "reads the caller's own organisation",
   'ai-profile.nistProfile': "reads the caller's own organisation",
+  'ai-profile.nistProfileTally': "reads the caller's own organisation",
   'ai-profile.setProfileItem':
     "writes the caller's own organisation's profile; the subcategory is NIST's, not a record",
   'ai-profile.exportNistProfile': "reads the caller's own organisation",
   'ai-framework.aiFrameworkOf': "reads the caller's own organisation",
+  'programme-scope.programmeScope':
+    "composes reads of the caller's own organisation, each tested on its own",
   'ai-framework.aiFrameworkPackOf': "reads the caller's own organisation",
   'ai-lifecycle.icoConsultationOutstanding':
     'called from gateContext after it loads the system within the organisation',

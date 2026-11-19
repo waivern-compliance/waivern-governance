@@ -379,7 +379,11 @@ async function checkedLaws(
   regime: Regime
 ): Promise<DataProtectionLaw> {
   const [entity] = await executor
-    .select({ name: entities.name, law: entities.dataProtectionLaw })
+    .select({
+      name: entities.name,
+      law: entities.dataProtectionLaw,
+      applies: entities.dataProtectionLawApplies
+    })
     .from(entities)
     .where(eq(entities.id, entityId));
   return cleanRecordLaws(entity, laws, regime);

@@ -510,6 +510,19 @@ async function latestAssessment(
 }
 
 /**
+ * The data protection laws a use case is under: those of the processing it is
+ * used in, or failing that its entity's. Null where neither applies - an
+ * entity recorded as outside UK and EU law, with no processing linked.
+ */
+export function lawsOfUseCase(
+  linked: ReadonlyArray<DataProtectionLaw>,
+  entity: { law: DataProtectionLaw; applies: boolean }
+): DataProtectionLaw | null {
+  if (linked.length === 0 && !entity.applies) return null;
+  return unionOfLaws(linked, entity.law);
+}
+
+/**
  * The laws of the processing activities each use case is used in, the same
  * links the use case page reads, so the register and the page judge a use
  * case under the same laws. Called inside the caller's withOrganisation.
@@ -566,9 +579,10 @@ export function gapsFor(
     trainedOwners?: ReadonlySet<string>;
     /**
      * The laws the use case is under: those of the processing it is used in,
-     * or failing that its entity's (`useCaseLaws`). EU law adds Article 22(2).
+     * or failing that its entity's (`lawsOfUseCase`). EU law adds Article 22(2).
+     * Null: under neither, so Articles 22 and 22A-22D ask nothing of it.
      */
-    laws?: DataProtectionLaw;
+    laws?: DataProtectionLaw | null;
   } = {}
 ): Gap[] {
   const {
@@ -651,7 +665,8 @@ export function gapsFor(
   // Articles 22A–22C. The use case has no lawful basis of its own, so whether
   // it relies on recognised legitimate interests (22B(4)) is shown on the page
   // from the processing activities it is linked to, not reported here.
-  gaps.push(...admGaps(useCase, undefined, undefined, context.laws ?? 'uk'));
+  if (context.laws !== null)
+    gaps.push(...admGaps(useCase, undefined, undefined, context.laws ?? 'uk'));
 
   // Somebody reported actual harm and nobody has said how it was put right.
   if (unresolvedHarm) gaps.push('unresolved_harm');
@@ -692,7 +707,8 @@ export async function listRegister(
       .select({
         useCase: aiUseCases,
         ownerEmail: users.email,
-        laws: entities.dataProtectionLaw
+        laws: entities.dataProtectionLaw,
+        lawApplies: entities.dataProtectionLawApplies
       })
       .from(aiUseCases)
       .innerJoin(entities, eq(entities.id, aiUseCases.entityId))
@@ -718,14 +734,17 @@ export async function listRegister(
 
     const linkedLaws = await linkedLawsOf(rows.map((r) => r.useCase.id));
     return Promise.all(
-      rows.map(async ({ useCase, ownerEmail, laws: entityLaw }) => {
+      rows.map(async ({ useCase, ownerEmail, laws: entityLaw, lawApplies }) => {
         const assessed = await latestAssessment(useCase.id);
         return {
           useCase,
           ownerEmail,
           assessed,
           gaps: gapsFor(useCase, assessed, {
-            laws: unionOfLaws(linkedLaws.get(useCase.id) ?? [], entityLaw),
+            laws: lawsOfUseCase(linkedLaws.get(useCase.id) ?? [], {
+              law: entityLaw,
+              applies: lawApplies
+            }),
             transparency: { hasCurrentRecord: recorded.has(useCase.id) },
             lastMaterialChangeAt: changed.get(useCase.id) ?? null,
             assurance: tested.get(useCase.id) ?? null,
@@ -748,7 +767,8 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
         useCase: aiUseCases,
         ownerEmail: users.email,
         officerEmail: officers.email,
-        laws: entities.dataProtectionLaw
+        laws: entities.dataProtectionLaw,
+        lawApplies: entities.dataProtectionLawApplies
       })
       .from(aiUseCases)
       .innerJoin(entities, eq(entities.id, aiUseCases.entityId))
@@ -812,9 +832,9 @@ export async function loadUseCase(useCaseId: string, organisationId: string) {
       assessed,
       assessments: related,
       gaps: gapsFor(row.useCase, assessed, {
-        laws: unionOfLaws(
+        laws: lawsOfUseCase(
           (await linkedLawsOf([row.useCase.id])).get(row.useCase.id) ?? [],
-          row.laws
+          { law: row.laws, applies: row.lawApplies }
         ),
         transparency: { hasCurrentRecord: recorded.has(useCaseId) },
         lastMaterialChangeAt: changed.get(useCaseId) ?? null,
