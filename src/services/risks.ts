@@ -4,6 +4,7 @@ import { db, withOrganisation, type Db } from '@/db/client';
 import {
   aiUseCases,
   assessments,
+  cyberScopes,
   mitigations,
   organisations,
   processingActivities,
@@ -56,7 +57,7 @@ export async function riskScaleOf(
   });
 }
 
-export async function createRisk(input: {
+type RiskInput = {
   organisationId: string;
   entityId: string;
   title: string;
@@ -68,76 +69,83 @@ export async function createRisk(input: {
   assessmentId?: string;
   source?: 'assessment' | 'manual' | 'integration';
   actor: Actor;
-}) {
-  return withOrganisation(input.organisationId, async () => {
-    return db.transaction(async (tx) => {
-      // Throws if either input is off the organisation's scale, before anything
-      // is written.
-      const scale = await riskScaleOf(input.organisationId, tx);
-      const inherent = rate(input.likelihood, input.impact, scale);
-      await assertEntityIn(input.organisationId, input.entityId, tx);
-      if (input.ownerId)
-        await assertMemberOf(input.organisationId, input.ownerId, tx);
-      if (input.assessmentId)
-        await assertRecordIn(
-          input.organisationId,
-          'assessment',
-          input.assessmentId,
-          tx
-        );
+};
 
-      const reference = await nextReference(
-        tx,
-        input.organisationId,
-        'RISK',
-        new Date().getUTCFullYear()
-      );
+export async function createRisk(input: RiskInput) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction((tx) => insertRisk(tx, input))
+  );
+}
 
-      const [risk] = await tx
-        .insert(risks)
-        .values({
-          organisationId: input.organisationId,
-          entityId: input.entityId,
-          reference,
-          title: input.title,
-          description: input.description,
-          category: input.category,
-          source:
-            input.source ?? (input.assessmentId ? 'assessment' : 'manual'),
-          assessmentId: input.assessmentId,
-          ownerId: input.ownerId,
-          scale,
-          inherentLikelihood: input.likelihood,
-          inherentImpact: input.impact,
-          inherentScore: inherent.score,
-          inherentTier: inherent.tier,
-          status: 'identified'
-        })
-        .returning();
+/**
+ * A new risk, written in the caller's transaction, for a change that raises a
+ * risk alongside something else and must not half-happen.
+ */
+export async function insertRisk(tx: Tx, input: RiskInput) {
+  // Throws if either input is off the organisation's scale, before anything
+  // is written.
+  const scale = await riskScaleOf(input.organisationId, tx);
+  const inherent = rate(input.likelihood, input.impact, scale);
+  await assertEntityIn(input.organisationId, input.entityId, tx);
+  if (input.ownerId)
+    await assertMemberOf(input.organisationId, input.ownerId, tx);
+  if (input.assessmentId)
+    await assertRecordIn(
+      input.organisationId,
+      'assessment',
+      input.assessmentId,
+      tx
+    );
 
-      await appendAuditEvent(tx, {
-        ...input.actor,
-        organisationId: input.organisationId,
-        action: 'risk.created',
-        subjectType: 'risk',
-        subjectId: risk.id,
-        entityId: input.entityId,
-        after: {
-          reference,
-          title: risk.title,
-          inherent: {
-            scale,
-            likelihood: input.likelihood,
-            impact: input.impact,
-            score: inherent.score,
-            tier: inherent.tier
-          }
-        }
-      });
+  const reference = await nextReference(
+    tx,
+    input.organisationId,
+    'RISK',
+    new Date().getUTCFullYear()
+  );
 
-      return risk;
-    });
+  const [risk] = await tx
+    .insert(risks)
+    .values({
+      organisationId: input.organisationId,
+      entityId: input.entityId,
+      reference,
+      title: input.title,
+      description: input.description,
+      category: input.category,
+      source: input.source ?? (input.assessmentId ? 'assessment' : 'manual'),
+      assessmentId: input.assessmentId,
+      ownerId: input.ownerId,
+      scale,
+      inherentLikelihood: input.likelihood,
+      inherentImpact: input.impact,
+      inherentScore: inherent.score,
+      inherentTier: inherent.tier,
+      status: 'identified'
+    })
+    .returning();
+
+  await appendAuditEvent(tx, {
+    ...input.actor,
+    organisationId: input.organisationId,
+    action: 'risk.created',
+    subjectType: 'risk',
+    subjectId: risk.id,
+    entityId: input.entityId,
+    after: {
+      reference,
+      title: risk.title,
+      inherent: {
+        scale,
+        likelihood: input.likelihood,
+        impact: input.impact,
+        score: inherent.score,
+        tier: inherent.tier
+      }
+    }
   });
+
+  return risk;
 }
 
 /**
@@ -217,7 +225,7 @@ export async function setResidual(input: {
   });
 }
 
-export async function addMitigation(input: {
+type MitigationInput = {
   riskId: string;
   organisationId: string;
   description: string;
@@ -228,67 +236,73 @@ export async function addMitigation(input: {
   ownerId?: string;
   dueAt?: Date;
   actor: Actor;
-}) {
-  return withOrganisation(input.organisationId, async () => {
-    if (
-      input.suggestionKey !== undefined &&
-      !suggestionByKey(input.suggestionKey)
-    ) {
-      throw new Error('No such treatment suggestion');
+};
+
+export async function addMitigation(input: MitigationInput) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction((tx) => insertMitigation(tx, input))
+  );
+}
+
+/** A new mitigation, written in the caller's transaction. */
+export async function insertMitigation(tx: Tx, input: MitigationInput) {
+  if (
+    input.suggestionKey !== undefined &&
+    !suggestionByKey(input.suggestionKey)
+  ) {
+    throw new Error('No such treatment suggestion');
+  }
+
+  const [risk] = await tx
+    .select()
+    .from(risks)
+    .where(
+      and(
+        eq(risks.id, input.riskId),
+        eq(risks.organisationId, input.organisationId)
+      )
+    );
+  if (!risk) throw new Error('No such risk');
+  if (input.ownerId)
+    await assertMemberOf(input.organisationId, input.ownerId, tx);
+
+  const [mitigation] = await tx
+    .insert(mitigations)
+    .values({
+      riskId: input.riskId,
+      description: input.description,
+      controlRef: input.controlRef,
+      treatmentType: input.treatmentType,
+      suggestionKey: input.suggestionKey,
+      ownerId: input.ownerId,
+      dueAt: input.dueAt
+    })
+    .returning();
+
+  if (risk.status === 'identified') {
+    await tx
+      .update(risks)
+      .set({ status: 'treating' })
+      .where(eq(risks.id, input.riskId));
+  }
+
+  await appendAuditEvent(tx, {
+    ...input.actor,
+    organisationId: input.organisationId,
+    action: 'mitigation.added',
+    subjectType: 'mitigation',
+    subjectId: mitigation.id,
+    entityId: risk.entityId,
+    after: {
+      risk: risk.reference,
+      description: input.description,
+      treatmentType: input.treatmentType ?? null,
+      suggestionKey: input.suggestionKey ?? null,
+      dueAt: input.dueAt?.toISOString() ?? null
     }
-    return db.transaction(async (tx) => {
-      const [risk] = await tx
-        .select()
-        .from(risks)
-        .where(
-          and(
-            eq(risks.id, input.riskId),
-            eq(risks.organisationId, input.organisationId)
-          )
-        );
-      if (!risk) throw new Error('No such risk');
-      if (input.ownerId)
-        await assertMemberOf(input.organisationId, input.ownerId, tx);
-
-      const [mitigation] = await tx
-        .insert(mitigations)
-        .values({
-          riskId: input.riskId,
-          description: input.description,
-          controlRef: input.controlRef,
-          treatmentType: input.treatmentType,
-          suggestionKey: input.suggestionKey,
-          ownerId: input.ownerId,
-          dueAt: input.dueAt
-        })
-        .returning();
-
-      if (risk.status === 'identified') {
-        await tx
-          .update(risks)
-          .set({ status: 'treating' })
-          .where(eq(risks.id, input.riskId));
-      }
-
-      await appendAuditEvent(tx, {
-        ...input.actor,
-        organisationId: input.organisationId,
-        action: 'mitigation.added',
-        subjectType: 'mitigation',
-        subjectId: mitigation.id,
-        entityId: risk.entityId,
-        after: {
-          risk: risk.reference,
-          description: input.description,
-          treatmentType: input.treatmentType ?? null,
-          suggestionKey: input.suggestionKey ?? null,
-          dueAt: input.dueAt?.toISOString() ?? null
-        }
-      });
-
-      return mitigation;
-    });
   });
+
+  return mitigation;
 }
 
 /**
@@ -706,7 +720,8 @@ export async function risksForAssessment(
 }
 
 /**
- * The processing activities, suppliers and AI systems a risk concerns, where
+ * The processing activities, suppliers, AI systems and Cyber Essentials
+ * scopes a risk concerns, where
  * it says so directly rather than through the assessment that raised it.
  * Read inside the organisation's scope.
  */
@@ -723,7 +738,7 @@ async function concernsOf(riskId: string) {
     );
   const ids = (type: string) =>
     links.filter((l) => l.toType === type).map((l) => l.toId);
-  const [activities, partners, systems] = await Promise.all([
+  const [activities, partners, systems, scopes] = await Promise.all([
     ids('processing_activity').length
       ? db
           .select({
@@ -745,6 +760,16 @@ async function concernsOf(riskId: string) {
           .select({ id: aiUseCases.id, name: aiUseCases.name })
           .from(aiUseCases)
           .where(inArray(aiUseCases.id, ids('ai_use_case')))
+      : [],
+    ids('cyber_scope').length
+      ? db
+          .select({
+            id: cyberScopes.id,
+            name: cyberScopes.name,
+            reference: cyberScopes.reference
+          })
+          .from(cyberScopes)
+          .where(inArray(cyberScopes.id, ids('cyber_scope')))
       : []
   ]);
   return [
@@ -762,6 +787,11 @@ async function concernsOf(riskId: string) {
       href: `/app/ai/${s.id}`,
       label: s.name,
       kind: 'AI system'
+    })),
+    ...scopes.map((s) => ({
+      href: `/app/cyber-essentials/scopes/${s.id}`,
+      label: `${s.reference} ${s.name}`,
+      kind: 'Cyber Essentials scope'
     }))
   ];
 }

@@ -9,14 +9,25 @@ import {
   cyberScopes,
   entities,
   informationAssets,
+  mitigations,
   organisations,
+  recordLinks,
+  risks,
   templates,
   templateVersions,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import {
+  formatControlRef,
+  parseControlRef
+} from '@/lib/cyber-essentials/control-ref';
 import { editionInForce } from '@/lib/cyber-essentials/editions';
-import { editionAnswered } from '@/lib/cyber-essentials/readiness';
+import {
+  editionAnswered,
+  treatingNow,
+  type ReadinessMitigation
+} from '@/lib/cyber-essentials/readiness';
 import type { OutOfScopeReason } from '@/lib/cyber-essentials/scope';
 import {
   isOutOfScopeReason,
@@ -31,7 +42,12 @@ import { nextReference } from '@/lib/references';
 import { requirementOutcomes } from '@/lib/templates/requirements';
 
 import { installShippedWorkflows } from './approval-routing';
-import { activeMemberGrants, mayOpenIn } from './member-grants';
+import {
+  activeMemberGrants,
+  canOpenRecordsIn,
+  mayOpenIn
+} from './member-grants';
+import { insertMitigation, insertRisk } from './risks';
 import { installShippedTemplates, type Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 
@@ -642,91 +658,263 @@ const UNDER_WAY = ['draft', 'in_progress', 'returned', 'in_review'] as const;
  * own when the assessment was started.
  */
 export async function scopeReadiness(organisationId: string, scopeId: string) {
-  return withOrganisation(organisationId, async () => {
-    const rows = await db
-      .select({
-        id: assessments.id,
-        reference: assessments.reference,
-        title: assessments.title,
-        status: assessments.status,
-        submittedAt: assessments.submittedAt,
-        scoreValue: assessments.scoreValue,
-        scoreBand: assessments.scoreBand,
-        scoreTier: assessments.scoreTier,
-        templateVersionId: assessments.templateVersionId
-      })
-      .from(assessments)
-      .innerJoin(
-        templateVersions,
-        eq(templateVersions.id, assessments.templateVersionId)
+  return withOrganisation(organisationId, () =>
+    readinessIn(db, organisationId, scopeId)
+  );
+}
+
+/**
+ * `scopeReadiness` through the given reader. Inside a transaction that acts on
+ * what it reads, `lock` holds the scope's assessments until it commits, so a
+ * readiness assessment submitted meanwhile waits rather than going unseen.
+ */
+async function readinessIn(
+  reader: Tx | typeof db,
+  organisationId: string,
+  scopeId: string,
+  lock = false
+) {
+  const query = reader
+    .select({
+      id: assessments.id,
+      reference: assessments.reference,
+      title: assessments.title,
+      status: assessments.status,
+      submittedAt: assessments.submittedAt,
+      scoreValue: assessments.scoreValue,
+      scoreBand: assessments.scoreBand,
+      scoreTier: assessments.scoreTier,
+      templateVersionId: assessments.templateVersionId
+    })
+    .from(assessments)
+    .innerJoin(
+      templateVersions,
+      eq(templateVersions.id, assessments.templateVersionId)
+    )
+    .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+    .where(
+      and(
+        eq(assessments.organisationId, organisationId),
+        eq(assessments.subjectType, 'cyber_scope'),
+        eq(assessments.subjectId, scopeId),
+        eq(templates.kind, 'cyber_essentials'),
+        ne(assessments.status, 'withdrawn')
       )
-      .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+    )
+    .orderBy(desc(assessments.createdAt));
+  const [rows, treated] = await Promise.all([
+    lock ? query.for('share', { of: assessments }) : query,
+    ceMitigationsOf(reader, scopeId)
+  ]);
+  const underWay =
+    rows.find((r) => UNDER_WAY.some((s) => s === r.status)) ?? null;
+  const open = underWay && {
+    id: underWay.id,
+    reference: underWay.reference,
+    status: underWay.status
+  };
+  const submitted =
+    rows
+      .filter((r) => r.submittedAt)
+      .sort((a, b) => b.submittedAt!.getTime() - a.submittedAt!.getTime())
+      .at(0) ?? null;
+  if (!submitted) return { submitted: null, outcomes: [], open, treated };
+
+  const [[version], [revision]] = await Promise.all([
+    reader
+      .select({ definition: templateVersions.definition })
+      .from(templateVersions)
+      .where(eq(templateVersions.id, submitted.templateVersionId)),
+    reader
+      .select({
+        answers: assessmentRevisions.answers,
+        evaluation: assessmentRevisions.evaluation
+      })
+      .from(assessmentRevisions)
       .where(
         and(
-          eq(assessments.organisationId, organisationId),
-          eq(assessments.subjectType, 'cyber_scope'),
-          eq(assessments.subjectId, scopeId),
-          eq(templates.kind, 'cyber_essentials'),
-          ne(assessments.status, 'withdrawn')
+          eq(assessmentRevisions.assessmentId, submitted.id),
+          eq(assessmentRevisions.reason, 'submitted')
         )
       )
-      .orderBy(desc(assessments.createdAt));
-    const underWay =
-      rows.find((r) => UNDER_WAY.some((s) => s === r.status)) ?? null;
-    const open = underWay && {
-      id: underWay.id,
-      reference: underWay.reference,
-      status: underWay.status
-    };
-    const submitted =
-      rows
-        .filter((r) => r.submittedAt)
-        .sort((a, b) => b.submittedAt!.getTime() - a.submittedAt!.getTime())
-        .at(0) ?? null;
-    if (!submitted) return { submitted: null, outcomes: [], open };
-
-    const [[version], [revision]] = await Promise.all([
-      db
-        .select({ definition: templateVersions.definition })
-        .from(templateVersions)
-        .where(eq(templateVersions.id, submitted.templateVersionId)),
-      db
-        .select({
-          answers: assessmentRevisions.answers,
-          evaluation: assessmentRevisions.evaluation
-        })
-        .from(assessmentRevisions)
-        .where(
-          and(
-            eq(assessmentRevisions.assessmentId, submitted.id),
-            eq(assessmentRevisions.reason, 'submitted')
-          )
+      .orderBy(desc(assessmentRevisions.revision))
+      .limit(1)
+  ]);
+  const outcomes =
+    version && revision
+      ? requirementOutcomes(
+          version.definition.schema,
+          revision.answers,
+          revision.evaluation
         )
-        .orderBy(desc(assessmentRevisions.revision))
-        .limit(1)
-    ]);
-    const outcomes =
-      version && revision
-        ? requirementOutcomes(
-            version.definition.schema,
-            revision.answers,
-            revision.evaluation
-          )
-        : [];
-    return {
-      submitted: {
-        id: submitted.id,
-        reference: submitted.reference,
-        title: submitted.title,
-        status: submitted.status,
-        submittedAt: submitted.submittedAt!,
-        scoreValue: submitted.scoreValue,
-        scoreBand: submitted.scoreBand,
-        scoreTier: submitted.scoreTier,
-        edition: version ? editionAnswered(version.definition) : null
-      },
-      outcomes,
-      open
-    };
+      : [];
+  return {
+    submitted: {
+      id: submitted.id,
+      reference: submitted.reference,
+      title: submitted.title,
+      status: submitted.status,
+      submittedAt: submitted.submittedAt!,
+      scoreValue: submitted.scoreValue,
+      scoreBand: submitted.scoreBand,
+      scoreTier: submitted.scoreTier,
+      edition: version ? editionAnswered(version.definition) : null
+    },
+    outcomes,
+    open,
+    treated
+  };
+}
+
+/**
+ * Mitigations naming a Cyber Essentials requirement (`ce:<edition>:<code>`),
+ * on risks that concern this scope. A verified one is evidence the
+ * requirement is in place; it is shown beside the readiness answer and never
+ * replaces it, since only a new assessment says the scope now meets it.
+ */
+async function ceMitigationsOf(
+  reader: Tx | typeof db,
+  scopeId: string
+): Promise<ReadinessMitigation[]> {
+  const rows = await reader
+    .select({
+      mitigationId: mitigations.id,
+      description: mitigations.description,
+      controlRef: mitigations.controlRef,
+      status: mitigations.status,
+      dueAt: mitigations.dueAt,
+      verifiedAt: mitigations.verifiedAt,
+      riskId: risks.id,
+      riskReference: risks.reference,
+      riskStatus: risks.status
+    })
+    .from(recordLinks)
+    .innerJoin(risks, eq(risks.id, recordLinks.fromId))
+    .innerJoin(mitigations, eq(mitigations.riskId, risks.id))
+    .where(
+      and(
+        eq(recordLinks.fromType, 'risk'),
+        eq(recordLinks.toType, 'cyber_scope'),
+        eq(recordLinks.toId, scopeId),
+        eq(recordLinks.relation, 'concerns')
+      )
+    )
+    .orderBy(asc(mitigations.createdAt));
+  return rows.flatMap((r) => {
+    const ref = parseControlRef(r.controlRef);
+    return ref ? [{ ...r, code: ref.requirement.code }] : [];
   });
+}
+
+/**
+ * A risk raised from a requirement the scope's latest submitted readiness
+ * assessment left unmet, with the mitigation that puts it in place (decision
+ * 7). Proposed on the status page and raised only when a person confirms it,
+ * choosing the rating, who owns the mitigation and when it is due, so a
+ * readiness assessment never fills the register by itself.
+ *
+ * One transaction: the risk, filed as cyber security and tied to the
+ * assessment that found it, the link saying it concerns the scope, and the
+ * mitigation naming the requirement, which the status page reads back.
+ */
+export async function raiseReadinessRisk(input: {
+  organisationId: string;
+  scopeId: string;
+  code: string;
+  title: string;
+  description: string;
+  likelihood: number;
+  impact: number;
+  mitigation: { description: string; ownerId?: string; dueAt?: Date };
+  actor: Actor;
+}) {
+  if (!input.title || !input.description || !input.mitigation.description) {
+    throw new ScopeRefused(
+      'Give the risk a title and a description, and say what will be done.'
+    );
+  }
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      await assertEnabled(tx, input.organisationId);
+      const scope = await loadForWrite(tx, input.organisationId, input.scopeId);
+      // Read in the transaction, holding the scope's assessments, so the risk
+      // is tied to the assessment that is still the latest when it commits.
+      const { submitted, outcomes, treated } = await readinessIn(
+        tx,
+        input.organisationId,
+        scope.id,
+        true
+      );
+      const unmet = outcomes.some(
+        (o) => o.code === input.code && o.status === 'not_met'
+      );
+      if (!submitted?.edition || !unmet) {
+        throw new ScopeRefused(
+          "That requirement is not unmet in the scope's latest submitted readiness assessment."
+        );
+      }
+      const controlRef = formatControlRef(submitted.edition, input.code);
+      const owner = input.mitigation.ownerId;
+      if (
+        owner &&
+        !(await canOpenRecordsIn(
+          tx,
+          input.organisationId,
+          owner,
+          scope.entityId
+        ))
+      ) {
+        throw new ScopeRefused(
+          "The mitigation's owner cannot open records in the scope's entity, so could never act on it. Choose someone who can."
+        );
+      }
+      const already = treatingNow(treated, input.code, submitted.submittedAt);
+      if (already) {
+        throw new ScopeRefused(
+          `${already.riskReference} is already treating this requirement.`
+        );
+      }
+
+      const risk = await insertRisk(tx, {
+        organisationId: input.organisationId,
+        entityId: scope.entityId,
+        title: input.title,
+        description: input.description,
+        category: 'cyber_security',
+        likelihood: input.likelihood,
+        impact: input.impact,
+        ownerId: input.actor.actorUserId ?? undefined,
+        assessmentId: submitted.id,
+        actor: input.actor
+      });
+      await tx.insert(recordLinks).values({
+        organisationId: input.organisationId,
+        fromType: 'risk',
+        fromId: risk.id,
+        toType: 'cyber_scope',
+        toId: scope.id,
+        relation: 'concerns'
+      });
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'risk.linked',
+        subjectType: 'risk',
+        subjectId: risk.id,
+        entityId: scope.entityId,
+        after: { concerns: scope.reference, requirement: controlRef }
+      });
+      await insertMitigation(tx, {
+        riskId: risk.id,
+        organisationId: input.organisationId,
+        description: input.mitigation.description,
+        controlRef,
+        treatmentType: 'limitation',
+        ownerId: input.mitigation.ownerId,
+        dueAt: input.mitigation.dueAt,
+        actor: input.actor
+      });
+      return risk;
+    })
+  );
 }

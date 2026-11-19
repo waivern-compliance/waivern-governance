@@ -441,7 +441,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Suggested treatments',
         body: [
-          "Under the mitigation form, the treatments DSIT's AI Risk Management Toolkit suggests in its Appendix 4 are listed, those for the risk's category first. Use this copies one into the form; nothing is added until you press Add, and you should reword it to what you will actually do.",
+          "Under the mitigation form, the treatments DSIT's AI Risk Management Toolkit suggests in its Appendix 4 are listed, those for the risk's category first. Use this copies one into the form; nothing is added until you press Add, and you should reword it to what you will actually do. A cyber security risk is offered Cyber Essentials' treatments instead, one per technical control, and Use this also fills in the control with the requirement it puts in place, such as ce:v3.3:UAC.MFA_CLOUD. A verified one shows as evidence on a Cyber Essentials scope only when the risk was raised from that scope's status by requirement page, which links the two.",
           'A mitigation that started from a suggestion is marked as coming from the toolkit, even after rewording, so you can see later where the idea came from.'
         ]
       },
@@ -455,7 +455,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Categories, and raising a risk from an assessment',
         body: [
-          "AI risks are filed under the nine categories of DSIT's AI Risk Management Toolkit - financial, legal, transparency, fairness, accountability, contestability, robustness, security, and environment and people. Other risks can carry no category.",
+          "AI risks are filed under the nine categories of DSIT's AI Risk Management Toolkit - financial, legal, transparency, fairness, accountability, contestability, robustness, security, and environment and people. Cyber security, for compromise of the organisation's IT through common internet attacks, is offered whichever AI framework you follow and stays as it is if you change framework; security risk particular to an AI system stays under the framework's own category. Other risks can carry no category.",
           'Raise a risk from the assessment that found it, using the form at the foot of the assessment. That ties the risk to the assessment, so the AI assurance chain can draw the line from the system to what was done about it. Where the assessment named categories that carry risk, they are offered first, and any not yet raised are listed.'
         ]
       }
@@ -3168,7 +3168,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'One appetite per category',
         body: [
-          "DSIT's AI Risk Management Toolkit asks for appetite to be set for each risk category at organisational level and signed off by the board. Each category can have its own statement, at one of four levels - averse, minimal, cautious or open - and an organisation default covers any category without one.",
+          "DSIT's AI Risk Management Toolkit asks for appetite to be set for each risk category at organisational level and signed off by the board. Each category can have its own statement, at one of four levels - averse, minimal, cautious or open - and an organisation default covers any category without one. Cyber security has its own appetite too, whichever AI framework you follow.",
           'A statement says in words what the organisation will and will not take on, and names the highest residual tier still within appetite. The tier is what the register checks; the words are what a reader holds the decision to.'
         ]
       },
@@ -3387,6 +3387,13 @@ export const HELP_TOPICS: HelpTopic[] = [
           "Start a readiness assessment from the scope's page, not from the assessments list: it belongs to the scope and to its home entity, and is answered with a template for the edition the scope is prepared against. While one is being answered or awaiting sign-off, the scope's page links to it instead of starting another. Its sections follow the question set's order - organisation, scope, firewalls, secure configuration, security update management, user access control and malware protection - leaving out insurance, which tests no control. Each question is in Govern's words, cites the NCSC requirement it tests, and names the part of IASME's question set it corresponds to, so you can carry your answers across to the assessment portal. Where a requirement may not apply, the question offers not applicable; say why in the notes.",
           'The outcome is not a risk score. It counts the requirements your answers leave unmet: none is ready to apply, one to three is not ready with a few requirements to meet, and four or more is not ready. A no to a question the question set fails outright - critical and high-risk updates within 14 days, or MFA on every cloud service - makes the outcome not ready with an automatic fail, however few others are missed.',
           "Once a readiness assessment is submitted, the scope's page shows the outcome and links to its status by requirement: each requirement of the scope's edition, met, not met, not applicable or not asked, with the questions that tested it and how each was answered. It is read from the answers as they were submitted, so changes to an assessment sent back for more work show once it is submitted again. It also says where sign-off stands, such as rejected at sign-off, and reads the answers against the edition they were given for: if the scope's edition changes afterwards, the page says so, and the scope needs assessing again. A requirement under a question that was not asked, such as the firewall administration interface when nobody said it is reachable from the internet, is not applicable rather than unmet."
+        ]
+      },
+      {
+        heading: 'Risks from unmet requirements',
+        body: [
+          "On the status by requirement page, each requirement the latest submitted readiness assessment left unmet offers a risk to raise, filled in to start from: filed as cyber security, raised from that assessment and linked to the scope, with a mitigation naming the requirement. Rate it, choose who owns the mitigation and when it is due, reword anything, then press Raise risk. Nothing reaches the register until you do. While its mitigation is in hand, or verified since the assessment and waiting for the next one to confirm it, the requirement does not offer another; if a later assessment still finds it unmet, it offers one again. The mitigation's owner must be someone who can open the scope's records.",
+          'Mitigations naming a requirement, on risks raised from this page, are listed under it with their status. A verified one is shown as evidence that the requirement is in place. It does not change the readiness answer: only a new readiness assessment says the scope now meets it.'
         ]
       },
       {

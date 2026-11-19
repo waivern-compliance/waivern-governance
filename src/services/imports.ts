@@ -48,7 +48,7 @@ import {
   type breachCategory,
   type complaintStatus
 } from '@/db/schema';
-import { AI_FRAMEWORKS } from '@/lib/ai-frameworks';
+import { KNOWN_CATEGORIES } from '@/lib/ai-frameworks';
 import {
   CLASSIFICATION_SCHEMES,
   type AssetClassification
@@ -1312,14 +1312,13 @@ async function entityRecordsByName(
     null;
 }
 
-/** An AI risk category by its key or label, or the category as written. */
+/** A known risk category by its key or label, or the category as written. */
 function categoryOf(given: string | undefined): string | null {
   const v = given?.trim();
   if (!v) return null;
-  for (const pack of Object.values(AI_FRAMEWORKS))
-    for (const c of pack.categories)
-      if (c.value === v.toLowerCase() || loose(c.label) === loose(v))
-        return c.value;
+  for (const c of KNOWN_CATEGORIES)
+    if (c.value === v.toLowerCase() || loose(c.label) === loose(v))
+      return c.value;
   return v;
 }
 

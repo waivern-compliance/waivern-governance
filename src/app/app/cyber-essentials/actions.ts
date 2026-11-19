@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import type { Capability } from '@/lib/rbac';
 import {
   requireCapability,
   requireSession,
@@ -12,6 +13,7 @@ import {
 import {
   createScope,
   placeAsset,
+  raiseReadinessRisk,
   scopeEntityOf,
   setCyberEssentials,
   unplaceAsset,
@@ -42,19 +44,22 @@ function scopeOf(formData: FormData): ScopeInput {
   };
 }
 
-/** The signed-in person, allowed to write in the scope's home entity. */
-async function writerOf(id: string) {
+/** The signed-in person, allowed to do this in the scope's home entity. */
+async function allowedOn(id: string, capability: Capability = 'record.write') {
   const active = await requireSession();
   const entityId = await scopeEntityOf(active.membership.organisationId, id);
   if (!entityId) throw new Error('No such scope.');
-  return requireCapability('record.write', {
+  return requireCapability(capability, {
     organisationId: active.membership.organisationId,
     entityId
   });
 }
 
 const refresh = (id?: string) => {
-  if (id) revalidatePath(`/app/cyber-essentials/scopes/${id}`);
+  if (id) {
+    revalidatePath(`/app/cyber-essentials/scopes/${id}`);
+    revalidatePath(`/app/cyber-essentials/scopes/${id}/readiness`);
+  }
   revalidatePath('/app/cyber-essentials');
 };
 
@@ -100,7 +105,7 @@ export async function updateScopeAction(
   formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await writerOf(id);
+    const active = await allowedOn(id);
     await updateScope({
       id,
       organisationId: active.membership.organisationId,
@@ -118,7 +123,7 @@ export async function placeAssetAction(
   formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await writerOf(id);
+    const active = await allowedOn(id);
     await placeAsset({
       scopeId: id,
       organisationId: active.membership.organisationId,
@@ -138,7 +143,7 @@ export async function unplaceAssetAction(
   _prev: EditResult
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await writerOf(id);
+    const active = await allowedOn(id);
     await unplaceAsset({
       scopeId: id,
       organisationId: active.membership.organisationId,
@@ -146,5 +151,34 @@ export async function unplaceAssetAction(
       actor: actorOf(active)
     });
     refresh(id);
+  });
+}
+
+/** Confirm a risk proposed from a requirement the scope's readiness left unmet. */
+export async function raiseReadinessRiskAction(
+  id: string,
+  code: string,
+  _prev: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await allowedOn(id, 'risk.manage');
+    await raiseReadinessRisk({
+      organisationId: active.membership.organisationId,
+      scopeId: id,
+      code,
+      title: text(formData.get('title')),
+      description: text(formData.get('description')),
+      likelihood: Number(formData.get('likelihood')),
+      impact: Number(formData.get('impact')),
+      mitigation: {
+        description: text(formData.get('mitigation')),
+        ownerId: text(formData.get('ownerId')) || undefined,
+        dueAt: day(formData.get('dueAt')) ?? undefined
+      },
+      actor: actorOf(active)
+    });
+    refresh(id);
+    revalidatePath('/app/risks');
   });
 }

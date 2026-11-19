@@ -6,17 +6,38 @@ import { NotPermitted } from '@/components/NotPermitted';
 import {
   countsSummary,
   readinessOf,
-  SIGN_OFF
+  SIGN_OFF,
+  treatingNow,
+  type ReadinessMitigation
 } from '@/lib/cyber-essentials/readiness';
 import { can } from '@/lib/rbac';
+import { SCALES } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import {
   cyberEssentialsEnabled,
   loadScope,
   scopeReadiness
 } from '@/services/cyber-essentials';
+import { readersOf } from '@/services/member-grants';
+import { riskScaleOf } from '@/services/risks';
 
 import { ReadinessBadge } from '../../../ReadinessBadge';
+import { RaiseRequirementRisk } from './RaiseRequirementRisk';
+
+const MITIGATION_STATUS: Record<ReadinessMitigation['status'], string> = {
+  planned: 'planned',
+  in_progress: 'in progress',
+  implemented: 'implemented, not yet verified',
+  verified: 'verified',
+  abandoned: 'abandoned'
+};
+
+const day = (d: Date) =>
+  d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
 const ANSWER: Record<string, string> = {
   met: 'yes',
@@ -49,10 +70,16 @@ export default async function ScopeReadinessPage({
       />
     );
 
-  const { submitted, outcomes } = await scopeReadiness(org, id);
+  const mayRaise = can(active.membership.grants, 'risk.manage', scope.entityId);
+  const [{ submitted, outcomes, treated }, scale, members] = await Promise.all([
+    scopeReadiness(org, id),
+    riskScaleOf(org),
+    // Only people who can open the scope's records can act on its mitigation.
+    mayRaise ? readersOf(org, scope.entityId) : []
+  ]);
   // Read against the edition it was answered for, not the scope's current one.
   const answeredFor = submitted?.edition ?? scope.edition;
-  const readiness = readinessOf(answeredFor, outcomes);
+  const readiness = readinessOf(answeredFor, outcomes, treated);
   const signOff = submitted && SIGN_OFF[submitted.status];
 
   return (
@@ -76,12 +103,7 @@ export default async function ScopeReadinessPage({
             >
               {submitted.reference}
             </Link>
-            , as submitted on{' '}
-            {submitted.submittedAt.toLocaleDateString('en-GB', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric'
-            })}
+            , as submitted on {day(submitted.submittedAt)}
             {submitted.scoreBand ? `: ${submitted.scoreBand}` : ''}
             {signOff ? `, ${signOff}` : ''}. Against requirements {answeredFor}
             {answeredFor !== scope.edition
@@ -156,8 +178,49 @@ export default async function ScopeReadinessPage({
                       </strong>
                     </span>
                   ))}
+                  {r.mitigations.map((m) => (
+                    <span
+                      key={m.mitigationId}
+                      className="block text-xs"
+                    >
+                      {m.status === 'verified' ? (
+                        <strong className="text-emerald-900">Evidence: </strong>
+                      ) : null}
+                      <Link
+                        href={`/app/risks/${m.riskId}`}
+                        className="font-mono text-ink-soft hover:text-brand"
+                      >
+                        {m.riskReference}
+                      </Link>{' '}
+                      {m.description}{' '}
+                      <span className="text-ink-soft">
+                        ({MITIGATION_STATUS[m.status]}
+                        {m.verifiedAt ? ` ${day(m.verifiedAt)}` : ''}
+                        {m.status !== 'verified' && m.dueAt
+                          ? `, due ${day(m.dueAt)}`
+                          : ''}
+                        )
+                      </span>
+                    </span>
+                  ))}
                 </span>
                 <ReadinessBadge status={r.status} />
+                {r.status === 'not_met' &&
+                submitted &&
+                mayRaise &&
+                !treatingNow(r.mitigations, r.code, submitted.submittedAt) ? (
+                  <RaiseRequirementRisk
+                    scopeId={scope.id}
+                    code={r.code}
+                    title={`Not in place for ${scope.reference}: ${r.summary}`}
+                    description={`${submitted.reference} found this requirement not met for ${scope.reference} ${scope.name}. Until it is, devices in the scope are open to the common internet attacks Cyber Essentials guards against.`}
+                    mitigation={`Put in place: ${r.summary}`}
+                    likelihood={SCALES[scale].likelihood}
+                    impact={SCALES[scale].impact}
+                    members={members}
+                    viewerId={active.userId}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>

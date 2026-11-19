@@ -31,6 +31,8 @@ export type TreatmentSuggestion<C extends string = string> = {
   treatment: TreatmentType | null;
   /** As the toolkit classes it, where that differs from what `treatment` can say. */
   toolkitType?: string;
+  /** The control it puts in place, filled into the mitigation's `control_ref`. */
+  controlRef?: string;
 };
 
 const ACCURACY = 'Poor accuracy or performance';

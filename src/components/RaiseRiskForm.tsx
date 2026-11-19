@@ -1,5 +1,6 @@
 import { raiseRisk } from '@/app/app/risks/actions';
 import type { RiskCategoryDef } from '@/lib/ai-frameworks';
+import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
 
 type Point = { value: number; label: string };
 
@@ -33,12 +34,11 @@ export function RaiseRiskForm({
   // The middle of the scale, as the register form has always defaulted to.
   const middle = (scale: readonly Point[]) =>
     String(scale[Math.floor(scale.length / 2)].value);
-  const suggested = categories.filter((c) =>
-    suggestedCategories.includes(c.value)
-  );
-  const others = categories.filter(
-    (c) => !suggestedCategories.includes(c.value)
-  );
+  const named = (c: RiskCategoryDef) => suggestedCategories.includes(c.value);
+  const suggested = [...categories, ...GENERAL_CATEGORIES].filter(named);
+  const others = categories.filter((c) => !named(c));
+  // Offered whatever the AI framework: risk that is not about AI.
+  const general = GENERAL_CATEGORIES.filter((c) => !named(c));
 
   return (
     <form
@@ -118,6 +118,18 @@ export function RaiseRiskForm({
               </option>
             ))}
           </optgroup>
+          {general.length > 0 ? (
+            <optgroup label="Not about AI">
+              {general.map((c) => (
+                <option
+                  key={c.value}
+                  value={c.value}
+                >
+                  {c.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
       </label>
       <div
