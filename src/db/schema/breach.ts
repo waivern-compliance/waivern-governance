@@ -11,6 +11,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import type { BreachClassification } from '@/lib/breach/statutory';
 import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import type { Regime } from '@/lib/dpa2018/part3';
 
@@ -51,6 +52,28 @@ export const breaches = pgTable(
 
     title: text('title').notNull(),
     description: text('description').notNull(),
+
+    /**
+     * A breach, or a near miss: an incident that put personal data at risk
+     * without compromising it, such as a misdirected email recalled unread.
+     * A near miss is recorded and handled like a breach, so the lessons are
+     * kept, but Articles 33 and 34 are not engaged: no clock runs and nobody
+     * is owed a notification.
+     */
+    classification: text('classification')
+      .$type<BreachClassification>()
+      .notNull()
+      .default('breach'),
+    /**
+     * When the organisation became aware it was a breach, where that came
+     * after it was recorded as a near miss: the seventy-two hours runs from
+     * here instead of `discoveredAt`. Empty means from discovery, which is
+     * where regulators are likely to start counting.
+     */
+    awareAt: timestamp('aware_at', { withTimezone: true }),
+    /** The latest change between breach and near miss, and why. */
+    reclassifiedAt: timestamp('reclassified_at', { withTimezone: true }),
+    reclassificationRationale: text('reclassification_rationale'),
 
     /**
      * Which obligations apply at all. A processor's duty under Article 33(2)

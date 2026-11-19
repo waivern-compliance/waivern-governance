@@ -12,6 +12,7 @@ import {
   STAGE_LABEL,
   type LifecycleStage
 } from '@/services/ai-register';
+import { cyberEssentialsEnabled } from '@/services/cyber-essentials';
 import {
   anyEntityUnderEprivacy,
   anyEntityUnderFoi,
@@ -378,15 +379,17 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
 /* ------------------------------------------------------------------ */
 
 async function QuickLinks({ active }: { active: ActiveSession }) {
-  const [ukLaw, foi, eprivacy] = await Promise.all([
+  const [ukLaw, foi, eprivacy, cyberEssentials] = await Promise.all([
     anyEntityUnderUkLaw(active.membership.organisationId),
     anyEntityUnderFoi(active.membership.organisationId),
-    anyEntityUnderEprivacy(active.membership.organisationId)
+    anyEntityUnderEprivacy(active.membership.organisationId),
+    cyberEssentialsEnabled(active.membership.organisationId)
   ]);
   const items = navFor(active.membership.grants, {
     ukLaw,
     foi,
-    eprivacy
+    eprivacy,
+    cyberEssentials
   }).filter((i) => i.href !== '/app/tasks');
   // Administration is a different kind of thing from a register. Mixed into
   // one list it reads as an afterthought, which is how somebody who knew a

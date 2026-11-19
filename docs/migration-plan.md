@@ -1,6 +1,7 @@
 # Plan: moving a team's records in from another governance platform
 
-Status: all decisions settled 11 November 2026, as recommended. Phases 0 and 1 built.
+Status: all decisions settled 11 November 2026, as recommended. Phases 0 to 3 built;
+the plan for phases 2 and 3, and its ten further decisions, is in #64.
 
 ## What is asked for
 
@@ -202,11 +203,66 @@ Built. Where it departs from the above:
 - Imported risk acceptances kept as dated history (decision 2): the risk is
   unconfirmed until accepted, treated or closed again in Govern.
 
+Built (#66 to #71). Where it departs from the above:
+
+- No provenance PR on its own: each type adds its columns with the PR that imports it.
+- Information assets became an import type first (#66), so risks link to them. An
+  imported asset raises no review or renewal reminder until it is confirmed.
+- Risk ratings on another scale, words included, are translated value by value on the
+  matching step and saved with the column matching; an untranslated value refuses the
+  row, and the source's rating is kept to check against. An acceptance there comes in
+  as history (`source_history`, shown as "History from <source>"), with no
+  `risk_acceptance` and the risk `identified`. Risks link to the activities, suppliers
+  and AI systems they concern through a new `record_link` relation, `concerns`, and to
+  assets through `information_asset_risk`. An unrecognised category is kept as written.
+- Mitigations are an import type of their own (#69). Verified there comes in
+  `implemented` with the verification as history, and overdue reminders wait until the
+  risk is confirmed.
+- General policies had nowhere to go, so a policy register came first (#67), with
+  versions approved here by someone other than whoever submitted them. Imported
+  policies (#70) come in force with no version approved here, the approval there kept
+  as history, and raise no review task until confirmed.
+- Appropriate policy documents' conditions are read from the Act's paragraph references
+  and names rather than translated value by value; one not read refuses the row. Until
+  confirmed, an imported document covers no condition.
+
 ### Phase 3: assessments, and the request and incident registers
 
 - Assessments as read-only records with questions, answers and outcome (decision 3).
 - Data subject requests, complaints, breaches and FOI requests as closed history where
   they are closed, and as open records with their clocks where they are not.
+
+Built (#72 to #77). Where it departs from the above:
+
+- An imported assessment lands on an "Imported from another platform" template of its
+  kind, published and retired at once so it is never offered for a new assessment. Its
+  questions and answers are kept in the file's order (`source_answers`), read only. It
+  holds a new `imported` status until confirmed, so it counts as cover nowhere until
+  then, and takes the source's outcome on confirmation. The source's score and tier stay
+  among its answers. Risks naming it are linked to it, whichever came in first.
+- Each case keeps its real dates, so its clock reads as one recorded here; an open case
+  already past its deadline is counted on the preview and raises tasks once imported.
+  What moved the clock comes in as decision rows, dated, marked with the import and
+  said to have been made "In <source>". Complaints keep their dates on the complaint, so
+  their acknowledgement, last update, outcome and withdrawal come in as dated steps
+  instead. FOI requests bring fees, extensions, the grounds they were refused on and
+  their latest internal review.
+- A case batch keeps none of the columns no field reads: they are mostly about the
+  person who asked. Attach the case file instead. Each batch offers a retention cut-off.
+- Anything the record could not show as true is refused rather than guessed: a status
+  its dates contradict, dates out of order, a notification or extension with no date, a
+  law or regime the entity is not under, an outcome its grounds contradict. Where a case
+  was late and the source gave no reason, the record says so.
+- Undo takes away the decisions, steps and reviews the batch made, and the deadline
+  tasks the sweep raised that nobody has touched. A decision or step recorded here, a
+  comment, or a task picked up or sent to another tracker stops it.
+- A re-import adds what the source recorded since and refuses a row that tells what came
+  in differently; a case worked on here is not written over. One that says a case was
+  answered or closed retires its deadline tasks.
+- Imported cases count in the requests and complaints summaries (`totals.imported`,
+  version 1.2) and the FOI figures by their real dates, marked as imported.
+- On the matching step, a column named as a field's own label now matches it, after
+  every field's other names.
 
 ### Phase 4: source profiles
 

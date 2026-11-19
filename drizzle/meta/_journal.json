@@ -964,15 +964,43 @@
     {
       "idx": 137,
       "version": "7",
-      "when": 1795045973338,
-      "tag": "0137_entra_tenants",
+      "when": 1795043114073,
+      "tag": "0137_network_and_server_asset_types",
       "breakpoints": true
     },
     {
       "idx": 138,
       "version": "7",
-      "when": 1795045978514,
-      "tag": "0138_entra_tenant_rls",
+      "when": 1795044731256,
+      "tag": "0138_cyber_essentials_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795044733207,
+      "tag": "0139_cyber_essentials_scope_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1795049135504,
+      "tag": "0140_near_miss_breaches",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1795050142216,
+      "tag": "0141_entra_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1795050144071,
+      "tag": "0142_entra_tenant_rls",
       "breakpoints": true
     }
   ]

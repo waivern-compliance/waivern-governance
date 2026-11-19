@@ -33,7 +33,7 @@ import {
   templateVersions
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
-import { notificationDeadline } from '@/lib/breach/statutory';
+import { clockStart, notificationDeadline } from '@/lib/breach/statutory';
 import { addMonths } from '@/lib/dates';
 import {
   scanBuffer,
@@ -574,10 +574,16 @@ async function raiseBreachDeadlines(organisationId: string): Promise<number> {
         // The statutory deadline, not a service level counted from now.
         // Without this the task inherits 72 hours from its own creation and
         // shows "in 4d" for something due this afternoon.
-        dueAt: notificationDeadline(breach.discoveredAt),
-        idempotencyKey: pecr
-          ? `breach-deadline-5a:${breach.id}:${clock.state}`
-          : `breach-deadline:${breach.id}:${clock.state}`,
+        dueAt: notificationDeadline(clockStart(breach)),
+        // A reclassification starts its clocks afresh, so the tasks a near
+        // miss retired do not stand in for the ones it owes as a breach again.
+        idempotencyKey:
+          (pecr
+            ? `breach-deadline-5a:${breach.id}:${clock.state}`
+            : `breach-deadline:${breach.id}:${clock.state}`) +
+          (breach.reclassifiedAt
+            ? `:${breach.reclassifiedAt.toISOString()}`
+            : ''),
         actor: SYSTEM
       });
       if (task) raised += 1;

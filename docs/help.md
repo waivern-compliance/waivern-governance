@@ -48,7 +48,7 @@ Every help topic the application carries, in the order it presents them.
 - [The AI assurance chain](#the-ai-assurance-chain) - Each AI system drawn through to what was done about it - and, more usefully, where that chain stops.
 - [AI incidents and concerns](#ai-incidents-and-concerns) - Reports about AI systems - failures, harm, challenges to outcomes and concerns - each handled by a named person.
 - [NIST AI RMF profile](#nist-ai-rmf-profile) - Where the organisation stands against each of NIST AI RMF's 72 subcategories, where it means to be, and the gap between.
-- [Cyber Essentials requirements](#cyber-essentials-requirements) - The five technical controls of the UK's Cyber Essentials scheme and the rules for what a certificate's scope must include, edition by edition.
+- [Cyber Essentials](#cyber-essentials) - The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, and the scopes you prepare for certification.
 - [Algorithmic transparency records](#algorithmic-transparency-records) - The public record of how an AI system is used, in the Algorithmic Transparency Recording Standard's own fields.
 - [Countries, UK approval and transfers](#countries-uk-approval-and-transfers) - One shared library of destinations, with UK approval, EU adequacy and transfer risk, and a date showing when each was last checked by a person.
 - [Supervisory authorities](#supervisory-authorities) - The UK's regulator and each EEA State's data protection authorities, as Govern names them on complaints, refusals and an entity's lead authority.
@@ -622,7 +622,7 @@ Where it is: whether it is on premises, SaaS run by the supplier, in your own cl
 
 ### Asset types
 
-Every asset has a type. The built-in types are system, database, file share, SaaS application, paper archive, device, domain, certificate, software licence and other. Each has a definition, shown wherever the type is chosen and listed on the asset types page.
+Every asset has a type. The built-in types are system, database, file share, SaaS application, paper archive, device, server, network device, domain, certificate, software licence and other. Each has a definition, shown wherever the type is chosen and listed on the asset types page.
 
 Owners and privacy administrators can add types of their own on the asset types page, reached from the register. A type cannot be added without a definition saying what belongs under it, and can say whether its assets expire or renew. A type can be renamed or redefined; it cannot stop expiring while any of its assets has an expiry date recorded.
 
@@ -631,6 +631,10 @@ A type no longer wanted is retired: it is offered for no new asset, and assets t
 ### Domains, certificates and licences
 
 Some types carry fields of their own: a domain's registrar, a certificate's issuer and the names it covers, a licence's number of seats. These describe the asset, never what is in it.
+
+Devices, servers and network devices can be recorded as groups of alike ones, such as one laptop build, with how many there are; Govern is not a device inventory. A device records who owns it (the organisation, its user, or a supplier, contractor or customer) and who uses it, and devices, servers and network devices record their operating system or firmware. These are what a Cyber Essentials scope turns on.
+
+Devices, servers, network devices and software licences can record the date their vendor stops issuing security updates. Once that date has passed, the asset is shown as out of vendor support among the things its record lacks, on the register and on its page. A system, database, file share or server run on a cloud provider can record whether it is infrastructure, platform or software as a service, which decides who configures what.
 
 A type that expires - domain, certificate, software licence, or one of your own that says so - records when the asset expires or renews, how many days before then to act, and whether it renews automatically. From ninety days before the date to act, it is listed as due and a task goes to its owner, or to the privacy administrators if it has no owner who can open records in its legal entity. A task is raised once for each date; changing the date cancels the old task, and retiring the asset closes it.
 
@@ -908,6 +912,16 @@ Every breach goes on the register, including the ones you decide not to report. 
 
 A breach imported from another platform keeps its real dates, so its clocks read as they did there. Its notifications show as decided in that platform, and any case file it came with is listed on its page. It shows as not yet confirmed until a person checks it.
 
+### Near misses
+
+A near miss is an incident that put personal data at risk without compromising it: an email to the wrong person recalled unread, a lost laptop found before anyone opened it. It is not a personal data breach under Article 4(12), so Articles 33 and 34 do not apply, but it shows where a breach nearly happened, and that is worth keeping.
+
+Record it on the same form, as a near miss. It has everything a breach has - its facts, its handler, its decisions, its discussion, its closing - except the clocks: no seventy-two hours runs, no deadline task is raised and no notification is offered. You can still record what you chose to do, such as telling an insurer.
+
+Not sure? Record it as a breach. The clock runs while you find out, and either can be reclassified with the reason why.
+
+A near miss later found to be a breach asks when its seventy-two hours runs from. From its discovery is the default, because that is where regulators are likely to count from: awareness is when you could reasonably have known. A later date is for when something new came to light, and the reason should say what. A breach found to be a near miss stops its clocks and retires its deadline tasks; any notification already made stays on the record.
+
 ### Two questions, not one
 
 Article 33 asks whether the breach is likely to result in a risk to people's rights and freedoms. If it is, the supervisory authority must be told within seventy-two hours. In the UK that is the Information Commission, which replaced the Information Commissioner on 30 September 2026 and still publishes its guidance as the ICO.
@@ -970,7 +984,7 @@ Where exemption is required to safeguard national security, s.78A lifts both dut
 
 **See also:** The risk register · Service levels and things that come round again · The audit trail · The processing register (Article 30)
 
-<sub>Also searchable as: breach, incident, 72 hours, seventy-two, article 33, article 34, notify, ico, information commission, supervisory authority, data subjects, ransomware, leak, pecr, reg 5a, telecoms, communications provider, part 3, law enforcement, section 67, section 68</sub>
+<sub>Also searchable as: breach, incident, 72 hours, seventy-two, article 33, article 34, notify, ico, information commission, supervisory authority, data subjects, ransomware, leak, pecr, reg 5a, telecoms, communications provider, part 3, law enforcement, section 67, section 68, near miss</sub>
 
 ## Data subject requests
 
@@ -1593,11 +1607,11 @@ The profile is there whichever framework the organisation follows, so an organis
 
 <sub>Also searchable as: nist, ai rmf, profile, current, target, gap, subcategory, govern, map, measure, manage, playbook</sub>
 
-## Cyber Essentials requirements
+## Cyber Essentials
 
-*The five technical controls of the UK's Cyber Essentials scheme and the rules for what a certificate's scope must include, edition by edition.*
+*The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, and the scopes you prepare for certification.*
 
-**Screen:** `/app/cyber-essentials/requirements`
+**Screen:** `/app/cyber-essentials`
 
 ### What it is
 
@@ -1613,7 +1627,25 @@ Under Danzell, two answers fail an assessment outright, whatever else is right: 
 
 ### Scope
 
-A certificate covers what its scope covers. A scope can be the whole organisation or a separately managed sub-set, but it must include end-user devices, and cloud services that hold the organisation's data cannot be left out. Staff's own devices, home working, wireless devices and accounts used by suppliers each have their own rule, listed on the page with the NCSC page it comes from.
+A certificate covers what its scope covers. A scope can be the whole organisation or a separately managed sub-set, but it must include end-user devices, and cloud services that hold the organisation's data cannot be left out. Staff's own devices, home working, wireless devices and accounts used by suppliers each have their own rule, listed on the requirements page with the NCSC page it comes from.
+
+### Turning it on
+
+The requirements page is open to everyone, because the same requirements are what you ask of a supplier that holds the certificate. Preparing your own certification is turned on by an owner in the organisation settings, which adds Cyber Essentials to the home page. Turning it off hides your scopes and keeps them.
+
+### Your scopes
+
+Add a scope for each certificate you hold or will apply for. It has a home legal entity, which decides who may open and change it, and lists every legal entity the certificate covers, because the assessment names each one. Say whether it is the whole organisation or a sub-set; a sub-set must say how it is separated from the rest, by a firewall or VLAN. Record its boundary - business unit, network boundary and locations - and anything left outside it, with why.
+
+A scope is prepared against the edition of the requirements in force when it is added. Only people who can see its home entity can open it, and they see the assets only of the covered entities they can open themselves. You can bring an entity into a scope only if you can change its records, and move a scope's home only to another entity it covers. Its owner must be able to open records in its home entity.
+
+A legal entity that is a scope's home cannot be deleted while the scope also covers other entities: move the scope's home to one of them first.
+
+Place assets from the information asset register in the scope or leave them out. Only assets of the entities it covers can be placed. One left out needs a reason the requirements allow - a segregated sub-set, no internet connection, a personal device used only for calls, texts or an MFA app, a device a supplier, contractor or customer owns, a student's own device, a home router you did not supply, a bespoke part of a web application - or another reason explained in a note. Cloud services cannot be left out, except from a sub-set that does not use them, as in a segregated sub-set; nor can a device the organisation owns be left out as someone else's. An asset hosted on premises is not a cloud service, whatever cloud model it once recorded.
+
+Record alike devices as one asset with how many there are, such as one laptop build: Govern is not a device inventory, and a Cyber Essentials Plus assessor samples representative devices anyway.
+
+Under Before assessment, the scope lists what still stands in the way: no end-user devices in scope; cloud services of the covered entities not yet in it; for a whole-organisation scope, assets of the covered entities neither in nor left out; anything in scope out of vendor support; anything in scope since retired. Each names the rule it comes from. Adding, changing and placing are all audited. Removing an entity from a scope takes its assets off the scope's lists.
 
 ### Wording and codes
 
@@ -2165,7 +2197,7 @@ The latest internal review comes in with the request: when it was asked for, and
 
 ### Information assets
 
-Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence.
+Each asset needs a name and a type, named as one of this organisation's asset types, built in or its own; add a type first if the file uses one Govern does not have. A classification is read as a level of the scheme this organisation uses. An owner is matched by email address to a member here; an owner who is not a member is kept with the asset to read, and the asset shows no owner until one is chosen. Expiry and notice dates are kept only for a type that expires, such as a domain or a licence. Ownership, users, how many, operating system, end of support and cloud service model are kept only for the types that carry them; a cell left empty on a later import keeps what is recorded.
 
 An asset can name the processing activities that use it, by reference, ID in the platform or name, and the suppliers that host or run it, by name. Each must already be recorded, so import those first; a row naming one Govern does not know is not imported, with the reason. Importing again adds links the file names and never removes one.
 

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { choiceOf } from '@/lib/assets/types';
+import { BREACH_CLASSIFICATIONS } from '@/lib/breach/statutory';
 import {
   LAWFUL_BASIS_KEYS,
   RECOGNISED_CONDITION_KEYS
@@ -260,6 +262,13 @@ export const informationAssetIn = z.object({
   expiresAt: z.iso.datetime().optional(),
   noticeDays: z.number().int().min(0).max(3650).optional(),
   autoRenews: z.boolean().optional(),
+  /** Fields particular to a type (`DETAIL_FIELDS`); kept only where the type has them. */
+  quantity: z.number().int().min(1).max(10_000_000).optional(),
+  ownership: choiceOf('ownership').optional(),
+  userRole: choiceOf('userRole').optional(),
+  operatingSystem: z.string().max(200).optional(),
+  supportedUntil: z.iso.datetime().optional(),
+  cloudModel: choiceOf('cloudModel').optional(),
   /** Processing activities that use it, by reference or name. */
   activities: z.array(z.string().max(500)).max(100).default([]),
   /** Suppliers that host, run or support it, by name. */
@@ -470,6 +479,8 @@ export const breachIn = z.object({
   externalRef,
   title: shortText,
   description: longText.optional(),
+  /** A breach unless said otherwise; a near miss comes in with nobody told. */
+  classification: z.enum(BREACH_CLASSIFICATIONS).optional(),
   controllerRole: z
     .enum(['controller', 'joint_controller', 'processor'])
     .optional(),

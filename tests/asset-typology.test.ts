@@ -14,14 +14,18 @@ import {
   tasks,
   users
 } from '@/db/schema';
+import { assetGaps } from '@/lib/assets/register';
 import {
   assetTypeKeyFrom,
   BUILT_IN_ASSET_TYPES,
   cleanDetails,
   describeDetails,
+  DETAIL_FIELDS,
   offeredTypes,
+  outOfSupport,
   typology
 } from '@/lib/assets/types';
+import { FIELDS } from '@/lib/import/fields';
 import { can } from '@/lib/rbac';
 import { reminderKey } from '@/lib/renewals';
 import {
@@ -191,6 +195,88 @@ describe('the typology', () => {
         { label: 'Issuer', value: 'A CA' },
         { label: 'Names covered', value: 'a, b' }
       ]
+    );
+  });
+
+  it('holds the servers, network devices and device groups a Cyber Essentials scope is made of', () => {
+    const of = (key: string) =>
+      BUILT_IN_ASSET_TYPES.find((t) => t.key === key)!;
+    for (const key of ['server', 'network_device'])
+      assert.equal(of(key).hasExpiry, false, key);
+    assert.deepEqual(
+      cleanDetails(of('device'), {
+        ownership: 'byod',
+        userRole: 'staff',
+        quantity: 120,
+        operatingSystem: ' Windows 11 23H2 ',
+        supportedUntil: '2027-10-14',
+        cloudModel: 'iaas'
+      }),
+      {
+        ok: true,
+        details: {
+          ownership: 'byod',
+          userRole: 'staff',
+          quantity: 120,
+          operatingSystem: 'Windows 11 23H2',
+          supportedUntil: '2027-10-14'
+        }
+      }
+    );
+    assert.deepEqual(cleanDetails(of('device'), { ownership: 'martians' }), {
+      ok: false,
+      message: 'Choose who owns it from the list.'
+    });
+    assert.equal(
+      cleanDetails(of('server'), { supportedUntil: '14/10/2027' }).ok,
+      false
+    );
+    assert.deepEqual(
+      describeDetails(of('device'), {
+        ownership: 'third_party',
+        supportedUntil: '2027-10-14'
+      }),
+      [
+        { label: 'Owned by', value: 'A supplier, contractor or customer' },
+        { label: 'Supported until', value: '14 October 2027' }
+      ]
+    );
+  });
+
+  it('offers the import the same choices as the form', () => {
+    for (const field of ['ownership', 'userRole', 'cloudModel'] as const) {
+      const imported = FIELDS.information_asset.find((f) => f.key === field);
+      assert.deepEqual(
+        imported?.choices?.map((c) => c.value).sort(),
+        Object.keys(DETAIL_FIELDS[field].choices).sort(),
+        field
+      );
+    }
+  });
+
+  it('marks an asset out of support from the day after its support ends', () => {
+    const at = new Date('2027-10-14T23:00:00Z');
+    assert.equal(outOfSupport({ supportedUntil: '2027-10-14' }, at), false);
+    assert.equal(outOfSupport({ supportedUntil: '2027-10-13' }, at), true);
+    assert.equal(outOfSupport({}, at), false);
+    const facts = {
+      ownerId: 'someone',
+      hosting: 'on_premises' as const,
+      classification: 'internal',
+      retention: 'Until replaced',
+      nextReviewAt: new Date('2028-01-01T00:00:00Z'),
+      retiredAt: null
+    };
+    assert.deepEqual(
+      assetGaps({ ...facts, details: { supportedUntil: '2027-10-13' } }, at),
+      ['out_of_support']
+    );
+    assert.deepEqual(
+      assetGaps(
+        { ...facts, retiredAt: at, details: { supportedUntil: '2027-10-13' } },
+        at
+      ),
+      []
     );
   });
 
@@ -416,6 +502,26 @@ describe("the organisation's own types", () => {
         })
       ),
       refusedBy(/asset_type_key_format/)
+    );
+    await assert.rejects(
+      withOrganisation(w.org.id, () =>
+        db.insert(assetTypes).values({
+          organisationId: w.org.id,
+          key: 'network_device',
+          label: 'Mine too',
+          definition: 'x'
+        })
+      ),
+      refusedBy(/asset_type_key_format/)
+    );
+    await withOrganisation(w.org.id, () =>
+      db.insert(informationAssets).values({
+        organisationId: w.org.id,
+        entityId: w.main.id,
+        reference: 'IA-S',
+        name: 'File server',
+        assetType: 'server'
+      })
     );
     await assert.rejects(
       withOrganisation(w.org.id, () =>

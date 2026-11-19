@@ -363,4 +363,63 @@ describe('importing information assets', () => {
     );
     assert.deepEqual(fourth.preview, { update: 1, refuse: 1 });
   });
+
+  it("reads a device group's ownership, users, count and support end, keeps what a later file leaves out, and puts it back on undo", async () => {
+    const w = await world('import-assets-devices');
+    const first = await imported(
+      w.org.id,
+      [
+        'ID,Name,Type,Ownership,Used by,Quantity,OS,End of support,Cloud model',
+        'D-1,Standard laptop,Device,Company owned,Staff,120,Windows 11 23H2,2027-10-14,IaaS',
+        'D-2,Head office firewall,Network device,Martians,,,,,',
+        'D-3,Old server,Server,,,,,,PaaS'
+      ].join('\n')
+    );
+    assert.deepEqual(first.preview, { create: 2, refuse: 1 });
+    await commitImport({
+      organisationId: w.org.id,
+      batchId: first.batch.id,
+      actor: SYSTEM
+    });
+    const [laptop, server] = await assetsOf(w.org.id).then((all) => [
+      all.find((a) => a.externalRef === 'D-1')!,
+      all.find((a) => a.externalRef === 'D-3')!
+    ]);
+    // A cloud model is not a device's to carry, so it is left out.
+    assert.deepEqual(laptop.details, {
+      ownership: 'organisation',
+      userRole: 'staff',
+      quantity: 120,
+      operatingSystem: 'Windows 11 23H2',
+      supportedUntil: '2027-10-14'
+    });
+    assert.deepEqual(server.details, { cloudModel: 'paas' });
+
+    const again = await imported(
+      w.org.id,
+      'ID,Name,Type,Ownership,Used by,Quantity,OS,End of support,Cloud model\nD-1,Standard laptop,Device,,,140,,,\n'
+    );
+    assert.deepEqual(again.preview, { update: 1 });
+    await commitImport({
+      organisationId: w.org.id,
+      batchId: again.batch.id,
+      actor: SYSTEM
+    });
+    const [grown] = await db
+      .select()
+      .from(informationAssets)
+      .where(eq(informationAssets.id, laptop.id));
+    assert.deepEqual(grown.details, { ...laptop.details, quantity: 140 });
+
+    await undoImport({
+      organisationId: w.org.id,
+      batchId: again.batch.id,
+      actor: SYSTEM
+    });
+    const [back] = await db
+      .select()
+      .from(informationAssets)
+      .where(eq(informationAssets.id, laptop.id));
+    assert.deepEqual(back.details, laptop.details);
+  });
 });

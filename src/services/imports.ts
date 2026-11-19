@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -53,7 +53,13 @@ import {
   CLASSIFICATION_SCHEMES,
   type AssetClassification
 } from '@/lib/assets/register';
+import {
+  cleanDetails,
+  type AssetDetailValues,
+  type DetailField
+} from '@/lib/assets/types';
 import { appendAuditEvent } from '@/lib/audit';
+import type { BreachClassification } from '@/lib/breach/statutory';
 import {
   complaintClock,
   OUTCOME_LABEL,
@@ -143,6 +149,7 @@ import { cleanLawfulBases, cleanRecordLaws, RecordLawsRefused } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise } from './third-party';
 import { refuseDuringTrial } from './trial-guard';
+import { retireDeadlineTasks } from './workflow';
 
 /**
  * Moving records in from another platform: upload, match columns to fields,
@@ -685,6 +692,9 @@ type Attachment = {
 type AssetResolved = {
   assetType: string;
   hasExpiry: boolean;
+  /** The type's own fields, and those of them the row gives. */
+  fields: readonly DetailField[];
+  details: AssetDetailValues;
   classification: AssetClassification | null;
   ownerId: string | null;
   activityIds: string[];
@@ -753,6 +763,7 @@ type BreachDecisionResolved = {
 
 /** A breach read into this organisation's terms, with where its clocks stand. */
 type BreachResolved = {
+  classification: BreachClassification;
   regime: 'gdpr' | 'dpa_part3';
   laws: 'uk' | 'eu' | 'uk_eu';
   affectedStates: string[];
@@ -1494,6 +1505,16 @@ async function assetResolver(tx: Tx, batch: Batch) {
         };
       classification = level[0] as AssetClassification;
     }
+    // Fields the type does not carry are left out, as when typed in.
+    const details = cleanDetails(type, {
+      quantity: data.quantity,
+      ownership: data.ownership,
+      userRole: data.userRole,
+      operatingSystem: data.operatingSystem,
+      supportedUntil: data.supportedUntil?.slice(0, 10),
+      cloudModel: data.cloudModel
+    });
+    if (!details.ok) return { reason: details.message };
     const activityIds: string[] = [];
     for (const name of data.activities) {
       const id = activityOf(name);
@@ -1515,6 +1536,8 @@ async function assetResolver(tx: Tx, batch: Batch) {
     return {
       assetType: type.key,
       hasExpiry: type.hasExpiry,
+      fields: type.fields,
+      details: details.details,
       classification,
       ownerId: data.owner ? memberOf(data.owner) : null,
       activityIds: [...new Set(activityIds)],
@@ -2291,6 +2314,19 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
     const discoveredAt = new Date(data.discoveredAt);
     if (discoveredAt > now)
       return refuse('It cannot have been discovered in the future.');
+    const classification = data.classification ?? 'breach';
+    if (
+      classification === 'near_miss' &&
+      (data.authorityDecision ||
+        data.authorityNotifiedAt ||
+        data.subjectsDecision ||
+        data.subjectsNotifiedAt ||
+        data.pecrNotifiedAt ||
+        data.status === 'notified')
+    )
+      return refuse(
+        'It is a near miss there, but says who was or was not told. A near miss owes no notification: give it as a breach if personal data was compromised.'
+      );
     // Each date after it was discovered and none in the future, or its clocks
     // read nonsense: told before anyone knew reads as told in time.
     const after = [
@@ -2432,6 +2468,7 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
     if (skipped) return skipped;
 
     const resolved = (toWrite: BreachDecisionResolved[]): BreachResolved => ({
+      classification,
       regime,
       laws,
       affectedStates,
@@ -2444,8 +2481,10 @@ async function breachResolver(tx: Tx, batch: Batch, refs: readonly string[]) {
         !data.closedAt &&
         anyClockOverdue({
           breach: {
+            classification,
             controllerRole: data.controllerRole ?? 'controller',
             discoveredAt,
+            awareAt: null,
             regime,
             pecrServiceBreach: data.pecrServiceBreach ?? null
           },
@@ -3761,6 +3800,7 @@ const KEYS: Record<RecordType, string[]> = {
     'expiresAt',
     'noticeDays',
     'autoRenews',
+    'details',
     ...IMPORT_KEYS
   ],
   risk: [
@@ -3859,6 +3899,10 @@ const KEYS: Record<RecordType, string[]> = {
   breach: [
     'title',
     'description',
+    'classification',
+    'awareAt',
+    'reclassifiedAt',
+    'reclassificationRationale',
     'controllerRole',
     'regime',
     'laws',
@@ -3957,7 +4001,9 @@ const DATE_KEYS = new Set([
   'acknowledgedAt',
   'outcomeAt',
   'clarificationSoughtAt',
-  'clarificationReceivedAt'
+  'clarificationReceivedAt',
+  'awareAt',
+  'reclassifiedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -4009,22 +4055,14 @@ async function retireEndedCaseTasks(
   type: (typeof tasks.$inferSelect)['type'],
   keyPrefix?: string
 ) {
-  await c.tx
-    .update(tasks)
-    .set({
-      status: 'done',
-      completedAt: c.at,
-      completedByLabel: c.actor.actorLabel
-    })
-    .where(
-      and(
-        eq(tasks.organisationId, c.batch.organisationId),
-        eq(tasks.type, type),
-        eq(tasks.subjectId, id),
-        inArray(tasks.status, ['open', 'in_progress']),
-        keyPrefix ? like(tasks.idempotencyKey, `${keyPrefix}%`) : undefined
-      )
-    );
+  await retireDeadlineTasks(c.tx, {
+    organisationId: c.batch.organisationId,
+    type,
+    subjectId: id,
+    keyPrefix,
+    at: c.at,
+    actorLabel: c.actor.actorLabel
+  });
 }
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -4619,10 +4657,17 @@ async function writeAsset(
     const noExpiry = resolved.hasExpiry
       ? {}
       : { expiresAt: null, noticeDays: null, autoRenews: false };
+    // A detail the file leaves out keeps what is recorded, and one the type
+    // (perhaps a new one) does not carry is dropped.
+    const details = cleanDetails(resolved, {
+      ...(was.details as AssetDetailValues),
+      ...resolved.details
+    });
     await c.tx
       .update(informationAssets)
       .set({
         ...said(described),
+        details: details.ok ? details.details : resolved.details,
         ...noExpiry,
         ...owner,
         ...autoRenews,
@@ -4647,6 +4692,7 @@ async function writeAsset(
         externalRef: c.sourceRef,
         createdAt: c.at,
         ...described,
+        details: resolved.details,
         ...owner,
         ...autoRenews,
         ...kept
@@ -5142,6 +5188,7 @@ async function writeBreach(
   const described = {
     title: data.title,
     description: data.description,
+    classification: resolved.classification,
     controllerRole: data.controllerRole,
     regime: resolved.regime,
     laws: resolved.laws,
@@ -5171,6 +5218,10 @@ async function writeBreach(
   });
   let id: string;
   if (c.decision.recordId) {
+    // A source that has changed its mind about whether it was a breach is
+    // a reclassification, recorded as one made on the page is; its clock
+    // counts from discovery, as the source gave no other.
+    const reclassified = was?.classification !== resolved.classification;
     // Its dates follow the source exactly, emptied ones too: the clocks
     // and the sweep read them.
     await c.tx
@@ -5180,12 +5231,37 @@ async function writeBreach(
         occurredAt: described.occurredAt,
         containedAt: described.containedAt,
         closedAt: described.closedAt,
+        ...(reclassified
+          ? {
+              awareAt: null,
+              reclassifiedAt: c.at,
+              reclassificationRationale:
+                resolved.classification === 'near_miss'
+                  ? `Recorded as a near miss in ${c.sourceName}, as a later import said.`
+                  : `Recorded as a breach in ${c.sourceName}, as a later import said.`
+            }
+          : {}),
         ...owner,
         ...kept
       })
       .where(eq(breaches.id, c.decision.recordId));
+    if (reclassified)
+      await appendAuditEvent(c.tx, {
+        ...c.actor,
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId ?? undefined,
+        action: 'breach.reclassified',
+        subjectType: 'breach',
+        subjectId: c.decision.recordId,
+        before: { classification: was?.classification },
+        after: {
+          classification: resolved.classification,
+          imported: { batch: c.batch.id, ref: c.sourceRef }
+        }
+      });
     id = c.decision.recordId;
-    if (described.closedAt)
+    // Closed, or found to be a near miss: either way it owes nothing now.
+    if (described.closedAt || resolved.classification === 'near_miss')
       await retireEndedCaseTasks(c, id, 'breach_deadline');
   } else {
     const reference = await nextReference(

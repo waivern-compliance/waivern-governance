@@ -18,6 +18,7 @@ import { SCALES, type RiskScaleId } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { organisationDetail } from '@/services/access';
 import { agreementsOf } from '@/services/agreements';
+import { cyberEssentialsEnabled } from '@/services/cyber-essentials';
 import { domainsFor } from '@/services/domains';
 import { dpoPosition, entitiesOf, establishmentOf } from '@/services/entities';
 import { tenantsFor } from '@/services/entra-tenants';
@@ -29,6 +30,7 @@ import { riskCount, riskScaleOf } from '@/services/risk-policy';
 import { supplierReviewCycle } from '@/services/supplier-review';
 
 import { ClassificationForm } from './ClassificationForm';
+import { CyberEssentialsForm } from './CyberEssentialsForm';
 import { DomainsPanel } from './DomainsPanel';
 import { DpoPanel } from './DpoPanel';
 import { EntitiesPanel } from './EntitiesPanel';
@@ -64,6 +66,7 @@ export default async function OrganisationPage() {
     scheme,
     classified,
     reviewMonths,
+    cyberEssentials,
     tenants
   ] = await Promise.all([
     entitiesOf(org.id),
@@ -88,6 +91,7 @@ export default async function OrganisationPage() {
     classificationSchemeOf(org.id),
     classifiedAssetCount(org.id),
     supplierReviewCycle(org.id),
+    cyberEssentialsEnabled(org.id),
     can(active.membership.grants, 'member.manage')
       ? tenantsFor(org.id)
       : Promise.resolve([])
@@ -207,6 +211,8 @@ export default async function OrganisationPage() {
       />
 
       <ReviewCycleForm current={reviewMonths} />
+
+      <CyberEssentialsForm enabled={cyberEssentials} />
 
       {can(active.membership.grants, 'member.manage') ? (
         <DomainsPanel
