@@ -18,7 +18,7 @@ import {
   loadScope,
   scopeReadiness
 } from '@/services/cyber-essentials';
-import { candidatesFor } from '@/services/handover';
+import { readersOf } from '@/services/member-grants';
 import { riskScaleOf } from '@/services/risks';
 
 import { ReadinessBadge } from '../../../ReadinessBadge';
@@ -74,7 +74,8 @@ export default async function ScopeReadinessPage({
   const [{ submitted, outcomes, treated }, scale, members] = await Promise.all([
     scopeReadiness(org, id),
     riskScaleOf(org),
-    mayRaise ? candidatesFor(org) : []
+    // Only people who can open the scope's records can act on its mitigation.
+    mayRaise ? readersOf(org, scope.entityId) : []
   ]);
   // Read against the edition it was answered for, not the scope's current one.
   const answeredFor = submitted?.edition ?? scope.edition;
@@ -207,7 +208,7 @@ export default async function ScopeReadinessPage({
                 {r.status === 'not_met' &&
                 submitted &&
                 mayRaise &&
-                !treatingNow(r.mitigations, r.code) ? (
+                !treatingNow(r.mitigations, r.code, submitted.submittedAt) ? (
                   <RaiseRequirementRisk
                     scopeId={scope.id}
                     code={r.code}

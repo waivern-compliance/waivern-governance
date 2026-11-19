@@ -1,8 +1,10 @@
 import { and, eq } from 'drizzle-orm';
 
-import { db } from '@/db/client';
+import { db, withOrganisation } from '@/db/client';
 import { memberships, roleAssignments, users } from '@/db/schema';
 import { can, type Grant } from '@/lib/rbac';
+
+import { assertEntityIn } from './tenancy-guards';
 
 /**
  * Who can act on a record in an entity, for naming people on it and sending
@@ -87,4 +89,16 @@ export async function canOpenRecordsIn(
     userId,
     entityId
   );
+}
+
+/** Active members who can open records in this entity, to offer as an owner. */
+export async function readersOf(organisationId: string, entityId: string) {
+  return withOrganisation(organisationId, async () => {
+    await assertEntityIn(organisationId, entityId);
+    const members = await activeMemberGrants(db, organisationId);
+    return [...readersIn(members, entityId)].map(([id, email]) => ({
+      id,
+      email
+    }));
+  });
 }

@@ -398,7 +398,7 @@ Work that has not started reduces nothing. A mitigation counts once it is in pro
 
 ### Suggested treatments
 
-Under the mitigation form, the treatments DSIT's AI Risk Management Toolkit suggests in its Appendix 4 are listed, those for the risk's category first. Use this copies one into the form; nothing is added until you press Add, and you should reword it to what you will actually do. A cyber security risk is offered Cyber Essentials' treatments instead, one per technical control, and Use this also fills in the control with the requirement it puts in place, such as ce:v3.3:UAC.MFA_CLOUD.
+Under the mitigation form, the treatments DSIT's AI Risk Management Toolkit suggests in its Appendix 4 are listed, those for the risk's category first. Use this copies one into the form; nothing is added until you press Add, and you should reword it to what you will actually do. A cyber security risk is offered Cyber Essentials' treatments instead, one per technical control, and Use this also fills in the control with the requirement it puts in place, such as ce:v3.3:UAC.MFA_CLOUD. A verified one shows as evidence on a Cyber Essentials scope only when the risk was raised from that scope's status by requirement page, which links the two.
 
 A mitigation that started from a suggestion is marked as coming from the toolkit, even after rewording, so you can see later where the idea came from.
 
@@ -1659,9 +1659,9 @@ Once a readiness assessment is submitted, the scope's page shows the outcome and
 
 ### Risks from unmet requirements
 
-On the status by requirement page, each requirement the latest submitted readiness assessment left unmet offers a risk to raise, filled in to start from: filed as cyber security, raised from that assessment and linked to the scope, with a mitigation naming the requirement. Rate it, choose who owns the mitigation and when it is due, reword anything, then press Raise risk. Nothing reaches the register until you do, and while that risk is being treated the requirement does not offer another.
+On the status by requirement page, each requirement the latest submitted readiness assessment left unmet offers a risk to raise, filled in to start from: filed as cyber security, raised from that assessment and linked to the scope, with a mitigation naming the requirement. Rate it, choose who owns the mitigation and when it is due, reword anything, then press Raise risk. Nothing reaches the register until you do. While its mitigation is in hand, or verified since the assessment and waiting for the next one to confirm it, the requirement does not offer another; if a later assessment still finds it unmet, it offers one again. The mitigation's owner must be someone who can open the scope's records.
 
-Mitigations naming a requirement, on risks about the scope, are listed under it with their status. A verified one is shown as evidence that the requirement is in place. It does not change the readiness answer: only a new readiness assessment says the scope now meets it.
+Mitigations naming a requirement, on risks raised from this page, are listed under it with their status. A verified one is shown as evidence that the requirement is in place. It does not change the readiness answer: only a new readiness assessment says the scope now meets it.
 
 ### Wording and codes
 

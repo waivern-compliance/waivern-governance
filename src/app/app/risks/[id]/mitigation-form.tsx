@@ -79,7 +79,11 @@ export function MitigationForm({
   function use(s: TreatmentSuggestion) {
     setDescription(s.text);
     if (s.treatment) setTreatment(s.treatment);
-    if (s.controlRef) setControlRef(s.controlRef);
+    // A control filled in by the previous suggestion goes with it; one typed
+    // by hand stays.
+    setControlRef(
+      (typed) => s.controlRef ?? (typed === suggestion?.controlRef ? '' : typed)
+    );
     setSuggestion(s);
   }
 

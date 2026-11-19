@@ -48,7 +48,7 @@ import {
   type breachCategory,
   type complaintStatus
 } from '@/db/schema';
-import { AI_FRAMEWORKS } from '@/lib/ai-frameworks';
+import { KNOWN_CATEGORIES } from '@/lib/ai-frameworks';
 import {
   CLASSIFICATION_SCHEMES,
   type AssetClassification
@@ -124,7 +124,6 @@ import type {
   SourceEvent
 } from '@/lib/import/types';
 import { nextReference } from '@/lib/references';
-import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
 import { rate, SCALES, type RiskScaleId } from '@/lib/risk/scale';
 
 import { createUseCase } from './ai-register';
@@ -1295,11 +1294,7 @@ async function entityRecordsByName(
 function categoryOf(given: string | undefined): string | null {
   const v = given?.trim();
   if (!v) return null;
-  const known = [
-    ...Object.values(AI_FRAMEWORKS).flatMap((p) => p.categories),
-    ...GENERAL_CATEGORIES
-  ];
-  for (const c of known)
+  for (const c of KNOWN_CATEGORIES)
     if (c.value === v.toLowerCase() || loose(c.label) === loose(v))
       return c.value;
   return v;

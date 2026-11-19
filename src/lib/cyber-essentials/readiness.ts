@@ -88,15 +88,33 @@ export type ReadinessMitigation = {
   riskStatus: string;
 };
 
-/** The mitigation already treating a requirement, so a second risk is not raised for it. */
+const IN_HAND: ReadonlyArray<ReadinessMitigation['status']> = [
+  'planned',
+  'in_progress',
+  'implemented'
+];
+
+/**
+ * The mitigation already treating a requirement, so a second risk is not
+ * raised for it: one still in hand, or one verified since the assessment
+ * that found the requirement unmet, which waits for the next assessment to
+ * confirm it. One verified before that assessment did not close the gap, so
+ * the gap can be raised again.
+ */
 export function treatingNow(
   treated: readonly ReadinessMitigation[],
-  code: string
+  code: string,
+  assessedAt: Date
 ): ReadinessMitigation | null {
   return (
     treated.find(
       (t) =>
-        t.code === code && t.riskStatus !== 'closed' && t.status !== 'abandoned'
+        t.code === code &&
+        t.riskStatus !== 'closed' &&
+        (IN_HAND.includes(t.status) ||
+          (t.status === 'verified' &&
+            t.verifiedAt !== null &&
+            t.verifiedAt > assessedAt))
     ) ?? null
   );
 }

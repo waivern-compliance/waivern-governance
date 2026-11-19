@@ -13,9 +13,11 @@ const ref = (code: string) => formatControlRef(EDITION, code);
  *
  * The themes describe controls, not harm, so they are where a mitigation
  * comes from rather than what a risk is filed under. Each fills in the
- * requirement it puts in place (`control_ref`), which the scope's status page
- * reads back as evidence once the mitigation is verified. Like every
- * suggestion, nothing is added until a person chooses it.
+ * requirement it puts in place (`control_ref`). On a risk raised from a
+ * scope's status page, which links the risk to the scope, that page reads it
+ * back as evidence once the mitigation is verified; Govern does not guess
+ * which scope a risk raised elsewhere is about. Like every suggestion,
+ * nothing is added until a person chooses it.
  *
  * Paraphrased from NCSC's Cyber Essentials requirements, Open Government
  * Licence v3.0.
@@ -66,6 +68,6 @@ export const CE_TREATMENTS: readonly TreatmentSuggestion[] = [
 export const CE_TREATMENT_SOURCE = {
   name: 'Cyber Essentials',
   detail:
-    "From the five technical controls of NCSC's Cyber Essentials requirements. Each fills in the requirement it puts in place.",
+    "From the five technical controls of NCSC's Cyber Essentials requirements. Each fills in the requirement it puts in place. To have a verified one shown as evidence for a scope, raise the risk from the scope's status by requirement page.",
   tag: 'from Cyber Essentials'
 };

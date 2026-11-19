@@ -45,6 +45,21 @@ const ALL_CATEGORIES = new Map<string, RiskCategoryDef>([
   ...GENERAL_CATEGORIES.map((c) => [c.value, c] as const)
 ]);
 
+/** Every category Govern knows: each framework's, then those offered whatever the framework. */
+export const KNOWN_CATEGORIES: readonly RiskCategoryDef[] = [
+  ...ALL_CATEGORIES.values()
+];
+
+/**
+ * The categories an organisation files risk under: its framework's, then
+ * those offered whatever the framework, such as cyber security.
+ */
+export function categoriesOffered(
+  pack: AiFrameworkPack
+): readonly RiskCategoryDef[] {
+  return [...pack.categories, ...GENERAL_CATEGORIES];
+}
+
 /**
  * A category some framework defines, whether or not the organisation follows
  * it now, or one offered whatever the framework (`GENERAL_CATEGORIES`).

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { categoriesOffered } from '@/lib/ai-frameworks';
 import { can, scopedEntityIds } from '@/lib/rbac';
 import {
   APPETITE_LEVEL_LABEL,
@@ -14,7 +15,6 @@ import {
   SUGGESTED_TOLERANCE,
   type AppetiteLevel
 } from '@/lib/risk/appetite';
-import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
 import { getActiveSession } from '@/lib/session';
 import { aiFrameworkPackOf } from '@/services/ai-framework';
 import { appetiteHistory } from '@/services/risk-policy';
@@ -49,10 +49,7 @@ export default async function AppetitePage() {
     aiFrameworkPackOf(active.membership.organisationId)
   ]);
   const summary: Record<string, string> = Object.fromEntries(
-    [...framework.categories, ...GENERAL_CATEGORIES].map((c) => [
-      c.value,
-      c.summary
-    ])
+    categoriesOffered(framework).map((c) => [c.value, c.summary])
   );
   const now = new Date();
 

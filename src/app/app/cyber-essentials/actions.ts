@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
+import type { Capability } from '@/lib/rbac';
 import {
   requireCapability,
   requireSession,
@@ -43,12 +44,12 @@ function scopeOf(formData: FormData): ScopeInput {
   };
 }
 
-/** The signed-in person, allowed to write in the scope's home entity. */
-async function writerOf(id: string) {
+/** The signed-in person, allowed to do this in the scope's home entity. */
+async function allowedOn(id: string, capability: Capability = 'record.write') {
   const active = await requireSession();
   const entityId = await scopeEntityOf(active.membership.organisationId, id);
   if (!entityId) throw new Error('No such scope.');
-  return requireCapability('record.write', {
+  return requireCapability(capability, {
     organisationId: active.membership.organisationId,
     entityId
   });
@@ -104,7 +105,7 @@ export async function updateScopeAction(
   formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await writerOf(id);
+    const active = await allowedOn(id);
     await updateScope({
       id,
       organisationId: active.membership.organisationId,
@@ -122,7 +123,7 @@ export async function placeAssetAction(
   formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await writerOf(id);
+    const active = await allowedOn(id);
     await placeAsset({
       scopeId: id,
       organisationId: active.membership.organisationId,
@@ -142,7 +143,7 @@ export async function unplaceAssetAction(
   _prev: EditResult
 ): Promise<EditResult> {
   return refusable(async () => {
-    const active = await writerOf(id);
+    const active = await allowedOn(id);
     await unplaceAsset({
       scopeId: id,
       organisationId: active.membership.organisationId,
@@ -161,13 +162,7 @@ export async function raiseReadinessRiskAction(
   formData: FormData
 ): Promise<EditResult> {
   return refusable(async () => {
-    const session = await requireSession();
-    const entityId = await scopeEntityOf(session.membership.organisationId, id);
-    if (!entityId) throw new Error('No such scope.');
-    const active = await requireCapability('risk.manage', {
-      organisationId: session.membership.organisationId,
-      entityId
-    });
+    const active = await allowedOn(id, 'risk.manage');
     await raiseReadinessRisk({
       organisationId: active.membership.organisationId,
       scopeId: id,

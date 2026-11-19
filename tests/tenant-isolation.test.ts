@@ -82,6 +82,7 @@ import * as foiReviews from '@/services/information-request-reviews';
 import * as foi from '@/services/information-requests';
 import * as ingest from '@/services/ingest';
 import * as marketingSvc from '@/services/marketing';
+import * as memberGrantsSvc from '@/services/member-grants';
 import * as metrics from '@/services/metrics';
 import * as policiesSvc from '@/services/policies';
 import * as policyDocs from '@/services/policy-documents';
@@ -4960,6 +4961,7 @@ describe('Cyber Essentials scopes', () => {
         actor: as()
       })
     );
+    await assert.rejects(memberGrantsSvc.readersOf(B.org.id, scope.entityId));
     assert.deepEqual(changed(before, await bSnapshot()), []);
     await cyberSvc.setCyberEssentials({
       organisationId: A.org.id,

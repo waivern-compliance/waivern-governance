@@ -5,11 +5,14 @@ import { and, eq } from 'drizzle-orm';
 import { db, sql as pg } from '@/db/client';
 import {
   entities,
+  memberships,
   mitigations,
   organisations,
   recordLinks,
+  roleAssignments,
   templates,
-  templateVersions
+  templateVersions,
+  users
 } from '@/db/schema';
 import {
   AI_FRAMEWORKS,
@@ -231,7 +234,11 @@ describe('a risk raised from an unmet requirement', () => {
       .find((r) => r.code === 'UAC.MFA_CLOUD')!;
     assert.equal(row.status, 'not_met');
     assert.equal(row.mitigations.length, 1);
-    assert.equal(treatingNow(row.mitigations, row.code)?.riskId, risk.id);
+    assert.equal(
+      treatingNow(row.mitigations, row.code, read.submitted!.submittedAt)
+        ?.riskId,
+      risk.id
+    );
   });
 
   it('is raised once while its risk is being treated', async () => {
@@ -284,6 +291,81 @@ describe('a risk raised from an unmet requirement', () => {
       .find((r) => r.code === 'UAC.MFA_CLOUD')!;
     assert.equal(row.mitigations[0].status, 'verified');
     assert.equal(row.status, 'not_met', 'until it is assessed again');
+  });
+
+  it('is refused again while a mitigation verified since the assessment waits for the next one', async () => {
+    const { org, scope } = await submittedScope('verified-since');
+    const input = {
+      ...proposal,
+      organisationId: org.id,
+      scopeId: scope.id,
+      code: 'UAC.MFA_CLOUD'
+    };
+    const first = await raiseReadinessRisk(input);
+    await db
+      .update(mitigations)
+      .set({ status: 'verified', verifiedAt: new Date() })
+      .where(eq(mitigations.riskId, first.id));
+    await assert.rejects(
+      raiseReadinessRisk(input),
+      /is already treating this requirement/
+    );
+  });
+
+  it('is offered again when an assessment after its mitigation was verified still finds the requirement unmet', async () => {
+    const { org, scope } = await submittedScope('verified-before');
+    const input = {
+      ...proposal,
+      organisationId: org.id,
+      scopeId: scope.id,
+      code: 'UAC.MFA_CLOUD'
+    };
+    const first = await raiseReadinessRisk(input);
+    const { submitted } = await scopeReadiness(org.id, scope.id);
+    await db
+      .update(mitigations)
+      .set({
+        status: 'verified',
+        verifiedAt: new Date(submitted!.submittedAt.getTime() - 86_400_000)
+      })
+      .where(eq(mitigations.riskId, first.id));
+    const second = await raiseReadinessRisk(input);
+    assert.notEqual(second.id, first.id);
+  });
+
+  it("is refused with a mitigation owner who cannot open the scope's records", async () => {
+    const { org, scope } = await submittedScope('owner');
+    const [elsewhere] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Elsewhere Ltd' })
+      .returning();
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: `elsewhere-${crypto.randomUUID().slice(0, 8)}@example.com`,
+        name: 'Elsewhere person'
+      })
+      .returning();
+    const [membership] = await db
+      .insert(memberships)
+      .values({ organisationId: org.id, userId: user.id })
+      .returning();
+    await db.insert(roleAssignments).values({
+      membershipId: membership.id,
+      role: 'privacy_analyst',
+      scope: 'entity',
+      entityId: elsewhere.id
+    });
+    await assert.rejects(
+      raiseReadinessRisk({
+        ...proposal,
+        mitigation: { ...proposal.mitigation, ownerId: user.id },
+        organisationId: org.id,
+        scopeId: scope.id,
+        code: 'UAC.MFA_CLOUD'
+      }),
+      /cannot open records in the scope's entity/
+    );
   });
 
   it('reads only mitigations on risks about this scope', async () => {
