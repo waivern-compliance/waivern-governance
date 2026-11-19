@@ -6,6 +6,7 @@ import { AI_RISK } from './ai-risk';
 import { AI_SUPPLIER } from './ai-supplier';
 import { BREACH_SEVERITY } from './breach';
 import { CNIL_PIA } from './cnil-pia';
+import { CYBER_ESSENTIALS_READINESS } from './cyber-essentials-readiness';
 import { DPIA } from './dpia';
 import { DPIA_PART3 } from './dpia-part3';
 import { DSIT_AI_RISK } from './dsit-ai-risk';
@@ -23,6 +24,10 @@ import { TIA_EU, TRA_UK } from './transfers';
 import { TRA_PART3 } from './transfers-part3';
 
 export { LEGAL_REFERENCES } from './legal-references';
+
+/** The readiness template a scope starts its assessment from. */
+export const CYBER_ESSENTIALS_READINESS_NAME =
+  'Cyber Essentials readiness (v3.3, Danzell)';
 
 /**
  * Templates Waivern ships and keeps current. A client may copy one and diverge,
@@ -48,6 +53,8 @@ export const SYSTEM_TEMPLATES: Array<{
    * Protection Act 2018 — installed only where some entity is subject to UK law.
    */
   ukLaw?: true;
+  /** Installed only for an organisation that has taken up Cyber Essentials. */
+  cyberEssentials?: true;
   definition: TemplateDefinition;
 }> = [
   {
@@ -191,6 +198,15 @@ export const SYSTEM_TEMPLATES: Array<{
       "The public sector equality duty's three aims, and the impact on each protected characteristic - including how an AI system performs across them.",
     jurisdiction: 'UK',
     definition: EIA
+  },
+  {
+    kind: 'cyber_essentials',
+    name: CYBER_ESSENTIALS_READINESS_NAME,
+    description:
+      "Readiness of a certification scope against NCSC's Cyber Essentials requirements v3.3, in the order of IASME's Danzell question set: firewalls, secure configuration, security update management, user access control and malware protection. Each question cites the requirement it tests; an automatic fail makes the outcome not ready.",
+    jurisdiction: 'UK',
+    cyberEssentials: true,
+    definition: CYBER_ESSENTIALS_READINESS
   }
 ];
 
@@ -203,6 +219,8 @@ export type TemplateAudience = {
   ukLaw: boolean;
   /** Some entity provides electronic communications services in Ireland. */
   irishProvider: boolean;
+  /** The organisation has taken up Cyber Essentials. */
+  cyberEssentials: boolean;
 };
 
 /**
@@ -221,6 +239,8 @@ export function offeredTo(
     // The Irish provider checklist, once an entity is a provider in Ireland.
     (!t.irishProvider || o.irishProvider) &&
     // UK data protection templates, once an entity is subject to UK law.
-    (!t.ukLaw || o.ukLaw)
+    (!t.ukLaw || o.ukLaw) &&
+    // Cyber Essentials readiness, once the organisation has taken it up.
+    (!t.cyberEssentials || o.cyberEssentials)
   );
 }

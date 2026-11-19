@@ -1,0 +1,1 @@
+ALTER TYPE "public"."template_kind" ADD VALUE 'cyber_essentials' BEFORE 'custom';

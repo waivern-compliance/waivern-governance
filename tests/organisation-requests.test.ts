@@ -162,7 +162,8 @@ describe('approving', () => {
           aiFramework: 'uk_dsit',
           competentAuthority: false,
           ukLaw: true,
-          irishProvider: false
+          irishProvider: false,
+          cyberEssentials: false
         })
       ).length,
       'everything for the UK framework, which it starts on, bar the Part 3 DPIA and the Irish provider checklist'

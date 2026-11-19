@@ -12,6 +12,7 @@ import {
   templateVersions,
   users
 } from '@/db/schema';
+import { SUBJECT_REQUIRED } from '@/lib/assessment-subjects';
 import { appendAuditEvent } from '@/lib/audit';
 import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import { nextReference } from '@/lib/references';
@@ -47,6 +48,7 @@ const REFERENCE_PREFIX: Record<string, string> = {
   supplier_record: 'TPR',
   eia: 'EIA',
   breach: 'BR',
+  cyber_essentials: 'CER',
   custom: 'ASMT'
 };
 
@@ -112,6 +114,12 @@ export async function createAssessment(input: {
       }
       if (version.template.organisationId !== input.organisationId) {
         throw new Error('That template belongs to a different organisation');
+      }
+      const needs = SUBJECT_REQUIRED[version.template.kind];
+      if (needs && (input.subjectType !== needs || !input.subjectId)) {
+        throw new Error(
+          'An assessment of this kind is started from the record it is about'
+        );
       }
       await assertEntityIn(input.organisationId, input.entityId, tx);
       if (input.subjectType && input.subjectId) {

@@ -5,9 +5,11 @@ import { asc, eq } from 'drizzle-orm';
 import { EditForm } from '@/components/EditForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { StartAssessment } from '@/components/StartAssessment';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { outOfSupport, typeLabel } from '@/lib/assets/types';
+import { readinessOf } from '@/lib/cyber-essentials/readiness';
 import { OUT_OF_SCOPE_REASONS } from '@/lib/cyber-essentials/scope';
 import {
   isCloudService,
@@ -19,8 +21,13 @@ import {
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { CYBER_ESSENTIALS_READINESS_NAME } from '@/lib/templates/library';
 import { assetTypology } from '@/services/asset-types';
-import { cyberEssentialsEnabled, loadScope } from '@/services/cyber-essentials';
+import {
+  cyberEssentialsEnabled,
+  loadScope,
+  scopeReadiness
+} from '@/services/cyber-essentials';
 import { candidatesFor } from '@/services/handover';
 
 import { inputClass, Label } from '../../../requests/fields';
@@ -61,7 +68,7 @@ export default async function ScopePage({
     );
   const mayEdit = can(active.membership.grants, 'record.write', scope.entityId);
 
-  const [types, orgEntities, members] = await Promise.all([
+  const [types, orgEntities, members, readinessRead] = await Promise.all([
     assetTypology(org),
     scoped(org, () =>
       db
@@ -70,8 +77,15 @@ export default async function ScopePage({
         .where(eq(entities.organisationId, org))
         .orderBy(asc(entities.name))
     ),
-    candidatesFor(org)
+    candidatesFor(org),
+    scopeReadiness(org, scope.id)
   ]);
+  const readiness = readinessOf(scope.edition, readinessRead.outcomes);
+  const mayAssess = can(
+    active.membership.grants,
+    'assessment.create',
+    scope.entityId
+  );
 
   const now = new Date();
   // Judged on every asset, shown only from the entities the reader can open:
@@ -195,6 +209,55 @@ export default async function ScopePage({
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="border-b border-line pb-2 text-lg font-semibold">
+          Readiness
+        </h2>
+        {readinessRead.submitted ? (
+          <p className="text-sm">
+            <Link
+              href={`/app/assessments/${readinessRead.submitted.id}`}
+              className="font-mono text-xs text-ink-soft hover:text-brand"
+            >
+              {readinessRead.submitted.reference}
+            </Link>{' '}
+            {readinessRead.submitted.scoreBand ?? 'Submitted'}:{' '}
+            {readiness.counts.met} met, {readiness.counts.not_met} not met,{' '}
+            {readiness.counts.not_applicable} not applicable.{' '}
+            <Link
+              href={`/app/cyber-essentials/scopes/${scope.id}/readiness`}
+              className="text-brand hover:underline"
+            >
+              Status by requirement
+            </Link>
+          </p>
+        ) : (
+          <p className="text-sm text-ink-soft">
+            No readiness assessment submitted yet. Its answers give the
+            scope&apos;s status against each requirement.
+          </p>
+        )}
+        {readinessRead.open ? (
+          <p className="text-sm">
+            Being answered:{' '}
+            <Link
+              href={`/app/assessments/${readinessRead.open.id}`}
+              className="text-brand hover:underline"
+            >
+              {readinessRead.open.reference}
+            </Link>
+          </p>
+        ) : mayAssess ? (
+          <StartAssessment
+            organisationId={org}
+            subjectType="cyber_scope"
+            subjectId={scope.id}
+            prefer={CYBER_ESSENTIALS_READINESS_NAME}
+            missing="The readiness template is not installed. An owner can install it from the templates page."
+          />
+        ) : null}
       </section>
 
       {hidden > 0 ? (

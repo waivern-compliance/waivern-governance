@@ -26,6 +26,7 @@ const KIND_LABEL: Record<string, string> = {
   ai_risk: 'AI risk',
   supplier_record: 'Supplier record',
   eia: 'Equality impact',
+  cyber_essentials: 'Cyber Essentials',
   breach: 'Breach',
   custom: 'Custom'
 };

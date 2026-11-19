@@ -106,9 +106,62 @@ export function validateTemplate(
     }
   }
 
+  problems.push(...checkControls(definition));
   problems.push(...findCycles(definition));
   problems.push(...checkScoring(definition, known));
 
+  return problems;
+}
+
+/**
+ * A question that tests requirements has to say, for every answer, whether
+ * they are met: otherwise an answer would count for nothing and the outcome
+ * would look better than the answers do.
+ */
+function checkControls(definition: TemplateDefinition): TemplateProblem[] {
+  const problems: TemplateProblem[] = [];
+  const all = questionsOf(definition.schema);
+  for (const { question } of all) {
+    const path = `question.${question.key}`;
+    if (question.autoFail && !question.controls) {
+      problems.push({
+        path,
+        message: 'An automatic fail needs the requirements it tests (controls)'
+      });
+    }
+    const meets = (question.options ?? []).filter((o) => o.meets);
+    if (!question.controls) {
+      if (meets.length > 0)
+        problems.push({
+          path: `${path}.options`,
+          message:
+            'Only a question that tests requirements can say an option meets them'
+        });
+      continue;
+    }
+    if (question.type === 'boolean') continue;
+    if (question.type !== 'single_select') {
+      problems.push({
+        path,
+        message:
+          'A question that tests requirements is yes or no, or a single choice'
+      });
+    } else if (meets.length !== question.options?.length) {
+      problems.push({
+        path: `${path}.options`,
+        message: 'Every option says whether the requirements it tests are met'
+      });
+    }
+  }
+  if (
+    definition.scoring.method === 'requirements' &&
+    !all.some(({ question }) => question.controls)
+  ) {
+    problems.push({
+      path: 'scoring',
+      message: 'Scoring by requirements needs questions that test them'
+    });
+  }
   return problems;
 }
 

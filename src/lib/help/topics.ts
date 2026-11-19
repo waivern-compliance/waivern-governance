@@ -3317,7 +3317,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'cyber-essentials',
     title: 'Cyber Essentials',
     summary:
-      "The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, and the scopes you prepare for certification.",
+      "The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, the scopes you prepare for certification and their readiness.",
     path: '/app/cyber-essentials',
     keywords: [
       'cyber essentials',
@@ -3336,6 +3336,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       'malware',
       'byod',
       'certification scope',
+      'readiness',
+      'self-assessment',
+      'automatic fail',
       'ppn 014'
     ],
     sections: [
@@ -3374,6 +3377,15 @@ export const HELP_TOPICS: HelpTopic[] = [
           "Place assets from the information asset register in the scope or leave them out. Only assets of the entities it covers can be placed. One left out needs a reason the requirements allow - a segregated sub-set, no internet connection, a personal device used only for calls, texts or an MFA app, a device a supplier, contractor or customer owns, a student's own device, a home router you did not supply, a bespoke part of a web application - or another reason explained in a note. Cloud services cannot be left out, except from a sub-set that does not use them, as in a segregated sub-set; nor can a device the organisation owns be left out as someone else's. An asset hosted on premises is not a cloud service, whatever cloud model it once recorded.",
           'Record alike devices as one asset with how many there are, such as one laptop build: Govern is not a device inventory, and a Cyber Essentials Plus assessor samples representative devices anyway.',
           "Under Before assessment, the scope lists what still stands in the way: no end-user devices in scope; cloud services of the covered entities not yet in it; for a whole-organisation scope, assets of the covered entities neither in nor left out; anything in scope out of vendor support; anything in scope since retired. Each names the rule it comes from. Adding, changing and placing are all audited. Removing an entity from a scope takes its assets off the scope's lists."
+        ]
+      },
+      {
+        heading: 'Readiness',
+        body: [
+          'Turning Cyber Essentials on installs the readiness template, Cyber Essentials readiness (v3.3, Danzell), and a sign-off workflow for it: the scheme asks a board member or someone equivalent to sign the self-assessment off, so a readiness assessment goes to an approver. If either was deleted, install it again from the templates or workflows page.',
+          "Start a readiness assessment from the scope's page, not from the assessments list: it belongs to the scope and to its home entity. Its sections follow the question set's order - organisation, scope, firewalls, secure configuration, security update management, user access control and malware protection - leaving out insurance, which tests no control. Each question is in Govern's words, cites the NCSC requirement it tests, and names the part of IASME's question set it corresponds to, so you can carry your answers across to the assessment portal. Where a requirement may not apply, the question offers not applicable; say why in the notes.",
+          'The outcome is not a risk score. It counts the requirements your answers leave unmet: none is ready to apply, one to three is not ready with a few requirements to meet, and four or more is not ready. A no to a question the question set fails outright - critical and high-risk updates within 14 days, or MFA on every cloud service - makes the outcome not ready with an automatic fail, however few others are missed.',
+          "Once a readiness assessment is submitted, the scope's page shows the outcome and links to its status by requirement: each requirement of the scope's edition, met, not met, not applicable or not asked, with the questions that tested it and how each was answered. It is read from the answers as they were submitted, so changes to an assessment sent back for more work show once it is submitted again. A requirement under a question that was not asked, such as the firewall administration interface when nobody said it is reachable from the internet, is not applicable rather than unmet."
         ]
       },
       {

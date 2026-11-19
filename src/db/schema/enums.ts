@@ -188,6 +188,12 @@ export const templateKind = pgEnum('template_kind', [
    * personal data at all.
    */
   'eia',
+  /**
+   * Readiness against Cyber Essentials, about a certification scope. Answers
+   * meet or miss the scheme's requirements rather than add up to a risk
+   * score, and the scheme is one an organisation takes up, not a legal duty.
+   */
+  'cyber_essentials',
   'custom'
 ]);
 

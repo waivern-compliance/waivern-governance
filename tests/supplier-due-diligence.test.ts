@@ -66,7 +66,8 @@ describe('supplier due diligence', () => {
             aiFramework: 'uk_dsit',
             competentAuthority: false,
             ukLaw,
-            irishProvider: false
+            irishProvider: false,
+            cyberEssentials: false
           })
         );
     }

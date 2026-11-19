@@ -73,6 +73,8 @@ describe('shipped template library', () => {
       // The Irish provider duties checklist, which is neither an assessment
       // nor a DPIA.
       'custom',
+      // Cyber Essentials readiness, about a certification scope.
+      'cyber_essentials',
       'dpia',
       'eia',
       'lia',

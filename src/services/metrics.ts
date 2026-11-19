@@ -98,6 +98,7 @@ const KIND_LABEL: Record<string, string> = {
   screening: 'Screening',
   supplier_record: 'Supplier',
   eia: 'Equality impact',
+  cyber_essentials: 'Cyber Essentials',
   breach: 'Breach',
   custom: 'Custom'
 };
