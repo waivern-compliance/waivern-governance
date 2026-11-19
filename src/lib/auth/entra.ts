@@ -87,6 +87,32 @@ export const entraSubject = (claims: Pick<EntraClaims, 'tid' | 'oid'>) =>
   `entra:${claims.tid}:${claims.oid}`;
 
 /**
+ * The subject a Microsoft sign-in has always recorded, `provider:sub`. Before a
+ * registration became multi-tenant it was the only trace of which account
+ * signed in as whom, so it still recognises that account.
+ */
+export const legacySubject = (claims: Pick<EntraClaims, 'sub'>) =>
+  `${ENTRA_PROVIDER}:${claims.sub}`;
+
+/**
+ * The subject to record for a sign-in. Another provider never replaces a
+ * Microsoft one: under a multi-tenant registration it is how somebody who
+ * signed in before is still recognised.
+ */
+export function subjectToRecord(previous: string | null, next: string) {
+  const microsoft = `${ENTRA_PROVIDER}:`;
+  return previous?.startsWith(microsoft) && !next.startsWith(microsoft)
+    ? previous
+    : next;
+}
+
+/**
+ * A value from a token, safe to put in a log line. A directory chooses its
+ * users' addresses, so one could carry a line break and forge an entry.
+ */
+export const forLog = (value: unknown) => JSON.stringify(value ?? null);
+
+/**
  * Whether Microsoft has verified that the token's directory owns the domain of
  * its email address. The claim is a boolean; a string form is accepted in case
  * a directory's claim mapping sends one.

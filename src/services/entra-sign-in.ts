@@ -1,12 +1,21 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
-import { memberships, organisationEntraTenants, users } from '@/db/schema';
+import {
+  auditEvents,
+  memberships,
+  organisationDomains,
+  organisationEntraTenants,
+  users
+} from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { domainOf } from '@/lib/auth/domains';
 import {
   domainOwnerVerified,
   ENTRA_PROVIDER,
   entraSubject,
+  forLog,
+  legacySubject,
   type EntraClaims
 } from '@/lib/auth/entra';
 
@@ -79,10 +88,16 @@ async function isMember(userId: string) {
   return Boolean(row);
 }
 
+/** How many refusals a day are recorded for one person, in each organisation. */
+export const REFUSALS_RECORDED_PER_DAY = 10;
+
 /**
  * Tell each organisation the person belongs to that somebody tried to sign in
  * as them. Somebody else's directory claiming a member's address is exactly
- * what an owner needs to see.
+ * what an owner needs to see; but anybody with a directory can try as often
+ * as they like, and the audit log keeps everything, so each Microsoft account
+ * is recorded once a day per person, and no more than
+ * `REFUSALS_RECORDED_PER_DAY` in all. The rest are logged only.
  */
 async function recordRefusal(
   user: { id: string; email: string },
@@ -95,10 +110,27 @@ async function recordRefusal(
     .where(
       and(eq(memberships.userId, user.id), eq(memberships.isActive, true))
     );
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   for (const { organisationId } of rows) {
     await withOrganisation(organisationId, () =>
-      db.transaction((tx) =>
-        appendAuditEvent(tx, {
+      db.transaction(async (tx) => {
+        const recent = await tx
+          .select({ objectId: sql<string>`${auditEvents.after}->>'objectId'` })
+          .from(auditEvents)
+          .where(
+            and(
+              eq(auditEvents.organisationId, organisationId),
+              eq(auditEvents.action, 'user.sign_in_refused'),
+              eq(auditEvents.subjectId, user.id),
+              gt(auditEvents.at, since)
+            )
+          );
+        if (
+          recent.length >= REFUSALS_RECORDED_PER_DAY ||
+          recent.some((r) => r.objectId === claims.oid)
+        )
+          return;
+        await appendAuditEvent(tx, {
           actorKind: 'system',
           actorUserId: null,
           actorLabel: 'sign-in',
@@ -113,8 +145,8 @@ async function recordRefusal(
             objectId: claims.oid,
             reason
           }
-        })
-      )
+        });
+      })
     );
   }
 }
@@ -172,6 +204,22 @@ async function tenantTrusted(tenantId: string) {
   return Boolean(row);
 }
 
+async function domainVerified(email: string) {
+  const domain = domainOf(email);
+  if (!domain) return false;
+  const [row] = await db
+    .select({ id: organisationDomains.id })
+    .from(organisationDomains)
+    .where(
+      and(
+        eq(organisationDomains.domain, domain),
+        isNotNull(organisationDomains.verifiedAt)
+      )
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 /** Joining is a convenience: a failure is logged and sign-in carries on. */
 async function joinWhereLetIn(
   userId: string,
@@ -187,12 +235,69 @@ async function joinWhereLetIn(
       const joined = await join();
       if (joined)
         console.info(
-          `[auth] ${email} joined organisation ${joined} through its ${how}`
+          `[auth] ${forLog(email)} joined organisation ${joined} through its ${how}`
         );
     } catch (cause) {
-      console.error(`[auth] could not join ${email} by ${how}:`, cause);
+      console.error(`[auth] could not join ${forLog(email)} by ${how}:`, cause);
     }
   }
+}
+
+type Person = typeof users.$inferSelect;
+
+/**
+ * The first Microsoft sign-in for this account: match the address if it may
+ * be matched, and bind it; or make somebody new, already bound. Each binding is
+ * one statement, conditional on nobody having bound first.
+ */
+async function bindOnFirstSignIn(input: {
+  claims: EntraClaims;
+  subject: string;
+  email: string | null;
+  name: string | null;
+  requestsOpen: boolean;
+  addressProved: () => Promise<boolean>;
+}): Promise<Person | EntraRefusal> {
+  const { claims, subject, email } = input;
+  if (!email) return 'no_email';
+
+  const existing = await userByEmail(email);
+  if (existing) {
+    if (existing.simulated) return 'not_a_person';
+    const reason: EntraRefusal | null = existing.entraSubject
+      ? 'bound_elsewhere'
+      : existing.ssoSubject === legacySubject(claims) ||
+          (await input.addressProved())
+        ? null
+        : 'address_not_proved';
+    if (reason) {
+      await recordRefusal(existing, claims, reason);
+      return reason;
+    }
+    const [bound] = await db
+      .update(users)
+      .set({ entraSubject: subject })
+      .where(and(eq(users.id, existing.id), isNull(users.entraSubject)))
+      .returning();
+    // Somebody else's sign-in bound the address first.
+    return bound ?? 'bound_elsewhere';
+  }
+
+  if (!(await input.addressProved())) return 'address_not_proved';
+  // Only somebody something lets in gets an account: a domain or tenant they
+  // may join through, or the chance to ask for an organisation.
+  const letIn =
+    input.requestsOpen ||
+    (await tenantTrusted(claims.tid)) ||
+    (await domainVerified(email));
+  if (!letIn) return 'no_account';
+  const [created] = await db
+    .insert(users)
+    .values({ email, name: input.name, entraSubject: subject })
+    .onConflictDoNothing()
+    .returning();
+  // An invitation or another sign-in made them in the meantime.
+  return created ?? 'bound_elsewhere';
 }
 
 export async function resolveEntraSignIn(input: {
@@ -205,78 +310,55 @@ export async function resolveEntraSignIn(input: {
   const subject = entraSubject(claims);
   const email = claims.email?.trim().toLowerCase() || null;
 
-  const addressProved = email
-    ? domainOwnerVerified(claims) || (await tenantVouchesFor(email, claims.tid))
-    : false;
+  // Asked only when something turns on it: most sign-ins are by somebody
+  // already bound, who needs it only to join.
+  let proof: Promise<boolean> | undefined;
+  const addressProved = () =>
+    (proof ??=
+      email && !domainOwnerVerified(claims)
+        ? tenantVouchesFor(email, claims.tid)
+        : Promise.resolve(Boolean(email)));
 
-  let user = await userForEntraSubject(subject);
-  if (!user) {
-    if (!email) return { outcome: 'refused', reason: 'no_email' };
-    const existing = await userByEmail(email);
-    if (existing) {
-      if (existing.simulated)
-        return { outcome: 'refused', reason: 'not_a_person' };
-      const signedInBefore =
-        existing.ssoSubject === `${ENTRA_PROVIDER}:${claims.sub}`;
-      const reason: EntraRefusal | null = existing.entraSubject
-        ? 'bound_elsewhere'
-        : addressProved || signedInBefore
-          ? null
-          : 'address_not_proved';
-      if (reason) {
-        await recordRefusal(existing, claims, reason);
-        return { outcome: 'refused', reason };
-      }
-      user = existing;
-    } else {
-      if (!addressProved)
-        return { outcome: 'refused', reason: 'address_not_proved' };
-      // Only somebody something lets in gets an account: a domain or tenant
-      // they may join through, or the chance to ask for an organisation.
-      const joined = await joinByVerifiedDomain(email, input.name);
-      if (joined)
-        console.info(
-          `[auth] ${email} joined organisation ${joined} through its verified domain`
-        );
-      user = await userByEmail(email);
-      if (!user && (input.requestsOpen || (await tenantTrusted(claims.tid)))) {
-        await db
-          .insert(users)
-          .values({ email, name: input.name })
-          .onConflictDoNothing({ target: users.email });
-        user = await userByEmail(email);
-      }
-      if (!user) return { outcome: 'refused', reason: 'no_account' };
-    }
-
-    const [bound] = await db
-      .update(users)
-      .set({ entraSubject: subject })
-      .where(and(eq(users.id, user.id), isNull(users.entraSubject)))
-      .returning({ id: users.id });
-    // Somebody else's sign-in bound the address first.
-    if (!bound) return { outcome: 'refused', reason: 'bound_elsewhere' };
-  }
+  const user =
+    (await userForEntraSubject(subject)) ??
+    (await bindOnFirstSignIn({
+      claims,
+      subject,
+      email,
+      name: input.name,
+      requestsOpen: input.requestsOpen,
+      addressProved
+    }));
+  if (typeof user === 'string') return { outcome: 'refused', reason: user };
   if (user.simulated) return { outcome: 'refused', reason: 'not_a_person' };
 
-  await db
-    .update(users)
-    .set({
-      ssoSubject: `${ENTRA_PROVIDER}:${claims.sub}`,
-      lastSeenAt: new Date(),
-      name: user.name ?? input.name
-    })
-    .where(eq(users.id, user.id));
+  // The subject column is unique. If this account last signed in as somebody
+  // else (their address moved), that record no longer speaks for it.
+  const sso = legacySubject(claims);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({ ssoSubject: null })
+      .where(and(eq(users.ssoSubject, sso), ne(users.id, user.id)));
+    await tx
+      .update(users)
+      .set({
+        ssoSubject: sso,
+        lastSeenAt: new Date(),
+        name: user.name ?? input.name
+      })
+      .where(eq(users.id, user.id));
+  });
 
   // Joining matches the address, so only while the token still carries the
   // person's own, proved.
-  if (addressProved && email === user.email)
-    await joinWhereLetIn(user.id, email, claims, input.name);
+  const proved = email === user.email && (await addressProved());
+  if (proved) await joinWhereLetIn(user.id, user.email, claims, input.name);
 
   return {
     outcome: 'signed_in',
     userId: user.id,
     member: await isMember(user.id),
-    addressProved: addressProved && email === user.email
+    addressProved: proved
   };
 }

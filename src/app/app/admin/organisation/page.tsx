@@ -53,9 +53,6 @@ export default async function OrganisationPage() {
   if (!org) redirect('/app');
 
   const hosted = waivernHosted();
-  const tenants = can(active.membership.grants, 'member.manage')
-    ? await tenantsFor(org.id)
-    : [];
   const [
     legalEntities,
     scale,
@@ -66,7 +63,8 @@ export default async function OrganisationPage() {
     agreements,
     scheme,
     classified,
-    reviewMonths
+    reviewMonths,
+    tenants
   ] = await Promise.all([
     entitiesOf(org.id),
     riskScaleOf(org.id),
@@ -89,7 +87,10 @@ export default async function OrganisationPage() {
     hosted ? agreementsOf(org.id) : Promise.resolve([]),
     classificationSchemeOf(org.id),
     classifiedAssetCount(org.id),
-    supplierReviewCycle(org.id)
+    supplierReviewCycle(org.id),
+    can(active.membership.grants, 'member.manage')
+      ? tenantsFor(org.id)
+      : Promise.resolve([])
   ]);
   // The latest acceptance for each entity, for the record beside it.
   const latestAgreement = new Map<string, (typeof agreements)[number]>();

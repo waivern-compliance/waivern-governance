@@ -17,6 +17,8 @@ import {
   entraClaims,
   entraMode,
   entraSubject,
+  forLog,
+  subjectToRecord,
   tokenProblem
 } from '@/lib/auth/entra';
 import type { Persona } from '@/lib/persona';
@@ -173,7 +175,7 @@ async function loadIdentity(
   await db
     .update(users)
     .set({
-      ssoSubject,
+      ssoSubject: subjectToRecord(existing.ssoSubject, ssoSubject),
       lastSeenAt: new Date(),
       name: existing.name ?? name ?? null
     })
@@ -281,7 +283,7 @@ async function entraSignIn(profile: unknown, name: string | null) {
       `[auth] refused sign-in from tenant ${claims.tid}: ${
         problem === 'personal_account'
           ? 'personal Microsoft accounts are not accepted'
-          : `issuer ${claims.iss} is not the tenant's own`
+          : `issuer ${forLog(claims.iss)} is not the tenant's own`
       }`
     );
     return false;
@@ -296,7 +298,7 @@ async function entraSignIn(profile: unknown, name: string | null) {
     });
   } catch (cause) {
     console.error(
-      `[auth] could not check membership for ${claims.email} - this is not an ` +
+      `[auth] could not check membership for ${forLog(claims.email)} - this is not an ` +
         `authorisation decision, the lookup itself failed:`,
       cause
     );
@@ -304,14 +306,14 @@ async function entraSignIn(profile: unknown, name: string | null) {
   }
   if (result.outcome === 'refused') {
     console.warn(
-      `[auth] refused sign-in for ${claims.email ?? 'no address'} from tenant ${claims.tid}, ` +
+      `[auth] refused sign-in for ${forLog(claims.email)} from tenant ${claims.tid}, ` +
         `object ${claims.oid}: ${describeRefusal(result.reason)}`
     );
     return false;
   }
   if (!result.member && !(result.addressProved && requestsOpen())) {
     console.warn(
-      `[auth] refused sign-in: no active membership for ${claims.email} (via ${ENTRA_PROVIDER})`
+      `[auth] refused sign-in: no active membership for ${forLog(claims.email)} (via ${ENTRA_PROVIDER})`
     );
     return false;
   }
@@ -330,10 +332,12 @@ export const authConfig: NextAuthConfig = {
   pages: { signIn: '/sign-in', error: '/sign-in' },
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (!user.email || !account) return false;
-
+      if (!account) return false;
+      // Before the address check: somebody already bound is known by their
+      // Microsoft account, whether or not the token carries an address.
       if (multiTenantEntra(account.provider))
         return entraSignIn(profile, user.name ?? null);
+      if (!user.email) return false;
 
       // Membership is matched by email, so an address the provider has not
       // verified could sign somebody in as whoever was invited at it.
@@ -428,7 +432,7 @@ export const authConfig: NextAuthConfig = {
       // The token carries identity only. Authorisation is resolved per request
       // so that revoking a role takes effect immediately rather than whenever
       // the token happens to expire.
-      if (user?.email && account && multiTenantEntra(account.provider)) {
+      if (account && multiTenantEntra(account.provider)) {
         // Matched by the binding sign-in made, never by the address.
         const claims = entraClaims(profile);
         const bound =

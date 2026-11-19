@@ -16,14 +16,17 @@ import {
   domainOwnerVerified,
   entraClaims,
   entraMode,
+  forLog,
   multiTenantEntraConfigured,
   PERSONAL_ACCOUNTS_TENANT,
+  subjectToRecord,
   tenantFromDiscovery,
   tokenProblem,
   type EntraClaims
 } from '@/lib/auth/entra';
 import { claimDomain, removeDomain, verifyDomain } from '@/services/domains';
 import {
+  REFUSALS_RECORDED_PER_DAY,
   releaseEntraBinding,
   resolveEntraSignIn
 } from '@/services/entra-sign-in';
@@ -256,6 +259,26 @@ describe('the issuer check', () => {
   });
 });
 
+describe('what sign-in records', () => {
+  it('never lets another provider replace a Microsoft subject', () => {
+    assert.equal(
+      subjectToRecord('microsoft-entra-id:abc', 'google:123'),
+      'microsoft-entra-id:abc'
+    );
+    assert.equal(
+      subjectToRecord('microsoft-entra-id:abc', 'microsoft-entra-id:def'),
+      'microsoft-entra-id:def'
+    );
+    assert.equal(subjectToRecord('google:123', 'google:456'), 'google:456');
+    assert.equal(subjectToRecord(null, 'google:123'), 'google:123');
+  });
+
+  it('quotes values from a token before they reach the log', () => {
+    assert.equal(forLog('a@b.c\n[auth] forged'), '"a@b.c\\n[auth] forged"');
+    assert.equal(forLog(undefined), 'null');
+  });
+});
+
 describe('a first sign-in under a multi-tenant registration', () => {
   it('refuses an address spoofed from a tenant nobody vouches for, and tells the organisation', async () => {
     const org = await organisation('spoof');
@@ -341,6 +364,58 @@ describe('a first sign-in under a multi-tenant registration', () => {
         )
       );
     assert.equal(released.length, 1);
+  });
+
+  it('records repeated attempts once per account, and only so many a day', async () => {
+    const org = await organisation('flood');
+    const email = `target@${freshDomain()}`;
+    await invited(org.id, email);
+    const attacker = token(guid(), guid(), email);
+    for (let i = 0; i < 3; i++) await signIn(attacker);
+    assert.equal((await refusals(org.id)).length, 1, 'one account, once');
+
+    for (let i = 0; i < REFUSALS_RECORDED_PER_DAY + 3; i++)
+      assert.equal(
+        (await signIn(token(guid(), guid(), email))).outcome,
+        'refused'
+      );
+    assert.equal(
+      (await refusals(org.id)).length,
+      REFUSALS_RECORDED_PER_DAY,
+      'refused every time, recorded up to the limit'
+    );
+  });
+
+  it('moves the recorded subject when an account now signs in as somebody else', async () => {
+    const org = await organisation('moved');
+    const before = await invited(org.id, `before@${freshDomain()}`);
+    const email = `after@${freshDomain()}`;
+    const now = await invited(org.id, email);
+    const claims = token(guid(), guid(), email, { xms_edov: true });
+    await db
+      .update(users)
+      .set({ ssoSubject: `microsoft-entra-id:${claims.sub}` })
+      .where(eq(users.id, before.id));
+
+    const result = await signIn(claims);
+    assert.ok(result.outcome === 'signed_in' && result.userId === now.id);
+    const [old] = await db.select().from(users).where(eq(users.id, before.id));
+    assert.equal(old.ssoSubject, null);
+  });
+
+  it('joins somebody new through a verified domain, already bound', async () => {
+    const org = await organisation('domain-join');
+    const domain = freshDomain();
+    await verifiedDomain(org.id, domain);
+    const claims = token(guid(), guid(), `fresh@${domain}`, { xms_edov: true });
+
+    const result = await signIn(claims);
+    assert.ok(result.outcome === 'signed_in' && result.member);
+    const [person] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, result.userId));
+    assert.equal(person.entraSubject, `entra:${claims.tid}:${claims.oid}`);
   });
 
   it('recognises a Microsoft account that signed in before the registration became multi-tenant', async () => {
@@ -556,6 +631,25 @@ describe('the sign-in callback', () => {
     >[0]);
   }
 
+  async function jwt(issuer: string, claims: Partial<EntraClaims>) {
+    process.env.AUTH_MICROSOFT_ENTRA_ID_ID = 'test-app';
+    process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER = issuer;
+    const { authConfig } = await import('@/auth');
+    const token = await authConfig.callbacks!.jwt!({
+      token: {},
+      user: { email: claims.email, name: null },
+      account: {
+        provider: 'microsoft-entra-id',
+        providerAccountId: claims.sub ?? 'sub',
+        type: 'oidc'
+      },
+      profile: claims
+    } as Parameters<
+      NonNullable<NonNullable<typeof authConfig.callbacks>['jwt']>
+    >[0]);
+    return (token as { userId?: string } | null)?.userId;
+  }
+
   it('matches by address under a single-tenant registration, exactly as before', async () => {
     const org = await organisation('single');
     const email = `single@${freshDomain()}`;
@@ -568,6 +662,30 @@ describe('the sign-in callback', () => {
     assert.equal(await callback(issuer, token(tid, guid(), email)), true);
     const [row] = await db.select().from(users).where(eq(users.id, person.id));
     assert.equal(row.entraSubject, null, 'nobody is bound');
+  });
+
+  it('signs in somebody bound whose token carries no address, and puts them in the session', async () => {
+    const org = await organisation('no-email');
+    const email = `bound.later@${freshDomain()}`;
+    const person = await invited(org.id, email);
+    const claims = token(guid(), guid(), email, { xms_edov: true });
+    assert.equal(await callback(MULTI, claims), true);
+
+    const withoutEmail = { ...claims, email: undefined };
+    assert.equal(await callback(MULTI, withoutEmail), true);
+    assert.equal(await jwt(MULTI, withoutEmail), person.id);
+  });
+
+  it('puts the bound person in the session, not whoever has the address now', async () => {
+    const org = await organisation('jwt');
+    const first = `first@${freshDomain()}`;
+    const person = await invited(org.id, first);
+    const claims = token(guid(), guid(), first, { xms_edov: true });
+    await callback(MULTI, claims);
+
+    const second = `second@${freshDomain()}`;
+    await invited(org.id, second);
+    assert.equal(await jwt(MULTI, { ...claims, email: second }), person.id);
   });
 
   it('refuses a spoofed address under a multi-tenant registration', async () => {

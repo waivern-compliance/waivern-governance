@@ -143,9 +143,12 @@ On the Microsoft side this needs:
    `https://login.microsoftonline.com/<their tenant id>/adminconsent?client_id=<application id>`.
    The application asks only for `openid profile email User.Read`.
 
-*Moving from one to the other.* People who signed in under the single-tenant
-registration keep working: their Microsoft account is recognised by its old
-subject and bound on their next sign-in. Guests of your directory sign in from
+*Moving from one to the other.* Somebody whose last sign-in under the
+single-tenant registration was with Microsoft keeps working: their account is
+recognised by its old subject and bound on their next sign-in. Somebody who
+signed in with Google after that is not recognised this way, since their
+recorded subject is Google's; they need `xms_edov`, or a trusted tenant. From
+this release, a Google sign-in no longer replaces a Microsoft subject. Guests of your directory sign in from
 their own directory instead, so they need `xms_edov` or a trusted tenant. If a
 person's Microsoft account is replaced, release the old binding so the new one
 can bind:
