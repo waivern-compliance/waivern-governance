@@ -17,6 +17,7 @@ export function RefusableForm({
   pendingLabel,
   className,
   resetOnSuccess = true,
+  id,
   children
 }: {
   action: (prev: Result, formData: FormData) => Promise<Result>;
@@ -24,6 +25,8 @@ export function RefusableForm({
   pendingLabel?: string;
   className?: string;
   resetOnSuccess?: boolean;
+  /** So a button elsewhere on the page can send this form's fields. */
+  id?: string;
   children: ReactNode;
 }) {
   const { result, pending, formProps } = useRefusableAction<Result>(action, {
@@ -32,6 +35,7 @@ export function RefusableForm({
   return (
     <form
       {...formProps}
+      id={id}
       className={
         className ?? 'space-y-3 rounded border border-line bg-surface p-5'
       }

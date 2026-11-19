@@ -44,9 +44,10 @@ import {
   type AiInvolvement
 } from '@/lib/thirdparty/ai-procurement';
 import { isSupplierTier } from '@/lib/thirdparty/tier';
+import { surfaceAvailable } from '@/services/assistant';
 import { contractsFor } from '@/services/contracts';
 import { documentsFor } from '@/services/documents';
-import { extractionAvailable, latestExtraction } from '@/services/extraction';
+import { latestExtraction } from '@/services/extraction';
 import { importSourceName } from '@/services/imports';
 import { assetsFor } from '@/services/information-assets';
 import { agreementsFor } from '@/services/sharing-agreements';
@@ -112,7 +113,7 @@ export default async function SupplierPage({
   // What a model has already been asked to read out of each agreement, and
   // whether asking is even on offer for this organisation.
   const [mayRead, ...readings] = await Promise.all([
-    extractionAvailable(org),
+    surfaceAvailable(org, 'extraction'),
     ...dpas.map((d) => latestExtraction(org, d.id))
   ]);
   const readingByDpa = new Map(dpas.map((d, i) => [d.id, readings[i] ?? null]));

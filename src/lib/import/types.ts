@@ -185,3 +185,29 @@ export type ImportRecord =
       data: InformationRequestIn & { file?: string };
       legacy: Legacy;
     };
+
+/**
+ * What the organisation's model last suggested for a batch's columns, kept to
+ * show beside the matching until a person previews. Never itself a mapping.
+ */
+export type ImportSuggestion = {
+  model: string;
+  promptVersion: string;
+  at: string;
+  byLabel: string;
+  /** Field key to column name, as the model matched them and the checks kept. */
+  fields: Record<string, string>;
+  notes: string | null;
+  /** Said to the person when anything was stripped before sending. */
+  minimisation: string | null;
+  /**
+   * Why the latest request suggested nothing, when it did not. An earlier
+   * suggestion's fields are kept, rather than lost to a request that failed.
+   */
+  failure: string | null;
+  /**
+   * The matching as the person had it on the page when they asked, previewed
+   * or not, so asking does not undo what they had chosen.
+   */
+  basis?: ImportMapping;
+};
