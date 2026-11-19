@@ -150,6 +150,17 @@ async function blockers(
     reasons.push(
       `${cited.n} records in other legal entities cite this entity's records (scan findings on its evidence, extraction findings from its documents, or sharing agreements naming its processing activities), and would be deleted with them. Remove those citations from the other entities first.`
     );
+  // A Cyber Essentials scope is erased with its home entity, and with it what
+  // it says about the other entities it covers.
+  const [scopes] = await tx.execute<{ n: number }>(sql`
+    select count(*)::int as n from cyber_scope s
+    where s.entity_id = ${entityId}
+      and exists (select 1 from cyber_scope_entity c
+                  where c.scope_id = s.id and c.entity_id <> ${entityId})`);
+  if (Number(scopes?.n ?? 0) > 0)
+    reasons.push(
+      `${scopes.n} Cyber Essentials scopes belong to this entity and also cover other legal entities, and would be deleted with it. Move each scope's home to another entity it covers first.`
+    );
   return reasons;
 }
 

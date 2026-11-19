@@ -13,11 +13,12 @@ import {
   isCloudService,
   SCOPE_KIND_LABEL,
   scopeFindings,
+  unplacedAssets,
   type ScopeAsset
 } from '@/lib/cyber-essentials/scope-checks';
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
-import { getActiveSession } from '@/lib/session';
+import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { assetTypology } from '@/services/asset-types';
 import { cyberEssentialsEnabled, loadScope } from '@/services/cyber-essentials';
 import { candidatesFor } from '@/services/handover';
@@ -73,16 +74,25 @@ export default async function ScopePage({
   ]);
 
   const now = new Date();
-  const findings = scopeFindings(scope, placements, candidates, now);
-  const byId = new Map(candidates.map((a) => [a.id, a]));
+  // Judged on every asset, shown only from the entities the reader can open:
+  // the scope's home lets them in, not into its other entities' registers.
+  const readable = visibleEntityIds(active);
+  const shown = (a: Pick<ScopeAsset, 'entityId'>) =>
+    readable === null || readable.includes(a.entityId);
+  const hidden = candidates.filter((a) => !shown(a)).length;
+  const findings = scopeFindings(scope, placements, candidates, now).map(
+    (f) => ({ ...f, assets: f.assets.filter(shown) })
+  );
+  const byId = new Map(candidates.filter(shown).map((a) => [a.id, a]));
   const placed = placements.flatMap((p) => {
     const asset = byId.get(p.assetId);
     return asset ? [{ ...p, asset }] : [];
   });
   const inScope = placed.filter((p) => p.inScope);
   const leftOut = placed.filter((p) => !p.inScope);
-  const unplaced = candidates.filter(
-    (a) => !a.retiredAt && !placements.some((p) => p.assetId === a.id)
+  const unplaced = unplacedAssets(placements, candidates).filter(shown);
+  const homeChoices = loaded.entities.filter((e) =>
+    can(active.membership.grants, 'record.write', e.id)
   );
 
   const describe = (a: ScopeAsset) =>
@@ -186,6 +196,12 @@ export default async function ScopePage({
           </ul>
         )}
       </section>
+
+      {hidden > 0 ? (
+        <p className="text-sm text-ink-soft">
+          {hidden} assets of covered entities you cannot open are not shown.
+        </p>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="border-b border-line pb-2 text-lg font-semibold">
@@ -309,6 +325,28 @@ export default async function ScopePage({
           className="space-y-4 rounded border border-line bg-surface p-5"
         >
           <h2 className="text-sm font-semibold">The scope</h2>
+          {homeChoices.length > 1 ? (
+            <label className="block space-y-1">
+              <Label
+                text="Home entity"
+                hint="Who may open and change the scope follows from it. Move it to another entity the scope covers."
+              />
+              <select
+                name="homeEntityId"
+                defaultValue={scope.entityId}
+                className={inputClass}
+              >
+                {homeChoices.map((e) => (
+                  <option
+                    key={e.id}
+                    value={e.id}
+                  >
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <ScopeFields
             values={{
               ...scope,

@@ -9,10 +9,14 @@ import {
   cyberScopeEntities,
   cyberScopes,
   entities,
-  organisations
+  memberships,
+  organisations,
+  roleAssignments,
+  users
 } from '@/db/schema';
 import type { OutOfScopeReason } from '@/lib/cyber-essentials/scope';
 import {
+  isCloudService,
   placementRefusal,
   scopeFindings,
   scopeRefusal,
@@ -31,6 +35,7 @@ import {
   updateScope,
   type ScopeInput
 } from '@/services/cyber-essentials';
+import { erasureBlockers } from '@/services/entity-erasure';
 import { createAsset, type AssetDetails } from '@/services/information-assets';
 
 const SYSTEM = {
@@ -111,6 +116,9 @@ const scopeInput = (more: Partial<ScopeInput> = {}): ScopeInput => ({
   ...more
 });
 
+const WHOLE = { kind: 'whole_organisation' as const };
+const SUBSET = { kind: 'subset' as const };
+
 const fact = (more: Partial<ScopeAsset>): ScopeAsset => ({
   id: crypto.randomUUID(),
   reference: 'IA-1',
@@ -156,36 +164,67 @@ describe('the scope rules', () => {
       fact({ details: { cloudModel: 'iaas' } })
     ])
       assert.match(
-        placementRefusal(cloud, out('other', 'We would rather not'))!,
+        placementRefusal(WHOLE, cloud, out('other', 'We would rather not'))!,
         /Cloud services/
       );
     const laptop = fact({
       assetType: 'device',
       details: { ownership: 'organisation' }
     });
-    assert.match(placementRefusal(laptop, out('other'))!, /Explain/);
+    assert.match(placementRefusal(WHOLE, laptop, out('other'))!, /Explain/);
     assert.match(
-      placementRefusal(laptop, out('third_party_owned'))!,
+      placementRefusal(WHOLE, laptop, out('third_party_owned'))!,
       /wherever they are/
     );
     assert.equal(
-      placementRefusal(laptop, out('no_internet_connectivity')),
+      placementRefusal(WHOLE, laptop, out('no_internet_connectivity')),
       null
     );
     assert.equal(
       placementRefusal(
+        WHOLE,
         fact({ assetType: 'device', details: { ownership: 'byod' } }),
         out('byod_voice_text_mfa_only')
       ),
       null
     );
     assert.match(
-      placementRefusal(fact({ retiredAt: new Date() }), {
+      placementRefusal(WHOLE, fact({ retiredAt: new Date() }), {
         inScope: true,
         reason: null,
         note: null
       })!,
       /retired/
+    );
+  });
+
+  it('lets a sub-set leave out a cloud service it does not use, and counts an asset on premises as no cloud service', () => {
+    const crm = fact({ assetType: 'saas_application' });
+    const segregated = {
+      inScope: false,
+      reason: 'subset_segregated' as OutOfScopeReason,
+      note: null
+    };
+    assert.equal(placementRefusal(SUBSET, crm, segregated), null);
+    assert.match(placementRefusal(WHOLE, crm, segregated)!, /Cloud services/);
+    assert.match(
+      placementRefusal(SUBSET, crm, {
+        ...segregated,
+        reason: 'no_internet_connectivity' as OutOfScopeReason
+      })!,
+      /unless the sub-set does not use them/
+    );
+    const broughtBack = fact({
+      assetType: 'server',
+      hosting: 'on_premises',
+      details: { cloudModel: 'iaas' }
+    });
+    assert.equal(isCloudService(broughtBack), false);
+    assert.equal(isCloudService({ ...broughtBack, hosting: null }), true);
+    assert.equal(
+      isCloudService({ ...crm, hosting: 'on_premises' }),
+      true,
+      'a SaaS application is always one'
     );
   });
 
@@ -235,6 +274,7 @@ describe('the opt-in', () => {
         organisationId: w.org.id,
         entityId: w.main.id,
         scope: scopeInput(),
+        writable: null,
         actor: SYSTEM
       }),
       /not turned on/
@@ -273,6 +313,7 @@ describe('scopes', () => {
       organisationId: w.org.id,
       entityId: w.main.id,
       scope: scopeInput({ entityIds: [w.other.id] }),
+      writable: null,
       actor: SYSTEM
     });
     assert.match(scope.reference, /^CES-\d{4}-0001$/);
@@ -287,6 +328,7 @@ describe('scopes', () => {
         organisationId: w.org.id,
         entityId: w.main.id,
         scope: scopeInput({ kind: 'subset' }),
+        writable: null,
         actor: SYSTEM
       }),
       /firewall or VLAN/
@@ -305,6 +347,7 @@ describe('scopes', () => {
       organisationId: w.org.id,
       entityId: w.main.id,
       scope: scopeInput(),
+      writable: null,
       actor: SYSTEM
     });
     const laptops = await w.asset(w.main.id, 'Laptops', 'device', {
@@ -374,6 +417,7 @@ describe('scopes', () => {
       organisationId: w.org.id,
       entityId: w.main.id,
       scope: scopeInput({ entityIds: [w.other.id] }),
+      writable: null,
       actor: SYSTEM
     });
     const theirs = await w.asset(w.other.id, 'Their laptops', 'device');
@@ -392,6 +436,7 @@ describe('scopes', () => {
       id: scope.id,
       organisationId: w.org.id,
       scope: scopeInput({ entityIds: [] }),
+      writable: null,
       actor: SYSTEM
     });
     const loaded = (await loadScope(w.org.id, scope.id))!;
@@ -406,6 +451,132 @@ describe('scopes', () => {
   });
 });
 
+describe('who may shape a scope', () => {
+  it('brings in only entities the person can change, and moves the home only within what it covers', async () => {
+    const w = await world('writable');
+    await assert.rejects(
+      createScope({
+        organisationId: w.org.id,
+        entityId: w.main.id,
+        scope: scopeInput({ entityIds: [w.other.id] }),
+        writable: [w.main.id],
+        actor: SYSTEM
+      }),
+      /whose records you can change/
+    );
+    const scope = await createScope({
+      organisationId: w.org.id,
+      entityId: w.main.id,
+      scope: scopeInput(),
+      writable: [w.main.id],
+      actor: SYSTEM
+    });
+    await assert.rejects(
+      updateScope({
+        id: scope.id,
+        organisationId: w.org.id,
+        scope: scopeInput({ entityIds: [w.other.id] }),
+        writable: [w.main.id],
+        actor: SYSTEM
+      }),
+      /whose records you can change/
+    );
+    await assert.rejects(
+      updateScope({
+        id: scope.id,
+        organisationId: w.org.id,
+        scope: scopeInput({ homeEntityId: w.other.id }),
+        writable: null,
+        actor: SYSTEM
+      }),
+      /already covers/
+    );
+    // Someone with access to both brings the other entity in; a person who
+    // can change only the home may still save it with the other covered.
+    await updateScope({
+      id: scope.id,
+      organisationId: w.org.id,
+      scope: scopeInput({ entityIds: [w.other.id] }),
+      writable: null,
+      actor: SYSTEM
+    });
+    await updateScope({
+      id: scope.id,
+      organisationId: w.org.id,
+      scope: scopeInput({ entityIds: [w.other.id], name: 'Renamed' }),
+      writable: [w.main.id],
+      actor: SYSTEM
+    });
+    const moved = await updateScope({
+      id: scope.id,
+      organisationId: w.org.id,
+      scope: scopeInput({
+        entityIds: [w.main.id, w.other.id],
+        homeEntityId: w.other.id
+      }),
+      writable: null,
+      actor: SYSTEM
+    });
+    assert.equal(moved.entityId, w.other.id);
+    assert.deepEqual(
+      (await loadScope(w.org.id, scope.id))!.entities.map((e) => e.name),
+      ['Main Ltd', 'Other Ltd']
+    );
+  });
+
+  it('refuses an owner who cannot open the home entity', async () => {
+    const w = await world('owner');
+    const [outsider] = await db
+      .insert(users)
+      .values({ email: `other-${crypto.randomUUID().slice(0, 8)}@example.com` })
+      .returning();
+    const [membership] = await db
+      .insert(memberships)
+      .values({ organisationId: w.org.id, userId: outsider.id })
+      .returning();
+    await db.insert(roleAssignments).values({
+      membershipId: membership.id,
+      role: 'privacy_analyst',
+      scope: 'entity',
+      entityId: w.other.id
+    });
+    await assert.rejects(
+      createScope({
+        organisationId: w.org.id,
+        entityId: w.main.id,
+        scope: scopeInput({ ownerId: outsider.id }),
+        writable: null,
+        actor: SYSTEM
+      }),
+      /must be able to open records/
+    );
+    const scope = await createScope({
+      organisationId: w.org.id,
+      entityId: w.other.id,
+      scope: scopeInput({ ownerId: outsider.id }),
+      writable: null,
+      actor: SYSTEM
+    });
+    assert.equal(scope.ownerId, outsider.id);
+  });
+
+  it('keeps its home entity from being deleted while it covers others', async () => {
+    const w = await world('erasure');
+    await createScope({
+      organisationId: w.org.id,
+      entityId: w.other.id,
+      scope: scopeInput({ entityIds: [w.main.id] }),
+      writable: null,
+      actor: SYSTEM
+    });
+    assert.ok(
+      (await erasureBlockers(w.org.id, w.other.id)).some((r) =>
+        /Move each scope's home/.test(r)
+      )
+    );
+  });
+});
+
 describe('the database', () => {
   it("keeps each organisation's scopes to itself", async () => {
     const a = await world('rls-a');
@@ -414,6 +585,7 @@ describe('the database', () => {
       organisationId: a.org.id,
       entityId: a.main.id,
       scope: scopeInput(),
+      writable: null,
       actor: SYSTEM
     });
     const seen = await withOrganisation(b.org.id, () =>
@@ -452,6 +624,7 @@ describe('the database', () => {
       organisationId: w.org.id,
       entityId: w.main.id,
       scope: scopeInput(),
+      writable: null,
       actor: SYSTEM
     });
     await assert.rejects(

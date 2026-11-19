@@ -53,12 +53,17 @@ export type ScopePlacement = {
 export const isEndUserDevice = (a: Pick<ScopeAsset, 'assetType'>) =>
   a.assetType === 'device';
 
-/** A service run on a cloud provider's infrastructure, which no scope may exclude. */
+/**
+ * A service run on a cloud provider's infrastructure, which a scope may not
+ * exclude. Where it is hosted decides: a cloud service model left on an asset
+ * since brought on premises does not make it one.
+ */
 export function isCloudService(
   a: Pick<ScopeAsset, 'assetType' | 'hosting' | 'details'>
 ): boolean {
+  if (a.assetType === 'saas_application') return true;
+  if (a.hosting === 'on_premises') return false;
   return (
-    a.assetType === 'saas_application' ||
     a.hosting === 'saas' ||
     a.hosting === 'cloud' ||
     a.details.cloudModel !== undefined
@@ -82,6 +87,7 @@ export function scopeRefusal(scope: {
 
 /** Why an asset cannot be placed as asked, or null. */
 export function placementRefusal(
+  scope: { kind: ScopeKind },
   asset: Pick<ScopeAsset, 'assetType' | 'hosting' | 'details' | 'retiredAt'>,
   placement: Pick<ScopePlacement, 'inScope' | 'reason' | 'note'>
 ): string | null {
@@ -90,8 +96,15 @@ export function placementRefusal(
       return 'A retired asset is out of use, so it cannot be in scope.';
     return null;
   }
-  if (isCloudService(asset))
-    return 'Cloud services that hold your data or run your services cannot be left out of a Cyber Essentials scope.';
+  // A sub-set takes in the cloud services its own users rely on; one used
+  // only by the rest of the organisation is outside it, like their devices.
+  if (
+    isCloudService(asset) &&
+    !(scope.kind === 'subset' && placement.reason === 'subset_segregated')
+  )
+    return scope.kind === 'subset'
+      ? 'Cloud services cannot be left out of a Cyber Essentials scope, unless the sub-set does not use them.'
+      : 'Cloud services that hold your data or run your services cannot be left out of a Cyber Essentials scope.';
   if (!placement.reason) return 'Say why it is out of scope.';
   if (placement.reason === 'other' && !placement.note?.trim())
     return 'Explain why it is out of scope: the assessor will ask.';
@@ -105,12 +118,23 @@ export function placementRefusal(
   return null;
 }
 
+/** Assets in use that the scope says nothing about yet. */
+export function unplacedAssets<A extends Pick<ScopeAsset, 'id' | 'retiredAt'>>(
+  placements: readonly Pick<ScopePlacement, 'assetId'>[],
+  candidates: readonly A[]
+): A[] {
+  const placed = new Set(placements.map((p) => p.assetId));
+  return candidates.filter((a) => !a.retiredAt && !placed.has(a.id));
+}
+
 export type ScopeFinding = {
   /** The scope rule or requirement it comes from. */
   code: string;
   message: string;
   /** The assets it is about, where it is about some. */
-  assets: ReadonlyArray<Pick<ScopeAsset, 'id' | 'reference' | 'name'>>;
+  assets: ReadonlyArray<
+    Pick<ScopeAsset, 'id' | 'reference' | 'name' | 'entityId'>
+  >;
 };
 
 /**
@@ -125,11 +149,10 @@ export function scopeFindings(
   at: Date
 ): ScopeFinding[] {
   const byId = new Map(candidates.map((a) => [a.id, a]));
-  const placed = new Set(placements.map((p) => p.assetId));
   const inScope = placements
     .filter((p) => p.inScope)
     .flatMap((p) => byId.get(p.assetId) ?? []);
-  const unplaced = candidates.filter((a) => !a.retiredAt && !placed.has(a.id));
+  const unplaced = unplacedAssets(placements, candidates);
   const findings: ScopeFinding[] = [];
 
   if (!inScope.some(isEndUserDevice))
@@ -145,7 +168,9 @@ export function scopeFindings(
     findings.push({
       code: 'SCOPE.CLOUD_INCLUDED',
       message:
-        'Cloud services of the covered entities are not yet in scope, and cannot be left out.',
+        scope.kind === 'subset'
+          ? 'Cloud services of the covered entities are not yet placed. Put those the sub-set uses in scope; only one it does not use may be left out.'
+          : 'Cloud services of the covered entities are not yet in scope, and cannot be left out.',
       assets: cloud
     });
 

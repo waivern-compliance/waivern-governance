@@ -24,6 +24,7 @@ import {
 } from '@/lib/cyber-essentials/scope-checks';
 import { nextReference } from '@/lib/references';
 
+import { activeMemberGrants, mayOpenIn } from './member-grants';
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 
@@ -109,13 +110,29 @@ export type ScopeInput = {
   entityIds: readonly string[];
   ownerId: string | null;
   nextReviewAt: Date | null;
+  /** On a change, a new home among the entities it covers; absent keeps it. */
+  homeEntityId?: string;
 };
+
+/**
+ * The entities the person making the change may write records in, or null
+ * for all. A scope shows the assets of every entity it covers, so nobody may
+ * bring an entity into one, or move one's home there, without access to its
+ * records already.
+ */
+export type Writable = readonly string[] | null;
+
+const mayWrite = (writable: Writable, entityId: string) =>
+  writable === null || writable.includes(entityId);
 
 async function clean(
   tx: Tx,
   organisationId: string,
   homeEntityId: string,
-  input: ScopeInput
+  input: ScopeInput,
+  /** Entities newly brought in, which the person must be able to write in. */
+  added: (entityIds: readonly string[]) => readonly string[],
+  writable: Writable
 ) {
   if (!isScopeKind(input.kind))
     throw new ScopeRefused(
@@ -136,7 +153,25 @@ async function clean(
   if (scope.name.length > 200)
     throw new ScopeRefused('Keep the name to 200 characters.');
   for (const id of entityIds) await assertEntityIn(organisationId, id, tx);
-  if (scope.ownerId) await assertMemberOf(organisationId, scope.ownerId, tx);
+  if (added(entityIds).some((id) => !mayWrite(writable, id)))
+    throw new ScopeRefused(
+      'You can only bring in legal entities whose records you can change: the scope shows every asset of the entities it covers.'
+    );
+  if (scope.ownerId) {
+    await assertMemberOf(organisationId, scope.ownerId, tx);
+    // The owner prepares the scope and, later, is reminded of its renewals:
+    // someone who cannot open its home entity could do neither.
+    if (
+      !mayOpenIn(
+        await activeMemberGrants(tx, organisationId),
+        scope.ownerId,
+        homeEntityId
+      )
+    )
+      throw new ScopeRefused(
+        "The owner must be able to open records in the scope's home entity. Choose someone who can, or give them access first."
+      );
+  }
   return { scope, entityIds };
 }
 
@@ -169,6 +204,7 @@ export async function createScope(input: {
   organisationId: string;
   entityId: string;
   scope: ScopeInput;
+  writable: Writable;
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, () =>
@@ -178,7 +214,9 @@ export async function createScope(input: {
         tx,
         input.organisationId,
         input.entityId,
-        input.scope
+        input.scope,
+        (all) => all,
+        input.writable
       );
       const now = new Date();
       const reference = await nextReference(
@@ -261,19 +299,33 @@ export async function updateScope(input: {
   id: string;
   organisationId: string;
   scope: ScopeInput;
+  writable: Writable;
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       await assertEnabled(tx, input.organisationId);
       const before = await loadForWrite(tx, input.organisationId, input.id);
+      const covered = await coveredBy(tx, input.id);
+      const home = input.scope.homeEntityId || before.entityId;
+      if (home !== before.entityId) {
+        if (!covered.includes(home))
+          throw new ScopeRefused(
+            'Move the home only to an entity the scope already covers.'
+          );
+        if (!mayWrite(input.writable, home))
+          throw new ScopeRefused(
+            'You can only move the home to an entity whose records you can change.'
+          );
+      }
       const { scope, entityIds } = await clean(
         tx,
         input.organisationId,
-        before.entityId,
-        input.scope
+        home,
+        input.scope,
+        (all) => all.filter((e) => !covered.includes(e)),
+        input.writable
       );
-      const covered = await coveredBy(tx, input.id);
       const dropped = covered.filter((e) => !entityIds.includes(e));
       const added = entityIds.filter((e) => !covered.includes(e));
       let unplaced = 0;
@@ -313,7 +365,7 @@ export async function updateScope(input: {
         );
       const [after] = await tx
         .update(cyberScopes)
-        .set({ ...scope, updatedAt: new Date() })
+        .set({ ...scope, entityId: home, updatedAt: new Date() })
         .where(eq(cyberScopes.id, input.id))
         .returning();
       await appendAuditEvent(tx, {
@@ -323,8 +375,12 @@ export async function updateScope(input: {
         action: 'cyber_scope.updated',
         subjectType: 'cyber_scope',
         subjectId: input.id,
-        before: { ...audited(before), entityIds: covered },
-        after: { ...audited(after), entityIds, unplaced }
+        before: {
+          ...audited(before),
+          homeEntityId: before.entityId,
+          entityIds: covered
+        },
+        after: { ...audited(after), homeEntityId: home, entityIds, unplaced }
       });
       return after;
     })
@@ -381,7 +437,7 @@ export async function placeAsset(input: {
         reason: reason as OutOfScopeReason | null,
         note: input.note?.trim() || null
       };
-      const refusal = placementRefusal(asset, placement);
+      const refusal = placementRefusal(scope, asset, placement);
       if (refusal) throw new ScopeRefused(refusal);
       const [was] = await tx
         .select()

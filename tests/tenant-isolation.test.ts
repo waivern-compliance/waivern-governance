@@ -4843,6 +4843,7 @@ describe('Cyber Essentials scopes', () => {
         organisationId: A.org.id,
         entityId: A.entity.id,
         scope: { ...blank, entityIds: [B.entity.id] },
+        writable: null,
         actor: as()
       })
     );
@@ -4851,6 +4852,7 @@ describe('Cyber Essentials scopes', () => {
         organisationId: A.org.id,
         entityId: B.entity.id,
         scope: blank,
+        writable: null,
         actor: as()
       })
     );
@@ -4858,6 +4860,7 @@ describe('Cyber Essentials scopes', () => {
       organisationId: A.org.id,
       entityId: A.entity.id,
       scope: blank,
+      writable: null,
       actor: as()
     });
     await assert.rejects(
@@ -4877,6 +4880,7 @@ describe('Cyber Essentials scopes', () => {
         id: scope.id,
         organisationId: B.org.id,
         scope: blank,
+        writable: null,
         actor: as()
       })
     );

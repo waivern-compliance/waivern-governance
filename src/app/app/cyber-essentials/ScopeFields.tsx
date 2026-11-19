@@ -129,7 +129,16 @@ export function ScopeFields({
             />
             {e.name}
             {e.id === home ? (
-              <span className="text-xs text-ink-soft">(its home)</span>
+              <>
+                {/* A disabled box is not sent: the home stays covered,
+                    also when the home moves elsewhere in the same save. */}
+                <input
+                  type="hidden"
+                  name="entityIds"
+                  value={e.id}
+                />
+                <span className="text-xs text-ink-soft">(its home)</span>
+              </>
             ) : null}
           </label>
         ))}

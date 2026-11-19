@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { refusable, type EditResult } from '@/lib/edit-result';
-import { requireCapability, requireSession } from '@/lib/session';
+import {
+  requireCapability,
+  requireSession,
+  visibleEntityIds
+} from '@/lib/session';
 import {
   createScope,
   placeAsset,
@@ -33,7 +37,8 @@ function scopeOf(formData: FormData): ScopeInput {
     exclusions: text(formData.get('exclusions')) || null,
     entityIds: formData.getAll('entityIds').map(text).filter(Boolean),
     ownerId: text(formData.get('ownerId')) || null,
-    nextReviewAt: day(formData.get('nextReviewAt'))
+    nextReviewAt: day(formData.get('nextReviewAt')),
+    homeEntityId: text(formData.get('homeEntityId')) || undefined
   };
 }
 
@@ -81,6 +86,7 @@ export async function createScopeAction(
       organisationId: active.membership.organisationId,
       entityId,
       scope: scopeOf(formData),
+      writable: visibleEntityIds(active, 'record.write'),
       actor: actorOf(active)
     });
     refresh();
@@ -99,6 +105,7 @@ export async function updateScopeAction(
       id,
       organisationId: active.membership.organisationId,
       scope: scopeOf(formData),
+      writable: visibleEntityIds(active, 'record.write'),
       actor: actorOf(active)
     });
     refresh(id);
