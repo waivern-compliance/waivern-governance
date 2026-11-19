@@ -14,7 +14,8 @@ import {
 import type {
   ImportLink,
   ImportMapping,
-  ImportRecord
+  ImportRecord,
+  ImportSuggestion
 } from '@/lib/import/types';
 
 import { bytea } from '../columns';
@@ -108,6 +109,12 @@ export const importBatches = pgTable(
     columns: jsonb('columns').$type<string[]>().notNull(),
     rowCount: integer('row_count').notNull(),
     mapping: jsonb('mapping').$type<ImportMapping>(),
+    /**
+     * The model's last suggestion for matching the columns, shown beside the
+     * matching until a person previews, when it is cleared: from then on the
+     * mapping is the person's own.
+     */
+    suggestion: jsonb('suggestion').$type<ImportSuggestion>(),
     /**
      * The values each rating column held at the last preview, for a person
      * to say what each is here: kept so the page need not read the file again.

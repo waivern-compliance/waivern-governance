@@ -2135,6 +2135,8 @@ Several values in one cell, such as data categories, are read when separated by 
 
 A value for a field with set choices, such as a status, a stage or a type of AI system, is read when it is one of Govern's values or a common word for one. A platform's own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.
 
+Where the organisation has switched on its model for matching imported files, Suggest a matching asks it which column holds which field. It fills only the fields left empty, each marked as suggested, and notes where it would have chosen another column than the one already matched. Nothing is sent until you press it, and its suggestion counts for nothing until you preview: check each field first.
+
 ### Agreements and evidence, with their files
 
 A list of processor agreements or of evidence can name a file for each row. Add the files on the import's page, in as many rounds as you need; each is checked as any attachment is, for its type, its contents and viruses, when added. Match the file column to the column holding each row's file name, and importing attaches each file to its record.
@@ -2471,7 +2473,7 @@ The rule it follows: where the platform would escalate a question rather than an
 
 ### What is sent, and what is kept
 
-On an assessment it is given the template's questions and never your answers. In help it is given the built-in help topics and no records at all.
+On an assessment it is given the template's questions and never your answers. In help it is given the built-in help topics and no records at all. Asked to suggest how an imported file's columns match, it is given the fields, the file's header row and up to three of its rows, cut short; for data subject requests, complaints, breaches and FOI requests, the header row only.
 
 Obvious identifiers - email addresses, telephone numbers, postcodes, card and national insurance numbers - are removed from a question before it is sent, and you are told what was removed. That catches shapes, not meaning: it will not notice a sentence about a named person's health. Do not type such things.
 

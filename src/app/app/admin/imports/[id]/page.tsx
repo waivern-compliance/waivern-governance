@@ -13,6 +13,7 @@ import { mayImport } from '@/lib/rbac';
 import { SCALES } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { extractionAvailable } from '@/services/extraction';
+import { importSuggestionsAvailable } from '@/services/import-suggestions';
 import {
   agreementsToRead,
   loadImport,
@@ -25,6 +26,7 @@ import {
   previewImportAction,
   readImportedAgreementsAction,
   removeImportFileAction,
+  suggestColumnsAction,
   undoImportAction
 } from '../actions';
 import {
@@ -58,7 +60,7 @@ export default async function ImportBatchPage({
   const { id } = await params;
   const loaded = await loadImport(id, active.membership.organisationId);
   if (!loaded) notFound();
-  const { batch, rows, mapping, files } = loaded;
+  const { batch, rows, mapping, suggested, files } = loaded;
   const org = active.membership.organisationId;
   const carriesFiles = CARRIES_FILES.has(batch.recordType);
   const [unread, mayRead] =
@@ -71,6 +73,8 @@ export default async function ImportBatchPage({
 
   const defs = FIELDS[batch.recordType];
   const open = batch.status === 'uploaded' || batch.status === 'previewed';
+  const maySuggest = open && (await importSuggestionsAvailable(org));
+  const suggestion = suggested.suggestion;
   // Ratings on the source's own scale, and choices in its own words, offered
   // once their columns are matched.
   const translating =
@@ -209,7 +213,42 @@ export default async function ImportBatchPage({
             A value that cannot be read stops that row, with the reason, rather
             than being guessed.
           </p>
+          {maySuggest ? (
+            <RefusableForm
+              action={suggestColumnsAction.bind(null, batch.id)}
+              submit="Suggest a matching"
+              pendingLabel="Asking the model…"
+              resetOnSuccess={false}
+            >
+              <p className="max-w-prose text-sm text-ink-soft">
+                For a file whose column names are not ones Govern knows, the
+                organisation&apos;s model can suggest a matching. It sees the
+                fields, the header row
+                {CASE_HISTORY.has(batch.recordType)
+                  ? ' and nothing else: case files are mostly about the people who asked'
+                  : ' and up to three rows, redacted and cut short'}
+                . It only fills fields left empty; you check them before
+                anything is previewed.
+              </p>
+              {suggestion && !suggestion.failure ? (
+                <p className="max-w-prose text-xs text-ink-soft">
+                  Suggested by {suggestion.model} on{' '}
+                  {when(new Date(suggestion.at))}, asked by {suggestion.byLabel}
+                  .{' '}
+                  {suggested.filled.length === 0 &&
+                  Object.keys(suggested.differs).length === 0
+                    ? 'It had nothing to add to the matching below.'
+                    : ''}
+                  {suggestion.notes ? ` It noted: ${suggestion.notes}` : ''}
+                  {suggestion.minimisation ? ` ${suggestion.minimisation}` : ''}
+                </p>
+              ) : null}
+            </RefusableForm>
+          ) : null}
           <RefusableForm
+            // Remounted for a new suggestion, so its matches show in the
+            // selects, which otherwise keep what they first showed.
+            key={suggestion?.at ?? 'matching'}
             action={previewImportAction.bind(null, batch.id)}
             submit={
               batch.status === 'previewed'
@@ -234,9 +273,19 @@ export default async function ImportBatchPage({
                       </span>
                     )}
                   </span>
+                  {suggested.filled.includes(f.key) ? (
+                    <span className="ml-2 rounded bg-brand/10 px-1.5 py-0.5 text-xs font-medium text-brand">
+                      Suggested
+                    </span>
+                  ) : null}
                   {f.hint ? (
                     <span className="block text-xs text-ink-soft">
                       {f.hint}
+                    </span>
+                  ) : null}
+                  {suggested.differs[f.key] ? (
+                    <span className="block text-xs text-ink-soft">
+                      Suggested instead: {suggested.differs[f.key]}
                     </span>
                   ) : null}
                   <select

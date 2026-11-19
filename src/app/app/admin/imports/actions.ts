@@ -24,6 +24,7 @@ import { refusable, type EditResult } from '@/lib/edit-result';
 import type { RecordType } from '@/lib/import/fields';
 import { can, canInScope, mayImport } from '@/lib/rbac';
 import { NotPermitted, refusedUnless, requireCapability } from '@/lib/session';
+import { suggestColumns } from '@/services/import-suggestions';
 import {
   addImportFiles,
   commitImport,
@@ -209,6 +210,29 @@ export async function removeImportFileAction(
   );
   revalidatePath(`/app/admin/imports/${batchId}`);
   return result?.ok ? { ok: true, message: 'Removed.' } : result;
+}
+
+/** Ask the organisation's model how the columns match; a person checks it. */
+export async function suggestColumnsAction(
+  batchId: string,
+  _prev: EditResult
+): Promise<EditResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
+  const { organisationId, actor } = await importer();
+  let failure: string | null = null;
+  const result = await refusable(async () => {
+    ({ failure } = await suggestColumns({ organisationId, batchId, actor }));
+  });
+  revalidatePath(`/app/admin/imports/${batchId}`);
+  if (!result?.ok) return result;
+  return failure
+    ? { ok: false, message: failure }
+    : {
+        ok: true,
+        message:
+          'Suggested. The fields it filled are marked; check them, then preview.'
+      };
 }
 
 export async function readImportedAgreementsAction(

@@ -35,7 +35,8 @@ import { refuseDuringTrial } from './trial-guard';
 export const SURFACES = {
   assessment: 'Help with answering an assessment',
   help: 'Questions about how the platform works',
-  extraction: 'Read an uploaded agreement for transfers and sub-processors'
+  extraction: 'Read an uploaded agreement for transfers and sub-processors',
+  import_mapping: "Suggest how an imported file's columns match"
 } as const;
 export type Surface = keyof typeof SURFACES;
 
