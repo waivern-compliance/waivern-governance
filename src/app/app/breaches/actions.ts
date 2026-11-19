@@ -234,17 +234,23 @@ export async function reclassifyBreachAction(
     if (!isBreachClassification(classification))
       throw new Error('Say whether it is a breach or a near miss.');
     const later = text(formData.get('clockFrom')) === 'later';
-    const awareAt = later ? when(formData.get('awareAt')) : null;
+    const awareAt = when(formData.get('awareAt'));
     if (later && !awareAt)
       throw new Error(
         'Give when it became known to be a breach, or count from discovery.'
+      );
+    // A date given with discovery chosen is a choice not made, not one to
+    // drop: the clock would run from somewhere the person did not mean.
+    if (!later && awareAt)
+      throw new Error(
+        'You gave a date it became known to be a breach, but chose to count from discovery. Choose one.'
       );
     await reclassifyBreach({
       breachId,
       organisationId: active.membership.organisationId,
       classification,
       rationale: text(formData.get('rationale')),
-      awareAt,
+      awareAt: later ? awareAt : null,
       actor: {
         actorKind: 'user',
         actorUserId: active.userId,

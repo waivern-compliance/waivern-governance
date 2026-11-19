@@ -4526,6 +4526,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "called inside a caller's transaction, with that caller's organisation",
   'workflow.raiseTask':
     "called inside a caller's transaction, with that caller's organisation",
+  'workflow.retireDeadlineTasks':
+    "called inside a caller's transaction, with that caller's organisation and the case it has loaded",
   'supplier-review.recordSupplierReview':
     "called inside an approval's transaction, with the assessment it has loaded and that caller's organisation",
   'supplier-review.nextReviewOnTier':

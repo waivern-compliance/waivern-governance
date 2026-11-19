@@ -3,7 +3,13 @@ import { after, describe, it } from 'node:test';
 import { and, eq } from 'drizzle-orm';
 
 import { db, sql as pg } from '@/db/client';
-import { breaches, entities, organisations, tasks } from '@/db/schema';
+import {
+  auditEvents,
+  breaches,
+  entities,
+  organisations,
+  tasks
+} from '@/db/schema';
 import { verifyAuditChain } from '@/lib/audit';
 import {
   breachRegister,
@@ -289,5 +295,121 @@ describe('near misses', () => {
         ['N-3', 'breach']
       ]
     );
+  });
+
+  it('raises a fresh deadline task for a breach that was a near miss and is a breach again', async () => {
+    const w = await world('round-trip');
+    const breach = await incident(w, 'breach');
+    await sweepOrganisation(w.org.id);
+    const reclassify = (
+      classification: 'breach' | 'near_miss',
+      rationale: string
+    ) =>
+      reclassifyBreach({
+        organisationId: w.org.id,
+        breachId: breach.id,
+        classification,
+        rationale,
+        actor: SYSTEM
+      });
+    await reclassify('near_miss', 'Thought never opened.');
+    await reclassify('breach', 'It was opened after all.');
+    await sweepOrganisation(w.org.id);
+    const open = (await deadlineTasks(w, breach.id)).filter(
+      (t) => t.status === 'open'
+    );
+    assert.equal(open.length, 1);
+    assert.match(open[0].title, /past seventy-two hours/);
+  });
+
+  it('steps a notified breach back when it is found to be a near miss, keeping its risk judgement, and notified again as a breach', async () => {
+    const w = await world('status');
+    const breach = await incident(w, 'breach');
+    await recordDecision({
+      organisationId: w.org.id,
+      breachId: breach.id,
+      kind: 'supervisory_authority',
+      outcome: 'done',
+      rationale: 'Told the Commission while it looked like a breach.',
+      completedAt: new Date(),
+      actor: SYSTEM
+    });
+    assert.equal(
+      (await loadBreach(breach.id, w.org.id))!.breach.status,
+      'notified'
+    );
+
+    await reclassifyBreach({
+      organisationId: w.org.id,
+      breachId: breach.id,
+      classification: 'near_miss',
+      rationale: 'The logs show nothing left the building.',
+      actor: SYSTEM
+    });
+    const nearMiss = (await loadBreach(breach.id, w.org.id))!;
+    assert.equal(nearMiss.breach.status, 'assessing');
+    assert.equal(nearMiss.risk, 'risk', 'the judgement stays on record');
+
+    await reclassifyBreach({
+      organisationId: w.org.id,
+      breachId: breach.id,
+      classification: 'breach',
+      rationale: 'A second copy turned up outside.',
+      actor: SYSTEM
+    });
+    assert.equal(
+      (await loadBreach(breach.id, w.org.id))!.breach.status,
+      'notified'
+    );
+  });
+
+  it('records a later import that changes its mind as a reclassification', async () => {
+    const w = await world('reimport');
+    const upload = (classification: string) =>
+      uploadImport({
+        organisationId: w.org.id,
+        recordType: 'breach',
+        sourceName: 'OneTrust',
+        filename: 'incidents.csv',
+        contentType: 'text/csv',
+        bytes: new TextEncoder().encode(
+          [
+            'ID,Title,Discovered on,Classification',
+            `R-1,Email recalled,2026-01-05,${classification}`
+          ].join('\n')
+        ),
+        actor: SYSTEM
+      });
+    for (const classification of ['Near miss', 'Breach']) {
+      const batch = await upload(classification);
+      const { mapping } = (await loadImport(batch.id, w.org.id))!;
+      await previewImport({
+        organisationId: w.org.id,
+        batchId: batch.id,
+        mapping,
+        actor: SYSTEM
+      });
+      await commitImport({
+        organisationId: w.org.id,
+        batchId: batch.id,
+        actor: SYSTEM
+      });
+    }
+    const [row] = await db
+      .select()
+      .from(breaches)
+      .where(eq(breaches.organisationId, w.org.id));
+    assert.equal(row.classification, 'breach');
+    assert.match(row.reclassificationRationale ?? '', /in OneTrust/);
+    const events = await db
+      .select({ action: auditEvents.action })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, w.org.id),
+          eq(auditEvents.action, 'breach.reclassified')
+        )
+      );
+    assert.equal(events.length, 1);
   });
 });

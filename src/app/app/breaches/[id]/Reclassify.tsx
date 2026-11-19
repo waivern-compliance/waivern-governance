@@ -52,12 +52,16 @@ export function Reclassify({
         </div>
       ) : null}
       {mayEdit ? (
-        <details className="rounded border border-line bg-surface">
+        // Keyed on the saved record, so a reclassification closes it rather
+        // than leaving the reverse open beneath it.
+        <details
+          key={savedKey(breach)}
+          className="rounded border border-line bg-surface"
+        >
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
             {toBreach ? 'Reclassify as a breach' : 'Reclassify as a near miss'}
           </summary>
           <EditForm
-            key={savedKey(breach)}
             action={reclassifyBreachAction.bind(null, breach.id)}
             className="space-y-3 border-t border-line p-4"
           >

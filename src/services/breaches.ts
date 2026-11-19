@@ -6,7 +6,6 @@ import {
   breachDecisions,
   breaches,
   entities,
-  tasks,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
@@ -41,6 +40,7 @@ import {
   assertMemberOf,
   assertRecordIn
 } from './tenancy-guards';
+import { retireDeadlineTasks } from './workflow';
 
 /**
  * The breach register, and the decisions taken about each entry.
@@ -98,20 +98,14 @@ export type LoadedBreach = {
 
 /** The reg 5A clock for a breach, or null where reg 5A does not apply. */
 function pecrClockOf(
-  breach: Pick<
-    Breach,
-    'classification' | 'discoveredAt' | 'awareAt' | 'pecrServiceBreach'
-  >,
+  breach: Pick<Breach, 'discoveredAt' | 'awareAt' | 'pecrServiceBreach'>,
   provider: boolean,
   decisions: ReadonlyArray<
     Pick<BreachDecision, 'kind' | 'outcome' | 'completedAt'>
   >,
   now: Date
 ) {
-  if (
-    breach.classification === 'near_miss' ||
-    !reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach })
-  )
+  if (!reg5aApplies({ provider, serviceBreach: breach.pecrServiceBreach }))
     return null;
   const told = decisions.find(
     (d) => d.kind === 'pecr_commissioner' && d.outcome === 'done'
@@ -195,51 +189,89 @@ export function targetsOf(
  * before it is written: the sweep will raise a task for it at once.
  */
 export function anyClockOverdue(input: {
-  breach: Pick<
-    Breach,
-    | 'classification'
-    | 'controllerRole'
-    | 'discoveredAt'
-    | 'awareAt'
-    | 'regime'
-    | 'pecrServiceBreach'
-  >;
-  decisions: ReadonlyArray<
-    Pick<BreachDecision, 'kind' | 'outcome' | 'authorityCode' | 'completedAt'>
-  >;
+  breach: ClockedBreach;
+  decisions: ReadonlyArray<ClockedDecision>;
   /** The authorities it is owed to, from {@link targetsOf}. */
   targets: readonly NotifyTarget[];
   provider: boolean;
   now: Date;
 }): boolean {
-  const { breach, decisions, targets, now } = input;
-  if (breach.classification === 'near_miss') return false;
+  const clocks = clocksOf(
+    input.breach,
+    input.decisions,
+    input.targets,
+    input.provider,
+    input.now
+  );
+  return clocks
+    ? [clocks.clock, clocks.pecr].some((c) => c?.state === 'overdue')
+    : false;
+}
+
+type ClockedBreach = Pick<
+  Breach,
+  | 'classification'
+  | 'controllerRole'
+  | 'discoveredAt'
+  | 'awareAt'
+  | 'regime'
+  | 'pecrServiceBreach'
+>;
+type ClockedDecision = Pick<
+  BreachDecision,
+  'kind' | 'outcome' | 'authorityCode' | 'completedAt'
+>;
+
+/**
+ * A breach's clocks: Article 33 to each authority it is owed to, the most
+ * urgent of them, and PECR reg 5A where it applies. Null for a near miss,
+ * which compromised no personal data, so no clock runs; every reading of the
+ * clocks comes through here so none can run one for it.
+ */
+function clocksOf<D extends ClockedDecision>(
+  breach: ClockedBreach,
+  decisions: readonly D[],
+  targets: readonly NotifyTarget[],
+  provider: boolean,
+  now: Date
+) {
+  if (breach.classification === 'near_miss') return null;
+  const started = clockStart(breach);
+  const role = breach.controllerRole as ControllerRole;
+  // Articles 33 and 34 read the same in both laws, so a judgement that
+  // notification is not required is shared by every authority.
   const notRequired = decisions.some(
     (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
   );
   const clock = (notifiedAt: Date | null) =>
     clockFor({
-      role: breach.controllerRole as ControllerRole,
-      discoveredAt: clockStart(breach),
+      role,
+      discoveredAt: started,
       notifiedAt,
       notRequired,
       now,
       regime: breach.regime
     });
-  const clocks = targets.length
-    ? targets.map((t) =>
-        clock(
-          decisions.find(
-            (d) =>
-              d.kind === 'supervisory_authority' &&
-              d.outcome === 'done' &&
-              concerns(d, t, targets.length === 1)
-          )?.completedAt ?? null
-        )
-      )
-    : [clock(null)];
-  const pecr = pecrClockOf(breach, input.provider, decisions, now);
-  return [...clocks, pecr].some((c) => c?.state === 'overdue');
+  const authorityClocks = targets.map((target) => {
+    const notified =
+      decisions.find(
+        (d) =>
+          d.kind === 'supervisory_authority' &&
+          d.outcome === 'done' &&
+          concerns(d, target, targets.length === 1)
+      ) ?? null;
+    return {
+      target,
+      notified,
+      clock: clock(notified?.completedAt ?? null)
+    };
+  });
+  return {
+    started,
+    authorityClocks,
+    clock: mostUrgent(authorityClocks.map((c) => c.clock)) ?? clock(null),
+    pecr: pecrClockOf(breach, provider, decisions, now)
+  };
 }
 
 /** A near miss compromised no personal data, so no clock runs. */
@@ -270,84 +302,46 @@ function assemble(
   entity: EntityLaw,
   now = new Date()
 ): LoadedBreach {
-  if (breach.classification === 'near_miss')
-    return {
-      breach,
-      entityName,
-      ownerEmail,
-      decisions,
-      risk: null,
-      obligations: [],
-      clock: NEAR_MISS_CLOCK,
-      laws: effectiveLaws(entity.entityLaw, breach.laws),
-      authorityClocks: [],
-      outstandingContent: [],
-      publicCommsProvider: provider,
-      pecr: null
-    };
-  const started = clockStart(breach);
-  const pecrClock = pecrClockOf(breach, provider, decisions, now);
   const risk = riskFrom(decisions);
-  const role = breach.controllerRole as ControllerRole;
-  // Articles 33 and 34 read the same in both laws, so the risk judgement, and
-  // a judgement that notification is not required, is shared by every authority.
-  const notRequired = decisions.some(
-    (d) => d.kind === 'supervisory_authority' && d.outcome === 'not_required'
-  );
   const targets = targetsOf(breach, entity);
-  const authorityClocks = targets.map((target) => {
-    const notified =
-      decisions.find(
-        (d) =>
-          d.kind === 'supervisory_authority' &&
-          d.outcome === 'done' &&
-          concerns(d, target, targets.length === 1)
-      ) ?? null;
-    return {
-      target,
-      notified,
-      clock: clockFor({
-        role,
-        discoveredAt: started,
-        notifiedAt: notified?.completedAt ?? null,
-        notRequired,
-        now,
-        regime: breach.regime
-      })
-    };
-  });
-
-  return {
+  const clocks = clocksOf(breach, decisions, targets, provider, now);
+  const shared = {
     breach,
     entityName,
     ownerEmail,
     decisions,
+    // Kept for a near miss too: a breach judged before it was found to be
+    // one still has that judgement on record.
     risk,
+    laws: effectiveLaws(entity.entityLaw, breach.laws),
+    publicCommsProvider: provider
+  };
+  if (!clocks)
+    return {
+      ...shared,
+      obligations: [],
+      clock: NEAR_MISS_CLOCK,
+      authorityClocks: [],
+      outstandingContent: [],
+      pecr: null
+    };
+  return {
+    ...shared,
     obligations: obligationsFor({
-      role,
+      role: breach.controllerRole as ControllerRole,
       risk,
-      discoveredAt: started,
+      discoveredAt: clocks.started,
       dataUnintelligible: breach.dataUnintelligible,
       regime: breach.regime,
       authorities: targets
     }),
-    clock:
-      mostUrgent(authorityClocks.map((c) => c.clock)) ??
-      clockFor({
-        role,
-        discoveredAt: started,
-        notRequired,
-        now,
-        regime: breach.regime
-      }),
-    laws: effectiveLaws(entity.entityLaw, breach.laws),
-    authorityClocks,
+    clock: clocks.clock,
+    authorityClocks: clocks.authorityClocks,
     outstandingContent: missingContent(breach),
-    publicCommsProvider: provider,
-    pecr: pecrClock
+    pecr: clocks.pecr
       ? {
-          obligations: pecrObligationsFor({ discoveredAt: started }),
-          clock: pecrClock
+          obligations: pecrObligationsFor({ discoveredAt: clocks.started }),
+          clock: clocks.pecr
         }
       : null
   };
@@ -845,11 +839,13 @@ export async function reclassifyBreach(input: {
           'When it became known to be a breach cannot be in the future.'
         );
 
+      const status = await statusOnReclassifying(tx, breach, toBreach);
       const [after] = await tx
         .update(breaches)
         .set({
           classification: input.classification,
           awareAt,
+          status,
           reclassifiedAt: now,
           reclassificationRationale: rationale,
           updatedAt: now
@@ -858,24 +854,15 @@ export async function reclassifyBreach(input: {
         .returning();
 
       // A near miss raises no deadline, so one raised while it was counted a
-      // breach asks for nothing now. The sweep raises them but never takes
-      // them down.
+      // breach asks for nothing now.
       if (!toBreach)
-        await tx
-          .update(tasks)
-          .set({
-            status: 'done',
-            completedAt: now,
-            completedByLabel: input.actor.actorLabel
-          })
-          .where(
-            and(
-              eq(tasks.organisationId, input.organisationId),
-              eq(tasks.type, 'breach_deadline'),
-              eq(tasks.subjectId, input.breachId),
-              inArray(tasks.status, ['open', 'in_progress'])
-            )
-          );
+        await retireDeadlineTasks(tx, {
+          organisationId: input.organisationId,
+          type: 'breach_deadline',
+          subjectId: input.breachId,
+          at: now,
+          actorLabel: input.actor.actorLabel
+        });
 
       await appendAuditEvent(tx, {
         ...input.actor,
@@ -884,10 +871,14 @@ export async function reclassifyBreach(input: {
         action: 'breach.reclassified',
         subjectType: 'breach',
         subjectId: input.breachId,
-        before: { classification: breach.classification },
+        before: {
+          classification: breach.classification,
+          ...(status !== breach.status ? { status: breach.status } : {})
+        },
         after: {
           reference: after.reference,
           classification: input.classification,
+          ...(status !== breach.status ? { status } : {}),
           ...(toBreach
             ? {
                 clockFrom: (awareAt ?? breach.discoveredAt).toISOString()
@@ -899,6 +890,48 @@ export async function reclassifyBreach(input: {
       return after;
     });
   });
+}
+
+/**
+ * Notified says the authorities owed a notification were told, which only a
+ * breach can be. A near miss that was one keeps those decisions on record but
+ * steps back to where it stood; a breach again is notified once more if they
+ * still cover it.
+ */
+async function statusOnReclassifying(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  breach: Breach,
+  toBreach: boolean
+): Promise<Breach['status']> {
+  if (!toBreach)
+    return breach.status === 'notified'
+      ? breach.containedAt
+        ? 'contained'
+        : 'assessing'
+      : breach.status;
+  if (breach.status === 'closed' || breach.status === 'notified')
+    return breach.status;
+  const [entity] = await tx
+    .select(ENTITY_LAW)
+    .from(entities)
+    .where(eq(entities.id, breach.entityId));
+  const decisions = await tx
+    .select({
+      kind: breachDecisions.kind,
+      outcome: breachDecisions.outcome,
+      authorityCode: breachDecisions.authorityCode
+    })
+    .from(breachDecisions)
+    .where(eq(breachDecisions.breachId, breach.id));
+  const told =
+    decisions.some(
+      (d) => d.kind === 'pecr_commissioner' && d.outcome === 'done'
+    ) ||
+    (decisions.some(
+      (d) => d.kind === 'supervisory_authority' && d.outcome === 'done'
+    ) &&
+      everyAuthorityTold(targetsOf(breach, entity), decisions));
+  return told ? 'notified' : breach.status;
 }
 
 async function decisionsFor(breachIds: string[]) {

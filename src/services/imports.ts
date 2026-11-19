@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -149,6 +149,7 @@ import { cleanLawfulBases, cleanRecordLaws, RecordLawsRefused } from './ropa';
 import type { Actor } from './templates';
 import { canonicalise } from './third-party';
 import { refuseDuringTrial } from './trial-guard';
+import { retireDeadlineTasks } from './workflow';
 
 /**
  * Moving records in from another platform: upload, match columns to fields,
@@ -3899,6 +3900,9 @@ const KEYS: Record<RecordType, string[]> = {
     'title',
     'description',
     'classification',
+    'awareAt',
+    'reclassifiedAt',
+    'reclassificationRationale',
     'controllerRole',
     'regime',
     'laws',
@@ -3997,7 +4001,9 @@ const DATE_KEYS = new Set([
   'acknowledgedAt',
   'outcomeAt',
   'clarificationSoughtAt',
-  'clarificationReceivedAt'
+  'clarificationReceivedAt',
+  'awareAt',
+  'reclassifiedAt'
 ]);
 
 /** A link an import removed, kept on its row to put back on undo. */
@@ -4049,22 +4055,14 @@ async function retireEndedCaseTasks(
   type: (typeof tasks.$inferSelect)['type'],
   keyPrefix?: string
 ) {
-  await c.tx
-    .update(tasks)
-    .set({
-      status: 'done',
-      completedAt: c.at,
-      completedByLabel: c.actor.actorLabel
-    })
-    .where(
-      and(
-        eq(tasks.organisationId, c.batch.organisationId),
-        eq(tasks.type, type),
-        eq(tasks.subjectId, id),
-        inArray(tasks.status, ['open', 'in_progress']),
-        keyPrefix ? like(tasks.idempotencyKey, `${keyPrefix}%`) : undefined
-      )
-    );
+  await retireDeadlineTasks(c.tx, {
+    organisationId: c.batch.organisationId,
+    type,
+    subjectId: id,
+    keyPrefix,
+    at: c.at,
+    actorLabel: c.actor.actorLabel
+  });
 }
 
 /** One previewed row written: the record, and what to undo it with. */
@@ -5220,6 +5218,10 @@ async function writeBreach(
   });
   let id: string;
   if (c.decision.recordId) {
+    // A source that has changed its mind about whether it was a breach is
+    // a reclassification, recorded as one made on the page is; its clock
+    // counts from discovery, as the source gave no other.
+    const reclassified = was?.classification !== resolved.classification;
     // Its dates follow the source exactly, emptied ones too: the clocks
     // and the sweep read them.
     await c.tx
@@ -5229,10 +5231,34 @@ async function writeBreach(
         occurredAt: described.occurredAt,
         containedAt: described.containedAt,
         closedAt: described.closedAt,
+        ...(reclassified
+          ? {
+              awareAt: null,
+              reclassifiedAt: c.at,
+              reclassificationRationale:
+                resolved.classification === 'near_miss'
+                  ? `Recorded as a near miss in ${c.sourceName}, as a later import said.`
+                  : `Recorded as a breach in ${c.sourceName}, as a later import said.`
+            }
+          : {}),
         ...owner,
         ...kept
       })
       .where(eq(breaches.id, c.decision.recordId));
+    if (reclassified)
+      await appendAuditEvent(c.tx, {
+        ...c.actor,
+        organisationId: c.batch.organisationId,
+        entityId: c.batch.entityId ?? undefined,
+        action: 'breach.reclassified',
+        subjectType: 'breach',
+        subjectId: c.decision.recordId,
+        before: { classification: was?.classification },
+        after: {
+          classification: resolved.classification,
+          imported: { batch: c.batch.id, ref: c.sourceRef }
+        }
+      });
     id = c.decision.recordId;
     // Closed, or found to be a near miss: either way it owes nothing now.
     if (described.closedAt || resolved.classification === 'near_miss')

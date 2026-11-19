@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, like, lte, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -163,6 +163,43 @@ async function slaHoursFor(tx: Tx, organisationId: string, type: TaskType) {
  * fires twice, or a retry after a partial failure, produces the same single
  * task rather than a duplicate somebody has to tidy up.
  */
+/**
+ * Retire a case's open deadline tasks, where it owes nothing now: answered,
+ * closed, or found not to be the kind of case that owes anything. The sweep
+ * raises them but never takes them down.
+ */
+export async function retireDeadlineTasks(
+  tx: Tx,
+  input: {
+    organisationId: string;
+    type: TaskType;
+    subjectId: string;
+    /** Only the tasks whose key starts so, where one type serves two clocks. */
+    keyPrefix?: string;
+    at: Date;
+    actorLabel: string;
+  }
+) {
+  await tx
+    .update(tasks)
+    .set({
+      status: 'done',
+      completedAt: input.at,
+      completedByLabel: input.actorLabel
+    })
+    .where(
+      and(
+        eq(tasks.organisationId, input.organisationId),
+        eq(tasks.type, input.type),
+        eq(tasks.subjectId, input.subjectId),
+        inArray(tasks.status, ['open', 'in_progress']),
+        input.keyPrefix
+          ? like(tasks.idempotencyKey, `${input.keyPrefix}%`)
+          : undefined
+      )
+    );
+}
+
 export async function raiseTask(
   tx: Tx,
   input: {
