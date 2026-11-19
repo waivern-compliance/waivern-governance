@@ -100,7 +100,8 @@ export type DeviceOwnership = ChoiceOf<'ownership'>;
 export type DeviceUserRole = ChoiceOf<'userRole'>;
 export type CloudModel = ChoiceOf<'cloudModel'>;
 
-const choiceOf = <F extends ChoiceField>(field: F) =>
+/** A choice field's values as a schema, for the form and the import alike. */
+export const choiceOf = <F extends ChoiceField>(field: F) =>
   z.enum(
     Object.keys(DETAIL_FIELDS[field].choices) as [ChoiceOf<F>, ...ChoiceOf<F>[]]
   );

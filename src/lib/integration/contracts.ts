@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { choiceOf } from '@/lib/assets/types';
 import {
   LAWFUL_BASIS_KEYS,
   RECOGNISED_CONDITION_KEYS
@@ -262,20 +263,11 @@ export const informationAssetIn = z.object({
   autoRenews: z.boolean().optional(),
   /** Fields particular to a type (`DETAIL_FIELDS`); kept only where the type has them. */
   quantity: z.number().int().min(1).max(10_000_000).optional(),
-  ownership: z.enum(['organisation', 'byod', 'third_party']).optional(),
-  userRole: z
-    .enum([
-      'staff',
-      'volunteer',
-      'trustee',
-      'research_assistant',
-      'student',
-      'contractor'
-    ])
-    .optional(),
+  ownership: choiceOf('ownership').optional(),
+  userRole: choiceOf('userRole').optional(),
   operatingSystem: z.string().max(200).optional(),
   supportedUntil: z.iso.datetime().optional(),
-  cloudModel: z.enum(['iaas', 'paas', 'saas']).optional(),
+  cloudModel: choiceOf('cloudModel').optional(),
   /** Processing activities that use it, by reference or name. */
   activities: z.array(z.string().max(500)).max(100).default([]),
   /** Suppliers that host, run or support it, by name. */

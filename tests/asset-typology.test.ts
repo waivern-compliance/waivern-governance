@@ -20,10 +20,12 @@ import {
   BUILT_IN_ASSET_TYPES,
   cleanDetails,
   describeDetails,
+  DETAIL_FIELDS,
   offeredTypes,
   outOfSupport,
   typology
 } from '@/lib/assets/types';
+import { FIELDS } from '@/lib/import/fields';
 import { can } from '@/lib/rbac';
 import { reminderKey } from '@/lib/renewals';
 import {
@@ -239,6 +241,17 @@ describe('the typology', () => {
         { label: 'Supported until', value: '14 October 2027' }
       ]
     );
+  });
+
+  it('offers the import the same choices as the form', () => {
+    for (const field of ['ownership', 'userRole', 'cloudModel'] as const) {
+      const imported = FIELDS.information_asset.find((f) => f.key === field);
+      assert.deepEqual(
+        imported?.choices?.map((c) => c.value).sort(),
+        Object.keys(DETAIL_FIELDS[field].choices).sort(),
+        field
+      );
+    }
   });
 
   it('marks an asset out of support from the day after its support ends', () => {
