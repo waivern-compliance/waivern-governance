@@ -8,6 +8,7 @@ import { EditForm } from '@/components/EditForm';
 import { GapChips } from '@/components/GapChips';
 import { ConfirmImported } from '@/components/imports/ConfirmImported';
 import { ImportedFrom } from '@/components/imports/ImportedFrom';
+import { InlineSelectForm } from '@/components/InlineSelectForm';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { StartAssessment } from '@/components/StartAssessment';
@@ -266,37 +267,16 @@ export default async function SupplierPage({
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">What they are to you</h2>
         {mayEdit ? (
-          <EditForm
-            key={savedKey(supplier.role)}
+          <InlineSelectForm
             action={setSupplierRoleAction.bind(null, supplier.id)}
-            className="flex flex-wrap items-end gap-2"
-          >
-            <label className="block space-y-1">
-              <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
-                Processor or controller?
-              </span>
-              <select
-                name="role"
-                defaultValue={supplier.role}
-                className="rounded border border-line bg-ground px-3 py-2 text-sm"
-              >
-                {SUPPLIER_ROLE_KEYS.map((r) => (
-                  <option
-                    key={r}
-                    value={r}
-                  >
-                    {SUPPLIER_ROLES[r]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="submit"
-              className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand"
-            >
-              Save
-            </button>
-          </EditForm>
+            name="role"
+            label="Processor or controller?"
+            value={supplier.role}
+            options={SUPPLIER_ROLE_KEYS.map((r) => ({
+              value: r,
+              label: SUPPLIER_ROLES[r]
+            }))}
+          />
         ) : (
           <p className="text-sm">{SUPPLIER_ROLES[supplier.role]}</p>
         )}
@@ -400,40 +380,18 @@ export default async function SupplierPage({
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">AI</h2>
         {mayEdit ? (
-          <EditForm
-            key={savedKey(supplier.aiInvolvement)}
+          <InlineSelectForm
             action={setAiInvolvementAction.bind(null, supplier.id)}
-            className="flex flex-wrap items-end gap-2"
-          >
-            <label className="block space-y-1">
-              <span className="block text-xs font-medium uppercase tracking-wider text-ink-soft">
-                Does this supplier use AI?
-              </span>
-              <select
-                name="aiInvolvement"
-                defaultValue={supplier.aiInvolvement ?? ''}
-                className="rounded border border-line bg-ground px-3 py-2 text-sm"
-              >
-                <option value="">Not asked yet</option>
-                {(Object.keys(AI_INVOLVEMENT_LABEL) as AiInvolvement[]).map(
-                  (v) => (
-                    <option
-                      key={v}
-                      value={v}
-                    >
-                      {AI_INVOLVEMENT_LABEL[v]}
-                    </option>
-                  )
-                )}
-              </select>
-            </label>
-            <button
-              type="submit"
-              className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand"
-            >
-              Save
-            </button>
-          </EditForm>
+            name="aiInvolvement"
+            label="Does this supplier use AI?"
+            value={supplier.aiInvolvement ?? ''}
+            options={[
+              { value: '', label: 'Not asked yet' },
+              ...(Object.keys(AI_INVOLVEMENT_LABEL) as AiInvolvement[]).map(
+                (v) => ({ value: v, label: AI_INVOLVEMENT_LABEL[v] })
+              )
+            ]}
+          />
         ) : (
           <p className="text-sm">
             {supplier.aiInvolvement
