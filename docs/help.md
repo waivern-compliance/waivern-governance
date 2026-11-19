@@ -2127,6 +2127,8 @@ Preview shows what every row would become: new, an update to a record imported b
 
 Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.
 
+A value for a field with set choices, such as a status, a type or a lawful basis, is read when it is one of Govern's values or a common word for one. A platform's own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.
+
 ### Agreements and evidence, with their files
 
 A list of processor agreements or of evidence can name a file for each row. Add the files on the import's page, in as many rounds as you need; each is checked as any attachment is, for its type, its contents and viruses, when added. Match the file column to the column holding each row's file name, and importing attaches each file to its record.
@@ -2139,7 +2141,7 @@ A piece of evidence can say which record it supports, by that record's reference
 
 ### AI systems
 
-Each AI system needs a name, a purpose, its type (predictive, generative, agentic or hybrid) and where it comes from (built in house, fine-tuned, a third-party API, or inside a product bought for something else). Common words for these, such as "LLM" or "in house", are understood; anything else stops that row. A stage, such as live or pilot, is used when a system is first recorded; importing again never moves its stage, which is a decision with its own checks here. A system an import registers stays on the register for good, as every registered system does, so an import that registered AI systems cannot be undone: retire one registered in error from its page.
+Each AI system needs a name, a purpose, its type (predictive, generative, agentic or hybrid) and where it comes from (built in house, fine-tuned, a third-party API, or inside a product bought for something else). Common words for these, such as "LLM" or "in house", are understood; for anything else, say what it means on the matching step. A stage, such as live or pilot, is used when a system is first recorded; importing again never moves its stage, which is a decision with its own checks here. A system an import registers stays on the register for good, as every registered system does, so an import that registered AI systems cannot be undone: retire one registered in error from its page.
 
 ### Risks
 

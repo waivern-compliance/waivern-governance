@@ -105,7 +105,9 @@ import {
   ENTITY_SCOPED,
   FIELDS,
   guessMapping,
-  TRANSLATED,
+  knownChoice,
+  RATINGS,
+  translates,
   type RecordType
 } from '@/lib/import/fields';
 import {
@@ -439,7 +441,11 @@ function cutOffDate(given: string): string {
 /** At most this many values are offered for translation per field. */
 const TRANSLATION_LIMIT = 40;
 
-/** The values each translated field's column holds, as written, without repeats. */
+/**
+ * The values to say the meaning of in each matched column, as written, without
+ * repeats: every value of a rating, and those of a choice that Govern does not
+ * already read as one of its values.
+ */
 function valuesIn(
   table: Table,
   recordType: RecordType,
@@ -447,11 +453,12 @@ function valuesIn(
 ): Record<string, string[]> {
   const found: Record<string, string[]> = {};
   for (const f of FIELDS[recordType]) {
-    if (!TRANSLATED.has(f.key) || !mapping.fields[f.key]) continue;
+    if (!translates(f) || !mapping.fields[f.key]) continue;
     const at = table.columns.indexOf(mapping.fields[f.key]);
     const seen = new Map<string, string>();
     for (const cells of table.rows) {
       const v = String(cells[at] ?? '').trim();
+      if (f.kind === 'choice' && v && knownChoice(f, v)) continue;
       if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
       if (seen.size >= TRANSLATION_LIMIT) break;
     }
@@ -463,9 +470,9 @@ function valuesIn(
 }
 
 /**
- * The values each translated field's column held at the last preview, for a
- * person to say what each is on this organisation's scale. With the scale,
- * for the choices.
+ * The values each rating or choice column held at the last preview that a
+ * person should say the meaning of: a rating on this organisation's scale,
+ * given with it, and a choice as one of Govern's values.
  */
 export async function valuesToTranslate(
   organisationId: string,
@@ -3498,24 +3505,28 @@ export async function previewImport(input: {
       // Ratings may share a column: a source that gives one rating ("High")
       // has it read as both likelihood and impact, each translated.
       const used = Object.entries(fields)
-        .filter(([key]) => !TRANSLATED.has(key))
+        .filter(([key]) => !RATINGS.has(key))
         .map(([, column]) => column);
       const twice = used.find((c, i) => used.indexOf(c) !== i);
       if (twice)
         throw new ImportRefused(
           `"${twice}" is matched to two fields. Match each column to one.`
         );
+      // A rating is said as a point on the scale; a choice as one of its own
+      // values. Anything else is dropped rather than saved for the source.
       const values = Object.fromEntries(
-        Object.entries(input.mapping.values ?? {})
-          .filter(([key]) => TRANSLATED.has(key) && fields[key])
-          .map(([key, table]) => [
-            key,
-            Object.fromEntries(
-              Object.entries(table)
-                .filter(([, v]) => /^\d$/.test(v))
-                .map(([k, v]) => [k.trim().toLowerCase(), v])
+        Object.entries(input.mapping.values ?? {}).flatMap(([key, table]) => {
+          const f = defs.find((d) => d.key === key);
+          if (!f || !translates(f) || !fields[key]) return [];
+          const kept = Object.entries(table)
+            .filter(([, v]) =>
+              f.kind === 'rating'
+                ? /^\d$/.test(v)
+                : (f.choices ?? []).some((c) => c.value === v)
             )
-          ])
+            .map(([k, v]) => [k.trim().toLowerCase(), v]);
+          return kept.length ? [[key, Object.fromEntries(kept)]] : [];
+        })
       );
       const mapping: ImportMapping = {
         fields,

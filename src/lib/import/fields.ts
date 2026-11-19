@@ -2779,13 +2779,21 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
   ]
 };
 
-/** Fields whose values a person translates onto this organisation's scale. */
-export const TRANSLATED: ReadonlySet<string> = new Set(
+/** Ratings, whose values a person translates onto this organisation's scale. */
+export const RATINGS: ReadonlySet<string> = new Set(
   Object.values(FIELDS)
     .flat()
     .filter((f) => f.kind === 'rating')
     .map((f) => f.key)
 );
+
+/**
+ * Whether a person may say what a field's values mean here: a rating, on the
+ * organisation's scale, or a choice, as one of its values. A source's own
+ * words for a status ("In review") otherwise refuse every row that uses them.
+ */
+export const translates = (f: FieldDef): boolean =>
+  f.kind === 'rating' || f.kind === 'choice';
 
 const norm = (s: string) =>
   s
@@ -2873,8 +2881,8 @@ export function readTransfers(
 
 const words = (s: string) => norm(s).replace(/[^a-z0-9 ]/g, '');
 
-/** A choice field's value, from its value, label or a usual word for it. */
-export function readChoice(field: FieldDef, value: string): string {
+/** A choice field's value from its value, label or a usual word for it. */
+export function knownChoice(field: FieldDef, value: string): string | null {
   const v = words(value);
   const found = (field.choices ?? []).find(
     (c) =>
@@ -2882,15 +2890,31 @@ export function readChoice(field: FieldDef, value: string): string {
       words(c.label) === v ||
       c.words.some((w) => words(w) === v)
   );
-  if (!found)
+  return found?.value ?? null;
+}
+
+/**
+ * A choice field's value: what a person said this source's value means here,
+ * or else its value, label or a usual word for it. Nothing else is guessed.
+ */
+export function readChoice(
+  field: FieldDef,
+  value: string,
+  said: Record<string, string> = {}
+): string {
+  const chosen = said[value.trim().toLowerCase()];
+  if (chosen && (field.choices ?? []).some((c) => c.value === chosen))
+    return chosen;
+  const known = knownChoice(field, value);
+  if (!known)
     throw new RowRefused(
-      `"${value}" is not a ${field.label.toLowerCase()} Govern knows. Use one of: ${(
+      `"${value}" is not a ${field.label.toLowerCase()} Govern knows. Say what it means on the matching step, or use one of: ${(
         field.choices ?? []
       )
         .map((c) => c.label)
         .join(', ')}.`
     );
-  return found.value;
+  return known;
 }
 
 export function readNumber(field: FieldDef, value: string): number {
@@ -3071,7 +3095,7 @@ export function convertRow(
               : f.kind === 'transfers'
                 ? readTransfers(raw)
                 : f.kind === 'choice'
-                  ? readChoice(f, raw)
+                  ? readChoice(f, raw, mapping.values?.[f.key])
                   : f.kind === 'yesno'
                     ? readYesNo(f, raw)
                     : f.kind === 'number'
