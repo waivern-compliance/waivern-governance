@@ -159,7 +159,8 @@ describe('installing shipped templates', () => {
     const plain = {
       competentAuthority: false,
       ukLaw: true,
-      irishProvider: false
+      irishProvider: false,
+      cyberEssentials: false
     };
     const shared = SYSTEM_TEMPLATES.filter(
       (t) =>

@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, scoped } from '@/db/client';
 import {
   aiUseCases,
+  cyberScopes,
   entities,
   suppliers,
   templates,
@@ -74,8 +75,9 @@ export async function startAssessment(formData: FormData) {
  * Start an assessment about one record — an AI system, a supplier — so the
  * record's register can read back what it concludes.
  *
- * The subject decides the entity: an AI system's own, or for a supplier, which
- * belongs to the whole organisation, the default entity.
+ * The subject decides the entity: an AI system's own, a Cyber Essentials
+ * scope's home entity, or for a supplier, which belongs to the whole
+ * organisation, the default entity.
  */
 export async function startAssessmentFor(
   subjectType: AssessableSubject,
@@ -100,6 +102,22 @@ export async function startAssessmentFor(
     if (!row) throw new Error('No such AI system');
     entityId = row.entityId;
     name = row.name;
+  } else if (subjectType === 'cyber_scope') {
+    // Readiness belongs with the scope, in its home entity (decision 9).
+    const [row] = await scoped(org, () =>
+      db
+        .select()
+        .from(cyberScopes)
+        .where(
+          and(
+            eq(cyberScopes.id, subjectId),
+            eq(cyberScopes.organisationId, org)
+          )
+        )
+    );
+    if (!row) throw new Error('No such Cyber Essentials scope');
+    entityId = row.entityId;
+    name = `${row.reference} ${row.name}`;
   } else {
     const [row] = await scoped(org, () =>
       db

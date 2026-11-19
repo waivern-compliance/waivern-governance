@@ -1,17 +1,22 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
+  assessmentRevisions,
+  assessments,
   cyberScopeAssets,
   cyberScopeEntities,
   cyberScopes,
   entities,
   informationAssets,
   organisations,
+  templates,
+  templateVersions,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { editionInForce } from '@/lib/cyber-essentials/editions';
+import { editionAnswered } from '@/lib/cyber-essentials/readiness';
 import type { OutOfScopeReason } from '@/lib/cyber-essentials/scope';
 import {
   isOutOfScopeReason,
@@ -23,9 +28,11 @@ import {
   type ScopePlacement
 } from '@/lib/cyber-essentials/scope-checks';
 import { nextReference } from '@/lib/references';
+import { requirementOutcomes } from '@/lib/templates/requirements';
 
+import { installShippedWorkflows } from './approval-routing';
 import { activeMemberGrants, mayOpenIn } from './member-grants';
-import type { Actor } from './templates';
+import { installShippedTemplates, type Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 
 /**
@@ -70,10 +77,10 @@ export async function setCyberEssentials(input: {
   enabled: boolean;
   actor: Actor;
 }) {
-  return withOrganisation(input.organisationId, () =>
+  const changed = await withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       const was = await enabledIn(tx, input.organisationId);
-      if (was === input.enabled) return;
+      if (was === input.enabled) return false;
       await tx
         .update(organisations)
         .set({ cyberEssentials: input.enabled, updatedAt: new Date() })
@@ -89,8 +96,25 @@ export async function setCyberEssentials(input: {
         before: { cyberEssentials: was },
         after: { cyberEssentials: input.enabled }
       });
+      return true;
     })
   );
+  if (!changed || !input.enabled) return;
+
+  // The readiness template and its sign-off, installed after the opt-in
+  // commits through the same paths as every shipped template and workflow.
+  // Each installs only what is missing, so turning it off and on again adds
+  // nothing twice, and a failure here is put right from the templates page.
+  await installShippedTemplates({
+    organisationId: input.organisationId,
+    cyberEssentials: true,
+    actor: input.actor
+  });
+  await installShippedWorkflows({
+    organisationId: input.organisationId,
+    kinds: ['cyber_essentials'],
+    actor: input.actor
+  });
 }
 
 async function assertEnabled(tx: Tx, organisationId: string) {
@@ -599,6 +623,110 @@ export async function loadScope(organisationId: string, id: string) {
       entities: covered,
       placements: placements as ScopePlacement[],
       candidates: candidates as ScopeAsset[]
+    };
+  });
+}
+
+/** A readiness assessment in one of these is not finished with: no new one is started. */
+const UNDER_WAY = ['draft', 'in_progress', 'returned', 'in_review'] as const;
+
+/**
+ * A scope's readiness assessments: the latest one submitted, with what its
+ * answers say about each requirement, and the latest not yet finished with,
+ * whether still being answered or awaiting sign-off.
+ *
+ * The status per requirement is read from the answers as they were submitted
+ * (decision 2), from the revision frozen at submission, so later edits to a
+ * returned assessment do not change it until it is submitted again. It is
+ * read against the edition the template asked about, which is the scope's
+ * own when the assessment was started.
+ */
+export async function scopeReadiness(organisationId: string, scopeId: string) {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select({
+        id: assessments.id,
+        reference: assessments.reference,
+        title: assessments.title,
+        status: assessments.status,
+        submittedAt: assessments.submittedAt,
+        scoreValue: assessments.scoreValue,
+        scoreBand: assessments.scoreBand,
+        scoreTier: assessments.scoreTier,
+        templateVersionId: assessments.templateVersionId
+      })
+      .from(assessments)
+      .innerJoin(
+        templateVersions,
+        eq(templateVersions.id, assessments.templateVersionId)
+      )
+      .innerJoin(templates, eq(templates.id, templateVersions.templateId))
+      .where(
+        and(
+          eq(assessments.organisationId, organisationId),
+          eq(assessments.subjectType, 'cyber_scope'),
+          eq(assessments.subjectId, scopeId),
+          eq(templates.kind, 'cyber_essentials'),
+          ne(assessments.status, 'withdrawn')
+        )
+      )
+      .orderBy(desc(assessments.createdAt));
+    const underWay =
+      rows.find((r) => UNDER_WAY.some((s) => s === r.status)) ?? null;
+    const open = underWay && {
+      id: underWay.id,
+      reference: underWay.reference,
+      status: underWay.status
+    };
+    const submitted =
+      rows
+        .filter((r) => r.submittedAt)
+        .sort((a, b) => b.submittedAt!.getTime() - a.submittedAt!.getTime())
+        .at(0) ?? null;
+    if (!submitted) return { submitted: null, outcomes: [], open };
+
+    const [[version], [revision]] = await Promise.all([
+      db
+        .select({ definition: templateVersions.definition })
+        .from(templateVersions)
+        .where(eq(templateVersions.id, submitted.templateVersionId)),
+      db
+        .select({
+          answers: assessmentRevisions.answers,
+          evaluation: assessmentRevisions.evaluation
+        })
+        .from(assessmentRevisions)
+        .where(
+          and(
+            eq(assessmentRevisions.assessmentId, submitted.id),
+            eq(assessmentRevisions.reason, 'submitted')
+          )
+        )
+        .orderBy(desc(assessmentRevisions.revision))
+        .limit(1)
+    ]);
+    const outcomes =
+      version && revision
+        ? requirementOutcomes(
+            version.definition.schema,
+            revision.answers,
+            revision.evaluation
+          )
+        : [];
+    return {
+      submitted: {
+        id: submitted.id,
+        reference: submitted.reference,
+        title: submitted.title,
+        status: submitted.status,
+        submittedAt: submitted.submittedAt!,
+        scoreValue: submitted.scoreValue,
+        scoreBand: submitted.scoreBand,
+        scoreTier: submitted.scoreTier,
+        edition: version ? editionAnswered(version.definition) : null
+      },
+      outcomes,
+      open
     };
   });
 }

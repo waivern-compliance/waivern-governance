@@ -29,6 +29,7 @@ export const DEFAULT_WORKFLOWS: Array<{
     | 'screening'
     | 'supplier_record'
     | 'eia'
+    | 'cyber_essentials'
     | 'custom';
   name: string;
   stages: StageSpec[];
@@ -247,6 +248,20 @@ export const DEFAULT_WORKFLOWS: Array<{
       {
         position: 1,
         name: 'Accountable approver',
+        requiredRole: 'approver',
+        condition: { op: 'always' }
+      }
+    ]
+  },
+  {
+    // The scheme asks a board member or someone equivalent to sign the
+    // self-assessment off, so readiness is approved by somebody accountable.
+    templateKind: 'cyber_essentials',
+    name: 'Cyber Essentials sign-off',
+    stages: [
+      {
+        position: 1,
+        name: 'Board or director sign-off',
         requiredRole: 'approver',
         condition: { op: 'always' }
       }

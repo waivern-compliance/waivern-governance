@@ -1,5 +1,6 @@
 import { startAssessmentFor } from '@/app/app/assessments/actions';
 import { KINDS_FOR, type AssessableSubject } from '@/lib/assessment-subjects';
+import type { TemplateDefinition } from '@/lib/templates/schema';
 import { availableTemplates } from '@/services/templates';
 
 /**
@@ -15,6 +16,7 @@ export async function StartAssessment({
   subjectId,
   prefer,
   only,
+  fits,
   missing
 }: {
   organisationId: string;
@@ -24,14 +26,18 @@ export async function StartAssessment({
   prefer?: string;
   /** Offer only templates with these names, where the section is about one kind of assessment. */
   only?: readonly string[];
-  /** Said instead of the form when none of `only` is in the library yet. */
+  /** Offer only templates whose definition suits this particular record. */
+  fits?: (definition: TemplateDefinition) => boolean;
+  /** Said instead of the form when no template fits. */
   missing?: string;
 }) {
-  const fitting = (await availableTemplates(organisationId)).filter(
-    ({ template }) =>
-      KINDS_FOR[subjectType].includes(template.kind) &&
-      (!only || only.includes(template.name))
-  );
+  const fitting = (await availableTemplates(organisationId))
+    .filter(
+      ({ template }) =>
+        KINDS_FOR[subjectType].includes(template.kind) &&
+        (!only || only.includes(template.name))
+    )
+    .filter(({ version }) => !fits || fits(version.definition));
   if (fitting.length === 0)
     return missing ? <p className="text-xs text-ink-soft">{missing}</p> : null;
   const ordered = prefer

@@ -4937,6 +4937,11 @@ describe('Cyber Essentials scopes', () => {
     assert.equal(await cyberSvc.loadScope(B.org.id, scope.id), null);
     assert.equal(await cyberSvc.scopeEntityOf(B.org.id, scope.id), null);
     assert.equal((await cyberSvc.scopeRegister(B.org.id, null)).length, 0);
+    assert.deepEqual(await cyberSvc.scopeReadiness(B.org.id, scope.id), {
+      submitted: null,
+      outcomes: [],
+      open: null
+    });
     assert.deepEqual(changed(before, await bSnapshot()), []);
     await cyberSvc.setCyberEssentials({
       organisationId: A.org.id,

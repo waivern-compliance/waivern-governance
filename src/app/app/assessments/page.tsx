@@ -6,6 +6,7 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
+import { SUBJECT_REQUIRED } from '@/lib/assessment-subjects';
 import { can } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { listAssessments } from '@/services/assessments';
@@ -50,7 +51,9 @@ export default async function AssessmentsPage() {
   const orgEntities = await scoped(org, () =>
     db.select().from(entities).where(eq(entities.organisationId, org))
   );
-  const templates = await availableTemplates(org);
+  const templates = (await availableTemplates(org)).filter(
+    ({ template }) => !SUBJECT_REQUIRED[template.kind]
+  );
   const mayCreate = can(active.membership.grants, 'assessment.create');
 
   return (

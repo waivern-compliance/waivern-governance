@@ -6,13 +6,16 @@ import {
   assessmentAnswers,
   assessmentRevisions,
   assessments,
+  cyberScopes,
   entities,
   suppliers,
   templates,
   templateVersions,
   users
 } from '@/db/schema';
+import { SUBJECT_REQUIRED } from '@/lib/assessment-subjects';
 import { appendAuditEvent } from '@/lib/audit';
+import { editionAnswered } from '@/lib/cyber-essentials/readiness';
 import type { DataProtectionLaw } from '@/lib/dpa2018/applies';
 import { nextReference } from '@/lib/references';
 import {
@@ -47,6 +50,7 @@ const REFERENCE_PREFIX: Record<string, string> = {
   supplier_record: 'TPR',
   eia: 'EIA',
   breach: 'BR',
+  cyber_essentials: 'CER',
   custom: 'ASMT'
 };
 
@@ -113,6 +117,12 @@ export async function createAssessment(input: {
       if (version.template.organisationId !== input.organisationId) {
         throw new Error('That template belongs to a different organisation');
       }
+      const needs = SUBJECT_REQUIRED[version.template.kind];
+      if (needs && (input.subjectType !== needs || !input.subjectId)) {
+        throw new Error(
+          'An assessment of this kind is started from the record it is about'
+        );
+      }
       await assertEntityIn(input.organisationId, input.entityId, tx);
       if (input.subjectType && input.subjectId) {
         await assertRecordIn(
@@ -121,6 +131,22 @@ export async function createAssessment(input: {
           input.subjectId,
           tx
         );
+      }
+      if (input.subjectType === 'cyber_scope' && input.subjectId) {
+        // Requirement codes carry over between editions while what they ask
+        // changes, so answers given for one edition say nothing about another.
+        const [scope] = await tx
+          .select({ edition: cyberScopes.edition })
+          .from(cyberScopes)
+          .where(eq(cyberScopes.id, input.subjectId));
+        const answered = editionAnswered(version.version.definition);
+        if (scope && answered !== scope.edition) {
+          throw new Error(
+            answered
+              ? `This template asks against requirements ${answered}, and the scope is prepared against ${scope.edition}. Use a template for ${scope.edition}, or change the scope's edition.`
+              : 'This template does not ask against a Cyber Essentials edition.'
+          );
+        }
       }
       if (input.ownerId)
         await assertMemberOf(input.organisationId, input.ownerId, tx);

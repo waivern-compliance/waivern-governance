@@ -5,9 +5,16 @@ import { asc, eq } from 'drizzle-orm';
 import { EditForm } from '@/components/EditForm';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { StartAssessment } from '@/components/StartAssessment';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { outOfSupport, typeLabel } from '@/lib/assets/types';
+import {
+  countsSummary,
+  editionAnswered,
+  readinessOf,
+  SIGN_OFF
+} from '@/lib/cyber-essentials/readiness';
 import { OUT_OF_SCOPE_REASONS } from '@/lib/cyber-essentials/scope';
 import {
   isCloudService,
@@ -19,8 +26,13 @@ import {
 import { can } from '@/lib/rbac';
 import { savedKey } from '@/lib/saved-key';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { CYBER_ESSENTIALS_READINESS_NAME } from '@/lib/templates/library';
 import { assetTypology } from '@/services/asset-types';
-import { cyberEssentialsEnabled, loadScope } from '@/services/cyber-essentials';
+import {
+  cyberEssentialsEnabled,
+  loadScope,
+  scopeReadiness
+} from '@/services/cyber-essentials';
 import { candidatesFor } from '@/services/handover';
 
 import { inputClass, Label } from '../../../requests/fields';
@@ -61,7 +73,7 @@ export default async function ScopePage({
     );
   const mayEdit = can(active.membership.grants, 'record.write', scope.entityId);
 
-  const [types, orgEntities, members] = await Promise.all([
+  const [types, orgEntities, members, readinessRead] = await Promise.all([
     assetTypology(org),
     scoped(org, () =>
       db
@@ -70,8 +82,19 @@ export default async function ScopePage({
         .where(eq(entities.organisationId, org))
         .orderBy(asc(entities.name))
     ),
-    candidatesFor(org)
+    candidatesFor(org),
+    scopeReadiness(org, scope.id)
   ]);
+  const { submitted, open } = readinessRead;
+  // Read against the edition it was answered for, not the scope's current one.
+  const answeredFor = submitted?.edition ?? scope.edition;
+  const readiness = readinessOf(answeredFor, readinessRead.outcomes);
+  const signOff = submitted && SIGN_OFF[submitted.status];
+  const mayAssess = can(
+    active.membership.grants,
+    'assessment.create',
+    scope.entityId
+  );
 
   const now = new Date();
   // Judged on every asset, shown only from the entities the reader can open:
@@ -195,6 +218,64 @@ export default async function ScopePage({
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="border-b border-line pb-2 text-lg font-semibold">
+          Readiness
+        </h2>
+        {submitted ? (
+          <p className="text-sm">
+            <Link
+              href={`/app/assessments/${submitted.id}`}
+              className="font-mono text-xs text-ink-soft hover:text-brand"
+            >
+              {submitted.reference}
+            </Link>{' '}
+            {submitted.scoreBand ?? 'Submitted'}
+            {signOff ? ` (${signOff})` : ''}: {countsSummary(readiness.counts)}.{' '}
+            <Link
+              href={`/app/cyber-essentials/scopes/${scope.id}/readiness`}
+              className="text-brand hover:underline"
+            >
+              Status by requirement
+            </Link>
+          </p>
+        ) : (
+          <p className="text-sm text-ink-soft">
+            No readiness assessment submitted yet. Its answers give the
+            scope&apos;s status against each requirement.
+          </p>
+        )}
+        {submitted && answeredFor !== scope.edition ? (
+          <p className="text-sm text-ink-soft">
+            Answered against requirements {answeredFor}; the scope is now
+            prepared against {scope.edition}, so assess it again.
+          </p>
+        ) : null}
+        {open ? (
+          <p className="text-sm">
+            {open.status === 'in_review'
+              ? 'Awaiting sign-off'
+              : 'Being answered'}
+            :{' '}
+            <Link
+              href={`/app/assessments/${open.id}`}
+              className="text-brand hover:underline"
+            >
+              {open.reference}
+            </Link>
+          </p>
+        ) : mayAssess ? (
+          <StartAssessment
+            organisationId={org}
+            subjectType="cyber_scope"
+            subjectId={scope.id}
+            prefer={CYBER_ESSENTIALS_READINESS_NAME}
+            fits={(definition) => editionAnswered(definition) === scope.edition}
+            missing={`No readiness template for requirements ${scope.edition} is installed. Govern ships one for v3.3: an owner can install it from the templates page, or change the scope's edition.`}
+          />
+        ) : null}
       </section>
 
       {hidden > 0 ? (

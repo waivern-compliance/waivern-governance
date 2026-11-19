@@ -80,8 +80,14 @@ export const option = z.object({
   value: z.string().min(1),
   label: z.string().min(1),
   /** Contribution to a weighted score, where the template scores that way. */
-  weight: z.number().optional()
+  weight: z.number().optional(),
+  /**
+   * What choosing this option says about the requirements its question tests
+   * (`controls`). Every option of such a question says one or the other.
+   */
+  meets: z.enum(['met', 'not_met', 'not_applicable']).optional()
 });
+export type RequirementAnswer = NonNullable<z.infer<typeof option>['meets']>;
 
 export const question = z.object({
   key: z.string().regex(/^[a-z][a-z0-9_]*$/, 'keys are lower_snake_case'),
@@ -102,7 +108,17 @@ export const question = z.object({
   /** Codes into the legal reference library, rendered beside the question. */
   legalRefs: z.array(z.string()).default([]),
   evidence: z.enum(['none', 'optional', 'required']).default('none'),
-  placeholder: z.string().optional()
+  placeholder: z.string().optional(),
+  /**
+   * The requirement codes of a control framework this question tests, such as
+   * Cyber Essentials' `UAC.MFA_CLOUD`. A yes-or-no question meets them on yes;
+   * a single choice says per option (`option.meets`). Optional rather than
+   * defaulted, like everything added after templates were first published, so
+   * a stored definition still compares equal to what Waivern ships.
+   */
+  controls: z.array(z.string().min(1)).min(1).optional(),
+  /** Not meeting what this question tests fails the whole assessment. Needs `controls`. */
+  autoFail: z.boolean().optional()
 });
 export type Question = z.infer<typeof question>;
 
@@ -158,6 +174,25 @@ export const scoringConfig = z.discriminatedUnion('method', [
     /** Questions whose selected options carry weights. */
     questions: z.array(z.string()).min(1),
     bands: z.array(scoreBand).min(1)
+  }),
+  z.object({
+    /**
+     * Pass or fail per requirement, for a certification scheme: the score is
+     * how many requirements the answers leave unmet, and the bands say what
+     * that count means. Not a risk score, which is why a single automatic
+     * fail decides the outcome however few others are missed.
+     */
+    method: z.literal('requirements'),
+    /**
+     * The framework and edition whose requirement codes the questions name,
+     * such as `cyber_essentials:v3.3`. Codes carry over between editions while
+     * what they ask changes, so answers are read against the edition they
+     * were given for, never whichever one the subject is on now.
+     */
+    framework: z.string().min(1),
+    bands: z.array(scoreBand).min(1),
+    /** The outcome when any `autoFail` question is not met. */
+    autoFailBand: scoreBand
   }),
   z.object({
     method: z.literal('none')

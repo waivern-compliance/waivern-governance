@@ -9,10 +9,12 @@ import {
   shippedWorkflowsMissing,
   workflowsFor
 } from '@/services/approval-routing';
+import type { TemplateKind } from '@/services/templates';
 
 import { installWorkflowsAction, resetWorkflowAction } from './actions';
 import { AddStageForm, StageForm } from './StageForm';
 
+/** Kinds named in full: this page is where an approval route is set up. */
 const KIND_LABEL: Record<string, string> = {
   screening: 'Screening',
   dpia: 'Data protection impact assessment',
@@ -21,8 +23,11 @@ const KIND_LABEL: Record<string, string> = {
   tia: 'Transfer impact assessment',
   ai_risk: 'AI risk assessment',
   supplier_record: 'Supplier assessment',
-  eia: 'Equality impact assessment'
-};
+  eia: 'Equality impact assessment',
+  breach: 'Breach severity assessment',
+  cyber_essentials: 'Cyber Essentials readiness',
+  custom: 'Custom template'
+} satisfies Record<TemplateKind, string>;
 
 /**
  * Who approves what.

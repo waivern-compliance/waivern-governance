@@ -1,4 +1,5 @@
 import type { Answers, EvaluationResult } from './logic';
+import { requirementOutcomes } from './requirements';
 import type { ScoreBand, ScoringConfig, TemplateSchema } from './schema';
 
 export type RiskTier = ScoreBand['tier'];
@@ -72,6 +73,29 @@ export function score(
         { question: config.likelihoodQuestion, value: l, contribution: lScore },
         { question: config.impactQuestion, value: i, contribution: iScore }
       ]
+    };
+  }
+
+  if (config.method === 'requirements') {
+    const outcomes = requirementOutcomes(schema, answers, evaluation);
+    if (outcomes.some((o) => o.status === 'unknown')) {
+      return { scored: false, reason: 'incomplete' };
+    }
+    const unmet = outcomes.filter((o) => o.status === 'not_met');
+    const band = unmet.some((o) => o.autoFailed)
+      ? config.autoFailBand
+      : bandFor(config.bands, unmet.length);
+    if (!band) return { scored: false, reason: 'incomplete' };
+    return {
+      scored: true,
+      score: unmet.length,
+      band,
+      // Each unmet requirement, through the first question that missed it.
+      components: unmet.map((o) => ({
+        question: o.questions.find((q) => q.answer === 'not_met')!.key,
+        value: o.code,
+        contribution: 1
+      }))
     };
   }
 

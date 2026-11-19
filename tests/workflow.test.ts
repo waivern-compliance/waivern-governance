@@ -789,6 +789,8 @@ describe('default workflows', () => {
       'ai_risk',
       // The organisation's own templates and the Irish provider checklist.
       'custom',
+      // Signed off for the board, as the scheme asks.
+      'cyber_essentials',
       'dpia',
       'eia',
       'screening',

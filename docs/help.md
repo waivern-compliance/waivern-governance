@@ -48,7 +48,7 @@ Every help topic the application carries, in the order it presents them.
 - [The AI assurance chain](#the-ai-assurance-chain) - Each AI system drawn through to what was done about it - and, more usefully, where that chain stops.
 - [AI incidents and concerns](#ai-incidents-and-concerns) - Reports about AI systems - failures, harm, challenges to outcomes and concerns - each handled by a named person.
 - [NIST AI RMF profile](#nist-ai-rmf-profile) - Where the organisation stands against each of NIST AI RMF's 72 subcategories, where it means to be, and the gap between.
-- [Cyber Essentials](#cyber-essentials) - The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, and the scopes you prepare for certification.
+- [Cyber Essentials](#cyber-essentials) - The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, the scopes you prepare for certification and their readiness.
 - [Algorithmic transparency records](#algorithmic-transparency-records) - The public record of how an AI system is used, in the Algorithmic Transparency Recording Standard's own fields.
 - [Countries, UK approval and transfers](#countries-uk-approval-and-transfers) - One shared library of destinations, with UK approval, EU adequacy and transfer risk, and a date showing when each was last checked by a person.
 - [Supervisory authorities](#supervisory-authorities) - The UK's regulator and each EEA State's data protection authorities, as Govern names them on complaints, refusals and an entity's lead authority.
@@ -1609,7 +1609,7 @@ The profile is there whichever framework the organisation follows, so an organis
 
 ## Cyber Essentials
 
-*The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, and the scopes you prepare for certification.*
+*The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, the scopes you prepare for certification and their readiness.*
 
 **Screen:** `/app/cyber-essentials`
 
@@ -1647,6 +1647,16 @@ Record alike devices as one asset with how many there are, such as one laptop bu
 
 Under Before assessment, the scope lists what still stands in the way: no end-user devices in scope; cloud services of the covered entities not yet in it; for a whole-organisation scope, assets of the covered entities neither in nor left out; anything in scope out of vendor support; anything in scope since retired. Each names the rule it comes from. Adding, changing and placing are all audited. Removing an entity from a scope takes its assets off the scope's lists.
 
+### Readiness
+
+Turning Cyber Essentials on installs the readiness template, Cyber Essentials readiness (v3.3, Danzell), and a sign-off workflow for it: the scheme asks a board member or someone equivalent to sign the self-assessment off, so a readiness assessment goes to an approver. If either was deleted, install it again from the templates or workflows page.
+
+Start a readiness assessment from the scope's page, not from the assessments list: it belongs to the scope and to its home entity, and is answered with a template for the edition the scope is prepared against. While one is being answered or awaiting sign-off, the scope's page links to it instead of starting another. Its sections follow the question set's order - organisation, scope, firewalls, secure configuration, security update management, user access control and malware protection - leaving out insurance, which tests no control. Each question is in Govern's words, cites the NCSC requirement it tests, and names the part of IASME's question set it corresponds to, so you can carry your answers across to the assessment portal. Where a requirement may not apply, the question offers not applicable; say why in the notes.
+
+The outcome is not a risk score. It counts the requirements your answers leave unmet: none is ready to apply, one to three is not ready with a few requirements to meet, and four or more is not ready. A no to a question the question set fails outright - critical and high-risk updates within 14 days, or MFA on every cloud service - makes the outcome not ready with an automatic fail, however few others are missed.
+
+Once a readiness assessment is submitted, the scope's page shows the outcome and links to its status by requirement: each requirement of the scope's edition, met, not met, not applicable or not asked, with the questions that tested it and how each was answered. It is read from the answers as they were submitted, so changes to an assessment sent back for more work show once it is submitted again. It also says where sign-off stands, such as rejected at sign-off, and reads the answers against the edition they were given for: if the scope's edition changes afterwards, the page says so, and the scope needs assessing again. A requirement under a question that was not asked, such as the firewall administration interface when nobody said it is reachable from the internet, is not applicable rather than unmet.
+
 ### Wording and codes
 
 The requirements are in Govern's words, not NCSC's, with the page of NCSC's document each comes from, so you can check them against the source. IASME's question set is not reproduced.
@@ -1655,7 +1665,7 @@ Each requirement has a code, such as ce:v3.3:UAC.MFA_CLOUD. Put it in a mitigati
 
 **See also:** The risk register · Third parties and processor agreements (Article 28) · Information asset register
 
-<sub>Also searchable as: cyber essentials, cyber essentials plus, ce plus, ncsc, iasme, danzell, willow, firewall, secure configuration, patching, security updates, mfa, multi-factor authentication, malware, byod, certification scope, ppn 014</sub>
+<sub>Also searchable as: cyber essentials, cyber essentials plus, ce plus, ncsc, iasme, danzell, willow, firewall, secure configuration, patching, security updates, mfa, multi-factor authentication, malware, byod, certification scope, readiness, self-assessment, automatic fail, ppn 014</sub>
 
 ## Algorithmic transparency records
 

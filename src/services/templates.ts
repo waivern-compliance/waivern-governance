@@ -4,6 +4,7 @@ import { db, withOrganisation } from '@/db/client';
 import {
   entities,
   legalReferences,
+  organisations,
   templates,
   templateVersions
 } from '@/db/schema';
@@ -362,7 +363,7 @@ export async function publishVersion(input: {
 export async function shippedTemplatesMissing(organisationId: string) {
   const framework = await aiFrameworkOf(organisationId);
   return withOrganisation(organisationId, async () => {
-    const [held, owned] = await Promise.all([
+    const [held, owned, [org]] = await Promise.all([
       db
         .select({ name: templates.name })
         .from(templates)
@@ -379,7 +380,11 @@ export async function shippedTemplatesMissing(organisationId: string) {
           law: entities.dataProtectionLaw
         })
         .from(entities)
-        .where(eq(entities.organisationId, organisationId))
+        .where(eq(entities.organisationId, organisationId)),
+      db
+        .select({ cyberEssentials: organisations.cyberEssentials })
+        .from(organisations)
+        .where(eq(organisations.id, organisationId))
     ]);
     const names = new Set(held.map((h) => h.name));
     const competent = owned.some((e) => e.competentAuthority);
@@ -393,7 +398,8 @@ export async function shippedTemplatesMissing(organisationId: string) {
           aiFramework: framework,
           competentAuthority: competent,
           ukLaw,
-          irishProvider
+          irishProvider,
+          cyberEssentials: org?.cyberEssentials ?? false
         })
     );
   });
@@ -431,6 +437,8 @@ export async function installShippedTemplates(input: {
   kinds?: KindLimit;
   /** Install only the templates tied to this AI governance framework. */
   aiFramework?: AiFrameworkId;
+  /** Install only the Cyber Essentials templates. */
+  cyberEssentials?: true;
   actor: Actor;
 }) {
   return withOrganisation(input.organisationId, async () => {
@@ -440,6 +448,7 @@ export async function installShippedTemplates(input: {
     for (const t of await shippedTemplatesMissing(input.organisationId)) {
       if (input.kinds && !input.kinds.includes(t.kind)) continue;
       if (input.aiFramework && t.aiFramework !== input.aiFramework) continue;
+      if (input.cyberEssentials && !t.cyberEssentials) continue;
       const { version } = await createTemplate({
         organisationId: input.organisationId,
         kind: t.kind,
