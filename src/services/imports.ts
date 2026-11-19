@@ -105,7 +105,9 @@ import {
   ENTITY_SCOPED,
   FIELDS,
   guessMapping,
-  TRANSLATED,
+  knownChoice,
+  RATINGS,
+  translates,
   type RecordType
 } from '@/lib/import/fields';
 import {
@@ -436,42 +438,62 @@ function cutOffDate(given: string): string {
   return given;
 }
 
-/** At most this many values are offered for translation per field. */
+/** At most this many values not yet said are offered per field at once. */
 const TRANSLATION_LIMIT = 40;
 
-/** The values each translated field's column holds, as written, without repeats. */
+/**
+ * The values to say the meaning of in each matched column, as written, without
+ * repeats: every value of a rating, and those of a choice that Govern does not
+ * already read as one of its values. Those already said are always listed,
+ * so they can be seen and changed; those not yet said, up to the limit, so a
+ * file with more is worked through a round at a time. `beyond` names the
+ * fields with more still to come.
+ */
 function valuesIn(
   table: Table,
   recordType: RecordType,
   mapping: ImportMapping
-): Record<string, string[]> {
+): { found: Record<string, string[]>; beyond: string[] } {
   const found: Record<string, string[]> = {};
+  const beyond: string[] = [];
   for (const f of FIELDS[recordType]) {
-    if (!TRANSLATED.has(f.key) || !mapping.fields[f.key]) continue;
+    if (!translates(f) || !mapping.fields[f.key]) continue;
     const at = table.columns.indexOf(mapping.fields[f.key]);
+    const said = mapping.values?.[f.key] ?? {};
     const seen = new Map<string, string>();
+    let unsaid = 0;
     for (const cells of table.rows) {
       const v = String(cells[at] ?? '').trim();
-      if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
-      if (seen.size >= TRANSLATION_LIMIT) break;
+      const key = v.toLowerCase();
+      if (!v || seen.has(key)) continue;
+      if (f.kind === 'choice' && knownChoice(f, v)) continue;
+      if (!said[key]) {
+        if (unsaid >= TRANSLATION_LIMIT) {
+          if (!beyond.includes(f.key)) beyond.push(f.key);
+          continue;
+        }
+        unsaid += 1;
+      }
+      seen.set(key, v);
     }
     found[f.key] = [...seen.values()].sort((a, b) =>
       a.localeCompare(b, 'en', { numeric: true })
     );
   }
-  return found;
+  return { found, beyond };
 }
 
 /**
- * The values each translated field's column held at the last preview, for a
- * person to say what each is on this organisation's scale. With the scale,
- * for the choices.
+ * The values each rating or choice column held at the last preview that a
+ * person should say the meaning of: a rating on this organisation's scale,
+ * given with it, and a choice as one of Govern's values.
  */
 export async function valuesToTranslate(
   organisationId: string,
   batchId: string
 ): Promise<{
-  scale: RiskScaleId;
+  /** The organisation's risk scale, where a rating is among them. */
+  scale: RiskScaleId | null;
   fields: Array<{ key: string; values: string[] }>;
 }> {
   return withOrganisation(organisationId, async () => {
@@ -484,13 +506,13 @@ export async function valuesToTranslate(
           eq(importBatches.organisationId, organisationId)
         )
       );
-    const scale = await riskScaleOf(organisationId);
-    return {
-      scale,
-      fields: Object.entries(batch?.found ?? {})
-        .filter(([, values]) => values.length > 0)
-        .map(([key, values]) => ({ key, values }))
-    };
+    const fields = Object.entries(batch?.found ?? {})
+      .filter(([, values]) => values.length > 0)
+      .map(([key, values]) => ({ key, values }));
+    const scale = fields.some((f) => RATINGS.has(f.key))
+      ? await riskScaleOf(organisationId)
+      : null;
+    return { scale, fields };
   });
 }
 
@@ -3498,24 +3520,28 @@ export async function previewImport(input: {
       // Ratings may share a column: a source that gives one rating ("High")
       // has it read as both likelihood and impact, each translated.
       const used = Object.entries(fields)
-        .filter(([key]) => !TRANSLATED.has(key))
+        .filter(([key]) => !RATINGS.has(key))
         .map(([, column]) => column);
       const twice = used.find((c, i) => used.indexOf(c) !== i);
       if (twice)
         throw new ImportRefused(
           `"${twice}" is matched to two fields. Match each column to one.`
         );
+      // A rating is said as a point on the scale; a choice as one of its own
+      // values. Anything else is dropped rather than saved for the source.
       const values = Object.fromEntries(
-        Object.entries(input.mapping.values ?? {})
-          .filter(([key]) => TRANSLATED.has(key) && fields[key])
-          .map(([key, table]) => [
-            key,
-            Object.fromEntries(
-              Object.entries(table)
-                .filter(([, v]) => /^\d$/.test(v))
-                .map(([k, v]) => [k.trim().toLowerCase(), v])
+        Object.entries(input.mapping.values ?? {}).flatMap(([key, table]) => {
+          const f = defs.find((d) => d.key === key);
+          if (!f || !translates(f) || !fields[key]) return [];
+          const kept = Object.entries(table)
+            .filter(([, v]) =>
+              f.kind === 'rating'
+                ? /^\d$/.test(v)
+                : (f.choices ?? []).some((c) => c.value === v)
             )
-          ])
+            .map(([k, v]) => [k.trim().toLowerCase(), v]);
+          return kept.length ? [[key, Object.fromEntries(kept)]] : [];
+        })
       );
       const mapping: ImportMapping = {
         fields,
@@ -3607,14 +3633,21 @@ export async function previewImport(input: {
       for (let i = 0; i < rows.length; i += 500)
         await tx.insert(importRows).values(rows.slice(i, i + 500));
       const counts = tally(rows.map((r) => r.action as Action));
+      const toSay = valuesIn(table, batch.recordType, mapping);
       await tx
         .update(importBatches)
         .set({
           status: 'previewed',
           mapping,
           counts,
-          valuesFound: valuesIn(table, batch.recordType, mapping),
-          previewNotes: CASE_HISTORY.has(batch.recordType) ? { overdue } : null
+          valuesFound: toSay.found,
+          previewNotes:
+            CASE_HISTORY.has(batch.recordType) || toSay.beyond.length
+              ? {
+                  ...(CASE_HISTORY.has(batch.recordType) ? { overdue } : {}),
+                  ...(toSay.beyond.length ? { valuesBeyond: toSay.beyond } : {})
+                }
+              : null
         })
         .where(eq(importBatches.id, batch.id));
       await tx

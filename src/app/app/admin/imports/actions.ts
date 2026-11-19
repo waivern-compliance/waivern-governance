@@ -94,7 +94,7 @@ export async function previewImportAction(
   const { organisationId, actor } = await importer();
   // Every "field:" choice; the service keeps those its batch's type has.
   const fields: Record<string, string> = {};
-  // "value:<field>:<as written>" is what a person said a rating is here.
+  // "value:<field>:<as written>" is what a person said a rating or choice is here.
   const values: Record<string, Record<string, string>> = {};
   // "every:<value>" in a field's choice is one value for every row.
   const everyRow: Record<string, string> = {};

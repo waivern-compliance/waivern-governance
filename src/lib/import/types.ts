@@ -21,9 +21,11 @@ export type ImportMapping = {
   /** Keep the columns no field reads, with the record, to read later. */
   keepUnmapped: boolean;
   /**
-   * For a field whose values mean something only on the source's own scale,
-   * such as a risk rating of "High": what each value is here, as a person
-   * chose it. Keyed by field, then by the value as written, in lower case.
+   * For a field whose values mean something only in the source's own terms,
+   * such as a risk rating of "High" or a status of "In review": what each
+   * value is here, as a person chose it (a point on the scale, or one of the
+   * choice's values). Keyed by field, then by the value as written, in lower
+   * case.
    */
   values?: Record<string, Record<string, string>>;
   /**

@@ -7,7 +7,7 @@ import {
   CARRIES_FILES,
   CASE_HISTORY,
   FIELDS,
-  TRANSLATED
+  translates
 } from '@/lib/import/fields';
 import { mayImport } from '@/lib/rbac';
 import { SCALES } from '@/lib/risk/scale';
@@ -34,6 +34,7 @@ import {
   recordHref,
   STATUS_LABEL
 } from '../words';
+import { ValueTranslations } from './ValueTranslations';
 
 const when = (d: Date) => d.toISOString().slice(0, 16).replace('T', ' ');
 
@@ -70,11 +71,32 @@ export default async function ImportBatchPage({
 
   const defs = FIELDS[batch.recordType];
   const open = batch.status === 'uploaded' || batch.status === 'previewed';
-  // Ratings on the source's own scale, offered once their columns are matched.
+  // Ratings on the source's own scale, and choices in its own words, offered
+  // once their columns are matched.
   const translating =
-    open && defs.some((f) => TRANSLATED.has(f.key))
+    open && defs.some(translates)
       ? await valuesToTranslate(org, batch.id)
       : null;
+  const beyond = new Set(batch.previewNotes?.valuesBeyond ?? []);
+  const valueFields = (
+    kind: 'rating' | 'choice',
+    optionsFor: (key: string) => Array<{ value: string; label: string }>
+  ) =>
+    (translating?.fields ?? []).flatMap(({ key, values }) => {
+      const field = defs.find((f) => f.key === key);
+      return field?.kind === kind
+        ? [
+            {
+              key,
+              label: field.label,
+              values,
+              options: optionsFor(key),
+              said: mapping.values?.[key] ?? {},
+              more: beyond.has(key)
+            }
+          ]
+        : [];
+    });
   const written = rows.filter((r) =>
     ['create', 'update', 'merge'].includes(r.action)
   ).length;
@@ -274,61 +296,34 @@ export default async function ImportBatchPage({
                 />
               </label>
             ) : null}
-            {translating && translating.fields.length > 0 ? (
-              <div className="space-y-3 rounded border border-line bg-surface p-4">
-                <p className="max-w-prose text-sm">
-                  <span className="font-medium">What each rating is here.</span>{' '}
-                  <span className="text-ink-soft">
-                    This organisation rates risks on the{' '}
-                    {SCALES[translating.scale].inSentence} scale. Say what each
-                    value in the file is on it. A number or word already on the
-                    scale is read as it is; a value left unsaid stops its row.
-                  </span>
-                </p>
-                {translating.fields.map(({ key, values }) => {
-                  const field = defs.find((f) => f.key === key)!;
-                  const axis = /impact/i.test(key) ? 'impact' : 'likelihood';
-                  const points = SCALES[translating.scale][axis];
-                  return (
-                    <fieldset
-                      key={key}
-                      className="space-y-1"
-                    >
-                      <legend className="text-sm font-medium">
-                        {field.label}
-                      </legend>
-                      <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-                        {values.map((v) => (
-                          <label
-                            key={v}
-                            className="flex items-center justify-between gap-3 text-sm"
-                          >
-                            <span className="truncate">{v}</span>
-                            <select
-                              name={`value:${key}:${v.toLowerCase()}`}
-                              defaultValue={
-                                mapping.values?.[key]?.[v.toLowerCase()] ?? ''
-                              }
-                              className={`${inputClass} max-w-48`}
-                            >
-                              <option value="">As written</option>
-                              {points.map((p) => (
-                                <option
-                                  key={p.value}
-                                  value={String(p.value)}
-                                >
-                                  {p.value} {p.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                  );
-                })}
-              </div>
+            {translating?.scale ? (
+              <ValueTranslations
+                title="What each rating is here."
+                intro={`This organisation rates risks on the ${
+                  SCALES[translating.scale].inSentence
+                } scale. Say what each value in the file is on it. A number or word already on the scale is read as it is; a value left unsaid stops its row.`}
+                emptyLabel="As written"
+                fields={valueFields('rating', (key) =>
+                  SCALES[translating.scale!][
+                    /impact/i.test(key) ? 'impact' : 'likelihood'
+                  ].map((p) => ({
+                    value: String(p.value),
+                    label: `${p.value} ${p.label}`
+                  }))
+                )}
+              />
             ) : null}
+            <ValueTranslations
+              title="What each value means here."
+              intro="These values are not ones Govern knows. Say what each one is; your choices are kept for the next file from this source. A value left unsaid stops its row."
+              emptyLabel="Not said"
+              fields={valueFields('choice', (key) =>
+                (defs.find((f) => f.key === key)?.choices ?? []).map((c) => ({
+                  value: c.value,
+                  label: c.label
+                }))
+              )}
+            />
             {CASE_HISTORY.has(batch.recordType) ? (
               <p className="max-w-prose text-xs text-ink-soft">
                 Columns no field reads are not kept. They are mostly about the

@@ -2313,7 +2313,8 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: [
           "Under Settings, an owner or privacy administrator uploads an export: a CSV file or an Excel workbook, with column names in the first row, up to 5,000 rows. Say what it holds (processing activities, suppliers and vendors, processor agreements, evidence, or AI systems) and which platform it comes from. Then match each of Govern's fields to the column that holds it; columns are matched by their names to start with, so check them.",
           'Preview shows what every row would become: new, an update to a record imported before, added to a supplier already recorded, or not imported, with the reason. Nothing is written until you import, and then every previewed record is written in one step, or none is.',
-          'Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.'
+          'Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.',
+          'A value for a field with set choices, such as a status, a stage or a type of AI system, is read when it is one of Govern\'s values or a common word for one. A platform\'s own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.'
         ]
       },
       {
@@ -2328,7 +2329,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'AI systems',
         body: [
-          'Each AI system needs a name, a purpose, its type (predictive, generative, agentic or hybrid) and where it comes from (built in house, fine-tuned, a third-party API, or inside a product bought for something else). Common words for these, such as "LLM" or "in house", are understood; anything else stops that row. A stage, such as live or pilot, is used when a system is first recorded; importing again never moves its stage, which is a decision with its own checks here. A system an import registers stays on the register for good, as every registered system does, so an import that registered AI systems cannot be undone: retire one registered in error from its page.'
+          'Each AI system needs a name, a purpose, its type (predictive, generative, agentic or hybrid) and where it comes from (built in house, fine-tuned, a third-party API, or inside a product bought for something else). Common words for these, such as "LLM" or "in house", are understood; for anything else, say what it means on the matching step. A stage, such as live or pilot, is used when a system is first recorded; importing again never moves its stage, which is a decision with its own checks here. A system an import registers stays on the register for good, as every registered system does, so an import that registered AI systems cannot be undone: retire one registered in error from its page.'
         ]
       },
       {
