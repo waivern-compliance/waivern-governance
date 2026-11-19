@@ -71,6 +71,36 @@ export const SIGN_OFF: Partial<Record<AssessmentStatus, string>> = {
   superseded: 'since reassessed'
 };
 
+/**
+ * A mitigation naming a requirement, on a risk that concerns the scope. A
+ * verified one is evidence the requirement is in place; it sits beside the
+ * readiness answer and never replaces it.
+ */
+export type ReadinessMitigation = {
+  code: string;
+  mitigationId: string;
+  description: string;
+  status: 'planned' | 'in_progress' | 'implemented' | 'verified' | 'abandoned';
+  dueAt: Date | null;
+  verifiedAt: Date | null;
+  riskId: string;
+  riskReference: string;
+  riskStatus: string;
+};
+
+/** The mitigation already treating a requirement, so a second risk is not raised for it. */
+export function treatingNow(
+  treated: readonly ReadinessMitigation[],
+  code: string
+): ReadinessMitigation | null {
+  return (
+    treated.find(
+      (t) =>
+        t.code === code && t.riskStatus !== 'closed' && t.status !== 'abandoned'
+    ) ?? null
+  );
+}
+
 export type ReadinessRow = {
   code: string;
   summary: string;
@@ -79,6 +109,8 @@ export type ReadinessRow = {
   /** The edition fails the whole assessment on this requirement. */
   autoFail: boolean;
   questions: RequirementOutcome['questions'];
+  /** Mitigations naming this requirement, on risks about the scope. */
+  mitigations: ReadinessMitigation[];
 };
 
 export type ReadinessGroup = {
@@ -94,10 +126,11 @@ export type Readiness = {
   autoFailed: boolean;
 };
 
-/** The edition's scope rules, then each theme's requirements, with their status. */
+/** The edition's scope rules, then each theme's requirements, with their status and mitigations. */
 export function readinessOf(
   edition: CeEditionId,
-  outcomes: readonly RequirementOutcome[]
+  outcomes: readonly RequirementOutcome[],
+  treated: readonly ReadinessMitigation[] = []
 ): Readiness {
   const byCode = new Map(outcomes.map((o) => [o.code, o]));
   const row = (r: {
@@ -112,7 +145,8 @@ export function readinessOf(
       page: r.pages[edition]!,
       status: outcome?.status ?? 'not_asked',
       autoFail: isAutoFail(edition, r.code),
-      questions: outcome?.questions ?? []
+      questions: outcome?.questions ?? [],
+      mitigations: treated.filter((t) => t.code === r.code)
     };
   };
   const requirements = requirementsOf(edition);

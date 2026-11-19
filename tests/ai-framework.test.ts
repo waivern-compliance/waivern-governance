@@ -37,10 +37,11 @@ describe('the UK framework pack', () => {
     }
   });
 
-  it('offers appetite for the default and each of its categories, and nothing else', () => {
+  it('offers appetite for the default, each of its categories and the general ones, and nothing else', () => {
     assert.deepEqual(scopesFor(UK_DSIT), [
       'default',
-      ...AI_RISK_CATEGORIES.map((c) => c.value)
+      ...AI_RISK_CATEGORIES.map((c) => c.value),
+      'cyber_security'
     ]);
     assert.ok(isScope('fairness', UK_DSIT));
     assert.ok(isScope('default', UK_DSIT));

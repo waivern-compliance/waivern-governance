@@ -124,6 +124,7 @@ import type {
   SourceEvent
 } from '@/lib/import/types';
 import { nextReference } from '@/lib/references';
+import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
 import { rate, SCALES, type RiskScaleId } from '@/lib/risk/scale';
 
 import { createUseCase } from './ai-register';
@@ -1290,14 +1291,17 @@ async function entityRecordsByName(
     null;
 }
 
-/** An AI risk category by its key or label, or the category as written. */
+/** A known risk category by its key or label, or the category as written. */
 function categoryOf(given: string | undefined): string | null {
   const v = given?.trim();
   if (!v) return null;
-  for (const pack of Object.values(AI_FRAMEWORKS))
-    for (const c of pack.categories)
-      if (c.value === v.toLowerCase() || loose(c.label) === loose(v))
-        return c.value;
+  const known = [
+    ...Object.values(AI_FRAMEWORKS).flatMap((p) => p.categories),
+    ...GENERAL_CATEGORIES
+  ];
+  for (const c of known)
+    if (c.value === v.toLowerCase() || loose(c.label) === loose(v))
+      return c.value;
   return v;
 }
 

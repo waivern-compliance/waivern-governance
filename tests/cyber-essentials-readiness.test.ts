@@ -374,7 +374,8 @@ describe("a scope's readiness", () => {
     assert.deepEqual(await scopeReadiness(org.id, scope.id), {
       submitted: null,
       outcomes: [],
-      open: null
+      open: null,
+      treated: []
     });
 
     const assessment = await createAssessment({

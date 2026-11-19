@@ -4595,6 +4595,10 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "runs in the caller's transaction, once the caller has established the record is the organisation's",
   'documents.recordDownload':
     'given a document already read within the organisation',
+  'risks.insertRisk':
+    "called inside a caller's transaction, with that caller's organisation; checks the entity, owner and assessment belong to it",
+  'risks.insertMitigation':
+    "called inside a caller's transaction, with that caller's organisation; finds the risk only within it",
   'risks.liveAcceptance': 'not called by the application',
   'templates.activeVersion': 'not called by the application',
   'templates.assertSinglePublishedVersion': 'not called by the application',
@@ -4940,8 +4944,22 @@ describe('Cyber Essentials scopes', () => {
     assert.deepEqual(await cyberSvc.scopeReadiness(B.org.id, scope.id), {
       submitted: null,
       outcomes: [],
-      open: null
+      open: null,
+      treated: []
     });
+    await assert.rejects(
+      cyberSvc.raiseReadinessRisk({
+        organisationId: B.org.id,
+        scopeId: scope.id,
+        code: 'UAC.MFA_CLOUD',
+        title: 'From the other organisation',
+        description: 'Should not be raised',
+        likelihood: 3,
+        impact: 3,
+        mitigation: { description: 'Nothing' },
+        actor: as()
+      })
+    );
     assert.deepEqual(changed(before, await bSnapshot()), []);
     await cyberSvc.setCyberEssentials({
       organisationId: A.org.id,

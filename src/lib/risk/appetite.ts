@@ -1,5 +1,6 @@
 import { categoryLabel, type AiFrameworkPack } from '@/lib/ai-frameworks';
 
+import { GENERAL_CATEGORIES, generalCategory } from './general-categories';
 import { tierRank, type RiskTier } from './scale';
 
 /**
@@ -47,9 +48,28 @@ export const SUGGESTED_TOLERANCE: Record<AppetiteLevel, RiskTier> = {
   open: 'high'
 };
 
-/** The scopes an organisation sets appetite for: the default, then each of its framework's categories. */
+/**
+ * The scopes an organisation sets appetite for: the default, each of its
+ * framework's categories, then the categories offered whatever the framework.
+ */
 export function scopesFor(pack: AiFrameworkPack): AppetiteScope[] {
-  return ['default', ...pack.categories.map((c) => c.value)];
+  return [
+    'default',
+    ...pack.categories.map((c) => c.value),
+    ...GENERAL_CATEGORIES.map((c) => c.value)
+  ];
+}
+
+/** What each appetite level means for a category, from its framework or its own. */
+export function appetiteGuidanceFor(
+  scope: AppetiteScope,
+  pack: AiFrameworkPack
+): Partial<Record<AppetiteLevel, string>> {
+  return (
+    pack.appetiteGuidance[scope] ??
+    generalCategory(scope)?.appetiteGuidance ??
+    {}
+  );
 }
 
 /** "Fairness", or "the organisation default". */

@@ -12,6 +12,7 @@ import {
 import {
   createScope,
   placeAsset,
+  raiseReadinessRisk,
   scopeEntityOf,
   setCyberEssentials,
   unplaceAsset,
@@ -54,7 +55,10 @@ async function writerOf(id: string) {
 }
 
 const refresh = (id?: string) => {
-  if (id) revalidatePath(`/app/cyber-essentials/scopes/${id}`);
+  if (id) {
+    revalidatePath(`/app/cyber-essentials/scopes/${id}`);
+    revalidatePath(`/app/cyber-essentials/scopes/${id}/readiness`);
+  }
   revalidatePath('/app/cyber-essentials');
 };
 
@@ -146,5 +150,40 @@ export async function unplaceAssetAction(
       actor: actorOf(active)
     });
     refresh(id);
+  });
+}
+
+/** Confirm a risk proposed from a requirement the scope's readiness left unmet. */
+export async function raiseReadinessRiskAction(
+  id: string,
+  code: string,
+  _prev: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const session = await requireSession();
+    const entityId = await scopeEntityOf(session.membership.organisationId, id);
+    if (!entityId) throw new Error('No such scope.');
+    const active = await requireCapability('risk.manage', {
+      organisationId: session.membership.organisationId,
+      entityId
+    });
+    await raiseReadinessRisk({
+      organisationId: active.membership.organisationId,
+      scopeId: id,
+      code,
+      title: text(formData.get('title')),
+      description: text(formData.get('description')),
+      likelihood: Number(formData.get('likelihood')),
+      impact: Number(formData.get('impact')),
+      mitigation: {
+        description: text(formData.get('mitigation')),
+        ownerId: text(formData.get('ownerId')) || undefined,
+        dueAt: day(formData.get('dueAt')) ?? undefined
+      },
+      actor: actorOf(active)
+    });
+    refresh(id);
+    revalidatePath('/app/risks');
   });
 }

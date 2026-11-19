@@ -9,14 +9,25 @@ import {
   cyberScopes,
   entities,
   informationAssets,
+  mitigations,
   organisations,
+  recordLinks,
+  risks,
   templates,
   templateVersions,
   users
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import {
+  formatControlRef,
+  parseControlRef
+} from '@/lib/cyber-essentials/control-ref';
 import { editionInForce } from '@/lib/cyber-essentials/editions';
-import { editionAnswered } from '@/lib/cyber-essentials/readiness';
+import {
+  editionAnswered,
+  treatingNow,
+  type ReadinessMitigation
+} from '@/lib/cyber-essentials/readiness';
 import type { OutOfScopeReason } from '@/lib/cyber-essentials/scope';
 import {
   isOutOfScopeReason,
@@ -32,6 +43,7 @@ import { requirementOutcomes } from '@/lib/templates/requirements';
 
 import { installShippedWorkflows } from './approval-routing';
 import { activeMemberGrants, mayOpenIn } from './member-grants';
+import { insertMitigation, insertRisk } from './risks';
 import { installShippedTemplates, type Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
 
@@ -683,7 +695,8 @@ export async function scopeReadiness(organisationId: string, scopeId: string) {
         .filter((r) => r.submittedAt)
         .sort((a, b) => b.submittedAt!.getTime() - a.submittedAt!.getTime())
         .at(0) ?? null;
-    if (!submitted) return { submitted: null, outcomes: [], open };
+    const treated = await ceMitigationsOf(db, scopeId);
+    if (!submitted) return { submitted: null, outcomes: [], open, treated };
 
     const [[version], [revision]] = await Promise.all([
       db
@@ -726,7 +739,145 @@ export async function scopeReadiness(organisationId: string, scopeId: string) {
         edition: version ? editionAnswered(version.definition) : null
       },
       outcomes,
-      open
+      open,
+      treated
     };
   });
+}
+
+/**
+ * Mitigations naming a Cyber Essentials requirement (`ce:<edition>:<code>`),
+ * on risks that concern this scope. A verified one is evidence the
+ * requirement is in place; it is shown beside the readiness answer and never
+ * replaces it, since only a new assessment says the scope now meets it.
+ */
+async function ceMitigationsOf(
+  reader: Tx | typeof db,
+  scopeId: string
+): Promise<ReadinessMitigation[]> {
+  const rows = await reader
+    .select({
+      mitigationId: mitigations.id,
+      description: mitigations.description,
+      controlRef: mitigations.controlRef,
+      status: mitigations.status,
+      dueAt: mitigations.dueAt,
+      verifiedAt: mitigations.verifiedAt,
+      riskId: risks.id,
+      riskReference: risks.reference,
+      riskStatus: risks.status
+    })
+    .from(recordLinks)
+    .innerJoin(risks, eq(risks.id, recordLinks.fromId))
+    .innerJoin(mitigations, eq(mitigations.riskId, risks.id))
+    .where(
+      and(
+        eq(recordLinks.fromType, 'risk'),
+        eq(recordLinks.toType, 'cyber_scope'),
+        eq(recordLinks.toId, scopeId),
+        eq(recordLinks.relation, 'concerns')
+      )
+    )
+    .orderBy(asc(mitigations.createdAt));
+  return rows.flatMap((r) => {
+    const ref = parseControlRef(r.controlRef);
+    return ref ? [{ ...r, code: ref.requirement.code }] : [];
+  });
+}
+
+/**
+ * A risk raised from a requirement the scope's latest submitted readiness
+ * assessment left unmet, with the mitigation that puts it in place (decision
+ * 7). Proposed on the status page and raised only when a person confirms it,
+ * choosing the rating, who owns the mitigation and when it is due, so a
+ * readiness assessment never fills the register by itself.
+ *
+ * One transaction: the risk, filed as cyber security and tied to the
+ * assessment that found it, the link saying it concerns the scope, and the
+ * mitigation naming the requirement, which the status page reads back.
+ */
+export async function raiseReadinessRisk(input: {
+  organisationId: string;
+  scopeId: string;
+  code: string;
+  title: string;
+  description: string;
+  likelihood: number;
+  impact: number;
+  mitigation: { description: string; ownerId?: string; dueAt?: Date };
+  actor: Actor;
+}) {
+  if (!input.title || !input.description || !input.mitigation.description) {
+    throw new ScopeRefused(
+      'Give the risk a title and a description, and say what will be done.'
+    );
+  }
+  const read = await scopeReadiness(input.organisationId, input.scopeId);
+  const unmet = read.outcomes.find(
+    (o) => o.code === input.code && o.status === 'not_met'
+  );
+  if (!read.submitted?.edition || !unmet) {
+    throw new ScopeRefused(
+      "That requirement is not unmet in the scope's latest submitted readiness assessment."
+    );
+  }
+  const controlRef = formatControlRef(read.submitted.edition, input.code);
+  const assessmentId = read.submitted.id;
+
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      await assertEnabled(tx, input.organisationId);
+      const scope = await loadForWrite(tx, input.organisationId, input.scopeId);
+      const already = treatingNow(
+        await ceMitigationsOf(tx, scope.id),
+        input.code
+      );
+      if (already) {
+        throw new ScopeRefused(
+          `${already.riskReference} is already treating this requirement.`
+        );
+      }
+
+      const risk = await insertRisk(tx, {
+        organisationId: input.organisationId,
+        entityId: scope.entityId,
+        title: input.title,
+        description: input.description,
+        category: 'cyber_security',
+        likelihood: input.likelihood,
+        impact: input.impact,
+        ownerId: input.actor.actorUserId ?? undefined,
+        assessmentId,
+        actor: input.actor
+      });
+      await tx.insert(recordLinks).values({
+        organisationId: input.organisationId,
+        fromType: 'risk',
+        fromId: risk.id,
+        toType: 'cyber_scope',
+        toId: scope.id,
+        relation: 'concerns'
+      });
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'risk.linked',
+        subjectType: 'risk',
+        subjectId: risk.id,
+        entityId: scope.entityId,
+        after: { concerns: scope.reference, requirement: controlRef }
+      });
+      await insertMitigation(tx, {
+        riskId: risk.id,
+        organisationId: input.organisationId,
+        description: input.mitigation.description,
+        controlRef,
+        treatmentType: 'limitation',
+        ownerId: input.mitigation.ownerId,
+        dueAt: input.mitigation.dueAt,
+        actor: input.actor
+      });
+      return risk;
+    })
+  );
 }

@@ -8,7 +8,11 @@ import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { RiskTierBadge } from '@/components/RiskTierBadge';
-import { categoryLabel, frameworkOfSuggestion } from '@/lib/ai-frameworks';
+import {
+  categoryLabel,
+  sourceOfSuggestion,
+  treatmentsFor
+} from '@/lib/ai-frameworks';
 import { describeControlRef } from '@/lib/cyber-essentials/control-ref';
 import { can } from '@/lib/rbac';
 import { APPETITE_LEVEL_LABEL, judge, scopeLabel } from '@/lib/risk/appetite';
@@ -57,6 +61,7 @@ export default async function RiskPage({
     await appetiteInForce(active.membership.organisationId)
   );
   const framework = await aiFrameworkPackOf(active.membership.organisationId);
+  const offered = treatmentsFor(risk.category, framework);
   const grants = active.membership.grants;
 
   if (!can(grants, 'record.read', risk.entityId)) {
@@ -266,9 +271,7 @@ export default async function RiskPage({
                   dueAt: m.dueAt?.toISOString().slice(0, 10) ?? null,
                   evidenceRef: m.evidenceRef,
                   verifiedAt: m.verifiedAt?.toISOString().slice(0, 10) ?? null,
-                  fromSource:
-                    frameworkOfSuggestion(m.suggestionKey)?.treatmentSource
-                      .tag ?? null,
+                  fromSource: sourceOfSuggestion(m.suggestionKey)?.tag ?? null,
                   ownedByViewer:
                     m.ownerId !== null && m.ownerId === active.userId
                 }}
@@ -302,8 +305,8 @@ export default async function RiskPage({
           <MitigationForm
             action={addMitigationAction.bind(null, id)}
             categoryLabel={categoryLabel(risk.category)}
-            {...suggestionsFor(risk.category, framework.treatments)}
-            source={framework.treatmentSource}
+            {...suggestionsFor(risk.category, offered.treatments)}
+            source={offered.source}
           />
         ) : null}
       </section>

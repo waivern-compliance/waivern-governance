@@ -32,6 +32,7 @@ function SuggestionList({
               {s.theme} ·{' '}
               {s.toolkitType ??
                 (s.treatment ? TREATMENT_LABEL[s.treatment] : '')}
+              {s.controlRef ? ` · ${s.controlRef}` : ''}
             </span>
           </span>
           <button
@@ -69,6 +70,7 @@ export function MitigationForm({
   source: { name: string; detail: string };
 }) {
   const [description, setDescription] = useState('');
+  const [controlRef, setControlRef] = useState('');
   const [treatment, setTreatment] = useState<TreatmentType>('limitation');
   const [suggestion, setSuggestion] = useState<TreatmentSuggestion | null>(
     null
@@ -77,6 +79,7 @@ export function MitigationForm({
   function use(s: TreatmentSuggestion) {
     setDescription(s.text);
     if (s.treatment) setTreatment(s.treatment);
+    if (s.controlRef) setControlRef(s.controlRef);
     setSuggestion(s);
   }
 
@@ -86,6 +89,7 @@ export function MitigationForm({
         action={async (formData) => {
           await action(formData);
           setDescription('');
+          setControlRef('');
           setSuggestion(null);
         }}
         className="space-y-2 rounded border border-line bg-surface p-4"
@@ -131,7 +135,9 @@ export function MitigationForm({
             <input
               name="controlRef"
               placeholder="A.8.3"
-              className="w-48 rounded border border-line bg-ground px-3 py-2 font-mono text-sm"
+              value={controlRef}
+              onChange={(e) => setControlRef(e.target.value)}
+              className="w-56 rounded border border-line bg-ground px-3 py-2 font-mono text-sm"
             />
           </label>
           <label className="block space-y-1">

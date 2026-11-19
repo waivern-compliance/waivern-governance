@@ -7,12 +7,14 @@ import { can, scopedEntityIds } from '@/lib/rbac';
 import {
   APPETITE_LEVEL_LABEL,
   APPETITE_LEVELS,
+  appetiteGuidanceFor,
   PLATFORM_TOLERANCE,
   scopeLabel,
   scopesFor,
   SUGGESTED_TOLERANCE,
   type AppetiteLevel
 } from '@/lib/risk/appetite';
+import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
 import { getActiveSession } from '@/lib/session';
 import { aiFrameworkPackOf } from '@/services/ai-framework';
 import { appetiteHistory } from '@/services/risk-policy';
@@ -47,7 +49,10 @@ export default async function AppetitePage() {
     aiFrameworkPackOf(active.membership.organisationId)
   ]);
   const summary: Record<string, string> = Object.fromEntries(
-    framework.categories.map((c) => [c.value, c.summary])
+    [...framework.categories, ...GENERAL_CATEGORIES].map((c) => [
+      c.value,
+      c.summary
+    ])
   );
   const now = new Date();
 
@@ -184,7 +189,7 @@ export default async function AppetitePage() {
                       guidance:
                         scope === 'default'
                           ? null
-                          : (framework.appetiteGuidance[scope]?.[level] ??
+                          : (appetiteGuidanceFor(scope, framework)[level] ??
                             null),
                       suggestedTier: SUGGESTED_TOLERANCE[level]
                     }))}
