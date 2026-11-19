@@ -2437,6 +2437,10 @@ Somebody who already has access keeps what they have and gains the new role as w
 
 A role granted against an entity applies only there. An approver for BBC Studios cannot decide an approval elsewhere, and will be told a record belongs to another part of the organisation rather than shown an empty page.
 
+### What somebody is shown first
+
+Shows as sets a person's persona: which arrangement of the platform they see first. It never changes what they may do. Set can be pressed once you choose something other than what is saved, and Saved with a tick appears beside it when the change is kept. If it is refused, the reason appears underneath and your choice stays selected. The same pattern is used wherever one choice is saved with its own button.
+
 ### Suspending, and the last owner
 
 Suspending keeps the person and their history and stops them signing in. Reinstating restores exactly what they had.

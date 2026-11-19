@@ -1,5 +1,6 @@
 'use client';
 
+import { InlineSelectForm } from '@/components/InlineSelectForm';
 import {
   EntityAgreementFields,
   KeyTerms,
@@ -31,6 +32,22 @@ import {
 } from '../actions';
 import { EstablishmentForm } from './EstablishmentForm';
 import { Outcome } from './Outcome';
+
+const LAW_OPTIONS = (
+  Object.keys(DATA_PROTECTION_LAWS) as DataProtectionLaw[]
+).map((k) => ({ value: k, label: DATA_PROTECTION_LAWS[k] }));
+
+const COMPETENT_AUTHORITY_OPTIONS = [
+  { value: 'no', label: 'Not a competent authority' },
+  {
+    value: 'yes',
+    label: 'A competent authority; new records start under the UK GDPR'
+  },
+  {
+    value: 'part3',
+    label: 'A competent authority; new records start under Part 3'
+  }
+];
 
 type Entity = {
   id: string;
@@ -247,21 +264,9 @@ function EntityRow({
     setPublicAuthorityAction.bind(null, entity.id, !entity.publicAuthority),
     { resetOnSuccess: false }
   );
-  const competent = useRefusableAction<AdminResult>(
-    setCompetentAuthorityAction.bind(null, entity.id),
-    {
-      resetOnSuccess: false
-    }
-  );
   const foi = useRefusableAction<AdminResult>(
     setFreedomOfInformationAction.bind(null, entity.id),
     { resetOnSuccess: false }
-  );
-  const law = useRefusableAction<AdminResult>(
-    setDataProtectionLawAction.bind(null, entity.id),
-    {
-      resetOnSuccess: false
-    }
   );
   const uk = ukLawApplies(entity.dataProtectionLaw);
   const eu = appliesEu(entity.dataProtectionLaw);
@@ -333,41 +338,14 @@ function EntityRow({
       )}
       <Outcome result={rename.result} />
       <Outcome result={makeDefault.result} />
-      <form
-        key={savedKey(entity.dataProtectionLaw)}
-        {...law.formProps}
-        className="flex flex-wrap items-baseline gap-2 text-xs"
-      >
-        <label className="flex flex-wrap items-baseline gap-2">
-          <span className="text-ink-soft">
-            Data protection law it is subject to:
-          </span>
-          <select
-            name="dataProtectionLaw"
-            defaultValue={entity.dataProtectionLaw}
-            className="rounded border border-line bg-ground px-2 py-1 text-xs"
-          >
-            {(Object.keys(DATA_PROTECTION_LAWS) as DataProtectionLaw[]).map(
-              (k) => (
-                <option
-                  key={k}
-                  value={k}
-                >
-                  {DATA_PROTECTION_LAWS[k]}
-                </option>
-              )
-            )}
-          </select>
-        </label>
-        <button
-          type="submit"
-          disabled={law.pending}
-          className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-        >
-          Save
-        </button>
-      </form>
-      <Outcome result={law.result} />
+      <InlineSelectForm
+        action={setDataProtectionLawAction.bind(null, entity.id)}
+        name="dataProtectionLaw"
+        label="Data protection law it is subject to:"
+        value={entity.dataProtectionLaw}
+        options={LAW_OPTIONS}
+        look="compact"
+      />
       <EstablishmentForm
         entityId={entity.id}
         name={entity.name}
@@ -461,45 +439,20 @@ function EntityRow({
             </button>
           </form>
           <Outcome result={provider.result} />
-          <form
-            key={savedKey(entity.competentAuthority, entity.defaultRegime)}
-            {...competent.formProps}
-            className="flex flex-wrap items-baseline gap-2 text-xs"
-          >
-            <label className="flex flex-wrap items-baseline gap-2">
-              <span className="text-ink-soft">
-                Law enforcement (Data Protection Act 2018 Part 3, s.30):
-              </span>
-              <select
-                name="competentAuthority"
-                defaultValue={
-                  !entity.competentAuthority
-                    ? 'no'
-                    : entity.defaultRegime === 'dpa_part3'
-                      ? 'part3'
-                      : 'yes'
-                }
-                className="rounded border border-line bg-ground px-2 py-1 text-xs"
-              >
-                <option value="no">Not a competent authority</option>
-                <option value="yes">
-                  A competent authority; new records start under the UK GDPR
-                </option>
-                <option value="part3">
-                  A competent authority; new records start under Part 3
-                </option>
-              </select>
-            </label>
-            <button
-              type="submit"
-              disabled={competent.pending}
-              className="text-ink-soft underline-offset-2 hover:text-brand hover:underline disabled:opacity-50"
-            >
-              Save
-            </button>
-          </form>
-          <Outcome result={authority.result} />
-          <Outcome result={competent.result} />
+          <InlineSelectForm
+            action={setCompetentAuthorityAction.bind(null, entity.id)}
+            name="competentAuthority"
+            label="Law enforcement (Data Protection Act 2018 Part 3, s.30):"
+            value={
+              !entity.competentAuthority
+                ? 'no'
+                : entity.defaultRegime === 'dpa_part3'
+                  ? 'part3'
+                  : 'yes'
+            }
+            options={COMPETENT_AUTHORITY_OPTIONS}
+            look="compact"
+          />
           <form
             key={savedKey(
               entity.foiAct,

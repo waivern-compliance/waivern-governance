@@ -2721,6 +2721,12 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'What somebody is shown first',
+        body: [
+          "Shows as sets a person's persona: which arrangement of the platform they see first. It never changes what they may do. Set can be pressed once you choose something other than what is saved, and Saved with a tick appears beside it when the change is kept. If it is refused, the reason appears underneath and your choice stays selected. The same pattern is used wherever one choice is saved with its own button."
+        ]
+      },
+      {
         heading: 'Suspending, and the last owner',
         body: [
           'Suspending keeps the person and their history and stops them signing in. Reinstating restores exactly what they had.',
