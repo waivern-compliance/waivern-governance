@@ -59,6 +59,7 @@ import * as analyserSvc from '@/services/consent-analyser';
 import * as contractsSvc from '@/services/contracts';
 import * as contributorLinks from '@/services/contributor-links';
 import * as countries from '@/services/countries';
+import * as cyberSvc from '@/services/cyber-essentials';
 import * as dsr from '@/services/data-subject-requests';
 import * as documentsSvc from '@/services/documents';
 import * as domains from '@/services/domains';
@@ -4814,6 +4815,90 @@ describe('the supplier review cycle', () => {
       .from(suppliers)
       .where(eq(suppliers.id, B.partner.id));
     assert.equal(theirs.next?.getTime(), reviewed.getTime());
+  });
+});
+
+describe('Cyber Essentials scopes', () => {
+  it("are each organisation's own, and cannot cover or place another's records", async () => {
+    const before = await bSnapshot();
+    await cyberSvc.setCyberEssentials({
+      organisationId: A.org.id,
+      enabled: true,
+      actor: as()
+    });
+    assert.equal(await cyberSvc.cyberEssentialsEnabled(A.org.id), true);
+    assert.equal(await cyberSvc.cyberEssentialsEnabled(B.org.id), false);
+    const blank = {
+      name: 'Head office',
+      kind: 'whole_organisation',
+      boundary: null,
+      segregation: null,
+      exclusions: null,
+      entityIds: [],
+      ownerId: null,
+      nextReviewAt: null
+    };
+    await assert.rejects(
+      cyberSvc.createScope({
+        organisationId: A.org.id,
+        entityId: A.entity.id,
+        scope: { ...blank, entityIds: [B.entity.id] },
+        writable: null,
+        actor: as()
+      })
+    );
+    await assert.rejects(
+      cyberSvc.createScope({
+        organisationId: A.org.id,
+        entityId: B.entity.id,
+        scope: blank,
+        writable: null,
+        actor: as()
+      })
+    );
+    const scope = await cyberSvc.createScope({
+      organisationId: A.org.id,
+      entityId: A.entity.id,
+      scope: blank,
+      writable: null,
+      actor: as()
+    });
+    await assert.rejects(
+      cyberSvc.placeAsset({
+        scopeId: scope.id,
+        organisationId: A.org.id,
+        assetId: B.asset.id,
+        inScope: true,
+        reason: null,
+        note: null,
+        actor: as()
+      }),
+      /No such asset/
+    );
+    await assert.rejects(
+      cyberSvc.updateScope({
+        id: scope.id,
+        organisationId: B.org.id,
+        scope: blank,
+        writable: null,
+        actor: as()
+      })
+    );
+    await cyberSvc.unplaceAsset({
+      scopeId: scope.id,
+      organisationId: A.org.id,
+      assetId: B.asset.id,
+      actor: as()
+    });
+    assert.equal(await cyberSvc.loadScope(B.org.id, scope.id), null);
+    assert.equal(await cyberSvc.scopeEntityOf(B.org.id, scope.id), null);
+    assert.equal((await cyberSvc.scopeRegister(B.org.id, null)).length, 0);
+    assert.deepEqual(changed(before, await bSnapshot()), []);
+    await cyberSvc.setCyberEssentials({
+      organisationId: A.org.id,
+      enabled: false,
+      actor: as()
+    });
   });
 });
 

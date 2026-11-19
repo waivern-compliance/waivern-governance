@@ -123,6 +123,13 @@ export const organisations = pgTable('organisation', {
     .$type<Partial<Record<SupplierTier, number>>>()
     .notNull()
     .default({}),
+  /**
+   * Prepares for Cyber Essentials certification: shows its scopes and, later,
+   * its readiness assessment and certificates. A choice, not a jurisdiction:
+   * Cyber Essentials is a scheme an organisation takes up, not a law it is
+   * under, so it is not set per entity (`lib/cyber-essentials`).
+   */
+  cyberEssentials: boolean('cyber_essentials').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

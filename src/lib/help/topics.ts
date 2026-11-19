@@ -3289,10 +3289,10 @@ export const HELP_TOPICS: HelpTopic[] = [
   },
   {
     id: 'cyber-essentials',
-    title: 'Cyber Essentials requirements',
+    title: 'Cyber Essentials',
     summary:
-      "The five technical controls of the UK's Cyber Essentials scheme and the rules for what a certificate's scope must include, edition by edition.",
-    path: '/app/cyber-essentials/requirements',
+      "The five technical controls of the UK's Cyber Essentials scheme, the rules for what a certificate's scope must include, and the scopes you prepare for certification.",
+    path: '/app/cyber-essentials',
     keywords: [
       'cyber essentials',
       'cyber essentials plus',
@@ -3330,7 +3330,24 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Scope',
         body: [
-          "A certificate covers what its scope covers. A scope can be the whole organisation or a separately managed sub-set, but it must include end-user devices, and cloud services that hold the organisation's data cannot be left out. Staff's own devices, home working, wireless devices and accounts used by suppliers each have their own rule, listed on the page with the NCSC page it comes from."
+          "A certificate covers what its scope covers. A scope can be the whole organisation or a separately managed sub-set, but it must include end-user devices, and cloud services that hold the organisation's data cannot be left out. Staff's own devices, home working, wireless devices and accounts used by suppliers each have their own rule, listed on the requirements page with the NCSC page it comes from."
+        ]
+      },
+      {
+        heading: 'Turning it on',
+        body: [
+          'The requirements page is open to everyone, because the same requirements are what you ask of a supplier that holds the certificate. Preparing your own certification is turned on by an owner in the organisation settings, which adds Cyber Essentials to the home page. Turning it off hides your scopes and keeps them.'
+        ]
+      },
+      {
+        heading: 'Your scopes',
+        body: [
+          'Add a scope for each certificate you hold or will apply for. It has a home legal entity, which decides who may open and change it, and lists every legal entity the certificate covers, because the assessment names each one. Say whether it is the whole organisation or a sub-set; a sub-set must say how it is separated from the rest, by a firewall or VLAN. Record its boundary - business unit, network boundary and locations - and anything left outside it, with why.',
+          "A scope is prepared against the edition of the requirements in force when it is added. Only people who can see its home entity can open it, and they see the assets only of the covered entities they can open themselves. You can bring an entity into a scope only if you can change its records, and move a scope's home only to another entity it covers. Its owner must be able to open records in its home entity.",
+          "A legal entity that is a scope's home cannot be deleted while the scope also covers other entities: move the scope's home to one of them first.",
+          "Place assets from the information asset register in the scope or leave them out. Only assets of the entities it covers can be placed. One left out needs a reason the requirements allow - a segregated sub-set, no internet connection, a personal device used only for calls, texts or an MFA app, a device a supplier, contractor or customer owns, a student's own device, a home router you did not supply, a bespoke part of a web application - or another reason explained in a note. Cloud services cannot be left out, except from a sub-set that does not use them, as in a segregated sub-set; nor can a device the organisation owns be left out as someone else's. An asset hosted on premises is not a cloud service, whatever cloud model it once recorded.",
+          'Record alike devices as one asset with how many there are, such as one laptop build: Govern is not a device inventory, and a Cyber Essentials Plus assessor samples representative devices anyway.',
+          "Under Before assessment, the scope lists what still stands in the way: no end-user devices in scope; cloud services of the covered entities not yet in it; for a whole-organisation scope, assets of the covered entities neither in nor left out; anything in scope out of vendor support; anything in scope since retired. Each names the rule it comes from. Adding, changing and placing are all audited. Removing an entity from a scope takes its assets off the scope's lists."
         ]
       },
       {

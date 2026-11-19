@@ -17,6 +17,7 @@ import { SCALES, type RiskScaleId } from '@/lib/risk/scale';
 import { getActiveSession } from '@/lib/session';
 import { organisationDetail } from '@/services/access';
 import { agreementsOf } from '@/services/agreements';
+import { cyberEssentialsEnabled } from '@/services/cyber-essentials';
 import { domainsFor } from '@/services/domains';
 import { dpoPosition, entitiesOf, establishmentOf } from '@/services/entities';
 import {
@@ -27,6 +28,7 @@ import { riskCount, riskScaleOf } from '@/services/risk-policy';
 import { supplierReviewCycle } from '@/services/supplier-review';
 
 import { ClassificationForm } from './ClassificationForm';
+import { CyberEssentialsForm } from './CyberEssentialsForm';
 import { DomainsPanel } from './DomainsPanel';
 import { DpoPanel } from './DpoPanel';
 import { EntitiesPanel } from './EntitiesPanel';
@@ -61,7 +63,8 @@ export default async function OrganisationPage() {
     agreements,
     scheme,
     classified,
-    reviewMonths
+    reviewMonths,
+    cyberEssentials
   ] = await Promise.all([
     entitiesOf(org.id),
     riskScaleOf(org.id),
@@ -84,7 +87,8 @@ export default async function OrganisationPage() {
     hosted ? agreementsOf(org.id) : Promise.resolve([]),
     classificationSchemeOf(org.id),
     classifiedAssetCount(org.id),
-    supplierReviewCycle(org.id)
+    supplierReviewCycle(org.id),
+    cyberEssentialsEnabled(org.id)
   ]);
   // The latest acceptance for each entity, for the record beside it.
   const latestAgreement = new Map<string, (typeof agreements)[number]>();
@@ -201,6 +205,8 @@ export default async function OrganisationPage() {
       />
 
       <ReviewCycleForm current={reviewMonths} />
+
+      <CyberEssentialsForm enabled={cyberEssentials} />
 
       {can(active.membership.grants, 'member.manage') ? (
         <DomainsPanel

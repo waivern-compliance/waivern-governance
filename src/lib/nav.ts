@@ -23,6 +23,8 @@ export type NavItem = {
   foi?: true;
   /** Offered only where some entity is under UK PECR or the Irish ePrivacy Regulations. */
   eprivacy?: true;
+  /** Offered only where the organisation has turned Cyber Essentials on. */
+  cyberEssentials?: true;
   /**
    * Administration is a different kind of thing from a register, and filing
    * it under "everything else" is how the owner of a platform ends up unable
@@ -100,6 +102,13 @@ export const NAV: NavItem[] = [
     label: 'Information asset register',
     hint: 'systems and repositories, who owns them and where they are',
     capability: 'record.read'
+  },
+  {
+    href: '/app/cyber-essentials',
+    label: 'Cyber Essentials',
+    hint: 'certification scopes, and the requirements they are assessed against',
+    capability: 'record.read',
+    cyberEssentials: true
   },
   {
     href: '/app/contracts',
@@ -232,13 +241,19 @@ export const NAV: NavItem[] = [
 
 export function navFor(
   grants: readonly Grant[],
-  options: { ukLaw?: boolean; foi?: boolean; eprivacy?: boolean } = {}
+  options: {
+    ukLaw?: boolean;
+    foi?: boolean;
+    eprivacy?: boolean;
+    cyberEssentials?: boolean;
+  } = {}
 ): NavItem[] {
   return NAV.filter(
     (item) =>
       (!item.capability || can(grants, item.capability)) &&
       (options.ukLaw !== false || !item.ukLaw) &&
       (options.foi !== false || !item.foi) &&
-      (options.eprivacy !== false || !item.eprivacy)
+      (options.eprivacy !== false || !item.eprivacy) &&
+      (options.cyberEssentials !== false || !item.cyberEssentials)
   );
 }
