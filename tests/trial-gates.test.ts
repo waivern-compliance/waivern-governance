@@ -180,6 +180,8 @@ const GATED: Record<string, (typeof TRIAL_WITHHELD)[number]> = {
   'src/app/app/admin/imports/actions.ts addImportFilesAction': 'file.upload',
   'src/app/app/admin/imports/actions.ts readImportedAgreementsAction':
     'contact.outside',
+  'src/app/app/admin/imports/actions.ts suggestColumnsAction':
+    'contact.outside',
   'src/app/app/cookies/actions.ts uploadReportAction': 'file.upload',
   'src/app/app/cookies/actions.ts analyserSettingsAction': 'contact.outside',
   'src/app/app/cookies/actions.ts startScanAction': 'contact.outside',

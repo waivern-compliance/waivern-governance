@@ -118,10 +118,12 @@ import {
   toTable,
   type Table
 } from '@/lib/import/parse';
+import { besideMapping } from '@/lib/import/suggest';
 import type {
   ImportLink,
   ImportMapping,
   ImportRecord,
+  ImportSuggestion,
   SourceAnswer,
   SourceEvent
 } from '@/lib/import/types';
@@ -173,7 +175,7 @@ type Of<K extends ImportRecord['kind']> = Extract<ImportRecord, { kind: K }>;
 const SOURCE_NAME_LIMIT = 80;
 
 /** The workbook's first sheet, or the CSV, as a table. */
-async function readFile(bytes: Uint8Array): Promise<Table> {
+export async function readImportTable(bytes: Uint8Array): Promise<Table> {
   if (bytes.byteLength > MAX_FILE_BYTES)
     throw new ImportRefused(
       `The file is over ${MAX_FILE_BYTES / 1024 / 1024} MB. Split it into several.`
@@ -226,7 +228,7 @@ export async function uploadImport(input: {
     throw new ImportRefused('The platform name is too long.');
   if (!(input.recordType in FIELDS))
     throw new ImportRefused('Choose what the file holds.');
-  const table = await readFile(input.bytes);
+  const table = await readImportTable(input.bytes);
 
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
@@ -310,6 +312,7 @@ const batchColumns = {
   columns: importBatches.columns,
   rowCount: importBatches.rowCount,
   mapping: importBatches.mapping,
+  suggestion: importBatches.suggestion,
   status: importBatches.status,
   counts: importBatches.counts,
   previewNotes: importBatches.previewNotes,
@@ -407,7 +410,9 @@ export async function loadImport(batchId: string, organisationId: string) {
         .where(eq(importFiles.batchId, batch.id))
         .orderBy(importFiles.filename)
     ]);
-    const offered = batch.mapping ?? saved?.mapping;
+    // What the person had on the page when they last asked for a suggestion,
+    // then what they last previewed, then this source's last matching.
+    const offered = batch.suggestion?.basis ?? batch.mapping ?? saved?.mapping;
     const mapping: ImportMapping = offered
       ? {
           // Only columns this file has.
@@ -424,8 +429,41 @@ export async function loadImport(batchId: string, organisationId: string) {
             : {})
         }
       : guessMapping(batch.recordType, batch.columns);
-    return { batch, rows, mapping, files };
+    const suggested = besideSuggestion(batch, mapping);
+    return { batch, rows, mapping: suggested.mapping, suggested, files };
   });
+}
+
+/**
+ * The model's suggestion, if any, beside the matching offered: filling only
+ * what is empty, with columns this file has and nothing else reads, and
+ * listing where it would have chosen otherwise. Cleared by a preview.
+ */
+function besideSuggestion(
+  batch: { suggestion: ImportSuggestion | null; columns: string[] },
+  mapping: ImportMapping
+): {
+  mapping: ImportMapping;
+  filled: string[];
+  differs: Record<string, string>;
+  suggestion: ImportSuggestion | null;
+} {
+  const suggestion = batch.suggestion;
+  if (!suggestion)
+    return { mapping, filled: [], differs: {}, suggestion: null };
+  const usable = Object.fromEntries(
+    Object.entries(suggestion.fields).filter(
+      ([key, column]) =>
+        batch.columns.includes(column) && !mapping.everyRow?.[key]
+    )
+  );
+  const { filled, differs } = besideMapping(mapping.fields, usable);
+  return {
+    mapping: { ...mapping, fields: { ...mapping.fields, ...filled } },
+    filled: Object.keys(filled),
+    differs,
+    suggestion
+  };
 }
 
 /** A retention cut-off as a calendar date, or refused: never silently ignored. */
@@ -3558,7 +3596,7 @@ export async function previewImport(input: {
           : {})
       };
 
-      const table = await readFile(batch.file);
+      const table = await readImportTable(batch.file);
       const all = table.rows.map((cells) =>
         convertRow(batch.recordType, mapping, rowObject(table, cells))
       );
@@ -3644,6 +3682,8 @@ export async function previewImport(input: {
         .set({
           status: 'previewed',
           mapping,
+          // From here the matching is the person's own.
+          suggestion: null,
           counts,
           valuesFound: toSay.found,
           previewNotes:

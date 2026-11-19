@@ -1013,15 +1013,22 @@
     {
       "idx": 144,
       "version": "7",
-      "when": 1795129898627,
-      "tag": "0144_entity_data_protection_law_applies",
+      "when": 1795125418035,
+      "tag": "0144_import_column_suggestions",
       "breakpoints": true
     },
     {
       "idx": 145,
       "version": "7",
-      "when": 1795131274685,
-      "tag": "0145_privacy_records_need_data_protection_law",
+      "when": 1795132452894,
+      "tag": "0145_entity_data_protection_law_applies",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1795132454848,
+      "tag": "0146_privacy_records_need_data_protection_law",
       "breakpoints": true
     }
   ]

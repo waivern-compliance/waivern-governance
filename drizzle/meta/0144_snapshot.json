@@ -1,5 +1,5 @@
 {
-  "id": "ea90b775-e6a8-4047-a478-cf314474debb",
+  "id": "18a467d9-cdcf-4b7c-8509-b7f0ca55a33e",
   "prevId": "23d94302-c5db-4cab-9e6d-e26451284eed",
   "version": "7",
   "dialect": "postgresql",
@@ -46,13 +46,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'uk'"
-        },
-        "data_protection_law_applies": {
-          "name": "data_protection_law_applies",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         },
         "uk_establishment": {
           "name": "uk_establishment",
@@ -13434,6 +13427,12 @@
         },
         "mapping": {
           "name": "mapping",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggestion": {
+          "name": "suggestion",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false

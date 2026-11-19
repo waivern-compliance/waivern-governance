@@ -35,7 +35,8 @@ import { refuseDuringTrial } from './trial-guard';
 export const SURFACES = {
   assessment: 'Help with answering an assessment',
   help: 'Questions about how the platform works',
-  extraction: 'Read an uploaded agreement for transfers and sub-processors'
+  extraction: 'Read an uploaded agreement for transfers and sub-processors',
+  import_mapping: "Suggest how an imported file's columns match"
 } as const;
 export type Surface = keyof typeof SURFACES;
 
@@ -125,6 +126,15 @@ export async function providerFor(
       surfaces: settings.surfaces ?? []
     };
   });
+}
+
+/** Whether the organisation has a model and has switched this surface on. */
+export async function surfaceAvailable(
+  organisationId: string,
+  surface: Surface
+): Promise<boolean> {
+  const configured = await providerFor(organisationId);
+  return Boolean(configured?.surfaces.includes(surface));
 }
 
 export type Exchange = {

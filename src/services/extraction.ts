@@ -83,16 +83,6 @@ export class ExtractionUnavailable extends Error {
   }
 }
 
-/** Whether the button should be offered at all. */
-export async function extractionAvailable(
-  organisationId: string
-): Promise<boolean> {
-  return withOrganisation(organisationId, async () => {
-    const configured = await providerFor(organisationId);
-    return Boolean(configured?.surfaces.includes('extraction'));
-  });
-}
-
 type Loaded = { organisationId: string; dpa: typeof dpas.$inferSelect };
 
 async function loadDpa(dpaId: string, organisationId: string): Promise<Loaded> {

@@ -4628,10 +4628,13 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
   'extraction.followLink':
     "refused without the organisation's own configured provider",
   'extraction.declineLink': 'loads the link by id within the organisation',
+  'import-suggestions.suggestColumns':
+    "refused without the organisation's own configured provider; reads the batch within the organisation",
+  'assistant.surfaceAvailable':
+    'says only whether the organisation given has a model and the surface switched on',
+  'imports.readImportTable': 'reads the bytes it is given; touches no records',
   'extraction.decideFinding':
     "refused without the organisation's own configured provider",
-  'extraction.extractionAvailable':
-    "reads only the organisation's own provider",
   'assistant.providerFor': "reads only the organisation's own provider",
   'assistant.testProvider': "reads only the organisation's own provider",
   // Act on the organisation itself, never on another's records.

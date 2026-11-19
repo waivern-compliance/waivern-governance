@@ -22,8 +22,10 @@ import {
 } from '@/db/schema';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import type { RecordType } from '@/lib/import/fields';
+import type { ImportMapping } from '@/lib/import/types';
 import { can, canInScope, mayImport } from '@/lib/rbac';
 import { NotPermitted, refusedUnless, requireCapability } from '@/lib/session';
+import { suggestColumns } from '@/services/import-suggestions';
 import {
   addImportFiles,
   commitImport,
@@ -86,12 +88,8 @@ export async function uploadImportAction(
   redirect(`/app/admin/imports/${batchId}`);
 }
 
-export async function previewImportAction(
-  batchId: string,
-  _prev: EditResult,
-  formData: FormData
-): Promise<EditResult> {
-  const { organisationId, actor } = await importer();
+/** The matching as the form holds it, previewed or not. */
+function mappingFrom(formData: FormData): ImportMapping {
   // Every "field:" choice; the service keeps those its batch's type has.
   const fields: Record<string, string> = {};
   // "value:<field>:<as written>" is what a person said a rating or choice is here.
@@ -110,17 +108,26 @@ export async function previewImportAction(
       (values[field] ??= {})[given.join(':')] = text(value);
     }
   }
+  return {
+    fields,
+    keepUnmapped: formData.get('keepUnmapped') === 'on',
+    values,
+    everyRow,
+    closedBefore: text(formData.get('closedBefore')) || undefined
+  };
+}
+
+export async function previewImportAction(
+  batchId: string,
+  _prev: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  const { organisationId, actor } = await importer();
   const result = await refusable(() =>
     previewImport({
       organisationId,
       batchId,
-      mapping: {
-        fields,
-        keepUnmapped: formData.get('keepUnmapped') === 'on',
-        values,
-        everyRow,
-        closedBefore: text(formData.get('closedBefore')) || undefined
-      },
+      mapping: mappingFrom(formData),
       actor
     })
   );
@@ -209,6 +216,38 @@ export async function removeImportFileAction(
   );
   revalidatePath(`/app/admin/imports/${batchId}`);
   return result?.ok ? { ok: true, message: 'Removed.' } : result;
+}
+
+/**
+ * Ask the organisation's model how the columns match; a person checks it.
+ * Sent from the matching form, so what the person had chosen there is kept.
+ */
+export async function suggestColumnsAction(
+  batchId: string,
+  _prev: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  const refusal = await refusedUnless('contact.outside');
+  if (refusal) return refusal;
+  const { organisationId, actor } = await importer();
+  let failure: string | null = null;
+  const result = await refusable(async () => {
+    ({ failure } = await suggestColumns({
+      organisationId,
+      batchId,
+      current: mappingFrom(formData),
+      actor
+    }));
+  });
+  revalidatePath(`/app/admin/imports/${batchId}`);
+  if (!result?.ok) return result;
+  return failure
+    ? { ok: false, message: failure }
+    : {
+        ok: true,
+        message:
+          'Suggested. The fields it filled are marked; check them, then preview.'
+      };
 }
 
 export async function readImportedAgreementsAction(

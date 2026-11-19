@@ -2,14 +2,13 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
-import { EditForm } from '@/components/EditForm';
 import { HelpLink } from '@/components/help/HelpLink';
+import { InlineSelectForm } from '@/components/InlineSelectForm';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { PERSONA_LABEL, PERSONAS } from '@/lib/persona';
 import { can, ROLE_BLURB, ROLES } from '@/lib/rbac';
-import { savedKey } from '@/lib/saved-key';
 import { getActiveSession } from '@/lib/session';
 import { listMembers } from '@/services/access';
 import { candidatesFor, holdingsOf } from '@/services/handover';
@@ -26,6 +25,11 @@ import { InviteForm } from './InviteForm';
 // which role a gate is handed to. Two copies would eventually disagree about
 // what a role means, in the two places it matters most.
 const ROLE_NOTE = ROLE_BLURB;
+
+const PERSONA_OPTIONS = [
+  { value: '', label: 'Not set' },
+  ...PERSONAS.map((p) => ({ value: p, label: PERSONA_LABEL[p] }))
+];
 
 export default async function PeoplePage() {
   const active = await getActiveSession();
@@ -174,36 +178,15 @@ export default async function PeoplePage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <EditForm
-                  key={savedKey(m.persona)}
+                <InlineSelectForm
                   action={setPersonaAction.bind(null, m.membershipId)}
-                  className="flex items-center gap-2"
-                >
-                  <label className="flex items-center gap-1.5 text-xs text-ink-soft">
-                    Shows as
-                    <select
-                      name="persona"
-                      defaultValue={m.persona ?? ''}
-                      className="rounded border border-line bg-ground px-2 py-1 text-xs"
-                    >
-                      <option value="">Not set</option>
-                      {PERSONAS.map((p) => (
-                        <option
-                          key={p}
-                          value={p}
-                        >
-                          {PERSONA_LABEL[p]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="submit"
-                    className="rounded border border-line px-2 py-1 text-xs hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
-                  >
-                    Set
-                  </button>
-                </EditForm>
+                  name="persona"
+                  label="Shows as"
+                  value={m.persona ?? ''}
+                  options={PERSONA_OPTIONS}
+                  submitLabel="Set"
+                  look="compact"
+                />
 
                 <form
                   action={setActiveAction.bind(

@@ -34,6 +34,14 @@ const SURFACES: Array<{ id: string; label: string; note: string }> = [
     note:
       'Sees the text of agreements attached to a third party, when somebody asks it to. ' +
       'Returns proposals with quotes, which a person accepts or rejects.'
+  },
+  {
+    id: 'import_mapping',
+    label: "Matching an imported file's columns",
+    note:
+      "Sees the field list, the file's header row and up to three sample rows, redacted, " +
+      'when somebody asks it to; for case history, the header row only. Its suggestion is ' +
+      'checked by the person before anything is previewed.'
   }
 ];
 

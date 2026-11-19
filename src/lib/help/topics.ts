@@ -2321,7 +2321,8 @@ export const HELP_TOPICS: HelpTopic[] = [
           "Under Settings, an owner or privacy administrator uploads an export: a CSV file or an Excel workbook, with column names in the first row, up to 5,000 rows. Say what it holds (processing activities, suppliers and vendors, processor agreements, evidence, or AI systems) and which platform it comes from. Then match each of Govern's fields to the column that holds it; columns are matched by their names to start with, so check them.",
           'Preview shows what every row would become: new, an update to a record imported before, added to a supplier already recorded, or not imported, with the reason. Nothing is written until you import, and then every previewed record is written in one step, or none is.',
           'Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.',
-          'A value for a field with set choices, such as a status, a stage or a type of AI system, is read when it is one of Govern\'s values or a common word for one. A platform\'s own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.'
+          'A value for a field with set choices, such as a status, a stage or a type of AI system, is read when it is one of Govern\'s values or a common word for one. A platform\'s own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.',
+          'Where the organisation has switched on its model for matching imported files, Suggest a matching asks it which column holds which field. It fills only the fields left empty, each marked as suggested, and notes where it would have chosen another column than the one already matched. Nothing is sent until you press it, and its suggestion counts for nothing until you preview: check each field first.'
         ]
       },
       {
@@ -2728,6 +2729,12 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'What somebody is shown first',
+        body: [
+          "Shows as sets a person's persona: which arrangement of the platform they see first. It never changes what they may do. Set can be pressed once you choose something other than what is saved, and Saved with a tick appears beside it when the change is kept. If it is refused, the reason appears underneath and your choice stays selected. A third party's role and use of AI, and a legal entity's data protection law and law enforcement status, are saved the same way."
+        ]
+      },
+      {
         heading: 'Suspending, and the last owner',
         body: [
           'Suspending keeps the person and their history and stops them signing in. Reinstating restores exactly what they had.',
@@ -2951,7 +2958,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'What is sent, and what is kept',
         body: [
-          "On an assessment it is given the template's questions and never your answers. In help it is given the built-in help topics and no records at all.",
+          "On an assessment it is given the template's questions and never your answers. In help it is given the built-in help topics and no records at all. Asked to suggest how an imported file\'s columns match, it is given the fields, the file\'s header row and up to three of its rows, cut short; for data subject requests, complaints, breaches and FOI requests, the header row only.",
           "Obvious identifiers - email addresses, telephone numbers, postcodes, card and national insurance numbers - are removed from a question before it is sent, and you are told what was removed. That catches shapes, not meaning: it will not notice a sentence about a named person's health. Do not type such things.",
           'Conversations are kept for thirty days and then deleted by the scheduled sweep.'
         ]
