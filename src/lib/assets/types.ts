@@ -36,16 +36,88 @@ export const DETAIL_FIELDS = {
     label: 'Seats',
     hint: 'How many users or devices the licence covers.',
     kind: 'count'
+  },
+  quantity: {
+    label: 'How many',
+    hint: 'Where this asset is a group of alike devices, such as one laptop build, how many there are.',
+    kind: 'count'
+  },
+  ownership: {
+    label: 'Owned by',
+    hint: 'Who owns the device. A Cyber Essentials scope turns on it.',
+    kind: 'choice',
+    choices: {
+      organisation: 'The organisation',
+      byod: 'Its user (their own device)',
+      third_party: 'A supplier, contractor or customer'
+    }
+  },
+  userRole: {
+    label: 'Used by',
+    hint: "Who uses it. Students' own devices are outside a Cyber Essentials scope; staff, volunteers' and trustees' are not.",
+    kind: 'choice',
+    choices: {
+      staff: 'Staff',
+      volunteer: 'Volunteers',
+      trustee: 'Trustees',
+      research_assistant: 'Research assistants',
+      student: 'Students',
+      contractor: 'Contractors'
+    }
+  },
+  operatingSystem: {
+    label: 'Operating system or firmware',
+    hint: 'With its version, such as Windows 11 23H2 or FortiOS 7.4.',
+    kind: 'text'
+  },
+  supportedUntil: {
+    label: 'Supported until',
+    hint: 'When its vendor stops issuing security updates for it.',
+    kind: 'date'
+  },
+  cloudModel: {
+    label: 'Cloud service model',
+    hint: 'Where it runs on a cloud provider: who configures what depends on it.',
+    kind: 'choice',
+    choices: {
+      iaas: 'Infrastructure as a service',
+      paas: 'Platform as a service',
+      saas: 'Software as a service'
+    }
   }
 } as const;
 export type DetailField = keyof typeof DETAIL_FIELDS;
+
+type ChoiceField = {
+  [F in DetailField]: (typeof DETAIL_FIELDS)[F] extends { kind: 'choice' }
+    ? F
+    : never;
+}[DetailField];
+type ChoiceOf<F extends ChoiceField> =
+  keyof (typeof DETAIL_FIELDS)[F]['choices'] & string;
+
+export type DeviceOwnership = ChoiceOf<'ownership'>;
+export type DeviceUserRole = ChoiceOf<'userRole'>;
+export type CloudModel = ChoiceOf<'cloudModel'>;
+
+/** A choice field's values as a schema, for the form and the import alike. */
+export const choiceOf = <F extends ChoiceField>(field: F) =>
+  z.enum(
+    Object.keys(DETAIL_FIELDS[field].choices) as [ChoiceOf<F>, ...ChoiceOf<F>[]]
+  );
 
 const text = z.string().trim().max(200);
 const DETAIL_SCHEMAS = {
   registrar: text,
   issuer: text,
   names: z.array(text).max(100),
-  seats: z.number().int().min(1).max(10_000_000)
+  seats: z.number().int().min(1).max(10_000_000),
+  quantity: z.number().int().min(1).max(10_000_000),
+  ownership: choiceOf('ownership'),
+  userRole: choiceOf('userRole'),
+  operatingSystem: text,
+  supportedUntil: z.iso.date(),
+  cloudModel: choiceOf('cloudModel')
 } satisfies Record<DetailField, z.ZodType>;
 
 export type AssetDetailValues = {
@@ -53,6 +125,13 @@ export type AssetDetailValues = {
   issuer?: string;
   names?: string[];
   seats?: number;
+  quantity?: number;
+  ownership?: DeviceOwnership;
+  userRole?: DeviceUserRole;
+  operatingSystem?: string;
+  /** A day, as `2027-10-14`. */
+  supportedUntil?: string;
+  cloudModel?: CloudModel;
 };
 
 export type AssetTypeDef = {
@@ -88,17 +167,23 @@ export const BUILT_IN_ASSET_TYPES: readonly AssetTypeDef[] = [
   builtIn(
     'system',
     'System',
-    'An application the organisation runs or has run for it, such as an HR or case management system.'
+    'An application the organisation runs or has run for it, such as an HR or case management system.',
+    false,
+    ['cloudModel']
   ),
   builtIn(
     'database',
     'Database',
-    'A store of structured records that more than one system or team reads from.'
+    'A store of structured records that more than one system or team reads from.',
+    false,
+    ['cloudModel']
   ),
   builtIn(
     'file_share',
     'File share',
-    'Shared folders or document libraries, on a server or in the cloud.'
+    'Shared folders or document libraries, on a server or in the cloud.',
+    false,
+    ['cloudModel']
   ),
   builtIn(
     'saas_application',
@@ -113,7 +198,23 @@ export const BUILT_IN_ASSET_TYPES: readonly AssetTypeDef[] = [
   builtIn(
     'device',
     'Device',
-    'Laptops, phones, removable media or other equipment that holds information.'
+    'Laptops, desktops, tablets, phones, removable media or other equipment people use that holds information. Record alike devices as one asset with how many there are.',
+    false,
+    ['ownership', 'userRole', 'quantity', 'operatingSystem', 'supportedUntil']
+  ),
+  builtIn(
+    'server',
+    'Server',
+    'A physical or virtual server the organisation runs, on its premises or on a cloud provider it configures itself.',
+    false,
+    ['quantity', 'operatingSystem', 'supportedUntil', 'cloudModel']
+  ),
+  builtIn(
+    'network_device',
+    'Network device',
+    'A firewall, router, switch or wireless access point. One the organisation supplies to a home worker counts.',
+    false,
+    ['ownership', 'quantity', 'operatingSystem', 'supportedUntil']
   ),
   builtIn(
     'domain',
@@ -134,7 +235,7 @@ export const BUILT_IN_ASSET_TYPES: readonly AssetTypeDef[] = [
     'Software licence',
     'A right to use software for a term or a number of seats, paid for under a licence or subscription.',
     true,
-    ['seats']
+    ['seats', 'supportedUntil']
   ),
   builtIn(
     'other',
@@ -204,14 +305,7 @@ export function cleanDetails(
     )
       continue;
     const parsed = DETAIL_SCHEMAS[field].safeParse(raw);
-    if (!parsed.success)
-      return {
-        ok: false,
-        message:
-          DETAIL_FIELDS[field].kind === 'count'
-            ? `Give the ${DETAIL_FIELDS[field].label.toLowerCase()} as a whole number.`
-            : `The ${DETAIL_FIELDS[field].label.toLowerCase()} is too long.`
-      };
+    if (!parsed.success) return { ok: false, message: refusalFor(field) };
     const value = parsed.data;
     if (Array.isArray(value)) {
       const list = [...new Set(value.filter(Boolean))];
@@ -219,6 +313,54 @@ export function cleanDetails(
     } else if (value !== '') details[field] = value;
   }
   return { ok: true, details: details as AssetDetailValues };
+}
+
+const REFUSAL: Partial<Record<DetailField, string>> = {
+  quantity: 'Give how many there are as a whole number.',
+  ownership: 'Choose who owns it from the list.',
+  userRole: 'Choose who uses it from the list.',
+  supportedUntil:
+    'Give the date its support ends as a day, such as 2027-10-14.',
+  cloudModel: 'Choose the cloud service model from the list.'
+};
+
+function refusalFor(field: DetailField): string {
+  const { label, kind } = DETAIL_FIELDS[field];
+  return (
+    REFUSAL[field] ??
+    (kind === 'count'
+      ? `Give the ${label.toLowerCase()} as a whole number.`
+      : `The ${label.toLowerCase()} is too long.`)
+  );
+}
+
+/** A detail's value as words: a choice's label, a day in full. */
+function detailText(field: DetailField, value: unknown): string {
+  const def = DETAIL_FIELDS[field];
+  if (Array.isArray(value)) return value.join(', ');
+  if (def.kind === 'choice')
+    return (
+      (def.choices as Record<string, string>)[String(value)] ?? String(value)
+    );
+  if (def.kind === 'date')
+    return new Date(`${String(value)}T00:00:00Z`).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC'
+    });
+  return String(value);
+}
+
+/**
+ * Whether its vendor has stopped issuing security updates for it. Unsupported
+ * software is out of a Cyber Essentials scope only by being removed from it.
+ */
+export function outOfSupport(details: AssetDetailValues, at: Date): boolean {
+  return (
+    details.supportedUntil !== undefined &&
+    details.supportedUntil < at.toISOString().slice(0, 10)
+  );
 }
 
 /** The details as label and text, in the type's order, for a page or a spreadsheet. */
@@ -232,7 +374,7 @@ export function describeDetails(
     return [
       {
         label: DETAIL_FIELDS[f].label,
-        value: Array.isArray(v) ? v.join(', ') : String(v)
+        value: detailText(f, v)
       }
     ];
   });

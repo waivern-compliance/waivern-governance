@@ -669,6 +669,96 @@ export const FIELDS: Record<RecordType, FieldDef[]> = {
       aliases: ['auto renews', 'auto renew', 'automatic renewal']
     },
     {
+      key: 'quantity',
+      label: 'How many',
+      kind: 'number',
+      hint: 'For a device, server or network device recorded as a group of alike ones.',
+      aliases: ['quantity', 'count', 'number of devices', 'how many']
+    },
+    {
+      key: 'ownership',
+      label: 'Owned by',
+      kind: 'choice',
+      hint: 'For a device or network device.',
+      aliases: ['ownership', 'owned by', 'device ownership'],
+      choices: [
+        choice(
+          'organisation',
+          'The organisation',
+          'corporate',
+          'company',
+          'company owned',
+          'organisation owned'
+        ),
+        choice(
+          'byod',
+          'Its user',
+          'bring your own device',
+          'personal',
+          'user owned'
+        ),
+        choice(
+          'third_party',
+          'A third party',
+          'supplier',
+          'contractor',
+          'customer',
+          'msp'
+        )
+      ]
+    },
+    {
+      key: 'userRole',
+      label: 'Used by',
+      kind: 'choice',
+      hint: 'For a device.',
+      aliases: ['used by', 'user role', 'user type', 'users'],
+      choices: [
+        choice('staff', 'Staff', 'employees', 'employee'),
+        choice('volunteer', 'Volunteers', 'volunteer'),
+        choice('trustee', 'Trustees', 'trustee'),
+        choice(
+          'research_assistant',
+          'Research assistants',
+          'research assistant'
+        ),
+        choice('student', 'Students', 'student'),
+        choice('contractor', 'Contractors', 'contractor')
+      ]
+    },
+    {
+      key: 'operatingSystem',
+      label: 'Operating system or firmware',
+      kind: 'text',
+      hint: 'For a device, server or network device, with its version.',
+      aliases: ['operating system', 'os', 'firmware', 'os version']
+    },
+    {
+      key: 'supportedUntil',
+      label: 'Supported until',
+      kind: 'date',
+      hint: 'When its vendor stops issuing security updates. For a device, server, network device or software licence.',
+      aliases: [
+        'supported until',
+        'end of support',
+        'end of life',
+        'eol',
+        'support end date'
+      ]
+    },
+    {
+      key: 'cloudModel',
+      label: 'Cloud service model',
+      kind: 'choice',
+      hint: 'For a system, database, file share or server run on a cloud provider.',
+      aliases: ['cloud model', 'cloud service model', 'service model'],
+      choices: [
+        choice('iaas', 'IaaS', 'infrastructure as a service'),
+        choice('paas', 'PaaS', 'platform as a service'),
+        choice('saas', 'SaaS', 'software as a service')
+      ]
+    },
+    {
       key: 'activities',
       label: 'Processing activities',
       kind: 'list',

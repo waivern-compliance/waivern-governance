@@ -80,19 +80,43 @@ export function AssetTypeFields({
                   text={field.label}
                   hint={field.hint}
                 />
-                <input
-                  name={`detail.${f}`}
-                  type={field.kind === 'count' ? 'number' : 'text'}
-                  min={field.kind === 'count' ? 1 : undefined}
-                  defaultValue={
-                    Array.isArray(value)
-                      ? value.join(', ')
-                      : value === undefined
-                        ? ''
-                        : String(value)
-                  }
-                  className={inputClass}
-                />
+                {field.kind === 'choice' ? (
+                  <select
+                    name={`detail.${f}`}
+                    defaultValue={value === undefined ? '' : String(value)}
+                    className={inputClass}
+                  >
+                    <option value="">Not recorded</option>
+                    {Object.entries(field.choices).map(([v, label]) => (
+                      <option
+                        key={v}
+                        value={v}
+                      >
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    name={`detail.${f}`}
+                    type={
+                      field.kind === 'count'
+                        ? 'number'
+                        : field.kind === 'date'
+                          ? 'date'
+                          : 'text'
+                    }
+                    min={field.kind === 'count' ? 1 : undefined}
+                    defaultValue={
+                      Array.isArray(value)
+                        ? value.join(', ')
+                        : value === undefined
+                          ? ''
+                          : String(value)
+                    }
+                    className={inputClass}
+                  />
+                )}
               </label>
             );
           })}

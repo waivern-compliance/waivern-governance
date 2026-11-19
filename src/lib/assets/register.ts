@@ -1,3 +1,5 @@
+import { outOfSupport, type AssetDetailValues } from './types';
+
 /**
  * The information asset register: what an asset is, where it lives and how it
  * is classified.
@@ -120,9 +122,12 @@ export type AssetFacts = {
   retention: string | null;
   nextReviewAt: Date | null;
   retiredAt: Date | null;
+  /** The type's own fields: an end of vendor support among them. */
+  details?: AssetDetailValues;
 };
 
 export const ASSET_GAPS = [
+  'out_of_support',
   'review_overdue',
   'no_owner',
   'unclassified',
@@ -133,6 +138,7 @@ export const ASSET_GAPS = [
 export type AssetGap = (typeof ASSET_GAPS)[number];
 
 export const ASSET_GAP_WORDS: Record<AssetGap, string> = {
+  out_of_support: 'Out of vendor support',
   review_overdue: 'Past its review date',
   no_owner: 'No information asset owner',
   unclassified: 'Not classified',
@@ -156,6 +162,8 @@ export function reviewOverdue(
 export function assetGaps(asset: AssetFacts, now = new Date()): AssetGap[] {
   if (asset.retiredAt) return [];
   const gaps: AssetGap[] = [];
+  if (asset.details && outOfSupport(asset.details, now))
+    gaps.push('out_of_support');
   if (reviewOverdue(asset, now)) gaps.push('review_overdue');
   if (!asset.ownerId) gaps.push('no_owner');
   if (!asset.classification) gaps.push('unclassified');

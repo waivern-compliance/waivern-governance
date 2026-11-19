@@ -53,6 +53,11 @@ import {
   CLASSIFICATION_SCHEMES,
   type AssetClassification
 } from '@/lib/assets/register';
+import {
+  cleanDetails,
+  type AssetDetailValues,
+  type DetailField
+} from '@/lib/assets/types';
 import { appendAuditEvent } from '@/lib/audit';
 import {
   complaintClock,
@@ -685,6 +690,9 @@ type Attachment = {
 type AssetResolved = {
   assetType: string;
   hasExpiry: boolean;
+  /** The type's own fields, and those of them the row gives. */
+  fields: readonly DetailField[];
+  details: AssetDetailValues;
   classification: AssetClassification | null;
   ownerId: string | null;
   activityIds: string[];
@@ -1494,6 +1502,16 @@ async function assetResolver(tx: Tx, batch: Batch) {
         };
       classification = level[0] as AssetClassification;
     }
+    // Fields the type does not carry are left out, as when typed in.
+    const details = cleanDetails(type, {
+      quantity: data.quantity,
+      ownership: data.ownership,
+      userRole: data.userRole,
+      operatingSystem: data.operatingSystem,
+      supportedUntil: data.supportedUntil?.slice(0, 10),
+      cloudModel: data.cloudModel
+    });
+    if (!details.ok) return { reason: details.message };
     const activityIds: string[] = [];
     for (const name of data.activities) {
       const id = activityOf(name);
@@ -1515,6 +1533,8 @@ async function assetResolver(tx: Tx, batch: Batch) {
     return {
       assetType: type.key,
       hasExpiry: type.hasExpiry,
+      fields: type.fields,
+      details: details.details,
       classification,
       ownerId: data.owner ? memberOf(data.owner) : null,
       activityIds: [...new Set(activityIds)],
@@ -3761,6 +3781,7 @@ const KEYS: Record<RecordType, string[]> = {
     'expiresAt',
     'noticeDays',
     'autoRenews',
+    'details',
     ...IMPORT_KEYS
   ],
   risk: [
@@ -4619,10 +4640,17 @@ async function writeAsset(
     const noExpiry = resolved.hasExpiry
       ? {}
       : { expiresAt: null, noticeDays: null, autoRenews: false };
+    // A detail the file leaves out keeps what is recorded, and one the type
+    // (perhaps a new one) does not carry is dropped.
+    const details = cleanDetails(resolved, {
+      ...(was.details as AssetDetailValues),
+      ...resolved.details
+    });
     await c.tx
       .update(informationAssets)
       .set({
         ...said(described),
+        details: details.ok ? details.details : resolved.details,
         ...noExpiry,
         ...owner,
         ...autoRenews,
@@ -4647,6 +4675,7 @@ async function writeAsset(
         externalRef: c.sourceRef,
         createdAt: c.at,
         ...described,
+        details: resolved.details,
         ...owner,
         ...autoRenews,
         ...kept
