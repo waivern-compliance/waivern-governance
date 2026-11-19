@@ -439,6 +439,7 @@ function EntityRow({
             </button>
           </form>
           <Outcome result={provider.result} />
+          <Outcome result={authority.result} />
           <InlineSelectForm
             action={setCompetentAuthorityAction.bind(null, entity.id)}
             name="competentAuthority"

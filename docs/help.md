@@ -2439,7 +2439,7 @@ A role granted against an entity applies only there. An approver for BBC Studios
 
 ### What somebody is shown first
 
-Shows as sets a person's persona: which arrangement of the platform they see first. It never changes what they may do. Set can be pressed once you choose something other than what is saved, and Saved with a tick appears beside it when the change is kept. If it is refused, the reason appears underneath and your choice stays selected. The same pattern is used wherever one choice is saved with its own button.
+Shows as sets a person's persona: which arrangement of the platform they see first. It never changes what they may do. Set can be pressed once you choose something other than what is saved, and Saved with a tick appears beside it when the change is kept. If it is refused, the reason appears underneath and your choice stays selected. A third party's role and use of AI, and a legal entity's data protection law and law enforcement status, are saved the same way.
 
 ### Suspending, and the last owner
 

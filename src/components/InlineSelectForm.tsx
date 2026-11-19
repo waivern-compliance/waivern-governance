@@ -4,6 +4,8 @@ import { useId, useState, type ReactNode } from 'react';
 
 import {
   describeInlineSelect,
+  reconcileInlineSelect,
+  type InlineSelectMemory,
   type InlineSelectResult
 } from '@/lib/inline-select';
 import { useRefusableAction } from '@/lib/use-refusable-action';
@@ -77,19 +79,19 @@ export function InlineSelectForm({
     action,
     { resetOnSuccess: false }
   );
-  const [selected, setSelected] = useState(value);
-  const [saved, setSaved] = useState(value);
-  // The result the person has moved on from by changing the choice again.
-  const [spent, setSpent] = useState<InlineSelectResult>(null);
+  const [memory, setMemory] = useState<InlineSelectMemory>({
+    selected: value,
+    saved: value,
+    seen: null,
+    spent: null
+  });
   const statusId = useId();
 
-  // The saved value changes when this save lands, and when somebody else's
-  // does and the page is re-rendered. Either way the select shows what is now
-  // saved; a choice still being made here is not overwritten mid-save.
-  if (value !== saved && !pending) {
-    setSaved(value);
-    setSelected(value);
-  }
+  // Adjusted during render rather than in an effect, so the select never
+  // shows a stale value for a frame after a save lands.
+  const next = reconcileInlineSelect(memory, { value, result, pending });
+  if (next) setMemory(next);
+  const { selected, spent } = next ?? memory;
 
   const current = result === spent ? null : result;
   const { state, mayDispatch } = describeInlineSelect({
@@ -111,9 +113,12 @@ export function InlineSelectForm({
         <select
           name={name}
           value={selected}
+          // Held while saving: a choice made mid-save would be replaced by
+          // what the save stored the moment it lands.
+          disabled={pending}
           onChange={(event) => {
-            setSelected(event.target.value);
-            setSpent(result);
+            const chosen = event.target.value;
+            setMemory((m) => ({ ...m, selected: chosen, spent: result }));
           }}
           aria-describedby={statusId}
           className={styles.select}

@@ -8,7 +8,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { InlineSelectForm } from '@/components/InlineSelectForm';
-import { describeInlineSelect } from '@/lib/inline-select';
+import {
+  describeInlineSelect,
+  reconcileInlineSelect
+} from '@/lib/inline-select';
 
 const saved = { ok: true, message: 'Saved.' };
 const refused = { ok: false, message: 'The last owner cannot be changed.' };
@@ -83,6 +86,71 @@ describe('a one-choice edit', () => {
         result: refused
       }),
       { state: 'refused', mayDispatch: true }
+    );
+  });
+});
+
+describe('keeping up with the server', () => {
+  const memory = (selected: string, saved: string) => ({
+    selected,
+    saved,
+    seen: null,
+    spent: null
+  });
+
+  it('decides nothing while a save is running', () => {
+    assert.equal(
+      reconcileInlineSelect(memory('b', 'a'), {
+        value: 'b',
+        result: null,
+        pending: true
+      }),
+      null
+    );
+  });
+
+  it('shows what a kept save stored, even where it is not what was chosen', () => {
+    assert.deepEqual(
+      reconcileInlineSelect(memory('b', 'a'), {
+        value: 'a',
+        result: saved,
+        pending: false
+      }),
+      { selected: 'a', saved: 'a', seen: saved, spent: null }
+    );
+  });
+
+  it('keeps the choice when the save is refused', () => {
+    assert.equal(
+      reconcileInlineSelect(memory('b', 'a'), {
+        value: 'a',
+        result: refused,
+        pending: false
+      })?.selected,
+      'b'
+    );
+  });
+
+  it("takes somebody else's change and retires an earlier refusal", () => {
+    const after = { selected: 'b', saved: 'a', seen: refused, spent: null };
+    assert.deepEqual(
+      reconcileInlineSelect(after, {
+        value: 'c',
+        result: refused,
+        pending: false
+      }),
+      { selected: 'c', saved: 'c', seen: refused, spent: refused }
+    );
+  });
+
+  it('leaves an up-to-date form alone', () => {
+    assert.equal(
+      reconcileInlineSelect(memory('b', 'a'), {
+        value: 'a',
+        result: null,
+        pending: false
+      }),
+      null
     );
   });
 });
