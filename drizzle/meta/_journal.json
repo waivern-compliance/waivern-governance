@@ -988,6 +988,20 @@
       "when": 1795049135504,
       "tag": "0140_near_miss_breaches",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1795050142216,
+      "tag": "0141_entra_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1795050144071,
+      "tag": "0142_entra_tenant_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ import { NotPermitted } from '@/components/NotPermitted';
 import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { memberships, users } from '@/db/schema';
+import { multiTenantEntraConfigured } from '@/lib/auth/entra';
 import { waivernHosted } from '@/lib/hosting';
 import { ieEprivacySuggested } from '@/lib/ie-eprivacy/scope';
 import { currentDocument, refOf } from '@/lib/legal/documents';
@@ -20,6 +21,7 @@ import { agreementsOf } from '@/services/agreements';
 import { cyberEssentialsEnabled } from '@/services/cyber-essentials';
 import { domainsFor } from '@/services/domains';
 import { dpoPosition, entitiesOf, establishmentOf } from '@/services/entities';
+import { tenantsFor } from '@/services/entra-tenants';
 import {
   classificationSchemeOf,
   classifiedAssetCount
@@ -64,7 +66,8 @@ export default async function OrganisationPage() {
     scheme,
     classified,
     reviewMonths,
-    cyberEssentials
+    cyberEssentials,
+    tenants
   ] = await Promise.all([
     entitiesOf(org.id),
     riskScaleOf(org.id),
@@ -88,7 +91,10 @@ export default async function OrganisationPage() {
     classificationSchemeOf(org.id),
     classifiedAssetCount(org.id),
     supplierReviewCycle(org.id),
-    cyberEssentialsEnabled(org.id)
+    cyberEssentialsEnabled(org.id),
+    can(active.membership.grants, 'member.manage')
+      ? tenantsFor(org.id)
+      : Promise.resolve([])
   ]);
   // The latest acceptance for each entity, for the record beside it.
   const latestAgreement = new Map<string, (typeof agreements)[number]>();
@@ -210,7 +216,9 @@ export default async function OrganisationPage() {
 
       {can(active.membership.grants, 'member.manage') ? (
         <DomainsPanel
+          entraMultiTenant={multiTenantEntraConfigured()}
           claims={domains.map((d) => ({
+            tenant: tenantOf(tenants, d.id),
             id: d.id,
             domain: d.domain,
             verifiedAt: d.verifiedAt
@@ -250,4 +258,12 @@ export default async function OrganisationPage() {
       </section>
     </main>
   );
+}
+
+function tenantOf(
+  tenants: Awaited<ReturnType<typeof tenantsFor>>,
+  domainId: string
+) {
+  const trust = tenants.find((t) => t.domainId === domainId);
+  return trust ? { id: trust.id, tenantId: trust.tenantId } : null;
 }

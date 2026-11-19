@@ -92,7 +92,70 @@ adding the domain there is harmless.
 
 **Entra ID:** register an application, Web redirect URI
 `https://<your-domain>/api/auth/callback/microsoft-entra-id`, create a client
-secret, note the tenant issuer URL.
+secret. Then choose who may sign in; `AUTH_MICROSOFT_ENTRA_ID_ISSUER` says
+which.
+
+*Your own directory only* (a self-hosted deployment). Supported account types:
+**Accounts in this organisational directory only**. Set the issuer to your
+tenant:
+
+```
+AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/<tenant id>/v2.0
+```
+
+People are matched to their invitations by email address, as your directory's
+administrators set it. Anybody from another organisation must be invited into
+your directory as a guest first, or they get `AADSTS50020`.
+
+*Any work Microsoft account* (Waivern's hosted service). Supported account
+types: **Accounts in any organisational directory (Multitenant)**. Set:
+
+```
+AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/organizations/v2.0
+```
+
+Anybody can create a Microsoft directory and give its users any address, so
+here the address alone never signs anybody in:
+
+- Each person is bound to their Microsoft account, by tenant id (`tid`) and
+  object id (`oid`), on their first sign-in, and matched by that afterwards.
+  Another account at the same address is refused, and the attempt is
+  recorded in the audit log of each organisation the person belongs to.
+- A first sign-in is matched to an invitation only if Microsoft says the
+  person's directory owns the address's domain (the `xms_edov` claim), or the
+  organisation trusts the directory: an owner trusts it from Settings, next to
+  a verified email domain, and Govern asks Microsoft which tenant has verified
+  that domain.
+- Each token's issuer must be `https://login.microsoftonline.com/<its tid>/v2.0`.
+  Personal Microsoft accounts are refused.
+
+On the Microsoft side this needs:
+
+1. **Token configuration → Add optional claim → ID token:** `email` and
+   `xms_edov`. Without `email` the token may carry no address and sign-in is
+   refused; without `xms_edov` only people from trusted tenants can take up
+   an invitation.
+2. **Consent.** Users in other directories are asked to consent to the
+   application on first sign-in, which many directories block for apps from
+   unverified publishers. Complete **publisher verification** (Branding &
+   properties, with a Microsoft Partner Network ID), or ask each customer's
+   administrator to grant tenant-wide admin consent at
+   `https://login.microsoftonline.com/<their tenant id>/adminconsent?client_id=<application id>`.
+   The application asks only for `openid profile email User.Read`.
+
+*Moving from one to the other.* Somebody whose last sign-in under the
+single-tenant registration was with Microsoft keeps working: their account is
+recognised by its old subject and bound on their next sign-in. Somebody who
+signed in with Google after that is not recognised this way, since their
+recorded subject is Google's; they need `xms_edov`, or a trusted tenant. From
+this release, a Google sign-in no longer replaces a Microsoft subject. Guests of your directory sign in from
+their own directory instead, so they need `xms_edov` or a trusted tenant. If a
+person's Microsoft account is replaced, release the old binding so the new one
+can bind:
+
+```bash
+railway ssh -- pnpm entra:release person@example.com
+```
 
 Only the provider you configure appears on the sign-in page.
 

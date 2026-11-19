@@ -2297,7 +2297,23 @@ To verify, publish the TXT record Settings shows you, at _govern-verification. f
 
 Somebody you have removed is never let back in by their address. Removing a domain stops new people joining through it; nobody already in loses access.
 
-Google must have verified the address itself, or the sign-in is refused. Joining by domain works only through Google: other sign-in providers do not prove that a person controls the mailbox.
+Google must have verified the address itself, or the sign-in is refused. Microsoft sign-in joins by domain only where the deployment admits anyone's Microsoft directory and Microsoft confirms that the person's directory owns the address's domain. On a deployment that admits only its own directory, joining by domain works only through Google.
+
+### Microsoft tenants
+
+Where the deployment lets anyone sign in with a work Microsoft account, an owner can also trust the organisation's Microsoft Entra tenant. Next to a verified domain, press Trust its Microsoft tenant: Govern asks Microsoft which tenant has verified the same domain and records that one. A tenant id cannot be typed in, because a tenant id on its own proves nothing about whose directory it is.
+
+People from a trusted tenant can sign in at an address on that domain even where Microsoft does not say the domain is verified, and anyone from it whose address is proved joins as a contributor, as with a domain. Somebody you have removed is never let back in. A tenant can be trusted by one organisation only.
+
+Removing the domain stops trusting the tenant. Stopping trusting it changes who may join from now on; nobody already in loses access.
+
+### Signing in with Microsoft from any organisation
+
+Anybody can create a Microsoft directory and put any email address on its users, so on a deployment open to every directory the address alone never decides who you are. The first time you sign in, Govern binds you to your Microsoft account, by its tenant and object ids, and recognises you by that from then on, even if your address changes.
+
+That first sign-in is matched to an invitation only if Microsoft confirms your directory owns your address's domain, or your organisation trusts your tenant through that domain. Once bound, a different Microsoft account using your address is refused, and the attempt is recorded in the audit log of every organisation you belong to. Personal Microsoft accounts, such as outlook.com, are not accepted.
+
+If your Microsoft account is replaced, for example after you leave and rejoin your employer, ask whoever runs this service (Waivern, on the hosted service) to release the old binding. No organisation owner can: people are shared between organisations.
 
 **See also:** Giving somebody access · Accepting Waivern's terms and Data Processing Agreement · Exports · The audit trail
 

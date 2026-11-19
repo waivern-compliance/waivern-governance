@@ -12,11 +12,25 @@ import {
   mayRequestOrganisation,
   unverifiedEmail
 } from '@/lib/auth/domains';
+import {
+  ENTRA_PROVIDER,
+  entraClaims,
+  entraMode,
+  entraSubject,
+  forLog,
+  subjectToRecord,
+  tokenProblem
+} from '@/lib/auth/entra';
 import type { Persona } from '@/lib/persona';
 import { requestsOpen } from '@/lib/platform';
 import type { Grant } from '@/lib/rbac';
 import { trialsOpen } from '@/lib/trial';
 import { joinByVerifiedDomain } from '@/services/domains';
+import {
+  describeRefusal,
+  resolveEntraSignIn,
+  userForEntraSubject
+} from '@/services/entra-sign-in';
 import { redeemTrialLink } from '@/services/trials';
 
 /**
@@ -161,7 +175,7 @@ async function loadIdentity(
   await db
     .update(users)
     .set({
-      ssoSubject,
+      ssoSubject: subjectToRecord(existing.ssoSubject, ssoSubject),
       lastSeenAt: new Date(),
       name: existing.name ?? name ?? null
     })
@@ -240,6 +254,72 @@ export async function loadMemberships(
   });
 }
 
+/**
+ * Whether this sign-in came through a multi-tenant Microsoft registration,
+ * where the address on the token proves nothing by itself. A single-tenant
+ * registration keeps matching by address, as it always has: its one directory
+ * is the deployment's own.
+ */
+function multiTenantEntra(provider: string) {
+  return (
+    provider === ENTRA_PROVIDER &&
+    entraMode(process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER) === 'multi'
+  );
+}
+
+/** See `services/entra-sign-in.ts` for who a multi-tenant sign-in may be. */
+async function entraSignIn(profile: unknown, name: string | null) {
+  const claims = entraClaims(profile);
+  if (!claims) {
+    console.warn('[auth] refused sign-in: Microsoft token lacks tid or oid');
+    return false;
+  }
+  const problem = tokenProblem(
+    claims,
+    process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER
+  );
+  if (problem) {
+    console.warn(
+      `[auth] refused sign-in from tenant ${claims.tid}: ${
+        problem === 'personal_account'
+          ? 'personal Microsoft accounts are not accepted'
+          : `issuer ${forLog(claims.iss)} is not the tenant's own`
+      }`
+    );
+    return false;
+  }
+
+  let result: Awaited<ReturnType<typeof resolveEntraSignIn>>;
+  try {
+    result = await resolveEntraSignIn({
+      claims,
+      name,
+      requestsOpen: requestsOpen()
+    });
+  } catch (cause) {
+    console.error(
+      `[auth] could not check membership for ${forLog(claims.email)} - this is not an ` +
+        `authorisation decision, the lookup itself failed:`,
+      cause
+    );
+    throw new IdentityLookupFailed(cause);
+  }
+  if (result.outcome === 'refused') {
+    console.warn(
+      `[auth] refused sign-in for ${forLog(claims.email)} from tenant ${claims.tid}, ` +
+        `object ${claims.oid}: ${describeRefusal(result.reason)}`
+    );
+    return false;
+  }
+  if (!result.member && !(result.addressProved && requestsOpen())) {
+    console.warn(
+      `[auth] refused sign-in: no active membership for ${forLog(claims.email)} (via ${ENTRA_PROVIDER})`
+    );
+    return false;
+  }
+  return true;
+}
+
 /** How long a sign-in lasts before the identity provider is asked again. */
 export const SESSION_HOURS = 12;
 
@@ -252,7 +332,12 @@ export const authConfig: NextAuthConfig = {
   pages: { signIn: '/sign-in', error: '/sign-in' },
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (!user.email || !account) return false;
+      if (!account) return false;
+      // Before the address check: somebody already bound is known by their
+      // Microsoft account, whether or not the token carries an address.
+      if (multiTenantEntra(account.provider))
+        return entraSignIn(profile, user.name ?? null);
+      if (!user.email) return false;
 
       // Membership is matched by email, so an address the provider has not
       // verified could sign somebody in as whoever was invited at it.
@@ -343,11 +428,17 @@ export const authConfig: NextAuthConfig = {
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, profile }) {
       // The token carries identity only. Authorisation is resolved per request
       // so that revoking a role takes effect immediately rather than whenever
       // the token happens to expire.
-      if (user?.email && account) {
+      if (account && multiTenantEntra(account.provider)) {
+        // Matched by the binding sign-in made, never by the address.
+        const claims = entraClaims(profile);
+        const bound =
+          claims && (await userForEntraSubject(entraSubject(claims)));
+        if (bound) token.userId = bound.id;
+      } else if (user?.email && account) {
         const identity = await loadIdentity(
           user.email,
           `${account.provider}:${account.providerAccountId}`,

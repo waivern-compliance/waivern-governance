@@ -66,6 +66,7 @@ import * as domains from '@/services/domains';
 import * as dsrIntake from '@/services/dsr-intake';
 import * as entitiesSvc from '@/services/entities';
 import * as entityErasure from '@/services/entity-erasure';
+import * as entraTenants from '@/services/entra-tenants';
 import * as evidenceSvc from '@/services/evidence';
 import * as exportSvc from '@/services/export';
 import * as exportsSvc from '@/services/exports';
@@ -2355,6 +2356,25 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      "trustTenant (through B's domain)",
+      () =>
+        entraTenants.trustTenant({
+          organisationId: A.org.id,
+          domainId: B.domainClaim.id,
+          actor: as(),
+          lookup: async () => crypto.randomUUID()
+        })
+    ],
+    [
+      'removeTenant',
+      () =>
+        entraTenants.removeTenant({
+          organisationId: A.org.id,
+          trustId: B.domainClaim.id,
+          actor: as()
+        })
+    ],
+    [
       'renameEntity',
       () =>
         entitiesSvc.renameEntity({
@@ -4149,6 +4169,7 @@ describe('lists', () => {
         ['webhooks.pendingDeliveries', webhooks.pendingDeliveries(o)] as const,
         ['workflow.tasksDueSoon', workflow.tasksDueSoon(o, 24 * 365)] as const,
         ['domains.domainsFor', domains.domainsFor(o)] as const,
+        ['entraTenants.tenantsFor', entraTenants.tenantsFor(o)] as const,
         ['entitiesSvc.entitiesOf', entitiesSvc.entitiesOf(o)] as const,
         ['entitiesSvc.dpoPosition', entitiesSvc.dpoPosition(o)] as const,
         [
@@ -4686,6 +4707,16 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     'platform operators only; requests belong to no organisation',
   'domains.joinByVerifiedDomain':
     'sign-in, before anyone acts for an organisation: joins only the one that verified the domain',
+  'entra-tenants.joinByTrustedTenant':
+    'sign-in, before anyone acts for an organisation: joins only the one that trusts the tenant',
+  'entra-tenants.tenantVouchesFor':
+    'sign-in, before anyone acts for an organisation: answers yes or no, naming no organisation',
+  'entra-sign-in.resolveEntraSignIn':
+    "sign-in, before anyone acts for an organisation: records refusals inside each of the person's own organisations",
+  'entra-sign-in.userForEntraSubject':
+    'sign-in: finds a person, who belongs to no one organisation',
+  'entra-sign-in.releaseEntraBinding':
+    "the deployment operator's, from the command line; records the release inside each of the person's own organisations",
   // Feedback on the product: Waivern's, belonging to no organisation and naming nobody.
   'feedback.submitFeedback':
     'belongs to no organisation; holds no user or organisation id',
