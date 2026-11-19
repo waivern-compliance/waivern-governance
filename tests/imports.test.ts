@@ -883,7 +883,7 @@ describe('importing agreements, evidence and AI systems', () => {
     assert.deepEqual(first.preview, { create: 1, refuse: 1 });
     assert.match(
       (await loadImport(first.batch.id, org.id))!.rows[1].reason ?? '',
-      /"Quantum" is not a type of system/
+      /Type of system: "Quantum" is not one Govern knows/
     );
     await commitImport({
       organisationId: org.id,

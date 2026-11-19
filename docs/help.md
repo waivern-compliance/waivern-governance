@@ -2127,7 +2127,7 @@ Preview shows what every row would become: new, an update to a record imported b
 
 Several values in one cell, such as data categories, are read when separated by semicolons, bars or line breaks. Dates are read as 2026-03-31 or 31/03/2026. A value that cannot be read stops that row, with the reason, rather than being guessed: fix it in the file and import again.
 
-A value for a field with set choices, such as a status, a type or a lawful basis, is read when it is one of Govern's values or a common word for one. A platform's own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.
+A value for a field with set choices, such as a status, a stage or a type of AI system, is read when it is one of Govern's values or a common word for one. A platform's own words, such as "In review", are for you to say the meaning of: after a preview, the matching step lists each value Govern did not recognise, field by field, and asks what it is here. Your answers are saved for that platform, so the next file from it is read the same way. A value left unsaid stops its row.
 
 ### Agreements and evidence, with their files
 

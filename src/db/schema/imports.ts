@@ -116,9 +116,17 @@ export const importBatches = pgTable(
     /**
      * What the last preview found that a person should know before importing:
      * how many open cases are already past their statutory deadline, and so
-     * will raise tasks as soon as they are in.
+     * will raise tasks as soon as they are in, and which fields have more
+     * values to say the meaning of than were offered.
      */
-    previewNotes: jsonb('preview_notes').$type<{ overdue?: number }>(),
+    previewNotes: jsonb('preview_notes').$type<{
+      overdue?: number;
+      /**
+       * Rating or choice fields with more values not yet said than are offered
+       * at once: the rest are offered once those are said.
+       */
+      valuesBeyond?: string[];
+    }>(),
     status: importBatchStatus('status').notNull().default('uploaded'),
     counts: jsonb('counts')
       .$type<

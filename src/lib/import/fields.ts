@@ -2894,27 +2894,28 @@ export function knownChoice(field: FieldDef, value: string): string | null {
 }
 
 /**
- * A choice field's value: what a person said this source's value means here,
- * or else its value, label or a usual word for it. Nothing else is guessed.
+ * A choice field's value: its value, label or a usual word for it, or else
+ * what a person said this source's value means here. Govern's own reading
+ * comes first, because a value it recognises is never offered to translate,
+ * so a translation saved before it was recognised could not be seen or undone.
  */
 export function readChoice(
   field: FieldDef,
   value: string,
   said: Record<string, string> = {}
 ): string {
+  const known = knownChoice(field, value);
+  if (known) return known;
   const chosen = said[value.trim().toLowerCase()];
   if (chosen && (field.choices ?? []).some((c) => c.value === chosen))
     return chosen;
-  const known = knownChoice(field, value);
-  if (!known)
-    throw new RowRefused(
-      `"${value}" is not a ${field.label.toLowerCase()} Govern knows. Say what it means on the matching step, or use one of: ${(
-        field.choices ?? []
-      )
-        .map((c) => c.label)
-        .join(', ')}.`
-    );
-  return known;
+  throw new RowRefused(
+    `${field.label}: "${value}" is not one Govern knows. Say what it means on the matching step, or use one of: ${(
+      field.choices ?? []
+    )
+      .map((c) => c.label)
+      .join(', ')}.`
+  );
 }
 
 export function readNumber(field: FieldDef, value: string): number {
