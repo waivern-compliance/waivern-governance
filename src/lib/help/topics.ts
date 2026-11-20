@@ -458,6 +458,12 @@ export const HELP_TOPICS: HelpTopic[] = [
           "AI risks are filed under the nine categories of DSIT's AI Risk Management Toolkit - financial, legal, transparency, fairness, accountability, contestability, robustness, security, and environment and people. Cyber security, for compromise of the organisation's IT through common internet attacks, is offered whichever AI framework you follow and stays as it is if you change framework; security risk particular to an AI system stays under the framework's own category. Other risks can carry no category.",
           'Raise a risk from the assessment that found it, using the form at the foot of the assessment. That ties the risk to the assessment, so the AI assurance chain can draw the line from the system to what was done about it. Where the assessment named categories that carry risk, they are offered first, and any not yet raised are listed.'
         ]
+      },
+      {
+        heading: 'A draft, until you press Raise',
+        body: [
+          'Nothing is saved while you fill in the Raise a risk form, on the register or on an assessment. Discard clears it and folds it away, leaving no trace. Raise puts the risk on the register and in the audit trail, and from then on it is never deleted: a risk raised in error is closed with a reason, so the record of what was raised and why stays complete.'
+        ]
       }
     ],
     related: ['approvals', 'findings', 'ai-chain']

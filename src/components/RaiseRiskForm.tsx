@@ -1,6 +1,7 @@
-import { raiseRisk } from '@/app/app/risks/actions';
 import type { RiskCategoryDef } from '@/lib/ai-frameworks';
 import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
+
+import { RaiseRiskShell } from './RaiseRiskShell';
 
 type Point = { value: number; label: string };
 
@@ -12,6 +13,10 @@ type Point = { value: number; label: string };
  * is the assessment's and is not offered — a risk filed under a different
  * entity from the assessment that found it would vanish from the view of the
  * people responsible for both.
+ *
+ * Raise is the only write: until it is pressed the risk is a draft in the
+ * browser and Discard throws it away. Afterwards it is audited and cannot be
+ * deleted, only closed with a reason.
  */
 export function RaiseRiskForm({
   entities,
@@ -41,10 +46,7 @@ export function RaiseRiskForm({
   const general = GENERAL_CATEGORIES.filter((c) => !named(c));
 
   return (
-    <form
-      action={raiseRisk}
-      className="space-y-3 border-t border-line p-4"
-    >
+    <RaiseRiskShell>
       {assessmentId ? (
         <input
           type="hidden"
@@ -197,12 +199,6 @@ export function RaiseRiskForm({
           </select>
         </label>
       </div>
-      <button
-        type="submit"
-        className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-      >
-        Raise
-      </button>
-    </form>
+    </RaiseRiskShell>
   );
 }
