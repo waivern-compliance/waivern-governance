@@ -2,6 +2,8 @@ import { raiseRisk } from '@/app/app/risks/actions';
 import type { RiskCategoryDef } from '@/lib/ai-frameworks';
 import { GENERAL_CATEGORIES } from '@/lib/risk/general-categories';
 
+import { DiscardDraftButton } from './DiscardDraftButton';
+
 type Point = { value: number; label: string };
 
 /**
@@ -12,6 +14,10 @@ type Point = { value: number; label: string };
  * is the assessment's and is not offered — a risk filed under a different
  * entity from the assessment that found it would vanish from the view of the
  * people responsible for both.
+ *
+ * Raise is the only write: until it is pressed the risk is a draft in the
+ * browser and Discard throws it away. Afterwards it is audited and cannot be
+ * deleted, only closed with a reason.
  */
 export function RaiseRiskForm({
   entities,
@@ -197,12 +203,20 @@ export function RaiseRiskForm({
           </select>
         </label>
       </div>
-      <button
-        type="submit"
-        className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-      >
-        Raise
-      </button>
+      <p className="text-xs text-ink-soft">
+        Nothing is saved until you press Raise. Raising puts the risk on the
+        register with its history, and it stays there: if it turns out not to be
+        a risk, close it with a reason.
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          Raise
+        </button>
+        <DiscardDraftButton />
+      </div>
     </form>
   );
 }

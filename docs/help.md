@@ -420,6 +420,8 @@ AI risks are filed under the nine categories of DSIT's AI Risk Management Toolki
 
 Raise a risk from the assessment that found it, using the form at the foot of the assessment. That ties the risk to the assessment, so the AI assurance chain can draw the line from the system to what was done about it. Where the assessment named categories that carry risk, they are offered first, and any not yet raised are listed.
 
+Nothing is saved while you fill in the form. Discard clears it and folds it away, leaving no trace. Raise puts the risk on the register and in the audit trail, and from then on it is never deleted: a risk raised in error is closed with a reason, so the record of what was raised and why stays complete.
+
 **See also:** Approving, returning and rejecting · Scan findings · The AI assurance chain
 
 <sub>Also searchable as: risk, mitigation, residual, inherent, accept, tier, likelihood, impact, treatment, suggestion</sub>
