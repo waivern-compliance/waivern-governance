@@ -595,7 +595,9 @@ export async function setDataProtectionLaw(input: {
       }
       // Records follow the entity's law down: one under both laws keeps the law
       // that remains. One under the dropped law alone is for a person to
-      // decide (move it, or close it), so the change is refused naming it.
+      // decide (move it, retire it, or close it), so the change is refused
+      // naming it. A retired processing record is kept as it was: restoring
+      // it later narrows it then, or refuses (`restoreActivity`).
       const records = [
         ...(await tx
           .select({
@@ -603,7 +605,12 @@ export async function setDataProtectionLaw(input: {
             laws: processingActivities.laws
           })
           .from(processingActivities)
-          .where(eq(processingActivities.entityId, before.id))),
+          .where(
+            and(
+              eq(processingActivities.entityId, before.id),
+              isNull(processingActivities.retiredAt)
+            )
+          )),
         ...(await tx
           .select({ reference: breaches.reference, laws: breaches.laws })
           .from(breaches)
@@ -627,7 +634,8 @@ export async function setDataProtectionLaw(input: {
           .where(
             and(
               eq(processingActivities.entityId, before.id),
-              eq(processingActivities.laws, 'uk_eu')
+              eq(processingActivities.laws, 'uk_eu'),
+              isNull(processingActivities.retiredAt)
             )
           );
         await tx
@@ -826,10 +834,17 @@ export async function setOutsideDataProtectionLaw(input: {
 
       const held = (
         await Promise.all([
+          // A retired processing record is kept as history, not as processing
+          // still carried on, so it does not hold the entity under the law.
           tx
             .select({ ref: processingActivities.reference })
             .from(processingActivities)
-            .where(eq(processingActivities.entityId, before.id)),
+            .where(
+              and(
+                eq(processingActivities.entityId, before.id),
+                isNull(processingActivities.retiredAt)
+              )
+            ),
           tx
             .select({ ref: breaches.reference })
             .from(breaches)
@@ -878,7 +893,7 @@ export async function setOutsideDataProtectionLaw(input: {
         const shown = held.slice(0, 5).join(', ');
         const more = held.length > 5 ? ` and ${held.length - 5} more` : '';
         throw new EntityRefused(
-          `${before.name} holds records kept under data protection law (${shown}${more}). Move them to another entity, or close them, first.`
+          `${before.name} holds records kept under data protection law (${shown}${more}). Move them to another entity, or retire or close them, first.`
         );
       }
 

@@ -17,6 +17,7 @@ import {
   assessmentRevisions,
   assessments,
   dpas,
+  supplierContracts,
   suppliers,
   templates,
   templateVersions,
@@ -29,6 +30,7 @@ import {
   effectiveMechanisms,
   TRANSFER_MECHANISMS
 } from '@/lib/gdpr/transfers';
+import { cleanRetirement, RetireRefused } from '@/lib/retirement';
 import {
   aiStanding,
   aiSupplierGaps,
@@ -513,7 +515,10 @@ export async function loadSupplier(supplierId: string, organisationId: string) {
 
 export async function registerHealth(organisationId: string) {
   return withOrganisation(organisationId, async () => {
-    const rows = await rowsFor(organisationId);
+    const listed = await rowsFor(organisationId);
+    // Retired suppliers are kept, not checked: they are no longer the register.
+    const rows = listed.filter((r) => !r.supplier.retiredAt);
+    const retired = listed.filter((r) => r.supplier.retiredAt);
     return {
       total: rows.length,
       covered: rows.filter((r) => r.hardGaps.length === 0).length,
@@ -522,7 +527,8 @@ export async function registerHealth(organisationId: string) {
       untriaged: rows.filter((r) => r.gaps.includes('never_reviewed')).length,
       fromScan: rows.filter((r) => r.supplier.sourceConnectionId !== null)
         .length,
-      rows
+      rows,
+      retired
     };
   });
 }
@@ -548,6 +554,21 @@ export async function createSupplier(input: {
     if (input.ownerId)
       await assertMemberOf(input.organisationId, input.ownerId);
     return db.transaction(async (tx) => {
+      const [held] = await tx
+        .select({ name: suppliers.name, retiredAt: suppliers.retiredAt })
+        .from(suppliers)
+        .where(
+          and(
+            eq(suppliers.organisationId, input.organisationId),
+            eq(suppliers.canonicalKey, canonicalise(input.name))
+          )
+        );
+      if (held)
+        throw new Error(
+          held.retiredAt
+            ? `${held.name} is already on the register, retired. Restore it rather than add it again.`
+            : `${held.name} is already on the register.`
+        );
       const [row] = await tx
         .insert(suppliers)
         .values({
@@ -617,6 +638,7 @@ export async function updateSupplier(input: {
           )
         );
       if (!before) throw new Error('No such supplier');
+      if (before.retiredAt) throw new RetireRefused(RETIRED_SUPPLIER);
 
       const [after] = await tx
         .update(suppliers)
@@ -682,6 +704,7 @@ export async function recordDpa(input: {
           )
         );
       if (!supplier) throw new Error('No such supplier');
+      if (supplier.retiredAt) throw new RetireRefused(RETIRED_SUPPLIER);
 
       const [row] = await tx
         .insert(dpas)
@@ -777,6 +800,7 @@ export async function updateDpa(input: {
           )
         );
       if (!existing) throw new Error('No such agreement');
+      await refuseRetiredSupplier(tx, existing.supplierId);
 
       const next = {
         title: input.title.trim(),
@@ -866,6 +890,7 @@ export async function archiveDpa(input: {
       if (!existing)
         throw new ArchiveRefused('That agreement no longer exists.');
       if (existing.archivedAt) return existing;
+      await refuseRetiredSupplier(tx, existing.supplierId);
 
       const archivedAt = new Date();
       const [row] = await tx
@@ -913,6 +938,7 @@ export async function restoreDpa(input: {
       if (!existing)
         throw new ArchiveRefused('That agreement no longer exists.');
       if (!existing.archivedAt) return existing;
+      await refuseRetiredSupplier(tx, existing.supplierId);
 
       const [row] = await tx
         .update(dpas)
@@ -940,4 +966,146 @@ export async function restoreDpa(input: {
       return row;
     });
   });
+}
+
+/** A retired supplier is kept as it was: restore it to change it. */
+export const RETIRED_SUPPLIER =
+  'This third party is retired, and kept as it was. Restore it to change it.';
+
+/**
+ * Take a third party off the register: no longer used, merged into another,
+ * or recorded in error. Kept as it was, with its agreements, contracts and
+ * history, read-only and restorable (`lib/retirement.ts`). Refused while a
+ * contract with it is still in force, which would go on asking for renewal.
+ */
+export async function retireSupplier(input: {
+  supplierId: string;
+  organisationId: string;
+  reason: unknown;
+  note: unknown;
+  actor: Actor;
+}) {
+  const { reason, note } = cleanRetirement(input);
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await supplierForWrite(
+        tx,
+        input.supplierId,
+        input.organisationId
+      );
+      if (before.retiredAt)
+        throw new RetireRefused('This third party is already retired.');
+      const inForce = await tx
+        .select({ reference: supplierContracts.reference })
+        .from(supplierContracts)
+        .where(
+          and(
+            eq(supplierContracts.supplierId, before.id),
+            isNull(supplierContracts.endedAt)
+          )
+        );
+      if (inForce.length > 0)
+        throw new RetireRefused(
+          `${inForce.map((c) => c.reference).join(', ')} ${inForce.length === 1 ? 'is' : 'are'} still in force with ${before.name}. End ${inForce.length === 1 ? 'it' : 'them'} first.`
+        );
+      const retiredAt = new Date();
+      const [after] = await tx
+        .update(suppliers)
+        .set({
+          retiredAt,
+          retiredBy: input.actor.actorUserId ?? null,
+          retiredReason: reason,
+          retiredNote: note,
+          updatedAt: retiredAt
+        })
+        .where(eq(suppliers.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'supplier.retired',
+        subjectType: 'supplier',
+        subjectId: before.id,
+        after: { retiredAt, reason, note }
+      });
+      return after;
+    })
+  );
+}
+
+/** Put a retired third party back on the register. */
+export async function restoreSupplier(input: {
+  supplierId: string;
+  organisationId: string;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await supplierForWrite(
+        tx,
+        input.supplierId,
+        input.organisationId
+      );
+      if (!before.retiredAt)
+        throw new RetireRefused('This third party is not retired.');
+      const [after] = await tx
+        .update(suppliers)
+        .set({
+          retiredAt: null,
+          retiredBy: null,
+          retiredReason: null,
+          retiredNote: null,
+          updatedAt: new Date()
+        })
+        .where(eq(suppliers.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'supplier.restored',
+        subjectType: 'supplier',
+        subjectId: before.id,
+        before: {
+          retiredAt: before.retiredAt,
+          reason: before.retiredReason,
+          note: before.retiredNote
+        }
+      });
+      return after;
+    })
+  );
+}
+
+/**
+ * Refuse a change to what hangs off a retired third party: its agreements,
+ * tier, reviews and contracts are kept as they were, like the record itself.
+ */
+async function refuseRetiredSupplier(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  supplierId: string
+) {
+  const [row] = await tx
+    .select({ retiredAt: suppliers.retiredAt })
+    .from(suppliers)
+    .where(eq(suppliers.id, supplierId));
+  if (row?.retiredAt) throw new RetireRefused(RETIRED_SUPPLIER);
+}
+
+async function supplierForWrite(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  supplierId: string,
+  organisationId: string
+) {
+  const [row] = await tx
+    .select()
+    .from(suppliers)
+    .where(
+      and(
+        eq(suppliers.id, supplierId),
+        eq(suppliers.organisationId, organisationId)
+      )
+    )
+    .for('update');
+  if (!row) throw new Error('No such third party');
+  return row;
 }

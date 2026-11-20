@@ -522,7 +522,15 @@ Each record is under the laws of its entity that govern it: the UK GDPR, the EU 
 
 Every check is made once for each law that applies, and the record's heading names them. Where more than one law is in play across your entities, the register shows each record's laws and can be filtered to the records under one of them.
 
-Narrowing an entity to one law narrows its records under both laws with it. A record under the other law alone stops the change until you decide what to do with it.
+Narrowing an entity to one law narrows its records under both laws with it. A record under the other law alone stops the change until you decide what to do with it: move it, or retire it.
+
+### Retiring a record
+
+Records are never deleted: the audit log is a permanent account of what was recorded, and a record that vanished would leave it pointing at nothing. A processing activity that is no longer carried on, was merged into another, or was recorded in error is retired instead, from the foot of its page, with a reason. A merge asks which record it went into.
+
+A retired record is kept as it was, with its links and its history, and can no longer be edited. It drops out of the register's counts, its export, the gaps it raised elsewhere and the link pickers, and is listed under Retired below the register. It no longer holds its entity under data protection law, so an entity whose records are all retired can be marked as under neither law.
+
+Restoring puts it back on the register, as it was. That is refused once its entity is under neither law, or under one law that the record is not under; where the record was under both and its entity has since been narrowed, it is narrowed with it. Retiring and restoring are both audited.
 
 ### What the flags mean
 
@@ -727,6 +735,10 @@ When a document is no longer in force, withdraw it. It stops covering anything a
 *Every processor you rely on, whether or not anybody procured it, and whether a contract actually covers them.*
 
 **Screen:** `/app/third-parties`
+
+### Retiring a third party
+
+A third party you no longer use, merged into another, or recorded in error is retired, from the foot of its page, with a reason. It is never deleted. It is kept as it was, with its agreements, contracts and history, can no longer be edited, owes no more reviews, and is listed under Retired below the register. Retiring is refused while a contract with it is still in force: end the contract first. Adding a retired third party again is refused; restore it instead. Retiring and restoring are both audited.
 
 ### Tier
 
@@ -2291,7 +2303,7 @@ Choose 'Neither' for an entity subject to no UK or EU data protection law - a US
 
 Where no entity is under either law, Govern offers the AI governance programme alone: the home page, the step-by-step guide and the list of everything else leave out the processing register, requests, breaches, complaints, cookies, marketing, the country library, the supervisory authorities and the data protection officer. Those pages still open if you type their address, and say why they are empty.
 
-Choosing 'Neither' is refused while the entity holds a processing record, breach, request, complaint, website, marketing activity, data sharing agreement or appropriate policy document, or has a request form still open; or while it is marked as a public authority, competent authority, communications provider or under the Irish ePrivacy Regulations, or has its own data protection officer or establishment details. Once it is under neither, none of those can be recorded for it - in a group whose other entities are under a law, record them under one of those. Choosing a law again brings it back under that law.
+Choosing 'Neither' is refused while the entity holds a processing record not retired, a breach, request, complaint, website, marketing activity, data sharing agreement or appropriate policy document, or has a request form still open; or while it is marked as a public authority, competent authority, communications provider or under the Irish ePrivacy Regulations, or has its own data protection officer or establishment details. Once it is under neither, none of those can be recorded for it - in a group whose other entities are under a law, record them under one of those. Choosing a law again brings it back under that law.
 
 ### The Irish ePrivacy Regulations
 

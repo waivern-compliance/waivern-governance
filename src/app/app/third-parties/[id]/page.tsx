@@ -11,6 +11,7 @@ import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { InlineSelectForm } from '@/components/InlineSelectForm';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
+import { RetireRecord } from '@/components/RetireRecord';
 import { StartAssessment } from '@/components/StartAssessment';
 import { AgreementAdmin } from '@/components/thirdparty/AgreementAdmin';
 import { MechanismFields } from '@/components/thirdparty/MechanismFields';
@@ -58,6 +59,8 @@ import { GAP_WORDS, HARD_GAPS, loadSupplier } from '@/services/third-party';
 import {
   confirmSupplierAction,
   recordDpaAction,
+  restoreSupplierAction,
+  retireSupplierAction,
   setAiInvolvementAction,
   setSupplierRoleAction,
   updateSupplierAction
@@ -87,7 +90,9 @@ export default async function SupplierPage({
   if (!loaded) notFound();
 
   const { supplier, dpas, current, gaps, hardGaps, privacy, ai } = loaded;
-  const mayEdit = can(active.membership.grants, 'record.write');
+  const mayWrite = can(active.membership.grants, 'record.write');
+  // A retired third party is kept as it was: it is restored, not edited.
+  const mayEdit = mayWrite && !supplier.retiredAt;
 
   const colleagues = await scoped(active.membership.organisationId, () =>
     db
@@ -97,6 +102,17 @@ export default async function SupplierPage({
       .where(eq(memberships.organisationId, active.membership.organisationId))
       .orderBy(asc(users.email))
   );
+  // Looked up by id, not among colleagues, so the name outlives membership.
+  const retiredBy = supplier.retiredBy
+    ? ((
+        await scoped(active.membership.organisationId, () =>
+          db
+            .select({ email: users.email })
+            .from(users)
+            .where(eq(users.id, supplier.retiredBy!))
+        )
+      )[0]?.email ?? null)
+    : null;
 
   const org = active.membership.organisationId;
   const viewer = { userId: active.userId, grants: active.membership.grants };
@@ -210,22 +226,39 @@ export default async function SupplierPage({
           privacy={privacy}
           ai={ai.standing}
         />
-        <GapChips
-          gaps={gaps}
-          words={GAP_WORDS}
-          serious={HARD_GAPS}
-          clear={
-            supplier.role === 'controller'
-              ? 'Nothing missing'
-              : 'Article 28 satisfied'
-          }
-        />
-        {hardGaps.length > 0 ? (
+        {/* A retired third party is no longer the register, so is not checked. */}
+        {supplier.retiredAt ? null : (
+          <GapChips
+            gaps={gaps}
+            words={GAP_WORDS}
+            serious={HARD_GAPS}
+            clear={
+              supplier.role === 'controller'
+                ? 'Nothing missing'
+                : 'Article 28 satisfied'
+            }
+          />
+        )}
+        {hardGaps.length > 0 && !supplier.retiredAt ? (
           <p className="max-w-prose text-xs text-red-900">
             Article 28(3) requires processing to be governed by a contract. No
             agreement, an unsigned one and an expired one are the same failure
             in substance.
           </p>
+        ) : null}
+        {supplier.retiredAt ? (
+          <RetireRecord
+            what="third party"
+            retired={{
+              at: supplier.retiredAt,
+              by: retiredBy,
+              reason: supplier.retiredReason,
+              note: supplier.retiredNote
+            }}
+            retire={retireSupplierAction.bind(null, supplier.id)}
+            restore={restoreSupplierAction.bind(null, supplier.id)}
+            mayEdit={mayWrite}
+          />
         ) : null}
       </header>
 
@@ -716,6 +749,16 @@ export default async function SupplierPage({
           </EditForm>
         </>
       ) : null}
+
+      {supplier.retiredAt ? null : (
+        <RetireRecord
+          what="third party"
+          retired={{ at: null, by: null, reason: null, note: null }}
+          retire={retireSupplierAction.bind(null, supplier.id)}
+          restore={restoreSupplierAction.bind(null, supplier.id)}
+          mayEdit={mayWrite}
+        />
+      )}
 
       <Discussion
         subjectType="supplier"

@@ -86,6 +86,7 @@ import {
   effectiveLaws,
   LAW_NAMES,
   lawsLabel,
+  narrowedTo,
   withinEntity,
   type Law
 } from '@/lib/gdpr/regimes';
@@ -96,6 +97,7 @@ import {
   type TransferAssessmentGap
 } from '@/lib/gdpr/transfers';
 import { nextReference } from '@/lib/references';
+import { cleanRetirement, RetireRefused } from '@/lib/retirement';
 
 import { needingSafeguards } from './countries';
 import { policyCoverage } from './policy-documents';
@@ -703,6 +705,10 @@ export function cleanLawfulBases(
   };
 }
 
+/** A retired record is kept as it was: restore it to change it. */
+export const RETIRED_READ_ONLY =
+  'This processing activity is retired, and kept as it was. Restore it to change it.';
+
 export type RegisterRow = {
   activity: Activity;
   entityName: string;
@@ -1092,6 +1098,7 @@ export async function updateActivity(input: {
           )
         );
       if (!before) throw new Error('No such processing activity');
+      if (before.retiredAt) throw new RetireRefused(RETIRED_READ_ONLY);
 
       const {
         lawfulBases,
@@ -1329,6 +1336,7 @@ export async function setFurtherProcessing(input: {
           )
         );
       if (!before) throw new Error('No such processing activity');
+      if (before.retiredAt) throw new RetireRefused(RETIRED_READ_ONLY);
 
       // Under Part 3, s.36 and s.41 in place of Articles 8A and 84A–84C; the
       // UK GDPR's own answers are left as they were. Under the UK GDPR, the
@@ -1405,12 +1413,15 @@ export async function registerHealth(
   law?: Law
 ) {
   return withOrganisation(organisationId, async () => {
-    const all = await listActivities(organisationId, entityIds);
-    const rows = law
-      ? all.filter((r) =>
+    const listed = await listActivities(organisationId, entityIds);
+    // Retired records are kept, not inspected: they are no longer the register.
+    const underLaw = law
+      ? listed.filter((r) =>
           law === 'uk' ? appliesUk(r.laws) : appliesEu(r.laws)
         )
-      : all;
+      : listed;
+    const rows = underLaw.filter((r) => !r.activity.retiredAt);
+    const retired = underLaw.filter((r) => r.activity.retiredAt);
     return {
       total: rows.length,
       complete: rows.filter((r) => r.gaps.length === 0).length,
@@ -1418,7 +1429,147 @@ export async function registerHealth(
       unowned: rows.filter((r) => r.gaps.includes('no_owner')).length,
       fromPortal: rows.filter((r) => r.activity.sourceConnectionId !== null)
         .length,
-      rows
+      rows,
+      retired
     };
   });
+}
+
+/**
+ * Take a processing activity off the register: no longer carried on, merged
+ * into another, or recorded in error. It is kept as it was, with its links
+ * and its history, read-only, and restorable (`lib/retirement.ts`). It no
+ * longer counts towards the register's health, nor holds its entity under
+ * data protection law (`setOutsideDataProtectionLaw`).
+ */
+export async function retireActivity(input: {
+  activityId: string;
+  organisationId: string;
+  reason: unknown;
+  note: unknown;
+  actor: Actor;
+}) {
+  const { reason, note } = cleanRetirement(input);
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await activityForWrite(
+        tx,
+        input.activityId,
+        input.organisationId
+      );
+      if (before.retiredAt)
+        throw new RetireRefused('This processing activity is already retired.');
+      const retiredAt = new Date();
+      const [after] = await tx
+        .update(processingActivities)
+        .set({
+          retiredAt,
+          retiredBy: input.actor.actorUserId ?? null,
+          retiredReason: reason,
+          retiredNote: note,
+          updatedAt: retiredAt
+        })
+        .where(eq(processingActivities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: before.entityId,
+        action: 'processing_activity.retired',
+        subjectType: 'processing_activity',
+        subjectId: before.id,
+        after: { retiredAt, reason, note }
+      });
+      return after;
+    })
+  );
+}
+
+/**
+ * Put a retired processing activity back on the register. Its entity must
+ * still be under the law it is recorded under: one taken outside data
+ * protection law meanwhile holds no processing records, and one narrowed to a
+ * single law takes the record with it, as a change of law does
+ * (`setDataProtectionLaw`).
+ */
+export async function restoreActivity(input: {
+  activityId: string;
+  organisationId: string;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      const before = await activityForWrite(
+        tx,
+        input.activityId,
+        input.organisationId
+      );
+      if (!before.retiredAt)
+        throw new RetireRefused('This processing activity is not retired.');
+      const [entity] = await tx
+        .select({
+          name: entities.name,
+          law: entities.dataProtectionLaw,
+          applies: entities.dataProtectionLawApplies
+        })
+        .from(entities)
+        .where(eq(entities.id, before.entityId));
+      if (!entity.applies)
+        throw new RetireRefused(
+          outsideLawRefusal(entity.name, 'a processing activity')
+        );
+      const laws = narrowedTo(before.laws, entity.law);
+      if (laws === null)
+        throw new RetireRefused(
+          `${before.reference} is recorded under the ${lawsLabel(before.laws)} only, which ${entity.name} is no longer subject to. It stays retired.`
+        );
+      const [after] = await tx
+        .update(processingActivities)
+        .set({
+          retiredAt: null,
+          retiredBy: null,
+          retiredReason: null,
+          retiredNote: null,
+          laws,
+          updatedAt: new Date()
+        })
+        .where(eq(processingActivities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        entityId: before.entityId,
+        action: 'processing_activity.restored',
+        subjectType: 'processing_activity',
+        subjectId: before.id,
+        before: {
+          retiredAt: before.retiredAt,
+          reason: before.retiredReason,
+          note: before.retiredNote,
+          ...(laws !== before.laws ? { laws: before.laws } : {})
+        },
+        after: laws !== before.laws ? { laws } : {}
+      });
+      return after;
+    })
+  );
+}
+
+async function activityForWrite(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  activityId: string,
+  organisationId: string
+) {
+  const [row] = await tx
+    .select()
+    .from(processingActivities)
+    .where(
+      and(
+        eq(processingActivities.id, activityId),
+        eq(processingActivities.organisationId, organisationId)
+      )
+    )
+    .for('update');
+  if (!row) throw new Error('No such processing activity');
+  return row;
 }

@@ -94,7 +94,10 @@ export default async function MarketingActivityPage({
     activity.entityId
   );
   const paOptions = mayWrite
-    ? await marketingProcessingActivities(active.membership.organisationId)
+    ? await marketingProcessingActivities(
+        active.membership.organisationId,
+        activity.processingActivityId
+      )
     : [];
 
   return (

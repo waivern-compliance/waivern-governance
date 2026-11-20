@@ -2179,6 +2179,26 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'retireActivity',
+      () =>
+        ropa.retireActivity({
+          activityId: B.activity.id,
+          organisationId: A.org.id,
+          reason: 'recorded_in_error',
+          note: '',
+          actor: as()
+        })
+    ],
+    [
+      'restoreActivity',
+      () =>
+        ropa.restoreActivity({
+          activityId: B.activity.id,
+          organisationId: A.org.id,
+          actor: as()
+        })
+    ],
+    [
       'setAutomatedDecisions',
       () =>
         adm.setAutomatedDecisions({
@@ -2264,6 +2284,26 @@ describe("changing another organisation's records", () => {
         thirdParty.restoreDpa({
           organisationId: A.org.id,
           dpaId: B.dpa.id,
+          actor: as()
+        })
+    ],
+    [
+      'retireSupplier',
+      () =>
+        thirdParty.retireSupplier({
+          supplierId: B.supplier.id,
+          organisationId: A.org.id,
+          reason: 'recorded_in_error',
+          note: '',
+          actor: as()
+        })
+    ],
+    [
+      'restoreSupplier',
+      () =>
+        thirdParty.restoreSupplier({
+          supplierId: B.supplier.id,
+          organisationId: A.org.id,
           actor: as()
         })
     ],

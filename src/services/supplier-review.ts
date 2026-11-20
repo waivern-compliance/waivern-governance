@@ -23,6 +23,7 @@ import {
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import { addMonths } from '@/lib/dates';
+import { RetireRefused } from '@/lib/retirement';
 import { isDueDiligenceDefinition } from '@/lib/templates/library/supplier-due-diligence';
 import {
   MAX_REVIEW_MONTHS,
@@ -36,6 +37,7 @@ import {
 import { SUPPLIER_TIERS, TIER_LABEL } from '@/lib/thirdparty/tier';
 
 import type { Actor } from './templates';
+import { RETIRED_SUPPLIER } from './third-party';
 
 /**
  * The supplier review cycle. See `lib/thirdparty/review.ts`.
@@ -104,7 +106,9 @@ export async function setSupplierReviewCycle(input: {
           and(
             eq(suppliers.organisationId, input.organisationId),
             isNotNull(suppliers.tier),
-            isNotNull(suppliers.lastReviewedAt)
+            isNotNull(suppliers.lastReviewedAt),
+            // A retired third party has no review to move.
+            isNull(suppliers.retiredAt)
           )
         );
       let moved = 0;
@@ -265,6 +269,7 @@ export async function recordSupplierReview(
     )
     .for('update');
   if (!supplier) return null;
+  if (supplier.retiredAt) throw new RetireRefused(RETIRED_SUPPLIER);
 
   const [previous] = supplier.reviewAssessmentId
     ? await tx
@@ -454,7 +459,9 @@ export async function suppliersDueForReview(
         and(
           eq(suppliers.organisationId, organisationId),
           isNotNull(suppliers.tier),
-          lte(suppliers.nextReviewAt, now)
+          lte(suppliers.nextReviewAt, now),
+          // A retired third party is no longer used: nothing to review.
+          isNull(suppliers.retiredAt)
         )
       )
       .orderBy(asc(suppliers.nextReviewAt))
@@ -482,7 +489,8 @@ export async function supplierReviewSchedule(
       .where(
         and(
           eq(suppliers.organisationId, organisationId),
-          isNotNull(suppliers.nextReviewAt)
+          isNotNull(suppliers.nextReviewAt),
+          isNull(suppliers.retiredAt)
         )
       )
       .orderBy(asc(suppliers.nextReviewAt));

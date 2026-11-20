@@ -6,6 +6,7 @@ import { GapChips } from '@/components/GapChips';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { OutsideProgrammeNote } from '@/components/OutsideProgrammeNote';
+import { RetiredList } from '@/components/RetiredList';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { establishmentGaps } from '@/lib/gdpr/establishment';
@@ -336,13 +337,29 @@ export default async function RopaPage({
             </Link>
           </li>
         ))}
-        {health.rows.length === 0 ? (
+        {health.rows.length === 0 && health.retired.length > 0 ? (
+          <li className="px-4 py-6 text-sm text-ink-soft">
+            Nothing on the register. Its retired records are listed below.
+          </li>
+        ) : null}
+        {health.rows.length === 0 && health.retired.length === 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
             Nothing recorded yet. Start with the processing you already know
             about - the register is built by filling gaps, not by waiting.
           </li>
         ) : null}
       </ul>
+
+      <RetiredList
+        items={health.retired.map(({ activity }) => ({
+          id: activity.id,
+          href: `/app/ropa/${activity.id}`,
+          reference: activity.reference,
+          name: activity.name,
+          retiredAt: activity.retiredAt!,
+          reason: activity.retiredReason
+        }))}
+      />
     </main>
   );
 }

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
 import { EditForm } from '@/components/EditForm';
 import { EprivacyScopeField } from '@/components/EprivacyScopeField';
@@ -156,7 +156,18 @@ export default async function PropertyPage({
               name: processingActivities.name
             })
             .from(processingActivities)
-            .where(eq(processingActivities.entityId, property.entityId))
+            .where(
+              and(
+                eq(processingActivities.entityId, property.entityId),
+                // A retired activity only where it is already the one chosen.
+                property.processingActivityId
+                  ? or(
+                      isNull(processingActivities.retiredAt),
+                      eq(processingActivities.id, property.processingActivityId)
+                    )
+                  : isNull(processingActivities.retiredAt)
+              )
+            )
             .orderBy(asc(processingActivities.reference))
         )
       : [];

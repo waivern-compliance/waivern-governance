@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
 import { AutomatedDecisions } from '@/components/AutomatedDecisions';
 import { Discussion } from '@/components/Discussion';
@@ -154,7 +154,16 @@ export default async function UseCasePage({
             .select({ id: suppliers.id, name: suppliers.name })
             .from(suppliers)
             .where(
-              eq(suppliers.organisationId, active.membership.organisationId)
+              and(
+                eq(suppliers.organisationId, active.membership.organisationId),
+                // A retired one only where it is already the one chosen.
+                useCase.supplierId
+                  ? or(
+                      isNull(suppliers.retiredAt),
+                      eq(suppliers.id, useCase.supplierId)
+                    )
+                  : isNull(suppliers.retiredAt)
+              )
             )
             .orderBy(asc(suppliers.name))
         )
@@ -181,9 +190,12 @@ export default async function UseCasePage({
             })
             .from(processingActivities)
             .where(
-              eq(
-                processingActivities.organisationId,
-                active.membership.organisationId
+              and(
+                eq(
+                  processingActivities.organisationId,
+                  active.membership.organisationId
+                ),
+                isNull(processingActivities.retiredAt)
               )
             )
             .orderBy(asc(processingActivities.reference))

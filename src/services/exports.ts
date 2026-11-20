@@ -703,7 +703,11 @@ export async function exportRopa(
   entityIds: string[] | null
 ) {
   return withOrganisation(organisationId, async () => {
-    const rows = await listActivities(organisationId, entityIds);
+    // The register as it stands, as the screen shows it: retired records are
+    // kept, and go out in the organisation's full export, not in this one.
+    const rows = (await listActivities(organisationId, entityIds)).filter(
+      (r) => !r.activity.retiredAt
+    );
 
     return {
       columns: [

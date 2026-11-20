@@ -131,12 +131,14 @@ async function reliance(
     })
     .from(processingActivities)
     .where(
-      entityIds === null
-        ? eq(processingActivities.organisationId, organisationId)
-        : and(
-            eq(processingActivities.organisationId, organisationId),
-            inArray(processingActivities.entityId, entityIds)
-          )
+      and(
+        eq(processingActivities.organisationId, organisationId),
+        entityIds === null
+          ? undefined
+          : inArray(processingActivities.entityId, entityIds),
+        // A retired activity relies on no condition any more.
+        isNull(processingActivities.retiredAt)
+      )
     )
     .orderBy(asc(processingActivities.reference));
   return rows
