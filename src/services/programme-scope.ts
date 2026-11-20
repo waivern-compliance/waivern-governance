@@ -4,6 +4,7 @@ import { db, withOrganisation } from '@/db/client';
 import { entities } from '@/db/schema';
 import type { AiFrameworkId } from '@/lib/ai-frameworks';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { appliesEu } from '@/lib/gdpr/regimes';
 import { entityEprivacy } from '@/lib/ie-eprivacy/scope';
 
 import { aiFrameworkOf } from './ai-framework';
@@ -24,6 +25,8 @@ export type ProgrammeScope = {
   privacy: boolean;
   /** Some entity is subject to UK law: the Data Protection Act 2018's pages. */
   ukLaw: boolean;
+  /** Some entity is subject to EU law. */
+  euLaw: boolean;
   /** Some entity is under UK PECR or the Irish ePrivacy Regulations. */
   eprivacy: boolean;
   /** Some entity answers freedom of information requests. */
@@ -65,6 +68,7 @@ export async function programmeScope(
   return {
     privacy: fresh || under.length > 0,
     ukLaw: fresh || under.some((r) => ukLawApplies(r.dataProtectionLaw)),
+    euLaw: under.some((r) => appliesEu(r.dataProtectionLaw)),
     eprivacy: fresh || under.some((r) => entityEprivacy(r) !== null),
     foi: rows.some((r) => r.foiAct !== null),
     cyberEssentials,

@@ -4645,6 +4645,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
   'ai-framework.aiFrameworkOf': "reads the caller's own organisation",
   'programme-scope.programmeScope':
     "composes reads of the caller's own organisation, each tested on its own",
+  'template-relevance.relevantTemplates':
+    "reads the caller's own organisation's library, every query filtered by it",
   'ai-framework.aiFrameworkPackOf': "reads the caller's own organisation",
   'ai-lifecycle.icoConsultationOutstanding':
     'called from gateContext after it loads the system within the organisation',

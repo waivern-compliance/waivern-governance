@@ -3002,9 +3002,19 @@ export const HELP_TOPICS: HelpTopic[] = [
       'equality',
       'eia',
       'psed',
-      'update'
+      'update',
+      'see all',
+      'filtered',
+      'hidden'
     ],
     sections: [
+      {
+        heading: 'Only the templates for what you manage',
+        body: [
+          "The library shows the templates for what your organisation manages in Govern. UK templates - the ICO's methods, UK procurement and the equality duty - appear where some entity is under UK law, EU ones - the EDPB and CNIL methods, the Irish provider duties - where some entity is under EU law, and none where every entity is under neither. AI governance templates always appear, for the framework you follow. Cyber Essentials readiness appears once Cyber Essentials is turned on. Both are set on the Organisation page.",
+          'A note above the list says what it is filtered by and how many are hidden. See all templates shows every one, and the address keeps that choice, so a reload or a shared link shows the same list. Templates you created or copied, have an assessment against or are editing are always shown, and every template still opens by its address.'
+        ]
+      },
       {
         heading: 'Versions matter',
         body: [

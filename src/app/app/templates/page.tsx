@@ -8,6 +8,8 @@ import { getActiveSession } from '@/lib/session';
 import { draftBasis } from '@/lib/templates/draft-basis';
 import { TEMPLATE_KIND_LABEL } from '@/lib/templates/kinds';
 import { questionsOf } from '@/lib/templates/logic';
+import type { ProgrammeScope } from '@/services/programme-scope';
+import { relevantTemplates } from '@/services/template-relevance';
 import {
   shippedTemplatesMissing,
   shippedTemplatesOutdated,
@@ -38,7 +40,30 @@ const STARTABLE: readonly TemplateKind[] = [
   'custom'
 ];
 
-export default async function Templates() {
+/**
+ * What the organisation has declared, in the words the filter note uses: the
+ * programmes whose templates are shown, and why data privacy is left out.
+ */
+function declared(scope: ProgrammeScope) {
+  const laws = [scope.ukLaw ? 'UK' : null, scope.euLaw ? 'EU' : null].filter(
+    Boolean
+  );
+  const shown = [
+    scope.privacy ? `data privacy under ${laws.join(' and ')} law` : null,
+    'AI governance',
+    scope.cyberEssentials ? 'Cyber Essentials' : null
+  ].filter((p): p is string => p !== null);
+  const left = scope.privacy
+    ? null
+    : 'no entity is subject to UK or EU data protection law';
+  return { shown, left };
+}
+
+export default async function Templates({
+  searchParams
+}: {
+  searchParams: Promise<{ all?: string }>;
+}) {
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
@@ -53,11 +78,23 @@ export default async function Templates() {
 
   // The whole library, drafts included: a template whose only version is an
   // unpublished draft is exactly what somebody editing came back for.
-  const [rows, allMissing, allOutdated] = await Promise.all([
-    templateLibrary(active.membership.organisationId),
-    shippedTemplatesMissing(active.membership.organisationId),
-    shippedTemplatesOutdated(active.membership.organisationId)
-  ]);
+  const [library, relevant, allMissing, allOutdated, { all }] =
+    await Promise.all([
+      templateLibrary(active.membership.organisationId),
+      relevantTemplates(active.membership.organisationId),
+      shippedTemplatesMissing(active.membership.organisationId),
+      shippedTemplatesOutdated(active.membership.organisationId),
+      searchParams
+    ]);
+  // By default only what the organisation has declared it manages; the rest
+  // is one link away, and the choice is in the address so it survives a
+  // reload and can be shared.
+  const showAll = all === '1';
+  const rows = showAll
+    ? library
+    : library.filter(({ template }) => relevant.ids.has(template.id));
+  const hidden = library.length - rows.length;
+  const { shown, left } = declared(relevant.scope);
   const mayAuthor = can(active.membership.grants, 'template.author');
   const mayPublish = can(active.membership.grants, 'template.publish');
   // A role limited to some kinds is offered only those: the shipped templates
@@ -94,7 +131,7 @@ export default async function Templates() {
 
       <HelpLink topic="templates" />
 
-      {mayPublish && missing.length > 0 && rows.length > 0 ? (
+      {mayPublish && missing.length > 0 && library.length > 0 ? (
         <form
           action={installShippedAction}
           className="space-y-2 rounded border-l-2 border-brand bg-surface px-4 py-3"
@@ -234,6 +271,41 @@ export default async function Templates() {
         </details>
       ) : null}
 
+      {showAll || hidden > 0 ? (
+        <div className="space-y-1 rounded border border-line bg-surface px-4 py-3 text-sm">
+          {showAll ? (
+            <p>
+              Showing every template in your library.{' '}
+              <Link
+                href="/app/templates"
+                className="text-brand underline-offset-2 hover:underline"
+              >
+                Show only those for what you manage
+              </Link>
+            </p>
+          ) : (
+            <p>
+              Showing the templates for what you manage in Govern:{' '}
+              {shown.join(', ')}.{' '}
+              {hidden === 1 ? 'One other is' : `${hidden} others are`} hidden
+              {left ? `, because ${left}` : ''}.{' '}
+              <Link
+                href="/app/templates?all=1"
+                className="text-brand underline-offset-2 hover:underline"
+              >
+                See all templates
+              </Link>
+            </p>
+          )}
+          <p className="text-xs text-ink-soft">
+            Templates you created, copied, have assessments against or are
+            editing are always shown. What you manage follows the laws your
+            entities are under and whether Cyber Essentials is on, both on the
+            Organisation page.
+          </p>
+        </div>
+      ) : null}
+
       <ul className="space-y-3">
         {rows.map(({ template, versions }) => {
           const published = versions.find((v) => v.status === 'published');
@@ -286,7 +358,7 @@ export default async function Templates() {
         })}
       </ul>
 
-      {rows.length === 0 ? (
+      {library.length === 0 ? (
         <p className="text-sm text-ink-soft">
           No templates yet. Run <code className="font-mono">pnpm seed</code> to
           load the shipped library{mayAuthor ? ', or add one above' : ''}.
