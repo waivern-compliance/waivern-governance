@@ -1993,6 +1993,12 @@ So that the answer to 'who decided this, when, and on what basis' does not depen
 
 **Screen:** `/app/templates`
 
+### Only the templates for what you manage
+
+The library shows the templates for what your organisation manages in Govern. UK templates - the ICO's methods and the equality duty - appear where some entity is under UK law, EU ones - the EDPB and CNIL methods, the Irish provider duties - where some entity is under EU law, and no data protection templates where every entity is under neither. AI governance templates always appear, for the framework you follow, and so does supplier due diligence, which the Third parties register uses. Cyber Essentials readiness appears once Cyber Essentials is turned on. Entity laws and Cyber Essentials are set on the Organisation page.
+
+A note above the list says how many are hidden and why. See all templates shows every one, and the address keeps that choice, so a reload or a shared link shows the same list. Templates you created or copied, have an assessment against or are editing are always shown, and every template still opens by its address. When Waivern releases templates, the offer to add them names those the list will show and counts the rest, which are added too and kept under See all templates.
+
 ### Versions matter
 
 Publishing a new version never alters assessments already under way. An assessment records which version it used, so reading an old one shows the questions as they stood - not today's questions with yesterday's answers pasted under them.
@@ -2025,7 +2031,7 @@ The equality impact assessment follows the public sector equality duty: impact o
 
 **See also:** Assessments: DPIAs, transfer risk, AI risk, screening · Approving, returning and rejecting
 
-<sub>Also searchable as: template, version, questions, publish, routing, dpia template, equality, eia, psed, update</sub>
+<sub>Also searchable as: template, version, questions, publish, routing, dpia template, equality, eia, psed, update, see all, filtered, hidden</sub>
 
 ## Who approves what, and changing it
 

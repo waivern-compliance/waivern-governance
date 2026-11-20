@@ -3002,9 +3002,19 @@ export const HELP_TOPICS: HelpTopic[] = [
       'equality',
       'eia',
       'psed',
-      'update'
+      'update',
+      'see all',
+      'filtered',
+      'hidden'
     ],
     sections: [
+      {
+        heading: 'Only the templates for what you manage',
+        body: [
+          "The library shows the templates for what your organisation manages in Govern. UK templates - the ICO's methods and the equality duty - appear where some entity is under UK law, EU ones - the EDPB and CNIL methods, the Irish provider duties - where some entity is under EU law, and no data protection templates where every entity is under neither. AI governance templates always appear, for the framework you follow, and so does supplier due diligence, which the Third parties register uses. Cyber Essentials readiness appears once Cyber Essentials is turned on. Entity laws and Cyber Essentials are set on the Organisation page.",
+          'A note above the list says how many are hidden and why. See all templates shows every one, and the address keeps that choice, so a reload or a shared link shows the same list. Templates you created or copied, have an assessment against or are editing are always shown, and every template still opens by its address. When Waivern releases templates, the offer to add them names those the list will show and counts the rest, which are added too and kept under See all templates.'
+        ]
+      },
       {
         heading: 'Versions matter',
         body: [
