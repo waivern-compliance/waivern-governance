@@ -1,0 +1,1 @@
+ALTER TYPE "public"."template_status" ADD VALUE 'abandoned';

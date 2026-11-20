@@ -16,11 +16,15 @@ import { useRefusableAction } from '@/lib/use-refusable-action';
 export function DraftEditor({
   templateId,
   versionId,
-  definition
+  definition,
+  onDiscard
 }: {
   templateId: string;
-  versionId: string;
+  /** Null for a draft not yet saved: its first save creates it. */
+  versionId: string | null;
   definition: unknown;
+  /** Offered only before the first save, when there is nothing to keep. */
+  onDiscard?: () => void;
 }) {
   // A definition that does not parse is not saved, and must stay in the box
   // to be fixed — losing an hour's JSON to one stray comma is the failure here.
@@ -58,7 +62,9 @@ export function DraftEditor({
           className="space-y-1 rounded border border-amber-700 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
           <strong className="block">
-            Saved, but it cannot be published while these stand:
+            {result.saved
+              ? 'Saved, but it cannot be published while these stand:'
+              : 'Not saved:'}
           </strong>
           <ul className="list-disc space-y-0.5 pl-5 text-xs">
             {result.problems.map((p, i) => (
@@ -82,13 +88,25 @@ export function DraftEditor({
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-      >
-        {pending ? 'Saving…' : 'Save draft'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          {pending ? 'Saving…' : 'Save draft'}
+        </button>
+        {onDiscard ? (
+          <button
+            type="button"
+            onClick={onDiscard}
+            disabled={pending}
+            className="rounded border border-line bg-surface px-4 py-2 text-sm hover:border-brand disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            Discard
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 }

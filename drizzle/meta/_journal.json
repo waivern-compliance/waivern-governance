@@ -1037,6 +1037,20 @@
       "when": 1795135599647,
       "tag": "0147_retire_activities_and_suppliers",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1795176115635,
+      "tag": "0148_template_draft_abandoned",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1795176131573,
+      "tag": "0149_freeze_abandoned_template_drafts",
+      "breakpoints": true
     }
   ]
 }

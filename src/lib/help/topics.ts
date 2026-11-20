@@ -3012,6 +3012,13 @@ export const HELP_TOPICS: HelpTopic[] = [
         ]
       },
       {
+        heading: 'Drafts, and abandoning one',
+        body: [
+          'Start a new draft opens the editor on a copy of the published version, and nothing is saved yet. Your first Save draft creates the next version, and until then Discard throws the draft away without a trace.',
+          'Once saved, a draft is in the audit trail and is never deleted. If it is not going to be published, abandon it with a reason: it is kept as it was, marked abandoned, and cannot be changed again. A template has one open draft at a time, so abandoning one is also how you free the template for a fresh start. Its version number stays used, so the next draft takes the number after it.'
+        ]
+      },
+      {
         heading: 'Routing rules',
         body: [
           'A template carries the rules that decide which approvals an answer set triggers. That is why two assessments from the same template can need different sign-off.'

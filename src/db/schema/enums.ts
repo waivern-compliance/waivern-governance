@@ -200,7 +200,9 @@ export const templateKind = pgEnum('template_kind', [
 export const templateStatus = pgEnum('template_status', [
   'draft',
   'published',
-  'retired'
+  'retired',
+  /** A draft set aside without being published. Kept, as it was audited. */
+  'abandoned'
 ]);
 
 /**

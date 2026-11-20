@@ -2369,6 +2369,16 @@ describe("changing another organisation's records", () => {
         })
     ],
     [
+      'abandonDraft',
+      () =>
+        templatesSvc.abandonDraft({
+          organisationId: A.org.id,
+          versionId: B.draft.id,
+          reason: 'x',
+          actor: as()
+        })
+    ],
+    [
       "resetWorkflow (A's own kind only)",
       () =>
         routing.resetWorkflow({
