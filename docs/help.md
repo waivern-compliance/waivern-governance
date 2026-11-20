@@ -1997,6 +1997,12 @@ So that the answer to 'who decided this, when, and on what basis' does not depen
 
 Publishing a new version never alters assessments already under way. An assessment records which version it used, so reading an old one shows the questions as they stood - not today's questions with yesterday's answers pasted under them.
 
+### Drafts, and abandoning one
+
+Start a new draft opens the editor on a copy of the published version, and nothing is saved yet. Your first Save draft creates the next version, and until then Discard throws the draft away without a trace.
+
+Once saved, a draft is in the audit trail and is never deleted. If it is not going to be published, abandon it with a reason: it is kept as it was, marked abandoned, and cannot be changed again. A template has one open draft at a time, so abandoning one is also how you free the template for a fresh start. Its version number stays used, so the next draft takes the number after it.
+
 ### Routing rules
 
 A template carries the rules that decide which approvals an answer set triggers. That is why two assessments from the same template can need different sign-off.

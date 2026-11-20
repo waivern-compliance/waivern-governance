@@ -3,13 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { refusable, type EditResult } from '@/lib/edit-result';
 import { kindsFor } from '@/lib/rbac';
 import { requireCapability } from '@/lib/session';
+import { readDraft } from '@/lib/templates/read-draft';
 import { templateDefinition } from '@/lib/templates/schema';
 import { validateTemplate } from '@/lib/templates/validate';
 import {
+  abandonDraft,
   createDraftFrom,
   createTemplate,
+  DraftAlreadyOpen,
   installShippedTemplates,
   OutsideYourKinds,
   publishVersion,
@@ -67,7 +71,13 @@ export async function createTemplateAction(formData: FormData) {
   redirect(`/app/templates/${created.template.id}`);
 }
 
-export type DraftResult = { ok: true } | { ok: false; problems: string[] };
+/**
+ * `saved` says whether the draft was written: problems with a template that
+ * parses are saved anyway, but JSON that does not parse is not, and a first
+ * save that is refused leaves no draft at all.
+ */
+export type DraftResult =
+  { ok: true } | { ok: false; saved: boolean; problems: string[] };
 
 /**
  * Save a draft, reporting what is wrong rather than throwing it away.
@@ -80,101 +90,100 @@ export type DraftResult = { ok: true } | { ok: false; problems: string[] };
  */
 export async function saveDraftAction(
   templateId: string,
-  versionId: string,
+  /** Null until the first save, which creates the draft. */
+  versionId: string | null,
   _previous: DraftResult | null,
   formData: FormData
 ): Promise<DraftResult> {
   const active = await requireCapability('template.author');
-  const raw = String(formData.get('definition') ?? '');
+  const read = readDraft(String(formData.get('definition') ?? ''));
+  if (!read.ok) return { ok: false, saved: false, problems: read.problems };
 
-  let parsed: unknown;
+  const problems = validateTemplate(read.definition);
   try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    return {
-      ok: false,
-      problems: [
-        `That is not valid JSON - ${error instanceof Error ? error.message : 'unparseable'}`
-      ]
-    };
-  }
-
-  const shape = templateDefinition.safeParse(parsed);
-  if (!shape.success) {
-    return {
-      ok: false,
-      problems: shape.error.issues.map(
-        (i) => `${i.path.join('.') || 'definition'}: ${i.message}`
-      )
-    };
-  }
-
-  const problems = validateTemplate(shape.data);
-  try {
-    return await saveDraft(active, templateId, versionId, shape.data, problems);
+    return await saveDraft(
+      active,
+      templateId,
+      versionId,
+      read.definition,
+      problems
+    );
   } catch (error) {
     if (error instanceof OutsideYourKinds)
-      return { ok: false, problems: [error.message] };
+      return { ok: false, saved: false, problems: [error.message] };
+    // Another author's first save got there first. Their draft is not on
+    // this page until it reloads, and reloading loses what is typed here, so
+    // say both rather than point at a draft the person cannot see.
+    if (error instanceof DraftAlreadyOpen)
+      return {
+        ok: false,
+        saved: false,
+        problems: [
+          'Somebody else saved a draft of this template while you were writing, and there can be only one. Copy what you have written, then reload the page to see their draft.'
+        ]
+      };
     throw error;
   }
 }
 
+/**
+ * Write the draft: the first save creates the version, so a draft that is
+ * started and discarded never reaches the database or the audit trail.
+ */
 async function saveDraft(
   active: Awaited<ReturnType<typeof requireCapability>>,
   templateId: string,
-  versionId: string,
+  versionId: string | null,
   definition: ReturnType<typeof templateDefinition.parse>,
   problems: ReturnType<typeof validateTemplate>
 ): Promise<DraftResult> {
-  if (problems.length > 0) {
-    // Saved anyway: a draft is working material, and refusing to store
-    // half-finished logic means losing it. Publication is where this blocks.
-    await updateDraft({
+  const common = {
+    organisationId: active.membership.organisationId,
+    kinds: kindsFor(active.membership.grants, 'template.author'),
+    definition,
+    actor: {
+      actorKind: 'user' as const,
+      actorUserId: active.userId,
+      actorLabel: active.email
+    }
+  };
+  // Saved even with problems: a draft is working material, and refusing to
+  // store half-finished logic means losing it. Publication is where this blocks.
+  if (versionId) await updateDraft({ ...common, versionId });
+  else await createDraftFrom({ ...common, templateId });
+  revalidatePath(`/app/templates/${templateId}`);
+  return problems.length > 0
+    ? {
+        ok: false,
+        saved: true,
+        problems: problems.map((p) => `${p.path}: ${p.message}`)
+      }
+    : { ok: true };
+}
+
+/** Set an open draft aside, with the reason. It is kept, never deleted. */
+export async function abandonDraftAction(
+  templateId: string,
+  versionId: string,
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  const active = await requireCapability('template.author');
+  const result = await refusable(() =>
+    abandonDraft({
       organisationId: active.membership.organisationId,
       kinds: kindsFor(active.membership.grants, 'template.author'),
       versionId,
-      definition,
+      reason: String(formData.get('reason') ?? ''),
       actor: {
         actorKind: 'user',
         actorUserId: active.userId,
         actorLabel: active.email
       }
-    });
-    revalidatePath(`/app/templates/${templateId}`);
-    return {
-      ok: false,
-      problems: problems.map((p) => `${p.path}: ${p.message}`)
-    };
-  }
-
-  await updateDraft({
-    organisationId: active.membership.organisationId,
-    kinds: kindsFor(active.membership.grants, 'template.author'),
-    versionId,
-    definition,
-    actor: {
-      actorKind: 'user',
-      actorUserId: active.userId,
-      actorLabel: active.email
-    }
-  });
-  revalidatePath(`/app/templates/${templateId}`);
-  return { ok: true };
-}
-
-export async function startDraftAction(templateId: string) {
-  const active = await requireCapability('template.author');
-  await createDraftFrom({
-    organisationId: active.membership.organisationId,
-    kinds: kindsFor(active.membership.grants, 'template.author'),
-    templateId,
-    actor: {
-      actorKind: 'user',
-      actorUserId: active.userId,
-      actorLabel: active.email
-    }
-  });
-  revalidatePath(`/app/templates/${templateId}`);
+    })
+  );
+  if (result?.ok) revalidatePath(`/app/templates/${templateId}`);
+  return result;
 }
 
 export async function publishAction(templateId: string, versionId: string) {

@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { NotPermitted } from '@/components/NotPermitted';
-import { DraftEditor } from '@/components/templates/DraftEditor';
+import { AbandonDraft } from '@/components/templates/AbandonDraft';
+import { DraftWorkspace } from '@/components/templates/DraftWorkspace';
 import { legalRefMap } from '@/lib/legal-refs';
 import type { ResolvedRef } from '@/lib/legal-refs';
 import { can, canForKind } from '@/lib/rbac';
@@ -12,11 +13,12 @@ import {
   describeType,
   questionLabels
 } from '@/lib/templates/describe';
+import { draftBasis } from '@/lib/templates/draft-basis';
 import type { TemplateDefinition } from '@/lib/templates/schema';
 import { validateTemplate } from '@/lib/templates/validate';
 import { loadTemplate } from '@/services/templates';
 
-import { publishAction, startDraftAction } from '../actions';
+import { publishAction } from '../actions';
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -125,16 +127,22 @@ export default async function TemplatePage({
         <section className="space-y-3 border-t border-line pt-7">
           <h2 className="text-sm font-semibold">Editing</h2>
           {draft ? (
+            <p className="max-w-prose text-xs text-ink-soft">
+              Version {draft.version} is a draft. It is not offered to anybody
+              starting an assessment until it is published.
+            </p>
+          ) : null}
+          {/* Rendered in the same place with or without a saved draft, so the
+              editor keeps the first save's result when the page refreshes. */}
+          <DraftWorkspace
+            templateId={template.id}
+            draft={
+              draft ? { id: draft.id, definition: draft.definition } : null
+            }
+            basis={draftBasis(versions)?.definition}
+          />
+          {draft ? (
             <>
-              <p className="max-w-prose text-xs text-ink-soft">
-                Version {draft.version} is a draft. It is not offered to anybody
-                starting an assessment until it is published.
-              </p>
-              <DraftEditor
-                templateId={template.id}
-                versionId={draft.id}
-                definition={draft.definition}
-              />
               {mayPublish ? (
                 <form action={publishAction.bind(null, template.id, draft.id)}>
                   <button
@@ -158,24 +166,13 @@ export default async function TemplatePage({
                   your access.
                 </p>
               )}
+              <AbandonDraft
+                templateId={template.id}
+                versionId={draft.id}
+                version={draft.version}
+              />
             </>
-          ) : (
-            <>
-              <p className="max-w-prose text-xs text-ink-soft">
-                There is no draft. Starting one copies the published version, so
-                you edit a copy rather than what assessments are running
-                against.
-              </p>
-              <form action={startDraftAction.bind(null, template.id)}>
-                <button
-                  type="submit"
-                  className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                >
-                  Start a new draft
-                </button>
-              </form>
-            </>
-          )}
+          ) : null}
         </section>
       ) : null}
     </main>

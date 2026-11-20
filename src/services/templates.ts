@@ -13,6 +13,7 @@ import type { AiFrameworkId } from '@/lib/ai-frameworks';
 import { appendAuditEvent, type AuditInput } from '@/lib/audit';
 import { canonicalise } from '@/lib/canonical';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
+import { draftBasis } from '@/lib/templates/draft-basis';
 import {
   LEGAL_REFERENCES,
   offeredTo,
@@ -177,24 +178,34 @@ export async function createDraftFrom(input: {
         await kindOfTemplate(tx, input.organisationId, input.templateId),
         input.kinds
       );
-      const latest = await tx
+      // One draft at a time, and drafts now start in the browser, so two
+      // authors can press their first Save together. The template row is the
+      // lock: the second waits, then finds the first's draft and is refused
+      // in words rather than by the version number's unique index.
+      await tx
+        .select({ id: templates.id })
+        .from(templates)
+        .where(eq(templates.id, input.templateId))
+        .for('update');
+      const versions = await tx
         .select()
         .from(templateVersions)
         .where(eq(templateVersions.templateId, input.templateId))
-        .orderBy(desc(templateVersions.version))
-        .limit(1);
+        .orderBy(desc(templateVersions.version));
 
-      const previous = latest[0];
+      const previous = versions[0];
       if (!previous) throw new Error('Template has no versions');
 
       if (previous.status === 'draft') {
-        throw new Error(
-          'This template already has an open draft. Edit or publish that one first.'
+        throw new DraftAlreadyOpen(
+          'This template already has an open draft. Edit, publish or abandon that one first.'
         );
       }
 
+      // Numbered after every version, abandoned ones included, so a number in
+      // the audit trail always means one draft.
       const definition = templateDefinition.parse(
-        input.definition ?? previous.definition
+        input.definition ?? (draftBasis(versions) ?? previous).definition
       );
 
       const [version] = await tx
@@ -216,6 +227,61 @@ export async function createDraftFrom(input: {
         subjectType: 'template_version',
         subjectId: version.id,
         after: { version: version.version, from: previous.version }
+      });
+
+      return version;
+    });
+  });
+}
+
+export class DraftNotAbandonable extends Error {}
+export class DraftAlreadyOpen extends Error {}
+
+/**
+ * Set a draft aside without publishing it.
+ *
+ * A saved draft is audited, so it is never deleted: it is kept as it was,
+ * marked abandoned with who did it and why, and the template is free for a new
+ * draft. Its number stays used.
+ */
+export async function abandonDraft(input: {
+  organisationId: string;
+  versionId: string;
+  reason: string;
+  kinds?: KindLimit;
+  actor: Actor;
+}) {
+  const reason = input.reason.trim();
+  if (!reason)
+    throw new DraftNotAbandonable('Say why the draft is being abandoned.');
+  return withOrganisation(input.organisationId, async () => {
+    return db.transaction(async (tx) => {
+      reach(
+        await kindOfVersion(tx, input.organisationId, input.versionId),
+        input.kinds
+      );
+      const [existing] = await tx
+        .select()
+        .from(templateVersions)
+        .where(eq(templateVersions.id, input.versionId));
+      if (!existing) throw new Error('No such template version');
+      if (existing.status !== 'draft')
+        throw new DraftNotAbandonable('Only a draft can be abandoned.');
+
+      const [version] = await tx
+        .update(templateVersions)
+        .set({ status: 'abandoned' })
+        .where(eq(templateVersions.id, input.versionId))
+        .returning();
+
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'template_version.abandoned',
+        subjectType: 'template_version',
+        subjectId: version.id,
+        before: { status: 'draft' },
+        after: { status: 'abandoned', version: version.version, reason }
       });
 
       return version;
