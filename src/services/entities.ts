@@ -4,12 +4,16 @@ import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
   breaches,
+  dataProtectionComplaints,
+  dataSubjectRequests,
   digitalProperties,
   dsrIntakeLinks,
   entities,
   marketingActivities,
   organisations,
-  processingActivities
+  policyDocuments,
+  processingActivities,
+  sharingAgreements
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
 import {
@@ -501,11 +505,15 @@ export async function anyEntityUnderEprivacy(
       .select({
         name: entities.name,
         dataProtectionLaw: entities.dataProtectionLaw,
+        dataProtectionLawApplies: entities.dataProtectionLawApplies,
         ieEprivacy: entities.ieEprivacy
       })
       .from(entities)
       .where(eq(entities.organisationId, organisationId));
-    return rows.length === 0 || rows.some((r) => entityEprivacy(r) !== null);
+    return (
+      rows.length === 0 ||
+      rows.some((r) => r.dataProtectionLawApplies && entityEprivacy(r) !== null)
+    );
   });
 }
 
@@ -539,7 +547,11 @@ export async function setDataProtectionLaw(input: {
     db.transaction(async (tx) => {
       await lockEntity(tx, input.entityId);
       const before = await entityIn(tx, input.organisationId, input.entityId);
-      if (before.dataProtectionLaw === input.law) return before;
+      if (
+        before.dataProtectionLaw === input.law &&
+        before.dataProtectionLawApplies
+      )
+        return before;
       // The establishment record answers for each law; narrowing away from a
       // law it answers for is refused, as for the UK law settings below.
       if (input.law === 'uk' && hasEuEstablishmentFacts(before)) {
@@ -629,6 +641,7 @@ export async function setDataProtectionLaw(input: {
         .update(entities)
         .set({
           dataProtectionLaw: input.law,
+          dataProtectionLawApplies: true,
           // Established in the UK means subject to the UK GDPR (Article 3(1)),
           // so EU law only means not established there. Widening back to both
           // then asks for a UK representative until someone says otherwise.
@@ -644,9 +657,17 @@ export async function setDataProtectionLaw(input: {
         subjectType: 'entity',
         subjectId: before.id,
         entityId: before.id,
-        before: { dataProtectionLaw: before.dataProtectionLaw },
+        before: {
+          dataProtectionLaw: before.dataProtectionLaw,
+          ...(before.dataProtectionLawApplies
+            ? {}
+            : { dataProtectionLawApplies: false })
+        },
         after: {
           dataProtectionLaw: input.law,
+          ...(before.dataProtectionLawApplies
+            ? {}
+            : { dataProtectionLawApplies: true }),
           ...(narrowed.length > 0
             ? { recordsNarrowed: narrowed.map((r) => r.reference) }
             : {})
@@ -735,11 +756,153 @@ export async function anyEntityUnderUkLaw(
 ): Promise<boolean> {
   return withOrganisation(organisationId, async () => {
     const rows = await db
-      .select({ law: entities.dataProtectionLaw })
+      .select({
+        law: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies
+      })
       .from(entities)
       .where(eq(entities.organisationId, organisationId));
-    return rows.length === 0 || rows.some((r) => ukLawApplies(r.law));
+    return (
+      rows.length === 0 || rows.some((r) => r.applies && ukLawApplies(r.law))
+    );
   });
+}
+
+/**
+ * Whether any entity is subject to UK or EU data protection law, so the
+ * privacy programme is worth offering at all. With no entity yet, its default
+ * will be UK law, so yes.
+ */
+export async function anyEntityUnderDataProtectionLaw(
+  organisationId: string
+): Promise<boolean> {
+  return withOrganisation(organisationId, async () => {
+    const rows = await db
+      .select({ applies: entities.dataProtectionLawApplies })
+      .from(entities)
+      .where(eq(entities.organisationId, organisationId));
+    return rows.length === 0 || rows.some((r) => r.applies);
+  });
+}
+
+/**
+ * Record that the entity is subject to neither UK nor EU data protection law.
+ *
+ * Refused while it holds anything that exists only because one of them
+ * applies - a processing record, a breach, a request, a complaint, a website
+ * or marketing under ePrivacy law, a DPO, a representative, a UK or Irish
+ * status - because those records would keep their statutory clocks and
+ * questions with nothing left to say why. Bringing the entity back under a
+ * law is `setDataProtectionLaw`.
+ */
+export async function setOutsideDataProtectionLaw(input: {
+  organisationId: string;
+  entityId: string;
+  actor: Actor;
+}) {
+  return withOrganisation(input.organisationId, () =>
+    db.transaction(async (tx) => {
+      await lockEntity(tx, input.entityId);
+      const before = await entityIn(tx, input.organisationId, input.entityId);
+      if (!before.dataProtectionLawApplies) return before;
+
+      const statuses = [
+        before.publicAuthority ? 'a public authority' : null,
+        before.competentAuthority ? 'a competent authority' : null,
+        before.publicCommsProvider ? 'a public communications provider' : null,
+        before.ieEprivacy === true
+          ? 'subject to the Irish ePrivacy Regulations'
+          : null,
+        before.dpo ? 'with its own data protection officer' : null,
+        hasEuEstablishmentFacts(before) || hasUkEstablishmentFacts(before)
+          ? 'with establishment or representative details'
+          : null
+      ].filter((s): s is string => s !== null);
+      if (statuses.length > 0) {
+        throw new EntityRefused(
+          `${before.name} is recorded as ${statuses.join(', and ')}, which only data protection law knows. Clear that first.`
+        );
+      }
+
+      const held = (
+        await Promise.all([
+          tx
+            .select({ ref: processingActivities.reference })
+            .from(processingActivities)
+            .where(eq(processingActivities.entityId, before.id)),
+          tx
+            .select({ ref: breaches.reference })
+            .from(breaches)
+            .where(eq(breaches.entityId, before.id)),
+          tx
+            .select({ ref: dataSubjectRequests.reference })
+            .from(dataSubjectRequests)
+            .where(eq(dataSubjectRequests.entityId, before.id)),
+          tx
+            .select({ ref: dataProtectionComplaints.reference })
+            .from(dataProtectionComplaints)
+            .where(eq(dataProtectionComplaints.entityId, before.id)),
+          tx
+            .select({ ref: digitalProperties.name })
+            .from(digitalProperties)
+            .where(eq(digitalProperties.entityId, before.id)),
+          tx
+            .select({ ref: marketingActivities.reference })
+            .from(marketingActivities)
+            .where(eq(marketingActivities.entityId, before.id)),
+          tx
+            .select({ ref: sharingAgreements.reference })
+            .from(sharingAgreements)
+            .where(eq(sharingAgreements.entityId, before.id)),
+          tx
+            .select({ ref: policyDocuments.title })
+            .from(policyDocuments)
+            .where(eq(policyDocuments.entityId, before.id)),
+          // An open request form would keep taking requests under the
+          // dormant law. One revoked takes nothing.
+          tx
+            .select({ ref: dsrIntakeLinks.label })
+            .from(dsrIntakeLinks)
+            .where(
+              and(
+                eq(dsrIntakeLinks.entityId, before.id),
+                eq(dsrIntakeLinks.kind, 'data_protection'),
+                isNull(dsrIntakeLinks.revokedAt)
+              )
+            )
+        ])
+      )
+        .flat()
+        .map((r) => r.ref);
+      if (held.length > 0) {
+        const shown = held.slice(0, 5).join(', ');
+        const more = held.length > 5 ? ` and ${held.length - 5} more` : '';
+        throw new EntityRefused(
+          `${before.name} holds records kept under data protection law (${shown}${more}). Move them to another entity, or close them, first.`
+        );
+      }
+
+      const [after] = await tx
+        .update(entities)
+        .set({ dataProtectionLawApplies: false, updatedAt: new Date() })
+        .where(eq(entities.id, before.id))
+        .returning();
+      await appendAuditEvent(tx, {
+        ...input.actor,
+        organisationId: input.organisationId,
+        action: 'entity.data_protection_law_changed',
+        subjectType: 'entity',
+        subjectId: before.id,
+        entityId: before.id,
+        before: {
+          dataProtectionLawApplies: true,
+          dataProtectionLaw: before.dataProtectionLaw
+        },
+        after: { dataProtectionLawApplies: false }
+      });
+      return after;
+    })
+  );
 }
 
 /**

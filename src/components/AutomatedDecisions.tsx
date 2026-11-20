@@ -63,17 +63,25 @@ export function AutomatedDecisions({
   linkCandidates?: Array<{ id: string; label: string }>;
   /** The regime the processing is under; for an AI use case, from its linked activities. */
   regime?: Regime;
-  /** The laws the record is under (`lib/gdpr/regimes.ts`). */
-  laws?: DataProtectionLaw;
+  /**
+   * The laws the record is under (`lib/gdpr/regimes.ts`). Null: an AI use
+   * case whose entity is under neither law and which is linked to no
+   * processing. Only the links are offered then, since linking processing
+   * under one of the laws is what brings the system under its Article 22.
+   */
+  laws?: DataProtectionLaw | null;
 }) {
   const other = OTHER[side];
   const part3 = regime === 'dpa_part3';
-  const restriction = admRestriction(
-    record,
-    part3 ? undefined : bases,
-    regime,
-    part3 ? 'uk' : laws
-  );
+  const restriction =
+    laws === null
+      ? { allowed: true as const, why: '' }
+      : admRestriction(
+          record,
+          part3 ? undefined : bases,
+          regime,
+          part3 ? 'uk' : laws
+        );
   const pair = (l: LinkedRecord) =>
     side === 'ai_use_case'
       ? { useCaseId: recordId, activityId: l.id }
@@ -83,19 +91,31 @@ export function AutomatedDecisions({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-semibold">
-        Automated decisions{' '}
-        <span className="font-normal text-ink-soft">
-          ·{' '}
-          {part3
-            ? 'Data Protection Act 2018 ss.50A–50D (Part 3)'
-            : laws === 'eu'
-              ? 'EU GDPR Article 22'
-              : laws === 'uk_eu'
-                ? 'UK GDPR Articles 22A–22C and EU GDPR Article 22'
-                : 'UK GDPR Articles 22A–22C'}
-        </span>
-      </h2>
+      {laws === null ? (
+        <>
+          <h2 className="text-sm font-semibold">Processing it is used in</h2>
+          <p className="max-w-prose text-xs text-ink-soft">
+            Its entity is recorded as subject to neither UK nor EU data
+            protection law, so Articles 22 and 22A-22D are not asked of it. If
+            it is used in processing that one of them reaches, link that
+            processing here and they will be.
+          </p>
+        </>
+      ) : (
+        <h2 className="text-sm font-semibold">
+          Automated decisions{' '}
+          <span className="font-normal text-ink-soft">
+            ·{' '}
+            {part3
+              ? 'Data Protection Act 2018 ss.50A–50D (Part 3)'
+              : laws === 'eu'
+                ? 'EU GDPR Article 22'
+                : laws === 'uk_eu'
+                  ? 'UK GDPR Articles 22A–22C and EU GDPR Article 22'
+                  : 'UK GDPR Articles 22A–22C'}
+          </span>
+        </h2>
+      )}
 
       {restriction.allowed === false ? (
         <p
@@ -252,7 +272,7 @@ export function AutomatedDecisions({
         ) : null}
       </div>
 
-      {mayEdit ? (
+      {laws === null ? null : mayEdit ? (
         <EditForm
           key={savedKey(record)}
           action={saveAutomatedDecisionsAction.bind(null, side, recordId)}

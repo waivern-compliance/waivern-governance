@@ -140,11 +140,17 @@ Each step says what to do in ordinary words first, why the law cares second, and
 
 You are put in a stage based on what your registers hold, and you can switch. Switching changes what is explained, never what you may reach.
 
+### For AI governance alone
+
+Where no entity is subject to UK or EU data protection law, the guide follows the AI governance programme instead: say which entities are covered, name who is accountable, set your AI risk appetite, publish the AI assessment, list your AI systems and their suppliers, and assess each one. Keeping it current covers intake, changes, testing, risks, incidents, reviews and exports. Nothing in it asks for a processing record, a DPIA or a statutory clock.
+
+Under the NIST AI RMF each step shows the function it serves - Govern, Map, Measure or Manage - and cites the subcategory after the plain sentence. A last setup step asks you to set targets on the NIST AI RMF profile. The stage moves to 'Keeping it current' once an AI system has an approved assessment.
+
 ### Progress is measured, not remembered
 
 A step is ticked because something exists, not because somebody clicked it. Beside each step is the count it was judged on - '3 activities recorded', '2 third parties without an agreement' - so you can check the judgement rather than trust it.
 
-Four steps are never ticked: treating risks, breach readiness, knowing how to handle a request, and taking an export. Those are ongoing judgements rather than tasks you finish, and a tick beside them would say otherwise.
+In the privacy guide, four steps are never ticked: treating risks, breach readiness, knowing how to handle a request, and taking an export. In the AI governance guide, keeping the register true, testing what is live, treating risks and taking an export are never ticked. Those are ongoing judgements rather than tasks you finish, and a tick beside them would say otherwise.
 
 ### What it will not do
 
@@ -171,7 +177,7 @@ When you bring it back, the stage is worked out from your registers again rather
 Everybody gets the same platform arranged four ways, depending on the persona recorded against your membership.
 
 - Privacy governance - the full register view: assessments, risks, RoPA, transfers.
-- AI governance - the AI register and the assurance chain lead.
+- AI governance - the AI register and the assurance chain lead: systems on the register, what is running unexamined, open incidents and, under the NIST AI RMF, where the profile stands in each of Govern, Map, Measure and Manage.
 - Engineering - what has been asked of you, in plain terms, with the jargon translated.
 - Product - what is blocking a launch, and what you need to answer to unblock it.
 
@@ -2280,6 +2286,12 @@ Say for each entity whether it is subject to UK law, EU law, or both. An entity 
 For an entity subject to EU law only, the Act's own questions and flags are not shown: the Schedule 1 conditions and appropriate policy document on its processing records (Article 10 offers Union or Member State law instead), the data sharing code, the Schedule 2 and 3 exemptions and health opinion on its requests, and the public authority, competent authority and PECR settings. Requests and complaints to it are handled under EU law, and to an entity under both laws under both. Where no entity is subject to UK law, the policy document and sharing agreement registers, the UK data protection templates and the s.164A complaints step are not offered either.
 
 Narrowing an entity to EU law only is refused while it is marked as a public authority, competent authority or public communications provider, since those are UK law. Answers already recorded under UK law are kept, not cleared, so widening it again finds them.
+
+Choose 'Neither' for an entity subject to no UK or EU data protection law - a US company with no establishment in either that neither offers goods or services to people there nor monitors them. Both laws can reach a company outside them that does either (Article 3(2)), so check before you choose it. The entity's establishment, representatives and lead authority are then not asked, and its AI systems are not judged against Articles 22 and 22A-22D unless they are linked to processing under one of the laws - which is why an AI system's page still offers that link wherever there is processing to link.
+
+Where no entity is under either law, Govern offers the AI governance programme alone: the home page, the step-by-step guide and the list of everything else leave out the processing register, requests, breaches, complaints, cookies, marketing, the country library, the supervisory authorities and the data protection officer. Those pages still open if you type their address, and say why they are empty.
+
+Choosing 'Neither' is refused while the entity holds a processing record, breach, request, complaint, website, marketing activity, data sharing agreement or appropriate policy document, or has a request form still open; or while it is marked as a public authority, competent authority, communications provider or under the Irish ePrivacy Regulations, or has its own data protection officer or establishment details. Once it is under neither, none of those can be recorded for it - in a group whose other entities are under a law, record them under one of those. Choosing a law again brings it back under that law.
 
 ### The Irish ePrivacy Regulations
 

@@ -244,6 +244,43 @@ export type ProfileRow = {
 };
 
 /** The whole profile, grouped by function and category, with a tally for each function. */
+/**
+ * Where each function stands, without the evidence counts or the rows: what
+ * the home page shows, read from the profile items alone so the home does not
+ * pay for the whole profile page.
+ */
+export async function nistProfileTally(organisationId: string) {
+  return withOrganisation(organisationId, async () => {
+    const items = await db
+      .select({
+        code: frameworkProfileItems.code,
+        current: frameworkProfileItems.currentStatus,
+        target: frameworkProfileItems.targetStatus
+      })
+      .from(frameworkProfileItems)
+      .where(
+        and(
+          eq(frameworkProfileItems.organisationId, organisationId),
+          eq(frameworkProfileItems.framework, FRAMEWORK)
+        )
+      );
+    const byCode = new Map(items.map((i) => [i.code, i]));
+    return NIST_FUNCTIONS.map((f) => ({
+      fn: f.fn,
+      label: f.label,
+      tally: tally(
+        NIST_SUBCATEGORIES.filter((s) => s.fn === f.fn).map((s) => {
+          const item = byCode.get(subcategoryId(s));
+          return {
+            current: item?.current ?? null,
+            target: item?.target ?? null
+          };
+        })
+      )
+    }));
+  });
+}
+
 export async function nistProfile(organisationId: string) {
   return withOrganisation(organisationId, async () => {
     const [items, counts] = await Promise.all([

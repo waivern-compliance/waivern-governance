@@ -8,6 +8,7 @@ import { AppearancePanel } from '@/components/intake/AppearancePanel';
 import { EmbedPanel } from '@/components/intake/EmbedPanel';
 import { IntakeFormList } from '@/components/intake/IntakeFormList';
 import { NotPermitted } from '@/components/NotPermitted';
+import { OutsideProgrammeNote } from '@/components/OutsideProgrammeNote';
 import { TrialNotice } from '@/components/trial/TrialNotice';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
@@ -97,6 +98,11 @@ export default async function RequestsPage() {
       </header>
 
       <HelpLink topic="data-subject-requests" />
+
+      <OutsideProgrammeNote
+        organisationId={org}
+        what="data subject requests"
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat

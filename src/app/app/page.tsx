@@ -14,6 +14,7 @@ import { PersonaSwitcher } from '@/components/home/PersonaSwitcher';
 import { PERSONA_LABEL } from '@/lib/persona';
 import { getActiveSession, ORGANISATION_COOKIE } from '@/lib/session';
 import { guidanceFor } from '@/services/guidance';
+import { programmeScope } from '@/services/programme-scope';
 
 /**
  * One home, four arrangements.
@@ -30,9 +31,12 @@ export default async function Home() {
 
   // Above the persona views rather than inside one: somebody finding their
   // feet needs the order of the work before they need their own slice of it.
+  // Worked out once, for the guide and the home below it.
+  const scope = await programmeScope(active.membership.organisationId);
   const guidance = await guidanceFor({
     organisationId: active.membership.organisationId,
-    chosen: active.membership.guidance ?? null
+    chosen: active.membership.guidance ?? null,
+    scope
   });
   // No first name here. The name field holds whatever an administrator typed —
   // often a job title — and "Here is what needs you, Engineering" is worse than
@@ -74,14 +78,25 @@ export default async function Home() {
       <Guide guidance={guidance} />
 
       {persona === 'privacy_governance' ? (
-        <PrivacyHome active={active} />
+        <PrivacyHome
+          active={active}
+          scope={scope}
+        />
       ) : null}
-      {persona === 'ai_governance' ? <AiHome active={active} /> : null}
+      {persona === 'ai_governance' ? (
+        <AiHome
+          active={active}
+          scope={scope}
+        />
+      ) : null}
       {persona === 'engineering' ? <EngineeringHome active={active} /> : null}
       {persona === 'product' ? <ProductHome active={active} /> : null}
 
       {persona === 'engineering' || persona === 'product' ? (
-        <QuickLinks active={active} />
+        <QuickLinks
+          active={active}
+          scope={scope}
+        />
       ) : null}
 
       <PersonaSwitcher current={persona} />

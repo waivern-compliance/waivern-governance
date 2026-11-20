@@ -22,6 +22,17 @@ export const DATA_PROTECTION_LAWS: Record<DataProtectionLaw, string> = {
   uk_eu: 'Both UK and EU law'
 };
 
+/**
+ * The choice beside the three laws for an entity subject to neither: a US
+ * company with no UK or EU establishment, say. Not a law a record can be
+ * under, so it is not a `DataProtectionLaw`; it sets the entity's
+ * `dataProtectionLawApplies` flag instead.
+ */
+export const NO_DATA_PROTECTION_LAW = 'none';
+
+export const NO_DATA_PROTECTION_LAW_LABEL =
+  'Neither - not subject to UK or EU data protection law';
+
 export const DATA_PROTECTION_LAW_KEYS = Object.keys(
   DATA_PROTECTION_LAWS
 ) as DataProtectionLaw[];
@@ -34,15 +45,26 @@ export function isDataProtectionLaw(v: unknown): v is DataProtectionLaw {
 export const ukLawApplies = appliesUk;
 
 /**
+ * Why a record kept under data protection law cannot be made for an entity
+ * recorded as under neither UK nor EU law. Its stored law is dormant, so
+ * without this the record would quietly fall under UK law.
+ */
+export function outsideLawRefusal(name: string, what: string): string {
+  return `${name} is recorded as subject to neither UK nor EU data protection law, so ${what} cannot be recorded for it. If one of them applies, say so on the Organisation page first.`;
+}
+
+/**
  * Why a request or complaint cannot be handled under this jurisdiction, or
  * null where it can: an entity under one law only cannot be asked to answer
  * under the other.
  */
 export function jurisdictionRefusal(
-  entity: { name: string; law: DataProtectionLaw },
+  entity: { name: string; law: DataProtectionLaw; applies?: boolean },
   jurisdiction: DataProtectionLaw,
   what: 'request' | 'complaint'
 ): string | null {
+  if (entity.applies === false)
+    return outsideLawRefusal(entity.name, `a ${what}`);
   if (entity.law === 'uk_eu' || entity.law === jurisdiction) return null;
   const law = (j: DataProtectionLaw) =>
     j === 'uk' ? 'UK law' : j === 'eu' ? 'EU law' : 'both UK and EU law';

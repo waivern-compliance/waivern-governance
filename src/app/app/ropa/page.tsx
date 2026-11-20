@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { GapChips } from '@/components/GapChips';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { OutsideProgrammeNote } from '@/components/OutsideProgrammeNote';
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
 import { establishmentGaps } from '@/lib/gdpr/establishment';
@@ -78,6 +79,11 @@ export default async function RopaPage({
       </header>
 
       <HelpLink topic="ropa" />
+
+      <OutsideProgrammeNote
+        organisationId={org}
+        what="processing records"
+      />
 
       {withoutDpo.length > 0 ? (
         <p

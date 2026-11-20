@@ -22,6 +22,7 @@ import {
 import { appendAuditEvent } from '@/lib/audit';
 import {
   isDataProtectionLaw,
+  outsideLawRefusal,
   type DataProtectionLaw
 } from '@/lib/dpa2018/applies';
 import {
@@ -646,10 +647,12 @@ export class RecordLawsRefused extends Error {}
  * because Part 3 is the Data Protection Act 2018's.
  */
 export function cleanRecordLaws(
-  entity: { name: string; law: DataProtectionLaw },
+  entity: { name: string; law: DataProtectionLaw; applies?: boolean },
   laws: string | null | undefined,
   regime: Regime
 ): DataProtectionLaw {
+  if (entity.applies === false)
+    throw new RecordLawsRefused(outsideLawRefusal(entity.name, 'this record'));
   const chosen = laws || entity.law;
   if (!isDataProtectionLaw(chosen))
     throw new RecordLawsRefused('Choose UK law, EU law, or both.');
@@ -931,7 +934,8 @@ export async function createActivity(input: {
         name: entities.name,
         competentAuthority: entities.competentAuthority,
         defaultRegime: entities.defaultRegime,
-        dataProtectionLaw: entities.dataProtectionLaw
+        dataProtectionLaw: entities.dataProtectionLaw,
+        applies: entities.dataProtectionLawApplies
       })
       .from(entities)
       .where(eq(entities.id, input.entityId));
@@ -943,7 +947,11 @@ export async function createActivity(input: {
       );
     }
     const laws = cleanRecordLaws(
-      { name: entity.name, law: entity.dataProtectionLaw },
+      {
+        name: entity.name,
+        law: entity.dataProtectionLaw,
+        applies: entity.applies
+      },
       input.laws,
       regime
     );

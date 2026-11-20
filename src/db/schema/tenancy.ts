@@ -172,6 +172,19 @@ export const entities = pgTable(
       .notNull()
       .default('uk'),
     /**
+     * Whether the entity is subject to UK or EU data protection law at all. A
+     * company established outside both, which neither offers goods or services
+     * to people there nor monitors them (Article 3), is subject to neither:
+     * a US company using Govern only for AI governance, say. Where false,
+     * `dataProtectionLaw` is dormant and the privacy programme's registers,
+     * clocks and questions are not offered for it (`services/programme-scope.ts`).
+     * A flag rather than a fourth law, because records carry a law of their
+     * own and an entity under neither holds no such records.
+     */
+    dataProtectionLawApplies: boolean('data_protection_law_applies')
+      .notNull()
+      .default(true),
+    /**
      * Where the entity is established, who represents it and which EU
      * authority leads, for the laws it is subject to (Articles 3, 27, 56).
      * See `lib/gdpr/establishment.ts`. Recorded by a person: the main

@@ -2,9 +2,11 @@ import Link from 'next/link';
 
 import { navFor } from '@/lib/nav';
 import { statusWords, type Persona } from '@/lib/persona';
-import { actingAs } from '@/lib/rbac';
+import { actingAs, can } from '@/lib/rbac';
 import type { ActiveSession } from '@/lib/session';
 import { visibleEntityIds } from '@/lib/session';
+import { listIncidents } from '@/services/ai-incidents';
+import { nistProfileTally } from '@/services/ai-profile';
 import {
   GAP_WORDS,
   registerSummary,
@@ -12,13 +14,8 @@ import {
   STAGE_LABEL,
   type LifecycleStage
 } from '@/services/ai-register';
-import { cyberEssentialsEnabled } from '@/services/cyber-essentials';
-import {
-  anyEntityUnderEprivacy,
-  anyEntityUnderFoi,
-  anyEntityUnderUkLaw
-} from '@/services/entities';
 import { dashboardMetrics } from '@/services/metrics';
+import type { ProgrammeScope } from '@/services/programme-scope';
 
 import { aiEstate, myAssessments, myMitigations, myTasks } from './data';
 import { dueWords, Empty, Panel, Row, Rows, Tile, Tiles } from './parts';
@@ -95,7 +92,13 @@ async function TaskPanel({
 /* ------------------------------------------------------------------ */
 
 /** Privacy governance: the programme, and what needs a person. */
-export async function PrivacyHome({ active }: { active: ActiveSession }) {
+export async function PrivacyHome({
+  active,
+  scope
+}: {
+  active: ActiveSession;
+  scope: ProgrammeScope;
+}) {
   const m = await dashboardMetrics(
     active.membership.organisationId,
     visibleEntityIds(active)
@@ -145,7 +148,10 @@ export async function PrivacyHome({ active }: { active: ActiveSession }) {
         empty="Nothing is waiting on you."
       />
 
-      <QuickLinks active={active} />
+      <QuickLinks
+        active={active}
+        scope={scope}
+      />
     </div>
   );
 }
@@ -153,11 +159,30 @@ export async function PrivacyHome({ active }: { active: ActiveSession }) {
 /* ------------------------------------------------------------------ */
 
 /** AI governance: what is running, and what nobody has looked at. */
-export async function AiHome({ active }: { active: ActiveSession }) {
-  const [summary, estate] = await Promise.all([
-    registerSummary(active.membership.organisationId, visibleEntityIds(active)),
-    aiEstate(active)
+export async function AiHome({
+  active,
+  scope
+}: {
+  active: ActiveSession;
+  scope: ProgrammeScope;
+}) {
+  const organisationId = active.membership.organisationId;
+  const entityIds = visibleEntityIds(active);
+  const [summary, estate, incidents, profile] = await Promise.all([
+    registerSummary(organisationId, entityIds),
+    aiEstate(active),
+    can(active.membership.grants, 'record.read')
+      ? listIncidents(organisationId, entityIds, { openOnly: true })
+      : Promise.resolve([]),
+    // The profile is the NIST AI RMF's. An organisation following DSIT's
+    // categories files its risks by category instead, and is not shown four
+    // functions it does not organise its work around.
+    scope.aiFramework === 'nist_ai_rmf' &&
+    can(active.membership.grants, 'record.read')
+      ? nistProfileTally(organisationId)
+      : Promise.resolve(null)
   ]);
+  const harmed = incidents.filter((i) => i.incident.harm === 'actual').length;
 
   return (
     <div className="space-y-10">
@@ -165,13 +190,7 @@ export async function AiHome({ active }: { active: ActiveSession }) {
         <Tile
           label="On the register"
           value={summary.total}
-          note={`${summary.live} live`}
-          href="/app/ai"
-        />
-        <Tile
-          label="Never assessed"
-          value={summary.neverAssessed}
-          note="nobody has looked at these"
+          note={`${summary.live} live, ${summary.neverAssessed} never assessed`}
           href="/app/ai"
           tone={summary.neverAssessed > 0 ? 'stop' : 'plain'}
         />
@@ -189,7 +208,20 @@ export async function AiHome({ active }: { active: ActiveSession }) {
           href="/app/tasks"
           tone={estate.awaitingDecision > 0 ? 'warn' : 'plain'}
         />
+        <Tile
+          label="Open incidents"
+          value={incidents.length}
+          note={
+            harmed > 0
+              ? `${harmed} with harm reported`
+              : 'harm, challenges and concerns'
+          }
+          href="/app/ai/incidents"
+          tone={harmed > 0 ? 'stop' : incidents.length > 0 ? 'warn' : 'plain'}
+        />
       </Tiles>
+
+      {profile ? <ProfileStrip functions={profile} /> : null}
 
       <Panel
         title="Needs attention"
@@ -237,7 +269,55 @@ export async function AiHome({ active }: { active: ActiveSession }) {
         title="Waiting on you"
         empty="Nothing is waiting on you."
       />
+
+      <QuickLinks
+        active={active}
+        scope={scope}
+      />
     </div>
+  );
+}
+
+/**
+ * Where the organisation stands on each NIST AI RMF function: outcomes met,
+ * and how many fall short of the target it set. Counted from the profile, so
+ * nothing here is a score the platform made up.
+ */
+function ProfileStrip({
+  functions
+}: {
+  functions: Awaited<ReturnType<typeof nistProfileTally>>;
+}) {
+  return (
+    <Panel
+      title="NIST AI RMF profile"
+      hint="Outcomes met in each function, and those short of your target."
+      action={{ href: '/app/ai/profile', label: 'Whole profile' }}
+    >
+      <Tiles>
+        {functions.map((f) => {
+          const t = f.tally;
+          const applicable =
+            t.not_started + t.partial + t.achieved + t.unassessed;
+          return (
+            <Tile
+              key={f.fn}
+              label={f.label}
+              value={`${t.achieved} of ${applicable}`}
+              note={
+                t.targetsSet === 0
+                  ? 'no targets set yet'
+                  : t.gaps > 0
+                    ? `${t.gaps} short of target`
+                    : 'at target'
+              }
+              href={`/app/ai/profile#${f.fn.toLowerCase()}`}
+              tone={t.gaps > 0 ? 'warn' : t.targetsSet > 0 ? 'good' : 'plain'}
+            />
+          );
+        })}
+      </Tiles>
+    </Panel>
   );
 }
 
@@ -378,19 +458,16 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
 
 /* ------------------------------------------------------------------ */
 
-async function QuickLinks({ active }: { active: ActiveSession }) {
-  const [ukLaw, foi, eprivacy, cyberEssentials] = await Promise.all([
-    anyEntityUnderUkLaw(active.membership.organisationId),
-    anyEntityUnderFoi(active.membership.organisationId),
-    anyEntityUnderEprivacy(active.membership.organisationId),
-    cyberEssentialsEnabled(active.membership.organisationId)
-  ]);
-  const items = navFor(active.membership.grants, {
-    ukLaw,
-    foi,
-    eprivacy,
-    cyberEssentials
-  }).filter((i) => i.href !== '/app/tasks');
+async function QuickLinks({
+  active,
+  scope
+}: {
+  active: ActiveSession;
+  scope: ProgrammeScope;
+}) {
+  const items = navFor(active.membership.grants, scope).filter(
+    (i) => i.href !== '/app/tasks'
+  );
   // Administration is a different kind of thing from a register. Mixed into
   // one list it reads as an afterthought, which is how somebody who knew a
   // screen existed still could not find it.

@@ -8,6 +8,8 @@ import {
 } from '@/components/legal/AgreementParts';
 import {
   DATA_PROTECTION_LAWS,
+  NO_DATA_PROTECTION_LAW,
+  NO_DATA_PROTECTION_LAW_LABEL,
   ukLawApplies,
   type DataProtectionLaw
 } from '@/lib/dpa2018/applies';
@@ -33,9 +35,15 @@ import {
 import { EstablishmentForm } from './EstablishmentForm';
 import { Outcome } from './Outcome';
 
-const LAW_OPTIONS = (
-  Object.keys(DATA_PROTECTION_LAWS) as DataProtectionLaw[]
-).map((k) => ({ value: k, label: DATA_PROTECTION_LAWS[k] }));
+// The three laws, and neither: an entity under no UK or EU data protection
+// law, which sets its `dataProtectionLawApplies` flag rather than a law.
+const LAW_OPTIONS = [
+  ...(Object.keys(DATA_PROTECTION_LAWS) as DataProtectionLaw[]).map((k) => ({
+    value: k,
+    label: DATA_PROTECTION_LAWS[k]
+  })),
+  { value: NO_DATA_PROTECTION_LAW, label: NO_DATA_PROTECTION_LAW_LABEL }
+];
 
 const COMPETENT_AUTHORITY_OPTIONS = [
   { value: 'no', label: 'Not a competent authority' },
@@ -65,6 +73,8 @@ type Entity = {
   competentAuthority: boolean;
   defaultRegime: string;
   dataProtectionLaw: DataProtectionLaw;
+  /** False: subject to neither UK nor EU data protection law. */
+  dataProtectionLawApplies: boolean;
   foiAct: 'foia' | 'foisa' | null;
   foiTimeProfile: string;
   foiCoveredFor: string | null;
@@ -268,8 +278,10 @@ function EntityRow({
     setFreedomOfInformationAction.bind(null, entity.id),
     { resetOnSuccess: false }
   );
-  const uk = ukLawApplies(entity.dataProtectionLaw);
-  const eu = appliesEu(entity.dataProtectionLaw);
+  // Under neither law, nothing that only one of them knows is asked.
+  const applies = entity.dataProtectionLawApplies;
+  const uk = applies && ukLawApplies(entity.dataProtectionLaw);
+  const eu = applies && appliesEu(entity.dataProtectionLaw);
   const irishYes = useRefusableAction<AdminResult>(
     setIeEprivacyAction.bind(null, entity.id, true),
     { resetOnSuccess: false }
@@ -342,16 +354,26 @@ function EntityRow({
         action={setDataProtectionLawAction.bind(null, entity.id)}
         name="dataProtectionLaw"
         label="Data protection law it is subject to:"
-        value={entity.dataProtectionLaw}
+        value={applies ? entity.dataProtectionLaw : NO_DATA_PROTECTION_LAW}
         options={LAW_OPTIONS}
         look="compact"
       />
-      <EstablishmentForm
-        entityId={entity.id}
-        name={entity.name}
-        law={entity.dataProtectionLaw}
-        establishment={entity.establishment}
-      />
+      {applies ? (
+        <EstablishmentForm
+          entityId={entity.id}
+          name={entity.name}
+          law={entity.dataProtectionLaw}
+          establishment={entity.establishment}
+        />
+      ) : (
+        <p className="max-w-prose text-xs text-ink-soft">
+          Not subject to UK or EU data protection law, so its establishment,
+          representatives and lead authority are not asked, and its AI systems
+          are not judged against Articles 22 and 22A-22D. If it offers goods or
+          services to people in the UK or EU, or monitors them, that may not be
+          right.
+        </p>
+      )}
       {eu ? (
         <div className="space-y-1 text-xs">
           {entity.ieEprivacySuggested ? (
@@ -511,12 +533,12 @@ function EntityRow({
           </form>
           <Outcome result={foi.result} />
         </>
-      ) : (
+      ) : applies ? (
         <p className="text-xs text-ink-soft">
           The public authority, competent authority and PECR settings are UK
           law, so are not offered for an entity subject to EU law only.
         </p>
-      )}
+      ) : null}
     </li>
   );
 }
