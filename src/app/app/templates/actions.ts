@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import { kindsFor } from '@/lib/rbac';
 import { requireCapability } from '@/lib/session';
+import { readDraft } from '@/lib/templates/read-draft';
 import { templateDefinition } from '@/lib/templates/schema';
 import { validateTemplate } from '@/lib/templates/validate';
 import {
@@ -95,39 +96,32 @@ export async function saveDraftAction(
   formData: FormData
 ): Promise<DraftResult> {
   const active = await requireCapability('template.author');
-  const raw = String(formData.get('definition') ?? '');
+  const read = readDraft(String(formData.get('definition') ?? ''));
+  if (!read.ok) return { ok: false, saved: false, problems: read.problems };
 
-  let parsed: unknown;
+  const problems = validateTemplate(read.definition);
   try {
-    parsed = JSON.parse(raw);
+    return await saveDraft(
+      active,
+      templateId,
+      versionId,
+      read.definition,
+      problems
+    );
   } catch (error) {
-    return {
-      ok: false,
-      saved: false,
-      problems: [
-        `That is not valid JSON - ${error instanceof Error ? error.message : 'unparseable'}`
-      ]
-    };
-  }
-
-  const shape = templateDefinition.safeParse(parsed);
-  if (!shape.success) {
-    return {
-      ok: false,
-      saved: false,
-      problems: shape.error.issues.map(
-        (i) => `${i.path.join('.') || 'definition'}: ${i.message}`
-      )
-    };
-  }
-
-  const problems = validateTemplate(shape.data);
-  try {
-    return await saveDraft(active, templateId, versionId, shape.data, problems);
-  } catch (error) {
-    // Another author's draft may have got there first.
-    if (error instanceof OutsideYourKinds || error instanceof DraftAlreadyOpen)
+    if (error instanceof OutsideYourKinds)
       return { ok: false, saved: false, problems: [error.message] };
+    // Another author's first save got there first. Their draft is not on
+    // this page until it reloads, and reloading loses what is typed here, so
+    // say both rather than point at a draft the person cannot see.
+    if (error instanceof DraftAlreadyOpen)
+      return {
+        ok: false,
+        saved: false,
+        problems: [
+          'Somebody else saved a draft of this template while you were writing, and there can be only one. Copy what you have written, then reload the page to see their draft.'
+        ]
+      };
     throw error;
   }
 }

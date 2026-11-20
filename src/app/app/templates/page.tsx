@@ -5,6 +5,7 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { can, kindsFor } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
+import { draftBasis } from '@/lib/templates/draft-basis';
 import { TEMPLATE_KIND_LABEL } from '@/lib/templates/kinds';
 import { questionsOf } from '@/lib/templates/logic';
 import {
@@ -237,7 +238,8 @@ export default async function Templates() {
         {rows.map(({ template, versions }) => {
           const published = versions.find((v) => v.status === 'published');
           const draft = versions.find((v) => v.status === 'draft');
-          const showing = published ?? versions[0];
+          // What a new draft would copy: never an abandoned draft.
+          const showing = draftBasis(versions);
           const questions = showing
             ? questionsOf(showing.definition.schema)
             : [];

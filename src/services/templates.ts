@@ -178,6 +178,15 @@ export async function createDraftFrom(input: {
         await kindOfTemplate(tx, input.organisationId, input.templateId),
         input.kinds
       );
+      // One draft at a time, and drafts now start in the browser, so two
+      // authors can press their first Save together. The template row is the
+      // lock: the second waits, then finds the first's draft and is refused
+      // in words rather than by the version number's unique index.
+      await tx
+        .select({ id: templates.id })
+        .from(templates)
+        .where(eq(templates.id, input.templateId))
+        .for('update');
       const versions = await tx
         .select()
         .from(templateVersions)

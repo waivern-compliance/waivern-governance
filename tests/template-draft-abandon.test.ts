@@ -10,16 +10,18 @@ import { createElement } from 'react';
 import { eq, sql } from 'drizzle-orm';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { NewDraft } from '@/components/templates/NewDraft';
+import { DraftWorkspace } from '@/components/templates/DraftWorkspace';
 import { db, sql as pg } from '@/db/client';
 import { auditEvents, organisations, templateVersions } from '@/db/schema';
 import { verifyAuditChain } from '@/lib/audit';
 import { draftBasis } from '@/lib/templates/draft-basis';
+import { readDraft } from '@/lib/templates/read-draft';
 import type { TemplateDefinition } from '@/lib/templates/schema';
 import {
   abandonDraft,
   createDraftFrom,
   createTemplate,
+  DraftAlreadyOpen,
   DraftNotAbandonable,
   publishVersion,
   updateDraft
@@ -98,11 +100,75 @@ after(async () => {
 describe('starting a template draft', () => {
   it('writes nothing until the first save', () => {
     const html = renderToStaticMarkup(
-      createElement(NewDraft, { templateId: 'x', definition: simple('P') })
+      createElement(DraftWorkspace, {
+        templateId: 'x',
+        draft: null,
+        basis: simple('P')
+      })
     );
     // Starting is a button that opens the editor, not a form that submits.
     assert.doesNotMatch(html, /<form/);
     assert.match(html, /<button type="button"[^>]*>Start a new draft/);
+  });
+
+  it('offers no start when there is nothing to copy', () => {
+    const html = renderToStaticMarkup(
+      createElement(DraftWorkspace, {
+        templateId: 'x',
+        draft: null,
+        basis: undefined
+      })
+    );
+    assert.doesNotMatch(html, /Start a new draft/);
+    assert.match(html, /no version to start a draft from/);
+  });
+
+  it('saves nothing from JSON that does not parse', () => {
+    const read = readDraft('{ "schema": ');
+    assert.equal(read.ok, false);
+    assert.match(!read.ok ? read.problems[0] : '', /not valid JSON/);
+  });
+
+  it('saves nothing from JSON that is not a template', () => {
+    assert.equal(readDraft('{"schema": {}}').ok, false);
+  });
+
+  it('reads a template to be saved', () => {
+    const read = readDraft(JSON.stringify(simple('Typed')));
+    assert.equal(read.ok && read.definition.schema.sections[0].title, 'Typed');
+  });
+
+  it('refuses a first save that races another, in words', async () => {
+    const { org, template, draft } = await withSavedDraft('race');
+    await abandonDraft({
+      organisationId: org.id,
+      versionId: draft.id,
+      reason: 'Clearing the way',
+      actor: ACTOR
+    });
+
+    // Another author's first save, held open mid-transaction: it has taken
+    // the template and written its draft, but not committed.
+    let racing: Promise<unknown> | undefined;
+    await pg.begin(async (other) => {
+      await other`select id from template where id = ${template.id} for update`;
+      await other`
+        insert into template_version (template_id, version, status, definition)
+        select template_id, 3, 'draft', definition from template_version
+        where template_id = ${template.id} and status = 'published'`;
+      racing = createDraftFrom({
+        organisationId: org.id,
+        templateId: template.id,
+        definition: simple('Mine'),
+        actor: ACTOR
+      }).catch((error: unknown) => error);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+
+    assert.ok(
+      (await racing) instanceof DraftAlreadyOpen,
+      'refused because a draft is open, not by the version number index'
+    );
   });
 
   it('copies the published version, not an abandoned draft', () => {

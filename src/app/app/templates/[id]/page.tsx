@@ -3,8 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { NotPermitted } from '@/components/NotPermitted';
 import { AbandonDraft } from '@/components/templates/AbandonDraft';
-import { DraftEditor } from '@/components/templates/DraftEditor';
-import { NewDraft } from '@/components/templates/NewDraft';
+import { DraftWorkspace } from '@/components/templates/DraftWorkspace';
 import { legalRefMap } from '@/lib/legal-refs';
 import type { ResolvedRef } from '@/lib/legal-refs';
 import { can, canForKind } from '@/lib/rbac';
@@ -128,16 +127,22 @@ export default async function TemplatePage({
         <section className="space-y-3 border-t border-line pt-7">
           <h2 className="text-sm font-semibold">Editing</h2>
           {draft ? (
+            <p className="max-w-prose text-xs text-ink-soft">
+              Version {draft.version} is a draft. It is not offered to anybody
+              starting an assessment until it is published.
+            </p>
+          ) : null}
+          {/* Rendered in the same place with or without a saved draft, so the
+              editor keeps the first save's result when the page refreshes. */}
+          <DraftWorkspace
+            templateId={template.id}
+            draft={
+              draft ? { id: draft.id, definition: draft.definition } : null
+            }
+            basis={draftBasis(versions)?.definition}
+          />
+          {draft ? (
             <>
-              <p className="max-w-prose text-xs text-ink-soft">
-                Version {draft.version} is a draft. It is not offered to anybody
-                starting an assessment until it is published.
-              </p>
-              <DraftEditor
-                templateId={template.id}
-                versionId={draft.id}
-                definition={draft.definition}
-              />
               {mayPublish ? (
                 <form action={publishAction.bind(null, template.id, draft.id)}>
                   <button
@@ -167,12 +172,7 @@ export default async function TemplatePage({
                 version={draft.version}
               />
             </>
-          ) : (
-            <NewDraft
-              templateId={template.id}
-              definition={draftBasis(versions)?.definition}
-            />
-          )}
+          ) : null}
         </section>
       ) : null}
     </main>
