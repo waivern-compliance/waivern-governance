@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { GapChips } from '@/components/GapChips';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { RetiredList } from '@/components/RetiredList';
 import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
 import { can } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
@@ -262,6 +263,16 @@ export default async function ThirdPartiesPage({
           </li>
         ) : null}
       </ul>
+
+      <RetiredList
+        items={health.retired.map(({ supplier }) => ({
+          id: supplier.id,
+          href: `/app/third-parties/${supplier.id}`,
+          name: supplier.name,
+          retiredAt: supplier.retiredAt!,
+          reason: supplier.retiredReason
+        }))}
+      />
     </main>
   );
 }

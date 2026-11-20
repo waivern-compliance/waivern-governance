@@ -150,7 +150,11 @@ export async function contractPeople(
 
 async function supplierOf(tx: Tx, organisationId: string, supplierId: string) {
   const [row] = await tx
-    .select({ id: suppliers.id, name: suppliers.name })
+    .select({
+      id: suppliers.id,
+      name: suppliers.name,
+      retiredAt: suppliers.retiredAt
+    })
     .from(suppliers)
     .where(
       and(
@@ -160,6 +164,10 @@ async function supplierOf(tx: Tx, organisationId: string, supplierId: string) {
     );
   if (!row)
     throw new ContractRefused('No such third party in this organisation.');
+  if (row.retiredAt)
+    throw new ContractRefused(
+      `${row.name} is retired. Restore it before adding a contract with it.`
+    );
   return row;
 }
 

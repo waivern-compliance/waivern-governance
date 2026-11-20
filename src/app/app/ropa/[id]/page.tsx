@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
 import { AutomatedDecisions } from '@/components/AutomatedDecisions';
 import { Discussion } from '@/components/Discussion';
@@ -11,6 +11,7 @@ import { ImportedFrom } from '@/components/imports/ImportedFrom';
 import { LinkedAssets } from '@/components/LinkedAssets';
 import { NotPermitted } from '@/components/NotPermitted';
 import { GoverningPolicies } from '@/components/policies/GoverningPolicies';
+import { RetireRecord } from '@/components/RetireRecord';
 import { db, scoped } from '@/db/client';
 import { memberships, processingActivities, users } from '@/db/schema';
 import {
@@ -63,7 +64,12 @@ import { assetsFor } from '@/services/information-assets';
 import { gapWordsFor, HARD_GAPS, loadActivity } from '@/services/ropa';
 import { agreementsFor } from '@/services/sharing-agreements';
 
-import { saveFurtherProcessingAction, updateActivityAction } from '../actions';
+import {
+  restoreActivityAction,
+  retireActivityAction,
+  saveFurtherProcessingAction,
+  updateActivityAction
+} from '../actions';
 import { CategoryPicker } from '../CategoryPicker';
 import { FurtherProcessingFields } from '../FurtherProcessingFields';
 import { LawfulBasisFields } from '../LawfulBasisFields';
@@ -104,11 +110,13 @@ export default async function ActivityPage({
       />
     );
   }
-  const mayEdit = can(
+  const mayWrite = can(
     active.membership.grants,
     'record.write',
     activity.entityId
   );
+  // A retired record is kept as it was: it is restored, not edited.
+  const mayEdit = mayWrite && !activity.retiredAt;
 
   const colleagues = await scoped(active.membership.organisationId, () =>
     db
@@ -118,6 +126,17 @@ export default async function ActivityPage({
       .where(eq(memberships.organisationId, active.membership.organisationId))
       .orderBy(asc(users.email))
   );
+  // Looked up by id, not among colleagues, so the name outlives membership.
+  const retiredBy = activity.retiredBy
+    ? ((
+        await scoped(active.membership.organisationId, () =>
+          db
+            .select({ email: users.email })
+            .from(users)
+            .where(eq(users.id, activity.retiredBy!))
+        )
+      )[0]?.email ?? null)
+    : null;
 
   // Counts only — no requester — so anyone who may read the record may see them.
   const [
@@ -147,9 +166,18 @@ export default async function ActivityPage({
             })
             .from(processingActivities)
             .where(
-              eq(
-                processingActivities.organisationId,
-                active.membership.organisationId
+              and(
+                eq(
+                  processingActivities.organisationId,
+                  active.membership.organisationId
+                ),
+                // A retired activity is offered only where it is already the link.
+                or(
+                  isNull(processingActivities.retiredAt),
+                  activity.originalActivityId
+                    ? eq(processingActivities.id, activity.originalActivityId)
+                    : undefined
+                )
               )
             )
             .orderBy(asc(processingActivities.reference))
@@ -197,13 +225,30 @@ export default async function ActivityPage({
         <p className="text-xs font-medium">
           {regimeLabel(activity.regime, laws)}
         </p>
-        <GapChips
-          gaps={gaps}
-          words={gapWordsFor(laws)}
-          serious={HARD_GAPS}
-          clear="Article 30 complete"
-        />
-        {hardGaps.length > 0 ? (
+        {activity.retiredAt ? (
+          <RetireRecord
+            what="processing activity"
+            retired={{
+              at: activity.retiredAt,
+              by: retiredBy,
+              reason: activity.retiredReason,
+              note: activity.retiredNote
+            }}
+            retire={retireActivityAction.bind(null, activity.id)}
+            restore={restoreActivityAction.bind(null, activity.id)}
+            mayEdit={mayWrite}
+          />
+        ) : null}
+        {/* A retired record is no longer the register, so is not inspected. */}
+        {activity.retiredAt ? null : (
+          <GapChips
+            gaps={gaps}
+            words={gapWordsFor(laws)}
+            serious={HARD_GAPS}
+            clear="Article 30 complete"
+          />
+        )}
+        {hardGaps.length > 0 && !activity.retiredAt ? (
           activity.regime === 'dpa_part3' ? (
             <p className="max-w-prose text-xs text-red-900">
               The red items are unqualified requirements of section 61, or
@@ -935,6 +980,16 @@ export default async function ActivityPage({
         kind="activity"
         id={activity.id}
       />
+
+      {activity.retiredAt ? null : (
+        <RetireRecord
+          what="processing activity"
+          retired={{ at: null, by: null, reason: null, note: null }}
+          retire={retireActivityAction.bind(null, activity.id)}
+          restore={restoreActivityAction.bind(null, activity.id)}
+          mayEdit={mayWrite}
+        />
+      )}
 
       <Discussion
         subjectType="processing_activity"

@@ -964,7 +964,8 @@ async function raiseObjectionReviews(organisationId: string): Promise<number> {
           eq(processingActivities.organisationId, organisationId)
         )
       );
-    if (!activity) continue;
+    // A retired activity is no longer carried on: nothing to review.
+    if (!activity || activity.retiredAt) continue;
     const [lia] = await db
       .select({ assessment: assessments })
       .from(assessments)

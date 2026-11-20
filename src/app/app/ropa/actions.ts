@@ -5,15 +5,17 @@ import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
 import { db, scoped } from '@/db/client';
-import { entities } from '@/db/schema';
+import { entities, processingActivities } from '@/db/schema';
 import { refusable, type EditResult } from '@/lib/edit-result';
 import {
   COMPATIBILITY_FACTOR_KEYS,
   RESEARCH_SAFEGUARD_KEYS
 } from '@/lib/gdpr/further-processing';
-import { requireCapability } from '@/lib/session';
+import { requireCapability, requireSession } from '@/lib/session';
 import {
   createActivity,
+  restoreActivity,
+  retireActivity,
   setFurtherProcessing,
   updateActivity
 } from '@/services/ropa';
@@ -283,6 +285,72 @@ export async function saveFurtherProcessingAction(
       }
     });
 
+    revalidatePath(`/app/ropa/${activityId}`);
+    revalidatePath('/app/ropa');
+  });
+}
+
+/** A writer for this activity's own entity: access is scoped by entity. */
+async function writerOf(activityId: string) {
+  const session = await requireSession();
+  const organisationId = session.membership.organisationId;
+  const [row] = await scoped(organisationId, () =>
+    db
+      .select({ entityId: processingActivities.entityId })
+      .from(processingActivities)
+      .where(
+        and(
+          eq(processingActivities.id, activityId),
+          eq(processingActivities.organisationId, organisationId)
+        )
+      )
+  );
+  if (!row) throw new Error('No such processing activity.');
+  return requireCapability('record.write', {
+    organisationId,
+    entityId: row.entityId
+  });
+}
+
+export async function retireActivityAction(
+  activityId: string,
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await writerOf(activityId);
+    await retireActivity({
+      activityId,
+      organisationId: active.membership.organisationId,
+      reason: text(formData.get('reason')),
+      note: text(formData.get('note')),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    revalidatePath(`/app/ropa/${activityId}`);
+    revalidatePath('/app/ropa');
+  });
+}
+
+export async function restoreActivityAction(
+  activityId: string,
+  _previous: EditResult,
+  _formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await writerOf(activityId);
+    await restoreActivity({
+      activityId,
+      organisationId: active.membership.organisationId,
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
     revalidatePath(`/app/ropa/${activityId}`);
     revalidatePath('/app/ropa');
   });

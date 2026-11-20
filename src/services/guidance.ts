@@ -143,13 +143,23 @@ async function tally(organisationId: string) {
       db
         .select(n)
         .from(processingActivities)
-        .where(eq(processingActivities.organisationId, organisationId))
+        .where(
+          and(
+            eq(processingActivities.organisationId, organisationId),
+            isNull(processingActivities.retiredAt)
+          )
+        )
     ),
     rows(
       db
         .select(n)
         .from(suppliers)
-        .where(eq(suppliers.organisationId, organisationId))
+        .where(
+          and(
+            eq(suppliers.organisationId, organisationId),
+            isNull(suppliers.retiredAt)
+          )
+        )
     ),
     rows(
       db
@@ -168,6 +178,7 @@ async function tally(organisationId: string) {
         .where(
           and(
             eq(suppliers.organisationId, organisationId),
+            isNull(suppliers.retiredAt),
             notExists(
               db
                 .select({ one: sql`1` })
@@ -190,7 +201,8 @@ async function tally(organisationId: string) {
           and(
             eq(suppliers.organisationId, organisationId),
             isNotNull(suppliers.sourceConnectionId),
-            isNull(suppliers.reviewedAt)
+            isNull(suppliers.reviewedAt),
+            isNull(suppliers.retiredAt)
           )
         )
     ),

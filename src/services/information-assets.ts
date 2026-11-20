@@ -427,14 +427,20 @@ export async function linkOptions(organisationId: string, entityId: string) {
           .where(
             and(
               eq(processingActivities.organisationId, organisationId),
-              eq(processingActivities.entityId, entityId)
+              eq(processingActivities.entityId, entityId),
+              isNull(processingActivities.retiredAt)
             )
           )
           .orderBy(asc(processingActivities.reference)),
         db
           .select({ id: suppliers.id, label: suppliers.name })
           .from(suppliers)
-          .where(eq(suppliers.organisationId, organisationId))
+          .where(
+            and(
+              eq(suppliers.organisationId, organisationId),
+              isNull(suppliers.retiredAt)
+            )
+          )
           .orderBy(asc(suppliers.name)),
         db
           .select({

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import { Attachments } from '@/components/documents/Attachments';
 import { EditForm } from '@/components/EditForm';
@@ -100,7 +100,18 @@ export default async function SharingAgreementPage({
         .where(
           and(
             eq(processingActivities.organisationId, org),
-            eq(processingActivities.entityId, agreement.entityId)
+            eq(processingActivities.entityId, agreement.entityId),
+            // A retired activity stays ticked where it is already covered, so
+            // saving the agreement does not drop it; it is not offered anew.
+            activities.length > 0
+              ? or(
+                  isNull(processingActivities.retiredAt),
+                  inArray(
+                    processingActivities.id,
+                    activities.map((a) => a.id)
+                  )
+                )
+              : isNull(processingActivities.retiredAt)
           )
         )
         .orderBy(asc(processingActivities.reference))
@@ -112,7 +123,8 @@ export default async function SharingAgreementPage({
         .where(
           and(
             eq(suppliers.organisationId, org),
-            ne(suppliers.role, 'processor')
+            ne(suppliers.role, 'processor'),
+            isNull(suppliers.retiredAt)
           )
         )
         .orderBy(asc(suppliers.name))

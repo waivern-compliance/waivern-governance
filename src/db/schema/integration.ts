@@ -42,6 +42,7 @@ import type {
 } from '@/lib/gdpr/further-processing';
 import type { LawfulBasis, RecognisedCondition } from '@/lib/gdpr/lawful-basis';
 import type { RecordedMechanism } from '@/lib/gdpr/transfers';
+import type { RetireReason } from '@/lib/retirement';
 import type { ReviewOutcome } from '@/lib/thirdparty/review';
 import type { SupplierTier } from '@/lib/thirdparty/tier';
 
@@ -347,6 +348,16 @@ export const processingActivities = pgTable(
     importConfirmedAt: timestamp('import_confirmed_at', { withTimezone: true }),
 
     reviewDueAt: timestamp('review_due_at', { withTimezone: true }),
+    /**
+     * Taken off the working register (`lib/retirement.ts`): kept as it was,
+     * read-only, and restorable. Records are retired, never deleted.
+     */
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    retiredBy: uuid('retired_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    retiredReason: text('retired_reason').$type<RetireReason>(),
+    retiredNote: text('retired_note'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -455,6 +466,16 @@ export const suppliers = pgTable(
       onDelete: 'set null'
     }),
     legacy: jsonb('legacy').$type<Record<string, string>>(),
+    /**
+     * Taken off the working register (`lib/retirement.ts`): kept as it was,
+     * read-only, and restorable. Records are retired, never deleted.
+     */
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    retiredBy: uuid('retired_by').references(() => users.id, {
+      onDelete: 'set null'
+    }),
+    retiredReason: text('retired_reason').$type<RetireReason>(),
+    retiredNote: text('retired_note'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

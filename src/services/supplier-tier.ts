@@ -9,6 +9,7 @@ import {
   suppliers
 } from '@/db/schema';
 import { appendAuditEvent } from '@/lib/audit';
+import { RetireRefused } from '@/lib/retirement';
 import {
   isSupplierTier,
   recommendTier,
@@ -19,6 +20,7 @@ import {
 
 import { nextReviewOnTier } from './supplier-review';
 import type { Actor } from './templates';
+import { RETIRED_SUPPLIER } from './third-party';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Reader = Pick<typeof db, 'select'>;
@@ -83,6 +85,7 @@ async function factsFor(
       and(
         eq(processingActivities.organisationId, organisationId),
         eq(processingActivities.specialCategory, true),
+        isNull(processingActivities.retiredAt),
         or(
           heldOnAsset,
           sql`exists (
@@ -169,6 +172,7 @@ export async function setSupplierTier(input: {
         .for('update');
       if (!before)
         throw new TierRefused('No such third party in this organisation.');
+      if (before.retiredAt) throw new RetireRefused(RETIRED_SUPPLIER);
       const recommendation = recommendTier(
         await factsFor(input.organisationId, before, tx)
       );

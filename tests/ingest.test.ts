@@ -23,6 +23,8 @@ import {
   ingestScan,
   ingestVendors
 } from '@/services/ingest';
+import { retireActivity } from '@/services/ropa';
+import { retireSupplier } from '@/services/third-party';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -417,5 +419,80 @@ describe('scans from the HAR Analyser', () => {
     await ingestScan(w.scanner, batch());
     const result = await verifyAuditChain(w.org.id);
     assert.equal(result.ok, true);
+  });
+});
+
+describe('pushes to a retired record', () => {
+  it('leave a retired processing activity as it was, and say why', async () => {
+    const w = await world('retired-ropa');
+    const record = {
+      externalRef: 'portal-retired-1',
+      name: 'Event sign-ups',
+      purposes: ['Run events'],
+      dataCategories: ['contact_details'],
+      subjectCategories: ['Attendees'],
+      recipients: [],
+      systems: [],
+      transfers: []
+    };
+    await ingestProcessingActivities(w.portal, [record]);
+    const [row] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.organisationId, w.org.id));
+    await retireActivity({
+      activityId: row.id,
+      organisationId: w.org.id,
+      reason: 'no_longer_used',
+      note: '',
+      actor: SYSTEM
+    });
+    const out = await ingestProcessingActivities(w.portal, [
+      { ...record, name: 'Event sign-ups and tickets' }
+    ]);
+    assert.equal(out.updated, 0);
+    assert.match(out.skipped[0].reason, /retired in Govern/);
+    const [after] = await db
+      .select()
+      .from(processingActivities)
+      .where(eq(processingActivities.id, row.id));
+    assert.equal(after.name, 'Event sign-ups');
+  });
+
+  it('add nothing to a retired third party', async () => {
+    const w = await world('retired-vendor');
+    await ingestVendors(w.portal, [
+      { name: 'Old Hosting Ltd', categories: ['hosting'] }
+    ]);
+    const [supplier] = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.organisationId, w.org.id));
+    await retireSupplier({
+      supplierId: supplier.id,
+      organisationId: w.org.id,
+      reason: 'no_longer_used',
+      note: '',
+      actor: SYSTEM
+    });
+    const vendors = await ingestVendors(w.scanner, [
+      { name: 'Old Hosting', categories: ['cdn'] }
+    ]);
+    const agreements = await ingestDpas(w.portal, [
+      {
+        vendorName: 'Old Hosting Ltd',
+        title: 'DPA 2027',
+        subProcessors: [],
+        terms: {}
+      }
+    ]);
+    assert.equal(vendors.created, 0);
+    assert.match(vendors.skipped[0].reason, /retired in Govern/);
+    assert.equal(agreements.created, 0);
+    assert.equal(
+      (await db.select().from(dpas).where(eq(dpas.supplierId, supplier.id)))
+        .length,
+      0
+    );
   });
 });

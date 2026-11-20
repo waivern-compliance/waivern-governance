@@ -16,6 +16,8 @@ import {
   createSupplier,
   recordDpa,
   restoreDpa,
+  restoreSupplier,
+  retireSupplier,
   updateDpa,
   updateSupplier
 } from '@/services/third-party';
@@ -323,5 +325,49 @@ export async function setSupplierReviewCycleAction(
     revalidatePath('/app/admin/organisation');
     revalidatePath('/app/third-parties');
     revalidatePath('/app/reviews');
+  });
+}
+
+export async function retireSupplierAction(
+  supplierId: string,
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await requireCapability('record.write');
+    await retireSupplier({
+      supplierId,
+      organisationId: active.membership.organisationId,
+      reason: text(formData.get('reason')),
+      note: text(formData.get('note')),
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    revalidatePath(`/app/third-parties/${supplierId}`);
+    revalidatePath('/app/third-parties');
+  });
+}
+
+export async function restoreSupplierAction(
+  supplierId: string,
+  _previous: EditResult,
+  _formData: FormData
+): Promise<EditResult> {
+  return refusable(async () => {
+    const active = await requireCapability('record.write');
+    await restoreSupplier({
+      supplierId,
+      organisationId: active.membership.organisationId,
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    revalidatePath(`/app/third-parties/${supplierId}`);
+    revalidatePath('/app/third-parties');
   });
 }

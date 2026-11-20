@@ -1027,7 +1027,8 @@ export async function policyLinkOptions(
         .where(
           and(
             eq(processingActivities.organisationId, organisationId),
-            entityId ? eq(processingActivities.entityId, entityId) : undefined
+            entityId ? eq(processingActivities.entityId, entityId) : undefined,
+            isNull(processingActivities.retiredAt)
           )
         )
         .orderBy(asc(processingActivities.reference)),

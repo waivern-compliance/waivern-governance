@@ -274,7 +274,10 @@ async function seedScope(tx: Tx, request: DataSubjectRequest): Promise<number> {
       .where(
         and(
           eq(processingActivities.organisationId, request.organisationId),
-          eq(processingActivities.entityId, request.entityId)
+          eq(processingActivities.entityId, request.entityId),
+          // A retired record is no longer the register's account of what is
+          // held: one recorded in error never held anything.
+          isNull(processingActivities.retiredAt)
         )
       )
       .orderBy(asc(processingActivities.reference))

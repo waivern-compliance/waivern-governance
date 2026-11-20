@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 
 import { db, withOrganisation, type Db } from '@/db/client';
 import {
@@ -52,6 +52,7 @@ import {
   researchFromWire
 } from '@/lib/integration/duaa';
 import { nextReference } from '@/lib/references';
+import { RetireRefused } from '@/lib/retirement';
 
 import { createUseCase } from './ai-register';
 import {
@@ -74,7 +75,8 @@ function refusedBy(error: unknown): string | null {
     error instanceof RecordLawsRefused ||
     error instanceof ChildrenStatesRefused ||
     error instanceof TransferMechanismRefused ||
-    error instanceof RecordRefused
+    error instanceof RecordRefused ||
+    error instanceof RetireRefused
   ) {
     return error.message;
   }
@@ -248,6 +250,11 @@ export async function ingestProcessingActivities(
                 eq(processingActivities.sourceConnectionId, connection.id),
                 eq(processingActivities.externalRef, r.externalRef)
               )
+            );
+          // A retired record is kept as it was: a push does not rewrite it.
+          if (existing?.retiredAt)
+            throw new RetireRefused(
+              `${existing.reference} is retired in Govern, so the push was not applied. Restore it there to take updates again.`
             );
 
           // The Act's records, group by group. A group sent replaces what is
@@ -436,6 +443,24 @@ export async function ingestProcessingActivities(
   });
 }
 
+const RETIRED_SUPPLIER_PUSH =
+  'This third party is retired in Govern, so the push was not applied. Restore it there to take updates again.';
+
+/** Whether the supplier a push names is on the register, retired. */
+async function retiredSupplier(organisationId: string, canonicalKey: string) {
+  const [row] = await db
+    .select({ id: suppliers.id })
+    .from(suppliers)
+    .where(
+      and(
+        eq(suppliers.organisationId, organisationId),
+        eq(suppliers.canonicalKey, canonicalKey),
+        isNotNull(suppliers.retiredAt)
+      )
+    );
+  return row !== undefined;
+}
+
 export async function ingestVendors(
   connection: AuthedConnection,
   records: VendorIn[]
@@ -459,6 +484,13 @@ export async function ingestVendors(
         continue;
       }
 
+      if (await retiredSupplier(connection.organisationId, key)) {
+        outcome.skipped.push({
+          externalRef: r.externalRef ?? r.name,
+          reason: RETIRED_SUPPLIER_PUSH
+        });
+        continue;
+      }
       await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(suppliers)
@@ -676,6 +708,13 @@ export async function ingestDpas(
         const reason = refusedBy(error);
         if (reason === null) throw error;
         outcome.skipped.push({ externalRef: r.externalRef ?? r.title, reason });
+        continue;
+      }
+      if (await retiredSupplier(connection.organisationId, key)) {
+        outcome.skipped.push({
+          externalRef: r.externalRef ?? r.title,
+          reason: RETIRED_SUPPLIER_PUSH
+        });
         continue;
       }
       await db.transaction(async (tx) => {

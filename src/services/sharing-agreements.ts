@@ -262,7 +262,13 @@ export async function sharingRegister(
           recipients: processingActivities.recipients
         })
         .from(processingActivities)
-        .where(scope(processingActivities))
+        // A retired activity shares nothing any more, so owes no agreement.
+        .where(
+          and(
+            scope(processingActivities),
+            isNull(processingActivities.retiredAt)
+          )
+        )
         .orderBy(asc(processingActivities.reference))
     ]);
     return {

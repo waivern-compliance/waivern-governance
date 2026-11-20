@@ -1030,6 +1030,13 @@
       "when": 1795132454848,
       "tag": "0146_privacy_records_need_data_protection_law",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1795135599647,
+      "tag": "0147_retire_activities_and_suppliers",
+      "breakpoints": true
     }
   ]
 }

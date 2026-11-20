@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -781,8 +781,15 @@ export async function marketingRegister(
   });
 }
 
-/** The processing activities a marketing activity can be linked to, those with marketing among their purposes first. */
-export async function marketingProcessingActivities(organisationId: string) {
+/**
+ * The processing activities a marketing activity can be linked to, those with
+ * marketing among their purposes first. A retired one only where it is
+ * already the link (`keep`), so the form does not quietly change it.
+ */
+export async function marketingProcessingActivities(
+  organisationId: string,
+  keep?: string | null
+) {
   return withOrganisation(organisationId, async () => {
     const rows = await db
       .select({
@@ -792,7 +799,17 @@ export async function marketingProcessingActivities(organisationId: string) {
         purposes: processingActivities.purposes
       })
       .from(processingActivities)
-      .where(eq(processingActivities.organisationId, organisationId))
+      .where(
+        and(
+          eq(processingActivities.organisationId, organisationId),
+          keep
+            ? or(
+                isNull(processingActivities.retiredAt),
+                eq(processingActivities.id, keep)
+              )
+            : isNull(processingActivities.retiredAt)
+        )
+      )
       .orderBy(asc(processingActivities.reference));
     const marketing = (p: { purposes: string[] }) =>
       p.purposes.some((x) => /\bmarketing\b/i.test(x));

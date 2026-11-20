@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 
 import { EditForm } from '@/components/EditForm';
 import { HelpLink } from '@/components/help/HelpLink';
@@ -55,7 +55,9 @@ export default async function ContractsPage({
       db
         .select({ id: suppliers.id, name: suppliers.name })
         .from(suppliers)
-        .where(eq(suppliers.organisationId, org))
+        .where(
+          and(eq(suppliers.organisationId, org), isNull(suppliers.retiredAt))
+        )
         .orderBy(asc(suppliers.name))
     )
   ]);
