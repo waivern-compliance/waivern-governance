@@ -6,12 +6,20 @@ import { and, eq } from 'drizzle-orm';
 
 import { db, scoped } from '@/db/client';
 import { entities } from '@/db/schema';
+import { refusable, type EditResult } from '@/lib/edit-result';
 import { fromTemplateScore } from '@/lib/risk/scale';
 import { requireCapability } from '@/lib/session';
 import { loadAssessment } from '@/services/assessments';
 import { createRisk, riskScaleOf } from '@/services/risks';
 
-export async function raiseRisk(formData: FormData) {
+/**
+ * Raise a risk. A refusal is returned rather than thrown, so the form keeps
+ * what was typed; success leaves for the new risk's page.
+ */
+export async function raiseRisk(
+  _previous: EditResult,
+  formData: FormData
+): Promise<EditResult> {
   const entityId = String(formData.get('entityId') ?? '');
   const title = String(formData.get('title') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
@@ -25,55 +33,64 @@ export async function raiseRisk(formData: FormData) {
     String(formData.get('category') ?? '')
       .trim()
       .slice(0, 80) || undefined;
-  if (!entityId || !title || !description) return;
+  if (!entityId) return { ok: false, message: 'Choose an entity.' };
+  // `required` lets a field of spaces through; trimmed, it is empty.
+  if (!title) return { ok: false, message: 'Give the risk a title.' };
+  if (!description)
+    return { ok: false, message: 'Say what could go wrong, and for whom.' };
 
   const active = await requireCapability('risk.manage', { entityId });
 
-  // A risk names the assessment it came from, so the assessment has to be in
-  // this organisation and entity. Otherwise the assurance chain would draw a
-  // line from a system to a risk that has nothing to do with it.
-  if (assessmentId) {
-    const loaded = await loadAssessment(
-      assessmentId,
-      active.membership.organisationId
-    );
-    if (!loaded || loaded.assessment.entityId !== entityId) {
-      throw new Error('That assessment is not in this entity');
+  let riskId = '';
+  const result = await refusable(async () => {
+    // A risk names the assessment it came from, so the assessment has to be in
+    // this organisation and entity. Otherwise the assurance chain would draw a
+    // line from a system to a risk that has nothing to do with it.
+    if (assessmentId) {
+      const loaded = await loadAssessment(
+        assessmentId,
+        active.membership.organisationId
+      );
+      if (!loaded || loaded.assessment.entityId !== entityId) {
+        throw new Error('That assessment is not in this entity');
+      }
     }
-  }
 
-  const [entity] = await scoped(active.membership.organisationId, () =>
-    db
-      .select()
-      .from(entities)
-      .where(
-        and(
-          eq(entities.id, entityId),
-          eq(entities.organisationId, active.membership.organisationId)
+    const [entity] = await scoped(active.membership.organisationId, () =>
+      db
+        .select()
+        .from(entities)
+        .where(
+          and(
+            eq(entities.id, entityId),
+            eq(entities.organisationId, active.membership.organisationId)
+          )
         )
-      )
-  );
-  if (!entity) throw new Error('No such entity');
+    );
+    if (!entity) throw new Error('No such entity');
 
-  const risk = await createRisk({
-    organisationId: active.membership.organisationId,
-    entityId,
-    title,
-    description,
-    category,
-    likelihood,
-    impact,
-    ownerId: active.userId,
-    assessmentId,
-    actor: {
-      actorKind: 'user',
-      actorUserId: active.userId,
-      actorLabel: active.email
-    }
+    const risk = await createRisk({
+      organisationId: active.membership.organisationId,
+      entityId,
+      title,
+      description,
+      category,
+      likelihood,
+      impact,
+      ownerId: active.userId,
+      assessmentId,
+      actor: {
+        actorKind: 'user',
+        actorUserId: active.userId,
+        actorLabel: active.email
+      }
+    });
+    riskId = risk.id;
   });
+  if (!result?.ok) return result;
 
   revalidatePath('/app/risks');
-  redirect(`/app/risks/${risk.id}`);
+  redirect(`/app/risks/${riskId}`);
 }
 
 /**
