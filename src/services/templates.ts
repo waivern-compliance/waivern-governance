@@ -443,7 +443,8 @@ export async function shippedTemplatesMissing(organisationId: string) {
         .select({
           competentAuthority: entities.competentAuthority,
           irishProvider: entities.ieCommsProvider,
-          law: entities.dataProtectionLaw
+          law: entities.dataProtectionLaw,
+          applies: entities.dataProtectionLawApplies
         })
         .from(entities)
         .where(eq(entities.organisationId, organisationId)),
@@ -455,8 +456,11 @@ export async function shippedTemplatesMissing(organisationId: string) {
     const names = new Set(held.map((h) => h.name));
     const competent = owned.some((e) => e.competentAuthority);
     const irishProvider = owned.some((e) => e.irishProvider);
-    // With no entity yet, as when an organisation is first set up, its default will be UK law.
-    const ukLaw = owned.length === 0 || owned.some((e) => ukLawApplies(e.law));
+    // With no entity yet, as when an organisation is first set up, its default
+    // will be UK law. An entity under neither law keeps a dormant stored law,
+    // which must not count.
+    const ukLaw =
+      owned.length === 0 || owned.some((e) => e.applies && ukLawApplies(e.law));
     return SYSTEM_TEMPLATES.filter(
       (t) =>
         !names.has(t.name) &&

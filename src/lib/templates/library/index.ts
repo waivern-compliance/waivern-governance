@@ -33,16 +33,35 @@ export const CYBER_ESSENTIALS_READINESS_NAME =
  * The parts of Govern a shipped template belongs to, as `programmeScope`
  * derives them: data privacy where some entity is under UK or EU data
  * protection law, AI governance always, and cyber security once Cyber
- * Essentials is turned on.
+ * Essentials is turned on. Supplier management belongs to none of them: the
+ * Third parties register is kept by every organisation, and its due diligence
+ * starts from these templates whatever else is in scope.
  */
-export const TEMPLATE_PROGRAMMES = ['privacy', 'ai', 'cyber'] as const;
+export const TEMPLATE_PROGRAMMES = [
+  'privacy',
+  'ai',
+  'cyber',
+  'suppliers'
+] as const;
 export type TemplateProgramme = (typeof TEMPLATE_PROGRAMMES)[number];
 
-export const TEMPLATE_PROGRAMME_LABEL: Record<TemplateProgramme, string> = {
-  privacy: 'data privacy',
-  ai: 'AI governance',
-  cyber: 'cyber security'
-};
+/**
+ * The programme a template of each kind serves, for a system template whose
+ * name no longer matches anything shipped - one Waivern has since renamed or
+ * retired - so it is judged by what it is. A kind that could serve more than
+ * one programme is left out, and such a template is always shown.
+ */
+export const KIND_PROGRAMME: Partial<Record<TemplateKind, TemplateProgramme>> =
+  {
+    dpia: 'privacy',
+    tra: 'privacy',
+    tia: 'privacy',
+    lia: 'privacy',
+    screening: 'privacy',
+    breach: 'privacy',
+    ai_risk: 'ai',
+    cyber_essentials: 'cyber'
+  };
 
 /**
  * Templates Waivern ships and keeps current. A client may copy one and diverge,
@@ -219,7 +238,6 @@ export const SYSTEM_TEMPLATES: Array<{
       "What a supplier's AI does with our data, how it was tested, and what the contract holds them to - following PPN 02/24 and the Crown Commercial Service's data ethics requirements.",
     jurisdiction: 'UK',
     programme: 'ai',
-    law: 'uk',
     definition: AI_SUPPLIER
   },
   {
@@ -228,7 +246,7 @@ export const SYSTEM_TEMPLATES: Array<{
     description:
       'Security and privacy due diligence for medium and low tier suppliers: what data they get, where it is processed, sub-processors, certifications held, breach notification and a contact. Under UK GDPR Articles 28 and 32, with the EU GDPR where it applies.',
     jurisdiction: 'UK and EU',
-    programme: 'privacy',
+    programme: 'suppliers',
     definition: SUPPLIER_DUE_DILIGENCE_LIGHT
   },
   {
@@ -237,7 +255,7 @@ export const SYSTEM_TEMPLATES: Array<{
     description:
       'Security and privacy due diligence for critical and high tier suppliers: the light questions, plus access control, encryption, vulnerability management and testing, continuity, staff vetting, logging, international transfers, Article 28 terms and deletion at the end of the contract.',
     jurisdiction: 'UK and EU',
-    programme: 'privacy',
+    programme: 'suppliers',
     definition: SUPPLIER_DUE_DILIGENCE_FULL
   },
   {
@@ -308,23 +326,50 @@ export type TemplateRelevance = TemplateAudience & {
   euLaw: boolean;
 };
 
+/** Why a template is not shown by default, in words the library can give. */
+export const HIDDEN_BECAUSE = {
+  privacy: 'no entity is subject to UK or EU data protection law',
+  uk: 'no entity is subject to UK law',
+  eu: 'no entity is subject to EU law',
+  cyber: 'Cyber Essentials is not turned on',
+  framework: 'they are for an AI framework you do not follow',
+  part3: 'no entity is a competent authority for law enforcement',
+  irish: 'no entity provides electronic communications services in Ireland'
+} as const;
+export type HiddenBecause = keyof typeof HIDDEN_BECAUSE;
+
+/** Whether an organisation has a programme in scope, or why not. */
+export function programmeHidden(
+  programme: TemplateProgramme,
+  o: Pick<TemplateRelevance, 'privacy' | 'cyberEssentials'>
+): HiddenBecause | null {
+  if (programme === 'privacy' && !o.privacy) return 'privacy';
+  if (programme === 'cyber' && !o.cyberEssentials) return 'cyber';
+  return null;
+}
+
 /**
- * Whether a shipped template is shown by default in an organisation's library.
+ * Why a shipped template is not shown by default in an organisation's
+ * library, or null where it is.
  *
  * Presentation only: everything installed stays reachable, and the library
- * shows the rest on request. A template is relevant when the organisation
- * would be offered it today, its programme is in scope, and some entity is
- * subject to the law it is written for.
+ * shows the rest on request. A template is shown when its programme is in
+ * scope, some entity is subject to the law it is written for, and the
+ * organisation would be offered it today (`offeredTo`, whose UK law gate is
+ * the `law` check here).
  */
-export function relevantTo(
+export function hiddenBecause(
   t: (typeof SYSTEM_TEMPLATES)[number],
   o: TemplateRelevance
-): boolean {
-  const programme = {
-    privacy: o.privacy,
-    ai: true,
-    cyber: o.cyberEssentials
-  }[t.programme];
-  const law = t.law === undefined || (t.law === 'uk' ? o.ukLaw : o.euLaw);
-  return programme && law && offeredTo(t, o);
+): HiddenBecause | null {
+  const programme = programmeHidden(t.programme, o);
+  if (programme) return programme;
+  if (t.law === 'uk' && !o.ukLaw) return 'uk';
+  if (t.law === 'eu' && !o.euLaw) return 'eu';
+  if (t.aiFramework !== undefined && t.aiFramework !== o.aiFramework)
+    return 'framework';
+  if (t.competentAuthority && !o.competentAuthority) return 'part3';
+  if (t.irishProvider && !o.irishProvider) return 'irish';
+  if (t.cyberEssentials && !o.cyberEssentials) return 'cyber';
+  return null;
 }

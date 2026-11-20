@@ -7,9 +7,10 @@ import { can, kindsFor } from '@/lib/rbac';
 import { getActiveSession } from '@/lib/session';
 import { draftBasis } from '@/lib/templates/draft-basis';
 import { TEMPLATE_KIND_LABEL } from '@/lib/templates/kinds';
+import { HIDDEN_BECAUSE, hiddenBecause } from '@/lib/templates/library';
 import { questionsOf } from '@/lib/templates/logic';
 import type { ProgrammeScope } from '@/services/programme-scope';
-import { relevantTemplates } from '@/services/template-relevance';
+import { hiddenTemplates } from '@/services/template-relevance';
 import {
   shippedTemplatesMissing,
   shippedTemplatesOutdated,
@@ -41,22 +42,25 @@ const STARTABLE: readonly TemplateKind[] = [
 ];
 
 /**
- * What the organisation has declared, in the words the filter note uses: the
- * programmes whose templates are shown, and why data privacy is left out.
+ * The programmes whose templates are shown, in the words the filter note uses.
  */
 function declared(scope: ProgrammeScope) {
   const laws = [scope.ukLaw ? 'UK' : null, scope.euLaw ? 'EU' : null].filter(
     Boolean
   );
-  const shown = [
+  return [
     scope.privacy ? `data privacy under ${laws.join(' and ')} law` : null,
     'AI governance',
+    'supplier management',
     scope.cyberEssentials ? 'Cyber Essentials' : null
   ].filter((p): p is string => p !== null);
-  const left = scope.privacy
-    ? null
-    : 'no entity is subject to UK or EU data protection law';
-  return { shown, left };
+}
+
+/** "a", "a and b", "a, b and c". */
+function listed(items: readonly string[]) {
+  return items.length < 2
+    ? items.join('')
+    : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
 
 export default async function Templates({
@@ -78,23 +82,27 @@ export default async function Templates({
 
   // The whole library, drafts included: a template whose only version is an
   // unpublished draft is exactly what somebody editing came back for.
-  const [library, relevant, allMissing, allOutdated, { all }] =
-    await Promise.all([
-      templateLibrary(active.membership.organisationId),
-      relevantTemplates(active.membership.organisationId),
+  const libraryRead = templateLibrary(active.membership.organisationId);
+  const [library, filter, allMissing, allOutdated, { all }] = await Promise.all(
+    [
+      libraryRead,
+      hiddenTemplates(active.membership.organisationId, libraryRead),
       shippedTemplatesMissing(active.membership.organisationId),
       shippedTemplatesOutdated(active.membership.organisationId),
       searchParams
-    ]);
+    ]
+  );
   // By default only what the organisation has declared it manages; the rest
   // is one link away, and the choice is in the address so it survives a
   // reload and can be shared.
   const showAll = all === '1';
   const rows = showAll
     ? library
-    : library.filter(({ template }) => relevant.ids.has(template.id));
+    : library.filter(({ template }) => !filter.hidden.has(template.id));
   const hidden = library.length - rows.length;
-  const { shown, left } = declared(relevant.scope);
+  const reasons = [...new Set(filter.hidden.values())].map(
+    (why) => HIDDEN_BECAUSE[why]
+  );
   const mayAuthor = can(active.membership.grants, 'template.author');
   const mayPublish = can(active.membership.grants, 'template.publish');
   // A role limited to some kinds is offered only those: the shipped templates
@@ -103,7 +111,13 @@ export default async function Templates({
   const publishKinds = kindsFor(active.membership.grants, 'template.publish');
   const reaches = (kinds: string[] | null, kind: string) =>
     kinds === null || kinds.includes(kind);
-  const missing = allMissing.filter((t) => reaches(publishKinds, t.kind));
+  const addable = allMissing.filter((t) => reaches(publishKinds, t.kind));
+  // Adding installs everything released, but the offer names only what the
+  // list will show; the rest is counted, so nothing arrives unannounced.
+  const missing = showAll
+    ? addable
+    : addable.filter((t) => !hiddenBecause(t, filter.audience));
+  const missingElsewhere = addable.length - missing.length;
   const outdated = allOutdated.filter((t) => reaches(publishKinds, t.kind));
   const updatable = outdated.filter((t) => !t.blockedByDraft);
   const blocked = outdated.filter((t) => t.blockedByDraft);
@@ -148,6 +162,9 @@ export default async function Templates({
           <p className="text-xs text-ink-soft">
             Adding them publishes each as a version 1 of its own. Nothing you
             already have changes.
+            {missingElsewhere > 0
+              ? ` It also adds ${missingElsewhere === 1 ? 'one other' : `${missingElsewhere} others`} outside what you manage, kept under See all templates.`
+              : ''}
           </p>
           <button
             type="submit"
@@ -286,9 +303,9 @@ export default async function Templates({
           ) : (
             <p>
               Showing the templates for what you manage in Govern:{' '}
-              {shown.join(', ')}.{' '}
-              {hidden === 1 ? 'One other is' : `${hidden} others are`} hidden
-              {left ? `, because ${left}` : ''}.{' '}
+              {listed(declared(filter.scope))}.{' '}
+              {hidden === 1 ? 'One other is' : `${hidden} others are`} hidden,
+              because {listed(reasons)}.{' '}
               <Link
                 href="/app/templates?all=1"
                 className="text-brand underline-offset-2 hover:underline"
