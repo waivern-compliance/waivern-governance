@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { raiseRisk } from '@/app/app/risks/actions';
 import type { EditResult } from '@/lib/edit-result';
@@ -20,9 +20,14 @@ export function RaiseRiskShell({ children }: { children: ReactNode }) {
     raiseRisk,
     { resetOnSuccess: false }
   );
+  // A refusal belongs to the draft it was about. Discard resets the form, so
+  // the refusal showing then goes with it; each new submit returns a new
+  // result, which shows again.
+  const [discarded, setDiscarded] = useState<EditResult>(null);
   return (
     <form
       {...formProps}
+      onReset={() => setDiscarded(result)}
       aria-busy={pending}
       className="space-y-3 border-t border-line p-4"
     >
@@ -32,7 +37,7 @@ export function RaiseRiskShell({ children }: { children: ReactNode }) {
         register with its history, and it stays there: if it turns out not to be
         a risk, close it with a reason.
       </p>
-      {result && !result.ok ? (
+      {result && !result.ok && result !== discarded ? (
         <p
           role="alert"
           className="text-sm text-red-800"
