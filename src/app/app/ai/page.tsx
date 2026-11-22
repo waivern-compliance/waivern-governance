@@ -12,10 +12,12 @@ import { getActiveSession, visibleEntityIds } from '@/lib/session';
 import { awaitingDecision } from '@/services/ai-intake';
 import {
   DEPLOYMENT_PATTERN_LABEL,
+  GAP_WORDS,
   PROVENANCE_LABEL,
   registerSummary,
   STAGE_LABEL,
   SYSTEM_TYPE_LABEL,
+  type Gap,
   type LifecycleStage,
   type Provenance,
   type SystemType
@@ -23,7 +25,15 @@ import {
 
 import { registerUseCase } from './actions';
 
-export default async function AiRegisterPage() {
+function isGap(value: unknown): value is Gap {
+  return typeof value === 'string' && Object.hasOwn(GAP_WORDS, value);
+}
+
+export default async function AiRegisterPage({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
@@ -45,6 +55,18 @@ export default async function AiRegisterPage() {
     awaitingDecision(org)
   ]);
   const mayAdd = can(active.membership.grants, 'record.write');
+  // A guide step links here filtered to the flag it asks you to clear, so the
+  // list shows only the systems that step is about.
+  const gapParam = (await searchParams).gap;
+  const requested = Array.isArray(gapParam) ? gapParam[0] : gapParam;
+  const gap = isGap(requested) ? requested : undefined;
+  const entries = gap
+    ? summary.entries.filter((e) => e.gaps.includes(gap))
+    : summary.entries;
+  // The guide counts the whole organisation, because its steps describe the
+  // organisation's progress and every member sees the same one. Somebody
+  // granted only some entities is shown fewer systems here than it counted.
+  const partialView = visibleEntityIds(active) !== null;
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
@@ -216,7 +238,7 @@ export default async function AiRegisterPage() {
             </label>
             <label className="block space-y-1">
               <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
-                Vendor or model, if known
+                Product or model, if known
               </span>
               <input
                 name="vendor"
@@ -248,8 +270,42 @@ export default async function AiRegisterPage() {
         </details>
       ) : null}
 
+      {gap ? (
+        <div className="space-y-1 rounded border border-line bg-surface px-4 py-3 text-sm">
+          <p>
+            Showing only systems flagged{' '}
+            <span className="font-medium">{GAP_WORDS[gap]}</span>.{' '}
+            <Link
+              href="/app/ai"
+              className="text-brand hover:underline"
+            >
+              Show all
+            </Link>
+          </p>
+          {gap === 'supplier_unrecorded' ? (
+            <p className="text-ink-soft">
+              Open each one and choose its supplier under Keep it current. A
+              supplier not yet on the{' '}
+              <Link
+                href="/app/third-parties"
+                className="text-brand hover:underline"
+              >
+                third-party register
+              </Link>{' '}
+              needs adding there first.
+            </p>
+          ) : null}
+          {partialView ? (
+            <p className="text-ink-soft">
+              This lists systems in the entities you can see. The guide counts
+              every entity, so systems elsewhere may be flagged too.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <ul className="divide-y divide-line overflow-hidden rounded border border-line bg-surface">
-        {summary.entries.map(({ useCase, assessed, gaps, ownerEmail }) => (
+        {entries.map(({ useCase, assessed, gaps, ownerEmail }) => (
           <li key={useCase.id}>
             <Link
               href={`/app/ai/${useCase.id}`}
@@ -279,6 +335,11 @@ export default async function AiRegisterPage() {
             </Link>
           </li>
         ))}
+        {gap && entries.length === 0 && summary.entries.length > 0 ? (
+          <li className="px-4 py-6 text-sm text-ink-soft">
+            No system is flagged like this.
+          </li>
+        ) : null}
         {summary.entries.length === 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
             Nothing on the register. Start with what you already know is running

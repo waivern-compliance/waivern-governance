@@ -51,7 +51,7 @@ describe("the guide's content", () => {
     // A guide for somebody who does not know their way around must not send
     // them to a 404. Checked against the router rather than a list.
     for (const step of all) {
-      const path = step.href.replace(/^\/app\//, '');
+      const path = step.href.split('?')[0].replace(/^\/app\//, '');
       const page = `src/app/app/${path}/page.tsx`;
       assert.ok(
         existsSync(page),

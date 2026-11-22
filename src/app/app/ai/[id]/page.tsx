@@ -825,17 +825,25 @@ export default async function UseCasePage({
               value={useCase.deploymentPattern ?? ''}
               options={{ '': 'Not yet known', ...DEPLOYMENT_PATTERN_LABEL }}
             />
-            <Choice
-              name="supplierId"
-              label="Supplier"
-              value={useCase.supplierId ?? ''}
-              options={{
-                '': 'Not a supplier on the register',
-                ...Object.fromEntries(
-                  supplierOptions.map((x) => [x.id, x.name])
-                )
-              }}
-            />
+            <div className="space-y-1">
+              <Choice
+                name="supplierId"
+                label="Supplier"
+                value={useCase.supplierId ?? ''}
+                options={{
+                  '': 'Not a supplier on the register',
+                  ...Object.fromEntries(
+                    supplierOptions.map((x) => [x.id, x.name])
+                  )
+                }}
+              />
+              <Link
+                href="/app/third-parties"
+                className="block text-xs text-ink-soft hover:text-brand"
+              >
+                Not listed? Add it to the third-party register →
+              </Link>
+            </div>
             <Choice
               name="ownerId"
               label="Senior responsible owner"

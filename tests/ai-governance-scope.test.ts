@@ -293,7 +293,7 @@ describe('the guide for AI governance alone', () => {
     for (const step of all) {
       assert.ok(step.fn, `${step.id} has no NIST function`);
       assert.ok(step.why.length > 40, `${step.id} needs a reason`);
-      const page = `src/app/app/${step.href.replace(/^\/app\//, '')}/page.tsx`;
+      const page = `src/app/app/${step.href.split('?')[0].replace(/^\/app\//, '')}/page.tsx`;
       assert.ok(existsSync(page), `${step.id} links to a missing ${page}`);
     }
   });
