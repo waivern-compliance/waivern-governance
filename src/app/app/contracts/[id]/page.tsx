@@ -122,7 +122,7 @@ export default async function ContractPage({
 
       {mayEdit ? (
         <EditForm
-          key={savedKey(contract)}
+          saved={savedKey(contract)}
           action={updateContractAction.bind(null, contract.id)}
           className="space-y-4 rounded border border-line bg-surface p-5"
         >
@@ -176,7 +176,7 @@ export default async function ContractPage({
         <>
           {loaded.mayShare && mayEdit ? (
             <EditForm
-              key={savedKey(loaded.named)}
+              saved={savedKey(loaded.named)}
               action={setContractViewersAction.bind(null, contract.id)}
               className="space-y-3 rounded border border-line bg-surface p-5"
             >

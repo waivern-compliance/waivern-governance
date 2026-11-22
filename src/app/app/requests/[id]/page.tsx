@@ -792,7 +792,7 @@ export default async function RequestPage({
       </section>
 
       <EditForm
-        key={savedKey(request)}
+        saved={savedKey(request)}
         action={updateRequestAction.bind(null, request.id)}
         className="space-y-4 rounded border border-line bg-surface p-5"
       >

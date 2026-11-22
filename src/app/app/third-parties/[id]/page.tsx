@@ -696,7 +696,7 @@ export default async function SupplierPage({
           </details>
 
           <EditForm
-            key={savedKey(supplier)}
+            saved={savedKey(supplier)}
             action={updateSupplierAction.bind(null, supplier.id)}
             className="space-y-4 rounded border border-line bg-surface p-5"
           >

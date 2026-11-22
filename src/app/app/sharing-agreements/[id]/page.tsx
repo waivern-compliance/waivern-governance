@@ -209,7 +209,7 @@ export default async function SharingAgreementPage({
                     Their basis
                   </summary>
                   <EditForm
-                    key={savedKey(party)}
+                    saved={savedKey(party)}
                     action={updateSharingPartyAction.bind(
                       null,
                       agreement.id,
@@ -306,7 +306,7 @@ export default async function SharingAgreementPage({
 
       {mayEdit ? (
         <EditForm
-          key={savedKey(agreement)}
+          saved={savedKey(agreement)}
           action={updateSharingAgreementAction.bind(null, agreement.id)}
           className="space-y-4 rounded border border-line bg-surface p-5"
         >

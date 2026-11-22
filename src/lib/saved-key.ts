@@ -9,7 +9,8 @@
  * rebuilds it from them whenever they change, and leaves it alone otherwise.
  *
  * Give it the record, or the values the form's fields default to. Dates and
- * arrays serialise as they should.
+ * arrays serialise as they should. Pass it to `EditForm` as `saved` rather
+ * than as the component's `key`, so the form can still say the save worked.
  */
 export function savedKey(...values: unknown[]): string {
   return JSON.stringify(values);

@@ -487,7 +487,7 @@ export default async function PropertyPage({
                   </ul>
                 ) : null}
                 <EditForm
-                  key={savedKey(item)}
+                  saved={savedKey(item)}
                   action={updateItemAction.bind(null, item.id, property.id)}
                   className="grid gap-3 sm:grid-cols-2"
                 >
@@ -741,7 +741,7 @@ export default async function PropertyPage({
       ) : null}
 
       <EditForm
-        key={savedKey(property)}
+        saved={savedKey(property)}
         action={updatePropertyAction.bind(null, property.id)}
         className="space-y-3 rounded border border-line bg-surface p-5"
       >

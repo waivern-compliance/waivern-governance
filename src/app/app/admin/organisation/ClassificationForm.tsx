@@ -21,7 +21,7 @@ export function ClassificationForm({
   const locked = classified > 0;
   return (
     <EditForm
-      key={savedKey(current)}
+      saved={savedKey(current)}
       action={setClassificationSchemeAction}
       className="space-y-3 rounded border border-line bg-surface p-5"
     >

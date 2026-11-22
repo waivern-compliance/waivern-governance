@@ -369,7 +369,7 @@ export default async function MarketingActivityPage({
       />
 
       <EditForm
-        key={savedKey(activity)}
+        saved={savedKey(activity)}
         action={updateActivityAction.bind(null, activity.id)}
         className="space-y-3 rounded border border-line bg-surface p-5"
       >

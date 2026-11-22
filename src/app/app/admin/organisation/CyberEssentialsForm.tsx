@@ -7,7 +7,7 @@ import { setCyberEssentialsAction } from '../../cyber-essentials/actions';
 export function CyberEssentialsForm({ enabled }: { enabled: boolean }) {
   return (
     <EditForm
-      key={savedKey(enabled)}
+      saved={savedKey(enabled)}
       action={setCyberEssentialsAction}
       className="space-y-3 rounded border border-line bg-surface p-5"
     >
