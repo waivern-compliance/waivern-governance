@@ -63,6 +63,10 @@ export default async function AiRegisterPage({
   const entries = gap
     ? summary.entries.filter((e) => e.gaps.includes(gap))
     : summary.entries;
+  // The guide counts the whole organisation, because its steps describe the
+  // organisation's progress and every member sees the same one. Somebody
+  // granted only some entities is shown fewer systems here than it counted.
+  const partialView = visibleEntityIds(active) !== null;
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-12">
@@ -289,6 +293,12 @@ export default async function AiRegisterPage({
                 third-party register
               </Link>{' '}
               needs adding there first.
+            </p>
+          ) : null}
+          {partialView ? (
+            <p className="text-ink-soft">
+              This lists systems in the entities you can see. The guide counts
+              every entity, so systems elsewhere may be flagged too.
             </p>
           ) : null}
         </div>
