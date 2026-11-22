@@ -1523,7 +1523,7 @@ Say whether the people who ran it were independent of the team that built the sy
 
 ### Bought-in systems and their suppliers
 
-A system called over a provider's API, used as their web app, or switched on inside their product is only as well governed as its supplier. Name the supplier from the third-party register; until you do, the system shows as bought in with no supplier recorded, and once you do, it shows until the supplier's AI supply has an approved assessment.
+A system called over a provider's API, used as their web app, or switched on inside their product is only as well governed as its supplier. Add the supplier to the third-party register if it is not there, then choose it as the Supplier under Keep it current on the system's page. The vendor typed when the system was added is only a note: until you choose a supplier, the system shows as bought in with no supplier recorded, and once you do, it shows until the supplier's AI supply has an approved assessment.
 
 Start assessments from the system's own page, so they are tied to it and the register reads what they conclude.
 

@@ -521,13 +521,18 @@ export const AI_SETUP: Step[] = [
     fn: 'MAP',
     title: 'Name the supplier behind each bought-in system',
     what:
-      "For each system you bought, or use through somebody else's service, record the supplier " +
-      'and link it, so its contract and its own assessment sit beside the system.',
+      'Add each AI supplier to the third-party register if it is not there yet. Then open each ' +
+      "bought-in system and choose its supplier under Keep it current, so the supplier's contract " +
+      'and its own assessment sit beside the system.',
     why:
       "A bought-in system is only as well governed as its supplier's data use, testing and " +
-      'terms. The NIST AI RMF puts third-party risk inside yours (GOVERN 6.1, MAP 4.1).',
+      'terms. The NIST AI RMF puts third-party risk inside yours (GOVERN 6.1, MAP 4.1) and asks ' +
+      'you to keep watching it (MANAGE 3.1), which starts with knowing who the supplier is.',
     finishedWhen: 'No bought-in system is missing its supplier.',
-    href: '/app/ai'
+    href: '/app/ai?gap=supplier_unrecorded',
+    watchOut:
+      'The vendor typed when a system was added is only a note. Until the supplier is chosen ' +
+      'from the third-party register, the system counts as having none.'
   },
   {
     id: 'ai-assessments',
