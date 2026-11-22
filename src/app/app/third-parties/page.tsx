@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { GapChips } from '@/components/GapChips';
 import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
+import { OutsideProgrammeNote } from '@/components/OutsideProgrammeNote';
 import { RetiredList } from '@/components/RetiredList';
 import { SupplierStandings } from '@/components/thirdparty/SupplierStandings';
 import { can } from '@/lib/rbac';
@@ -60,11 +61,18 @@ export default async function ThirdPartiesPage({
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Third parties</h1>
         <p className="max-w-prose text-sm text-ink-soft">
-          Every processor the organisation relies on, and whether Article 28 is
-          actually satisfied for each. A tracker a scanner found on a page is a
-          third party too, whether or not anybody procured it.
+          {health.lawApplies
+            ? 'Every processor the organisation relies on, and whether Article 28 is actually satisfied for each.'
+            : 'Every supplier the organisation relies on, who answers for each, and what their AI is.'}{' '}
+          A tracker a scanner found on a page is a third party too, whether or
+          not anybody procured it.
         </p>
       </header>
+
+      <OutsideProgrammeNote
+        organisationId={active.membership.organisationId}
+        what="Article 28 contracts and transfer safeguards"
+      />
 
       <HelpLink topic="third-parties" />
 
@@ -74,17 +82,21 @@ export default async function ThirdPartiesPage({
           value={health.total}
           note="on the register"
         />
-        <Stat
-          label="Under contract"
-          value={health.covered}
-          note="signed and in force"
-        />
-        <Stat
-          label="Not under contract"
-          value={health.uncovered}
-          note="missing, unsigned or expired"
-          tone={health.uncovered > 0 ? 'stop' : 'plain'}
-        />
+        {health.lawApplies ? (
+          <>
+            <Stat
+              label="Under contract"
+              value={health.covered}
+              note="signed and in force"
+            />
+            <Stat
+              label="Not under contract"
+              value={health.uncovered}
+              note="missing, unsigned or expired"
+              tone={health.uncovered > 0 ? 'stop' : 'plain'}
+            />
+          </>
+        ) : null}
         <Stat
           label="Nobody has looked"
           value={health.untriaged}
@@ -239,7 +251,11 @@ export default async function ThirdPartiesPage({
                 gaps={gaps}
                 words={GAP_WORDS}
                 serious={HARD_GAPS}
-                clear="Article 28 satisfied"
+                clear={
+                  privacy === 'out_of_scope'
+                    ? 'Nothing missing'
+                    : 'Article 28 satisfied'
+                }
               />
               {ai.gaps.length > 0 ? (
                 <GapChips

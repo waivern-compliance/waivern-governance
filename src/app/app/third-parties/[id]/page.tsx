@@ -233,7 +233,7 @@ export default async function SupplierPage({
             words={GAP_WORDS}
             serious={HARD_GAPS}
             clear={
-              supplier.role === 'controller'
+              supplier.role === 'controller' || privacy === 'out_of_scope'
                 ? 'Nothing missing'
                 : 'Article 28 satisfied'
             }

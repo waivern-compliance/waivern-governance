@@ -1048,6 +1048,13 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
     sections: [
       {
+        heading: 'Where no data protection law applies',
+        body: [
+          'Article 28 contracts and transfer safeguards are owed under UK and EU data protection law. Where no entity in the organisation is recorded as subject to either, the register does not ask for them: no agreement is flagged as missing, unsigned or expired, the contract counts are not shown, and no task is raised when an agreement lapses. Owners, third parties a tool reported, reviews and AI are checked as before.',
+          'Third parties belong to the organisation rather than to one entity, so once any entity is under UK or EU law, every third party is judged by Article 28 again.'
+        ]
+      },
+      {
         heading: 'Retiring a third party',
         body: [
           'A third party you no longer use, merged into another, or recorded in error is retired, from the foot of its page, with a reason. It is never deleted. It is kept as it was, with its agreements, contracts and history, can no longer be edited, owes no more reviews, and is listed under Retired below the register. Retiring is refused while a contract with it is still in force: end the contract first. Adding a retired third party again is refused; restore it instead. Retiring and restoring are both audited.'
