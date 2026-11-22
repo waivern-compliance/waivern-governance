@@ -325,7 +325,7 @@ export default async function AiRegisterPage({
             </Link>
           </li>
         ))}
-        {gap && entries.length === 0 ? (
+        {gap && entries.length === 0 && summary.entries.length > 0 ? (
           <li className="px-4 py-6 text-sm text-ink-soft">
             No system is flagged like this.
           </li>
