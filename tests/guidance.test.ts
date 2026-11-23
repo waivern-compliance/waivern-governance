@@ -51,7 +51,9 @@ describe("the guide's content", () => {
     // A guide for somebody who does not know their way around must not send
     // them to a 404. Checked against the router rather than a list.
     for (const step of all) {
-      for (const href of [step.href, step.also?.href].filter(isString)) {
+      for (const href of [step.href, step.also?.href].filter(
+        (href): href is string => href !== undefined
+      )) {
         const path = href.split('?')[0].replace(/^\/app\//, '');
         const page = `src/app/app/${path}/page.tsx`;
         assert.ok(
@@ -220,7 +222,3 @@ describe("recording somebody's choice", () => {
     assert.deepEqual(rows.map((r) => r.guidance).sort(), ['off', 'setup']);
   });
 });
-
-function isString(value: string | undefined): value is string {
-  return value !== undefined;
-}
