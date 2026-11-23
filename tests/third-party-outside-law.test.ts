@@ -4,6 +4,7 @@ import { after, describe, it } from 'node:test';
 import { db, sql as pg } from '@/db/client';
 import { entities, organisations } from '@/db/schema';
 import { setOutsideDataProtectionLaw } from '@/services/entities';
+import { exportThirdParties } from '@/services/exports';
 import { sweepOrganisation } from '@/services/sweep';
 import {
   createSupplier,
@@ -57,6 +58,13 @@ describe('third parties where no entity is under UK or EU law', () => {
     const health = await registerHealth(w.org.id);
     assert.equal(health.lawApplies, false);
     assert.equal(health.uncovered, 0);
+  });
+
+  it('exports a supplier as neither under contract nor without one', async () => {
+    const w = await usOnly('export');
+    const exported = await exportThirdParties(w.org.id);
+    const column = exported.columns.indexOf('Not under contract');
+    assert.equal(exported.rows[0][column], 'not applicable');
   });
 
   it('raises no task for an agreement that has lapsed', async () => {
