@@ -199,7 +199,7 @@ export default async function PolicyPage({
 
         {inHand && inHand.version.status === 'draft' && mayEdit ? (
           <EditForm
-            key={savedKey(inHand.version)}
+            saved={savedKey(inHand.version)}
             action={updateDraftAction.bind(null, policy.id, inHand.version.id)}
             className="space-y-3 rounded border border-line bg-surface p-5"
           >
@@ -518,7 +518,7 @@ export default async function PolicyPage({
       {mayEdit ? (
         <>
           <EditForm
-            key={savedKey(policy)}
+            saved={savedKey(policy)}
             action={updatePolicyAction.bind(null, policy.id)}
             className="space-y-4 rounded border border-line bg-surface p-5"
           >

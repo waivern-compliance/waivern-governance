@@ -46,7 +46,7 @@ export function TierPanel({
       </div>
       {mayEdit ? (
         <EditForm
-          key={savedKey({ tier, tierReason })}
+          saved={savedKey({ tier, tierReason })}
           action={setTierAction.bind(null, supplierId)}
           className="flex flex-wrap items-end gap-2"
         >

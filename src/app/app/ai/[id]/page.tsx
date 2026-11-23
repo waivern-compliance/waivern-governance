@@ -772,7 +772,7 @@ export default async function UseCasePage({
           {mayEdit ? (
             <div className="flex flex-wrap items-end gap-3 border-t border-line pt-3">
               <EditForm
-                key={savedKey(useCase.transparencyScope)}
+                saved={savedKey(useCase.transparencyScope)}
                 action={updateUseCaseAction.bind(null, id)}
                 className="flex flex-wrap items-end gap-2"
               >
@@ -815,7 +815,7 @@ export default async function UseCasePage({
             Keep it current
           </h2>
           <EditForm
-            key={savedKey(useCase)}
+            saved={savedKey(useCase)}
             action={updateUseCaseAction.bind(null, id)}
             className="grid gap-3 rounded border border-line bg-surface p-4 sm:grid-cols-2"
           >

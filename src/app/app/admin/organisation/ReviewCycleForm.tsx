@@ -13,7 +13,7 @@ import { setSupplierReviewCycleAction } from '../../third-parties/actions';
 export function ReviewCycleForm({ current }: { current: ReviewMonths }) {
   return (
     <EditForm
-      key={savedKey(current)}
+      saved={savedKey(current)}
       action={setSupplierReviewCycleAction}
       className="space-y-3 rounded border border-line bg-surface p-5"
     >

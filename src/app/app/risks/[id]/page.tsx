@@ -322,7 +322,7 @@ export default async function RiskPage({
             is a call someone has to make and be accountable for.
           </p>
           <EditForm
-            key={savedKey(risk.residualLikelihood, risk.residualImpact)}
+            saved={savedKey(risk.residualLikelihood, risk.residualImpact)}
             action={rateResidualAction.bind(null, id)}
             className="grid gap-3 rounded border border-line bg-surface p-4 sm:grid-cols-[auto_auto_auto] sm:items-end"
           >

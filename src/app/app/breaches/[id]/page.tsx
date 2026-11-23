@@ -482,7 +482,7 @@ export default async function BreachPage({
 
       {mayEdit ? (
         <EditForm
-          key={savedKey(breach)}
+          saved={savedKey(breach)}
           action={updateBreachAction.bind(null, breach.id)}
           className="space-y-4 rounded border border-line bg-surface p-5"
         >

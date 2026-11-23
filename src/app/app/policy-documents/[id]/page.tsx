@@ -208,7 +208,7 @@ export default async function PolicyDocumentPage({
       {mayEdit && !doc.withdrawnAt ? (
         <>
           <EditForm
-            key={savedKey(doc)}
+            saved={savedKey(doc)}
             action={updatePolicyDocumentAction.bind(null, doc.id)}
             className="space-y-4 rounded border border-line bg-surface p-5"
           >

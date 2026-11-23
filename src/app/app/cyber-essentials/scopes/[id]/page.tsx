@@ -401,7 +401,7 @@ export default async function ScopePage({
 
       {mayEdit ? (
         <EditForm
-          key={savedKey(scope)}
+          saved={savedKey(scope)}
           action={updateScopeAction.bind(null, scope.id)}
           className="space-y-4 rounded border border-line bg-surface p-5"
         >

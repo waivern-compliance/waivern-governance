@@ -391,7 +391,7 @@ export default async function ActivityPage({
 
       {mayEdit ? (
         <EditForm
-          key={savedKey(activity)}
+          saved={savedKey(activity)}
           action={updateActivityAction.bind(null, activity.id)}
           className="space-y-5 rounded border border-line bg-surface p-5"
         >
@@ -802,7 +802,7 @@ export default async function ActivityPage({
           </h2>
           {mayEdit ? (
             <EditForm
-              key={savedKey(activity)}
+              saved={savedKey(activity)}
               action={saveFurtherProcessingAction.bind(null, activity.id)}
               className="space-y-4 rounded border border-line bg-surface p-4"
             >
@@ -874,7 +874,7 @@ export default async function ActivityPage({
           </h2>
           {mayEdit ? (
             <EditForm
-              key={savedKey(activity)}
+              saved={savedKey(activity)}
               action={saveFurtherProcessingAction.bind(null, activity.id)}
               className="space-y-4 rounded border border-line bg-surface p-4"
             >

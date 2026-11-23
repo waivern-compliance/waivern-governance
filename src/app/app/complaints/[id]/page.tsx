@@ -526,7 +526,7 @@ export default async function ComplaintPage({
       )}
 
       <EditForm
-        key={savedKey(complaint)}
+        saved={savedKey(complaint)}
         action={updateComplaintAction.bind(null, complaint.id)}
         className="space-y-4 rounded border border-line bg-surface p-5"
       >

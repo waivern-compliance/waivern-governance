@@ -160,7 +160,7 @@ export default async function AssetTypesPage() {
                 {mayManage ? (
                   <>
                     <EditForm
-                      key={savedKey(t.label, t.definition, t.hasExpiry)}
+                      saved={savedKey(t.label, t.definition, t.hasExpiry)}
                       action={updateAssetTypeAction.bind(null, t.key)}
                       className="space-y-3"
                     >
@@ -217,7 +217,7 @@ export default async function AssetTypesPage() {
             </summary>
             {/* Keyed on the count, so the form empties once a type is added. */}
             <EditForm
-              key={own.length}
+              saved={String(own.length)}
               action={createAssetTypeAction}
               className="space-y-3 border-t border-line p-4"
             >

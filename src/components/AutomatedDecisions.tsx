@@ -274,7 +274,7 @@ export function AutomatedDecisions({
 
       {laws === null ? null : mayEdit ? (
         <EditForm
-          key={savedKey(record)}
+          saved={savedKey(record)}
           action={saveAutomatedDecisionsAction.bind(null, side, recordId)}
           className="space-y-4 rounded border border-line bg-surface p-4"
         >

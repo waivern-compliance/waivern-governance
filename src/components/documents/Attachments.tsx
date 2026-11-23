@@ -114,7 +114,9 @@ export function Attachments({
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   {moveTargets.length > 1 ? (
                     <EditForm
-                      key={savedKey(moveTargets.find((t) => t.current)?.value)}
+                      saved={savedKey(
+                        moveTargets.find((t) => t.current)?.value
+                      )}
                       action={moveDocumentAction.bind(null, d.id, revalidate)}
                       className="flex items-center gap-1.5"
                     >

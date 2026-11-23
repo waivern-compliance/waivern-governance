@@ -214,7 +214,7 @@ export default async function AssetPage({
 
       {mayEdit ? (
         <EditForm
-          key={savedKey(asset)}
+          saved={savedKey(asset)}
           action={updateAssetAction.bind(null, asset.id)}
           className="space-y-4 rounded border border-line bg-surface p-5"
         >

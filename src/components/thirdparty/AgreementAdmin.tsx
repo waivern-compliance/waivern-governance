@@ -75,7 +75,7 @@ export function AgreementAdmin({
           Edit this agreement
         </summary>
         <EditForm
-          key={savedKey(dpa)}
+          saved={savedKey(dpa)}
           action={updateDpaAction.bind(null, supplierId, dpa.id)}
           className="space-y-3 border-t border-line p-3"
         >
