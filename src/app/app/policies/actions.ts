@@ -67,6 +67,21 @@ const months = (v: FormDataEntryValue | null) => {
   return s ? Number(s) : undefined;
 };
 
+/**
+ * The policy's text, when a file was chosen. Only for those who may upload,
+ * asked before a byte is read; a trial adds its policies without one.
+ */
+async function uploadedText(formData: FormData, entityId: string | null) {
+  const file = formData.get('text');
+  if (!(file instanceof File) || file.size === 0) return null;
+  await requireCapability('file.upload', entityId ? { entityId } : {});
+  return {
+    filename: file.name,
+    contentType: file.type,
+    content: Buffer.from(await file.arrayBuffer())
+  };
+}
+
 export async function createPolicyAction(
   _prev: EditResult,
   formData: FormData
@@ -83,6 +98,7 @@ export async function createPolicyAction(
       ownerId: text(formData.get('ownerId')) || null,
       reviewIntervalMonths: months(formData.get('reviewIntervalMonths')),
       versionLabel: text(formData.get('versionLabel')) || undefined,
+      text: await uploadedText(formData, entityId),
       actor: actorOf(active)
     });
     id = policy.id;

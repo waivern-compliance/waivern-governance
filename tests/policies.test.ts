@@ -14,6 +14,7 @@ import {
   processingActivities,
   roleAssignments,
   tasks,
+  trials,
   users
 } from '@/db/schema';
 import { createUseCase } from '@/services/ai-register';
@@ -34,6 +35,9 @@ import {
 } from '@/services/policies';
 import { SegregationOfDuties } from '@/services/risks';
 import { sweepOrganisation } from '@/services/sweep';
+import { TrialRestricted } from '@/services/trial-guard';
+
+import { EICAR, fakeClamd } from './fixtures/fake-clamd';
 
 after(() => pg.end());
 
@@ -572,5 +576,170 @@ describe('what the database allows', () => {
       .from(tasks)
       .where(eq(tasks.subjectId, version.id));
     assert.equal(task.assigneeRole, 'approver');
+  });
+});
+
+/** Point the service at a scanner for the length of `work`, as CLAMAV_HOST would. */
+async function withScanner<T>(
+  port: number,
+  work: () => Promise<T>
+): Promise<T> {
+  process.env.CLAMAV_HOST = '127.0.0.1';
+  process.env.CLAMAV_PORT = String(port);
+  try {
+    return await work();
+  } finally {
+    delete process.env.CLAMAV_HOST;
+    delete process.env.CLAMAV_PORT;
+  }
+}
+
+const addWithText = (w: World, content: Buffer, contentType: string) =>
+  createPolicy({
+    organisationId: w.org.id,
+    entityId: w.entity.id,
+    title: 'Acceptable use policy',
+    ownerId: w.author.user.id,
+    text: { filename: 'aup.pdf', contentType, content },
+    actor: w.author.actor
+  });
+
+describe('adding a policy with its text', () => {
+  it('attaches the file and makes it the first version, ready to submit', async () => {
+    const w = await world('policy-with-text');
+    const policy = await addWithText(w, PDF, 'application/pdf');
+
+    const [file] = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.subjectId, policy.id));
+    assert.equal(file.subjectType, 'policy');
+    assert.equal(file.filename, 'aup.pdf');
+    const [version] = await db
+      .select()
+      .from(policyVersions)
+      .where(eq(policyVersions.policyId, policy.id));
+    assert.equal(version.documentId, file.id);
+
+    const events = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.organisationId, w.org.id));
+    const created = events.find((e) => e.action === 'policy.created');
+    const attached = events.find((e) => e.action === 'document.attached');
+    assert.ok(created && attached);
+    assert.equal(attached.subjectId, policy.id);
+    assert.equal(
+      (created.after as { version: { documentId: string } }).version.documentId,
+      file.id
+    );
+
+    await submitVersion({
+      versionId: version.id,
+      organisationId: w.org.id,
+      actor: w.author.actor
+    });
+  });
+
+  it('records the scan where the deployment runs a scanner', async () => {
+    const clamd = await fakeClamd();
+    try {
+      const w = await world('policy-text-scanned');
+      const policy = await withScanner(clamd.port, () =>
+        addWithText(w, PDF, 'application/pdf')
+      );
+      const [file] = await db
+        .select()
+        .from(documents)
+        .where(eq(documents.subjectId, policy.id));
+      assert.equal(file.scannerVersion, 'ClamAV 1.4.1/27450');
+      assert.equal(clamd.scans, 1);
+    } finally {
+      await clamd.close();
+    }
+  });
+
+  it('refuses an infected file, adds nothing, and records the attempt', async () => {
+    const clamd = await fakeClamd();
+    try {
+      const w = await world('policy-text-infected');
+      await assert.rejects(
+        withScanner(clamd.port, () =>
+          addWithText(w, Buffer.from(EICAR), 'text/plain')
+        ),
+        (e: Error) =>
+          e instanceof PolicyRefused &&
+          /Eicar-Test-Signature/.test(e.message) &&
+          /has not been added/.test(e.message)
+      );
+      const kept = await db
+        .select({ id: policies.id })
+        .from(policies)
+        .where(eq(policies.organisationId, w.org.id));
+      assert.equal(kept.length, 0);
+      const stored = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(eq(documents.organisationId, w.org.id));
+      assert.equal(stored.length, 0);
+
+      const events = await db
+        .select()
+        .from(auditEvents)
+        .where(eq(auditEvents.organisationId, w.org.id));
+      const refused = events.find(
+        (e) => e.action === 'document.refused_infected'
+      );
+      assert.ok(refused, 'the refusal is in the audit trail');
+      assert.equal(refused.subjectType, 'organisation');
+      assert.equal(
+        events.some((e) => e.action === 'policy.created'),
+        false
+      );
+    } finally {
+      await clamd.close();
+    }
+  });
+
+  it('refuses a file in a trial, which adds its policies without one', async () => {
+    // A trial has one member, so not the two-person world.
+    const [org] = await db
+      .insert(organisations)
+      .values({ name: 'Trial', slug: `policy-trial-${crypto.randomUUID()}` })
+      .returning();
+    const [entity] = await db
+      .insert(entities)
+      .values({ organisationId: org.id, name: 'Main', isDefault: true })
+      .returning();
+    const { user, actor } = await person(org.id, 'trial');
+    await db.insert(trials).values({
+      organisationId: org.id,
+      userId: user.id,
+      canonicalEmail: user.email,
+      endsAt: new Date(Date.now() + 86_400_000),
+      fictionalDataAcceptedAt: new Date()
+    });
+    const add = (text?: {
+      filename: string;
+      contentType: string;
+      content: Buffer;
+    }) =>
+      createPolicy({
+        organisationId: org.id,
+        entityId: entity.id,
+        title: 'Acceptable use policy',
+        text,
+        actor
+      });
+    await assert.rejects(
+      add({
+        filename: 'aup.pdf',
+        contentType: 'application/pdf',
+        content: PDF
+      }),
+      TrialRestricted
+    );
+    const policy = await add();
+    assert.equal(policy.title, 'Acceptable use policy');
   });
 });

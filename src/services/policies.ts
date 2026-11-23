@@ -30,9 +30,16 @@ import { appendAuditEvent } from '@/lib/audit';
 import { addMonths } from '@/lib/dates';
 import { nextReference } from '@/lib/references';
 
+import {
+  checkFile,
+  insertDocument,
+  UploadRefused,
+  type CheckedFile
+} from './documents';
 import { SegregationOfDuties } from './risks';
 import type { Actor } from './templates';
 import { assertEntityIn, assertMemberOf } from './tenancy-guards';
+import { refuseDuringTrial } from './trial-guard';
 import { raiseTask } from './workflow';
 
 /**
@@ -178,7 +185,52 @@ async function taskEntity(tx: Tx, policy: Policy): Promise<string | null> {
   return entity?.id ?? null;
 }
 
-/** A new policy, with its first version as a draft. */
+/** A file as it arrived from the form, before any check. */
+export type UploadedFile = {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+};
+
+/**
+ * The policy's text, checked and scanned before the policy is made, so a
+ * refused file leaves nothing behind. A trial uploads nothing, whichever path
+ * the file came by. There is no policy yet to record an infected file
+ * against, so that refusal is recorded against the organisation.
+ */
+async function checkedText(input: {
+  organisationId: string;
+  entityId: string | null;
+  text: UploadedFile;
+  actor: Actor;
+}): Promise<CheckedFile> {
+  await refuseDuringTrial(input.organisationId, 'file.upload');
+  // Before the scan, which audits a refusal against this entity.
+  if (input.entityId)
+    await withOrganisation(input.organisationId, () =>
+      assertEntityIn(input.organisationId, input.entityId!)
+    );
+  try {
+    return await checkFile({
+      organisationId: input.organisationId,
+      entityId: input.entityId,
+      ...input.text,
+      actor: input.actor,
+      auditAs: { subjectType: 'organisation', subjectId: input.organisationId }
+    });
+  } catch (error) {
+    if (!(error instanceof UploadRefused)) throw error;
+    throw new PolicyRefused(
+      `${error.message} The policy has not been added either - choose another file, or add the policy without one and attach its text afterwards.`
+    );
+  }
+}
+
+/**
+ * A new policy, with its first version as a draft. Given its text, the file
+ * is attached and chosen for that version in the same transaction, so the
+ * draft is ready to submit without a second visit.
+ */
 export async function createPolicy(input: {
   organisationId: string;
   entityId: string | null;
@@ -187,12 +239,18 @@ export async function createPolicy(input: {
   ownerId?: string | null;
   reviewIntervalMonths?: number;
   versionLabel?: string;
+  text?: UploadedFile | null;
   actor: Actor;
 }) {
   const title = cleanTitle(input.title);
   const summary = cleanText(input.summary);
   const reviewIntervalMonths = cleanInterval(input.reviewIntervalMonths);
   const label = cleanLabel(input.versionLabel ?? '1.0');
+  // Outside the transaction, so the record of a refused infected file is
+  // kept although nothing else is.
+  const text = input.text
+    ? await checkedText({ ...input, text: input.text })
+    : null;
   return withOrganisation(input.organisationId, () =>
     db.transaction(async (tx) => {
       if (input.entityId)
@@ -217,12 +275,23 @@ export async function createPolicy(input: {
           reviewIntervalMonths
         })
         .returning();
+      const document = text
+        ? await insertDocument(tx, {
+            organisationId: input.organisationId,
+            entityId: input.entityId,
+            subjectType: 'policy',
+            subjectId: policy.id,
+            file: text,
+            actor: input.actor
+          })
+        : null;
       const [version] = await tx
         .insert(policyVersions)
         .values({
           organisationId: input.organisationId,
           policyId: policy.id,
           label,
+          documentId: document?.id ?? null,
           draftedByLabel: input.actor.actorLabel
         })
         .returning();
@@ -238,7 +307,7 @@ export async function createPolicy(input: {
           title,
           ownerId: policy.ownerId,
           reviewIntervalMonths,
-          version: { id: version.id, label }
+          version: { id: version.id, label, documentId: version.documentId }
         }
       });
       return policy;
