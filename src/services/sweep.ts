@@ -5,6 +5,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   lte,
   ne,
   notExists,
@@ -76,7 +77,7 @@ import { suppliersDueForReview } from './supplier-review';
 import { dpasNeedingAttention, EXPIRING_WITHIN_LABEL } from './third-party';
 import { purgeEndedTrials } from './trials';
 import { deliverPending } from './webhooks';
-import { queueNotification, raiseTask } from './workflow';
+import { OPEN_TASK, queueNotification, raiseTask } from './workflow';
 
 /**
  * Everything that happens because time passed.
@@ -413,8 +414,16 @@ async function recordBreaches(organisationId: string): Promise<number> {
  * This is what "kept up to date" means in practice. Transfer assessments cite
  * this library, so an entry nobody has checked weakens every assessment relying
  * on it — quietly, because the assessment still reads as evidenced.
+ *
+ * Transfer assessments are a UK and EU GDPR duty (Chapter V). With no entity
+ * under either law there are none to weaken, so the library is nobody's work,
+ * and a reminder raised before that was recorded is cancelled.
  */
 async function raiseCountryReviews(organisationId: string): Promise<number> {
+  if (!(await anyEntityUnderDataProtectionLaw(organisationId))) {
+    await retireCountryReviews(organisationId);
+    return 0;
+  }
   const due = (await countriesDueForReview()).filter(
     // A shared row is due for everybody; an override is due only for its owner.
     (c) => c.organisationId === null || c.organisationId === organisationId
@@ -456,12 +465,57 @@ async function raiseCountryReviews(organisationId: string): Promise<number> {
       subjectType: 'country_risk',
       subjectId: oldest.id,
       assigneeRole: 'privacy_admin',
-      idempotencyKey: `country-library-review:${period}`,
+      idempotencyKey: `${COUNTRY_REVIEW_KEY}${period}`,
       actor: SYSTEM
     });
     if (task) raised = due.length;
   });
   return raised;
+}
+
+const COUNTRY_REVIEW_KEY = 'country-library-review:';
+
+/**
+ * Cancel the open country library reminders, each with its audit event.
+ *
+ * Cancelled rather than done, because nobody checked the library: a reminder
+ * marked done would read in the audit trail as a review that never happened.
+ * Its key moves aside so the month's key is free, and the reminder comes back
+ * at once if an entity is brought under a law again, not next month.
+ */
+async function retireCountryReviews(organisationId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const now = new Date();
+    const cancelled = await tx
+      .update(tasks)
+      .set({
+        status: 'cancelled',
+        completedAt: now,
+        completedByLabel: SYSTEM.actorLabel,
+        idempotencyKey: sql`${tasks.idempotencyKey} || ':cancelled:' || ${tasks.id}`
+      })
+      .where(
+        and(
+          eq(tasks.organisationId, organisationId),
+          like(tasks.idempotencyKey, `${COUNTRY_REVIEW_KEY}%`),
+          inArray(tasks.status, OPEN_TASK)
+        )
+      )
+      .returning({ id: tasks.id, entityId: tasks.entityId });
+    for (const task of cancelled)
+      await appendAuditEvent(tx, {
+        ...SYSTEM,
+        organisationId,
+        action: 'task.cancelled',
+        subjectType: 'task',
+        subjectId: task.id,
+        entityId: task.entityId,
+        after: {
+          status: 'cancelled',
+          reason: 'No entity is under UK or EU data protection law'
+        }
+      });
+  });
 }
 
 /**

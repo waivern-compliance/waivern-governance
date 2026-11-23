@@ -42,6 +42,7 @@ import { requireSession } from '@/lib/session';
 import { OPEN as OPEN_INCIDENTS } from './ai-incidents';
 import { programmeScope, type ProgrammeScope } from './programme-scope';
 import { EXPIRING_WITHIN_DAYS } from './third-party';
+import { OPEN_TASK } from './workflow';
 
 /**
  * The guide, and how far through it this organisation actually is.
@@ -273,7 +274,7 @@ async function tally(organisationId: string) {
         .where(
           and(
             eq(tasks.organisationId, organisationId),
-            ne(tasks.status, 'done'),
+            inArray(tasks.status, OPEN_TASK),
             lt(tasks.dueAt, now)
           )
         )
@@ -285,7 +286,7 @@ async function tally(organisationId: string) {
         .where(
           and(
             eq(tasks.organisationId, organisationId),
-            ne(tasks.status, 'done')
+            inArray(tasks.status, OPEN_TASK)
           )
         )
     ),

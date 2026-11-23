@@ -163,6 +163,9 @@ async function slaHoursFor(tx: Tx, organisationId: string, type: TaskType) {
  * fires twice, or a retry after a partial failure, produces the same single
  * task rather than a duplicate somebody has to tidy up.
  */
+/** The statuses of a task still waiting on somebody. */
+export const OPEN_TASK = ['open', 'in_progress'] as const;
+
 /**
  * Retire a case's open deadline tasks, where it owes nothing now: answered,
  * closed, or found not to be the kind of case that owes anything. The sweep

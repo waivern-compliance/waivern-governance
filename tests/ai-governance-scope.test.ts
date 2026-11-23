@@ -7,9 +7,11 @@ import { db, sql as pg } from '@/db/client';
 import {
   aiUseCases,
   auditEvents,
+  countryRisk,
   entities,
   organisations,
-  processingActivities
+  processingActivities,
+  tasks
 } from '@/db/schema';
 import { AI_MAINTAIN, AI_SETUP } from '@/lib/guidance/steps';
 import { navFor } from '@/lib/nav';
@@ -27,6 +29,7 @@ import {
 import { derivedStage, guidanceFor } from '@/services/guidance';
 import { programmeScope } from '@/services/programme-scope';
 import { createActivity } from '@/services/ropa';
+import { sweepOrganisation } from '@/services/sweep';
 
 const SYSTEM = {
   actorKind: 'system' as const,
@@ -201,6 +204,97 @@ describe('an entity under neither UK nor EU data protection law', () => {
     });
     assert.equal(after.dataProtectionLawApplies, true);
     assert.equal(await anyEntityUnderUkLaw(w.org.id), true);
+  });
+});
+
+describe('the country library reminder', () => {
+  // An organisation's own country row, due now, so the library is due for it
+  // whatever state the shared rows are in.
+  async function dueCountry(organisationId: string) {
+    const now = new Date();
+    await db.insert(countryRisk).values({
+      organisationId,
+      code: 'BR',
+      name: 'Brazil',
+      ukAdequacy: 'not_adequate',
+      euAdequacy: 'not_adequate',
+      reviewedAt: now,
+      reviewedBy: 'test',
+      nextReviewAt: now
+    });
+  }
+
+  const reminders = (organisationId: string) =>
+    db
+      .select({ status: tasks.status })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.organisationId, organisationId),
+          eq(tasks.subjectType, 'country_risk')
+        )
+      );
+
+  it('is raised where an entity is under a law', async () => {
+    const w = await world('countries-under');
+    await dueCountry(w.org.id);
+    await sweepOrganisation(w.org.id);
+    assert.deepEqual(await reminders(w.org.id), [{ status: 'open' }]);
+  });
+
+  it('is not raised where no entity is under either law', async () => {
+    const w = await usOnly('countries-neither');
+    await dueCountry(w.org.id);
+    const result = await sweepOrganisation(w.org.id);
+    assert.equal(result.countryReviewsRaised, 0);
+    assert.deepEqual(await reminders(w.org.id), []);
+  });
+
+  it('is cancelled once no entity is under either law, not marked done', async () => {
+    const w = await world('countries-left');
+    await dueCountry(w.org.id);
+    await sweepOrganisation(w.org.id);
+    await setOutsideDataProtectionLaw({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      actor: SYSTEM
+    });
+    await sweepOrganisation(w.org.id);
+    assert.deepEqual(await reminders(w.org.id), [{ status: 'cancelled' }]);
+    const events = await db
+      .select({ action: auditEvents.action })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organisationId, w.org.id),
+          eq(auditEvents.subjectType, 'task')
+        )
+      );
+    assert.deepEqual(events.map((e) => e.action).sort(), [
+      'task.cancelled',
+      'task.raised'
+    ]);
+  });
+
+  it('comes back the same month once an entity is under a law again', async () => {
+    const w = await world('countries-back');
+    await dueCountry(w.org.id);
+    await sweepOrganisation(w.org.id);
+    await setOutsideDataProtectionLaw({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      actor: SYSTEM
+    });
+    await sweepOrganisation(w.org.id);
+    await setDataProtectionLaw({
+      organisationId: w.org.id,
+      entityId: w.entity.id,
+      law: 'uk',
+      actor: SYSTEM
+    });
+    await sweepOrganisation(w.org.id);
+    const statuses = (await reminders(w.org.id)).map((r) => r.status).sort();
+    assert.deepEqual(statuses, ['cancelled', 'open']);
   });
 });
 
