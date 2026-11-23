@@ -93,6 +93,7 @@ export default async function AppLayout({
             {mayAdminister ? (
               <Link
                 href="/app/admin"
+                data-tour="settings"
                 className="rounded border border-white/25 px-2.5 py-1 text-xs text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Settings
@@ -116,6 +117,7 @@ export default async function AppLayout({
             ) : null}
             <Link
               href="/app/help"
+              data-tour="help"
               className="rounded border border-white/25 px-2.5 py-1 text-xs text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               Help

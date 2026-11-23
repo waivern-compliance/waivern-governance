@@ -5,6 +5,7 @@ import { statusWords, type Persona } from '@/lib/persona';
 import { actingAs, can } from '@/lib/rbac';
 import type { ActiveSession } from '@/lib/session';
 import { visibleEntityIds } from '@/lib/session';
+import type { TourTarget } from '@/lib/tour/steps';
 import { listIncidents } from '@/services/ai-incidents';
 import { nistProfileTally } from '@/services/ai-profile';
 import {
@@ -60,6 +61,7 @@ async function TaskPanel({
       title={title}
       hint={hint}
       action={{ href: '/app/tasks', label: 'All tasks' }}
+      tour="tasks"
     >
       {shown.length === 0 ? (
         <Empty>{empty}</Empty>
@@ -385,6 +387,7 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
         </p>
         <Link
           href="/app/assessments"
+          data-tour="assessments"
           className="mt-3 inline-block rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           Check whether it needs a review
@@ -458,6 +461,12 @@ export async function ProductHome({ active }: { active: ActiveSession }) {
 
 /* ------------------------------------------------------------------ */
 
+/** The rows the guided tour points at, by where they lead. */
+const TOUR_ROWS: Partial<Record<string, TourTarget>> = {
+  '/app/templates': 'templates',
+  '/app/assessments': 'assessments'
+};
+
 async function QuickLinks({
   active,
   scope
@@ -486,6 +495,7 @@ async function QuickLinks({
                 href={i.href}
                 title={i.label}
                 detail={i.hint}
+                tour={TOUR_ROWS[i.href]}
               />
             ))}
           </Rows>
@@ -500,6 +510,7 @@ async function QuickLinks({
                 href={i.href}
                 title={i.label}
                 detail={i.hint}
+                tour={TOUR_ROWS[i.href]}
               />
             ))}
           </Rows>

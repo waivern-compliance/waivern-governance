@@ -6,12 +6,27 @@ import { redirect } from 'next/navigation';
 
 import { auth, loadMemberships } from '@/auth';
 import type { Persona } from '@/lib/persona';
-import { ORGANISATION_COOKIE } from '@/lib/session';
+import { ORGANISATION_COOKIE, requireSession } from '@/lib/session';
+import { isTourOutcome } from '@/lib/tour/steps';
 import { setOwnGuidance, type Mode } from '@/services/guidance';
 import { setOwnPersona } from '@/services/persona';
+import { recordTourOutcome } from '@/services/tour';
 
 export async function switchPersonaAction(persona: Persona) {
   await setOwnPersona(persona);
+  revalidatePath('/app');
+}
+
+/** Remember that the caller finished or turned down the guided tour. */
+export async function recordTourAction(outcome: unknown) {
+  if (!isTourOutcome(outcome)) throw new Error('No such tour outcome');
+  const active = await requireSession();
+  await recordTourOutcome({
+    organisationId: active.membership.organisationId,
+    userId: active.userId,
+    actorLabel: active.email,
+    outcome
+  });
   revalidatePath('/app');
 }
 

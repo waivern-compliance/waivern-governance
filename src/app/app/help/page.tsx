@@ -5,6 +5,7 @@ import { Chat } from '@/components/assistant/Chat';
 import { HelpSearch } from '@/components/help/HelpSearch';
 import { HELP_GROUPS, HELP_TOPICS } from '@/lib/help/topics';
 import { getActiveSession } from '@/lib/session';
+import { TOUR_START_HREF } from '@/lib/tour/steps';
 import { providerFor } from '@/services/assistant';
 
 export const metadata: Metadata = { title: 'Help' };
@@ -38,6 +39,17 @@ export default async function HelpPage() {
         <p className="max-w-prose text-sm text-ink-soft">
           How the platform works, and why it behaves as it does. Every screen
           also carries its own short version, folded away at the top.
+        </p>
+        <p className="text-sm">
+          <Link
+            href={TOUR_START_HREF}
+            className="text-brand underline underline-offset-2 hover:opacity-80"
+          >
+            Take the two-minute tour
+          </Link>{' '}
+          <span className="text-ink-soft">
+            of how the tool is meant to be used.
+          </span>
         </p>
       </header>
 

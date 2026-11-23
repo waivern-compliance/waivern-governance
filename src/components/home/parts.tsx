@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import type { TourTarget } from '@/lib/tour/steps';
+
 /**
  * The pieces every home is built from.
  *
@@ -12,15 +14,21 @@ export function Panel({
   title,
   hint,
   action,
+  tour,
   children
 }: {
   title: string;
   hint?: string;
   action?: { href: string; label: string };
+  /** What the guided tour calls this panel, where it points at it. */
+  tour?: TourTarget;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3">
+    <section
+      className="space-y-3"
+      data-tour={tour}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
@@ -59,13 +67,16 @@ export function Row({
   title,
   detail,
   meta,
-  tone
+  tone,
+  tour
 }: {
   href: string;
   title: string;
   detail?: string | null;
   meta?: string;
   tone?: 'plain' | 'warn' | 'stop';
+  /** What the guided tour calls this row, where it points at it. */
+  tour?: TourTarget;
 }) {
   const metaTone =
     tone === 'stop'
@@ -74,7 +85,7 @@ export function Row({
         ? 'text-amber-900'
         : 'text-ink-soft';
   return (
-    <li>
+    <li data-tour={tour}>
       <Link
         href={href}
         className="block space-y-1 px-4 py-3 hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"

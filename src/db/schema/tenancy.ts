@@ -31,7 +31,8 @@ import {
   persona,
   recordType,
   riskScale,
-  roleScope
+  roleScope,
+  tourOutcome
 } from './enums';
 
 /** A client of the platform. One organisation, one governance programme. */
@@ -353,7 +354,16 @@ export const users = pgTable('app_user', {
    * address is at `simulated.invalid`, a domain that cannot receive mail
    * (`lib/trial-rules.ts`).
    */
-  simulated: boolean('simulated').notNull().default(false)
+  simulated: boolean('simulated').notNull().default(false),
+  /**
+   * Whether this person has been through, or turned down, the guided tour of
+   * the home page. Per person rather than per membership: the tour shows how
+   * the product is meant to be used, which does not change between the
+   * organisations somebody works in. Null means it has never been offered an
+   * answer, so it is still offered.
+   */
+  tourOutcome: tourOutcome('tour_outcome'),
+  tourOutcomeAt: timestamp('tour_outcome_at', { withTimezone: true })
 });
 
 /** Ties a person to an organisation. Revoking this revokes all their roles. */

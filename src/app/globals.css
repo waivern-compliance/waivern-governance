@@ -47,3 +47,26 @@ body {
   --viz-warning: #fab219;
   --viz-critical: #d03b3b;
 }
+
+/* ---- Guided tour ----------------------------------------------------------
+   Short and optional: a card that rises into place, and the Waivern mark's
+   connections drawn in. Neither runs where somebody has asked for less
+   motion; the classes that use `tour-in` are `motion-safe:` already.
+   -------------------------------------------------------------------------- */
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes tour-draw {
+  from {
+    stroke-dashoffset: 25;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tour-draw path {
+    stroke-dasharray: 25;
+    animation: tour-draw 600ms ease-out 150ms backwards;
+  }
+}
