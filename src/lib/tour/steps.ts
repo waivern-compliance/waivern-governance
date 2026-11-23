@@ -126,8 +126,9 @@ export function tourSteps(scope: Pick<ProgrammeScope, 'privacy'>): TourStep[] {
       title: 'Complete it, then have it approved',
       body:
         'Answer the questions and submit. Every answer records who gave it and ' +
-        'when. A reviewer approves, returns or rejects it, the decision goes on ' +
-        'record under their name, and approval sets the next review date.',
+        'when. A reviewer approves, returns or rejects it, and the decision goes on ' +
+        'record under their name. Where the template has a review cycle, approval ' +
+        'sets the next review date.',
       seconds: 18
     },
     {
@@ -136,11 +137,13 @@ export function tourSteps(scope: Pick<ProgrammeScope, 'privacy'>): TourStep[] {
       stage: 'Keep it current',
       title: 'What comes round lands here',
       body:
-        'Every hour the tool checks what has come round: ' +
+        'Every hour the tool checks what has come due: ' +
         (privacy
-          ? 'policies, assessments, suppliers and AI systems due for review'
-          : 'AI systems, assessments, policies and suppliers due for review') +
-        ', and records whose inputs have changed. Each one becomes a task here.',
+          ? 'policies, assessments, suppliers and AI systems due for review, and ' +
+            'assessments whose grounds have moved, such as a country they rely on ' +
+            'falling out of date.'
+          : 'AI systems, assessments, policies and suppliers due for review.') +
+        ' Each one becomes a task here.',
       seconds: 18
     },
     {

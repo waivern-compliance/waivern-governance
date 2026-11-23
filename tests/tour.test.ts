@@ -54,16 +54,21 @@ describe('the guided tour', () => {
 
   it('points only at things the home page marks for it', () => {
     // A step whose target was renamed away would silently lose its highlight.
+    // Only the forms that actually set `data-tour` count: an attribute, the
+    // `tour` prop that passes one on, and the two places that choose one.
     const source = filesUnder('src')
       .filter((f) => f.endsWith('.tsx'))
       .map((f) => readFileSync(f, 'utf8'))
       .join('\n');
+    const homes = readFileSync('src/components/home/homes.tsx', 'utf8');
+    const rows = homes.slice(homes.indexOf('const TOUR_ROWS'));
+    const guide = readFileSync('src/components/guidance/Guide.tsx', 'utf8');
     for (const target of TOUR_TARGETS) {
-      // As an attribute, or as the value a component hands to one.
       const marked =
         source.includes(`data-tour="${target}"`) ||
         source.includes(`tour="${target}"`) ||
-        new RegExp(`[:?] '${target}'`).test(source);
+        rows.slice(0, rows.indexOf('};')).includes(`: '${target}'`) ||
+        guide.includes(`? '${target}'`);
       assert.ok(marked, target);
     }
     for (const step of tourSteps(PRIVACY)) {

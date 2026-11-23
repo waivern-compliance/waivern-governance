@@ -130,8 +130,8 @@ It is anonymous unless you tick the box to let us email you about it. Anonymous 
 The tour points at real things on your home page, in the order the work is meant to happen. It does not take you anywhere else, and it changes nothing.
 
 - Set up: the step-by-step guide, your legal entities and the data protection law each is under, and the Settings where an administrator adds people and chooses the AI framework and whether to manage Cyber Essentials.
-- Assess: choosing a template from the library, which leads with the ones that fit your laws and programmes, then answering, submitting and having an assessment approved.
-- Keep it current: the tasks the hourly check raises when a policy, assessment, supplier or AI system is due for review, or when something a record relied on has changed. They appear under Waiting on you.
+- Assess: choosing a template from the library, which leads with the ones that fit your laws and programmes, then answering, submitting and having an assessment approved. Where the template has a review cycle, approval sets the next review date.
+- Keep it current: the tasks the hourly check raises when a policy, assessment, supplier or AI system is due for review, or when the grounds of an assessment have moved, such as a country it relies on falling out of date. They appear under Waiting on you.
 
 ### It fits your programme
 

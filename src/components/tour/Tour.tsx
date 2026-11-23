@@ -90,7 +90,11 @@ export function Tour({
 
   const record = useCallback((outcome: TourOutcome) => {
     startTransition(async () => {
-      await recordTourAction(outcome);
+      // Not worth an error page: the tour has already closed, and if the
+      // answer was not kept it is simply offered again next time.
+      try {
+        await recordTourAction(outcome);
+      } catch {}
     });
   }, []);
 
@@ -215,6 +219,7 @@ function Overlay({
   const [viewport, setViewport] = useState({
     width: 0,
     height: 0,
+    scrollX: 0,
     scrollY: 0
   });
   const [cardHeight, setCardHeight] = useState(0);
@@ -229,10 +234,23 @@ function Overlay({
     const others = Array.from(document.body.children).filter(
       (el): el is HTMLElement => el !== node && el instanceof HTMLElement
     );
-    const wasInert = others.map((el) => el.inert);
+    const wasInert = new Map(others.map((el) => [el, el.inert]));
     others.forEach((el) => (el.inert = true));
+    // Whatever arrives while the tour is open - a toast, a portal, a node
+    // React re-creates - joins the page behind rather than escaping the modal.
+    const arrivals = new MutationObserver((records) => {
+      for (const r of records) {
+        for (const added of Array.from(r.addedNodes)) {
+          if (added === node || !(added instanceof HTMLElement)) continue;
+          if (!wasInert.has(added)) wasInert.set(added, added.inert);
+          added.inert = true;
+        }
+      }
+    });
+    arrivals.observe(document.body, { childList: true });
     return () => {
-      others.forEach((el, i) => (el.inert = wasInert[i]));
+      arrivals.disconnect();
+      wasInert.forEach((was, el) => (el.inert = was));
       node.remove();
     };
   }, [host]);
@@ -244,6 +262,7 @@ function Overlay({
       setViewport({
         width: window.innerWidth,
         height: window.innerHeight,
+        scrollX: window.scrollX,
         scrollY: window.scrollY
       });
       if (!target) return setBox(null);
@@ -252,7 +271,7 @@ function Overlay({
       // and only glides when the step changes, never behind a scroll.
       setBox({
         top: r.top + window.scrollY - PAD,
-        left: r.left - PAD,
+        left: r.left + window.scrollX - PAD,
         width: r.width + PAD * 2,
         height: r.height + PAD * 2
       });
@@ -300,32 +319,47 @@ function Overlay({
   const back = () => onMove(Math.max(0, index - 1));
   const forward = () => (last ? onClose('finished') : onMove(index + 1));
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose('dismissed');
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      forward();
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      back();
-    } else if (e.key === 'Tab') {
-      // The page behind is inert; this keeps Tab cycling inside the card
-      // rather than escaping to the browser's own controls and back.
-      const focusable = card.current?.querySelectorAll<HTMLElement>('button');
-      if (!focusable || focusable.length === 0) return;
-      const first = focusable[0];
-      const end = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+  // On the document rather than the overlay, so the keys still work when a
+  // click on the dimmed page behind has taken focus off the card.
+  const keys = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    keys.current = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
         e.preventDefault();
-        end.focus();
-      } else if (!e.shiftKey && document.activeElement === end) {
+        onClose('dismissed');
+      } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        first.focus();
+        forward();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        back();
+      } else if (e.key === 'Tab') {
+        // The page behind is inert; this keeps Tab cycling inside the card
+        // rather than escaping to the browser's own controls and back.
+        const focusable = Array.from(
+          card.current?.querySelectorAll<HTMLElement>('button') ?? []
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const end = focusable[focusable.length - 1];
+        const inside = focusable.includes(
+          document.activeElement as HTMLElement
+        );
+        if (!inside || (e.shiftKey && document.activeElement === first)) {
+          e.preventDefault();
+          (e.shiftKey ? end : first).focus();
+        } else if (!e.shiftKey && document.activeElement === end) {
+          e.preventDefault();
+          first.focus();
+        }
       }
-    }
-  };
+    };
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keys.current(e);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   if (!client || !host) return null;
 
@@ -351,7 +385,7 @@ function Overlay({
           ? above
           : viewport.height - cardHeight - 16;
     const left = Math.min(
-      Math.max(16, box.left),
+      Math.max(16, box.left - viewport.scrollX),
       viewport.width - cardWidth - 16
     );
     placement = { top, left, width: cardWidth };
@@ -369,13 +403,12 @@ function Overlay({
           }}
         />
       ) : null}
-      <div
-        className="fixed inset-0 z-50"
-        onKeyDown={onKeyDown}
-      >
-        {/* Catches clicks on the page behind, which is not part of the tour. */}
+      <div className="fixed inset-0 z-50">
+        {/* Catches clicks on the page behind, which is not part of the tour,
+            without taking focus off the card. */}
         <div
           aria-hidden
+          onMouseDown={(e) => e.preventDefault()}
           className={`absolute inset-0 ${box ? '' : 'bg-navy/55'}`}
         />
         <div
