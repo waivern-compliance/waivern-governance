@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 
 import type { EditResult } from '@/lib/edit-result';
 import { useRefusableAction } from '@/lib/use-refusable-action';
@@ -13,11 +13,13 @@ import { useRefusableAction } from '@/lib/use-refusable-action';
  * button, and they correct it rather than start again.
  *
  * `saved`, where the fields are prefilled, is the `savedKey` of the values
- * they default to. The form element is keyed on it, so it is rebuilt from what the server stored,
- * normalisation included. Only the form element is rebuilt: the result lives
- * here, above it. Callers used to key the whole `EditForm`, and the save that
- * changed the key took its own result with it, so nothing said it had been
- * kept.
+ * they default to. The fields are keyed on it, so they are rebuilt from what
+ * the server stored, normalisation included. Only the fields are rebuilt: the
+ * result and the live region that reports it stay mounted. Callers used to key
+ * the whole `EditForm`, and the save that changed the key took its own result
+ * with it, so nothing said it had been kept. Rebuilding the live region too
+ * would bring it back with its message already in it, which screen readers
+ * often do not announce.
  *
  * A save is confirmed through a live region that screen readers announce. The
  * confirmation stays until a field is changed again, because a message that
@@ -49,13 +51,12 @@ export function EditForm({
 
   return (
     <form
-      key={saved}
       {...formProps}
       aria-busy={pending}
       onInput={() => setSpent(result)}
       className={className}
     >
-      {children}
+      <Fragment key={saved}>{children}</Fragment>
       {/* Always rendered: a live region added with its message is often not announced. */}
       <p
         role="status"
