@@ -118,12 +118,12 @@ export function Guide({ guidance }: { guidance: Guidance }) {
                     {step.watchOut}
                   </p>
                 ) : null}
-                <Link
-                  href={step.href}
-                  className="inline-block rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
-                >
-                  Go there
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  {step.also ? (
+                    <StepLink href={step.also.href}>{step.also.label}</StepLink>
+                  ) : null}
+                  <StepLink href={step.href}>Go there</StepLink>
+                </div>
               </div>
             </details>
           </li>
@@ -163,5 +163,16 @@ export function Guide({ guidance }: { guidance: Guidance }) {
         </form>
       </div>
     </section>
+  );
+}
+
+function StepLink({ href, children }: { href: string; children: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-block rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
+    >
+      {children}
+    </Link>
   );
 }

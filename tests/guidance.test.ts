@@ -51,12 +51,16 @@ describe("the guide's content", () => {
     // A guide for somebody who does not know their way around must not send
     // them to a 404. Checked against the router rather than a list.
     for (const step of all) {
-      const path = step.href.split('?')[0].replace(/^\/app\//, '');
-      const page = `src/app/app/${path}/page.tsx`;
-      assert.ok(
-        existsSync(page),
-        `${step.id} links to ${step.href}, but ${page} does not exist`
-      );
+      for (const href of [step.href, step.also?.href].filter(
+        (href): href is string => href !== undefined
+      )) {
+        const path = href.split('?')[0].replace(/^\/app\//, '');
+        const page = `src/app/app/${path}/page.tsx`;
+        assert.ok(
+          existsSync(page),
+          `${step.id} links to ${href}, but ${page} does not exist`
+        );
+      }
     }
   });
 

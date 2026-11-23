@@ -48,6 +48,11 @@ export type Step = {
   /** How you know you are finished. Concrete, checkable, not a feeling. */
   finishedWhen: string;
   href: string;
+  /**
+   * A second screen the step needs before its own, when the work starts
+   * somewhere other than where it is finished.
+   */
+  also?: { href: string; label: string };
   /** Shown only where some entity is subject to UK law. */
   ukLaw?: true;
   /** Shown only where some entity is under UK PECR or the Irish ePrivacy Regulations. */
@@ -530,6 +535,10 @@ export const AI_SETUP: Step[] = [
       'you to keep watching it (MANAGE 3.1), which starts with knowing who the supplier is.',
     finishedWhen: 'No bought-in system is missing its supplier.',
     href: '/app/ai?gap=supplier_unrecorded',
+    also: {
+      href: '/app/third-parties',
+      label: 'Open the third-party register'
+    },
     watchOut:
       'The vendor typed when a system was added is only a note. Until the supplier is chosen ' +
       'from the third-party register, the system counts as having none.'
