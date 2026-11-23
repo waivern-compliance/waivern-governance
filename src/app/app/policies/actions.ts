@@ -69,12 +69,26 @@ const months = (v: FormDataEntryValue | null) => {
 
 /**
  * The policy's text, when a file was chosen. Only for those who may upload,
- * asked before a byte is read; a trial adds its policies without one.
+ * asked before a byte is read; a trial adds its policies without one. A
+ * policy for every entity takes a file only from somebody who may upload
+ * across the organisation, as with the permission to add it.
  */
 async function uploadedText(formData: FormData, entityId: string | null) {
   const file = formData.get('text');
-  if (!(file instanceof File) || file.size === 0) return null;
-  await requireCapability('file.upload', entityId ? { entityId } : {});
+  // A browser sends an unnamed empty file when none was chosen. A named empty
+  // one was chosen, and goes on to be refused as empty.
+  if (!(file instanceof File) || (file.size === 0 && !file.name)) return null;
+  const active = await requireCapability(
+    'file.upload',
+    entityId ? { entityId } : {}
+  );
+  if (
+    !entityId &&
+    scopedEntityIds(active.membership.grants, 'file.upload') !== null
+  )
+    throw new Error(
+      'This policy is for every entity, so attaching its file needs permission to upload across the whole organisation. Add it without the file, or choose one entity.'
+    );
   return {
     filename: file.name,
     contentType: file.type,

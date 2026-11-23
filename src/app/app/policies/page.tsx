@@ -66,6 +66,15 @@ export default async function PoliciesPage() {
   // Asked again for the entity chosen when the form is sent.
   const mayUpload = can(grants, 'file.upload');
   const trial = withheldByTrial(grants, 'file.upload');
+  // Where uploading is held for some entities only, say which, rather than
+  // let the whole form be refused for the entity chosen.
+  const uploadScope = scopedEntityIds(grants, 'file.upload');
+  const uploadsOnlyFor =
+    uploadScope === null
+      ? null
+      : orgEntities
+          .filter((e) => uploadScope.includes(e.id))
+          .map((e) => e.name);
   const writable = orgEntities.filter((e) => can(grants, 'record.write', e.id));
   const current = rows.filter((r) => r.policy.status !== 'withdrawn');
   const withdrawn = rows.filter((r) => r.policy.status === 'withdrawn');
@@ -193,7 +202,7 @@ export default async function PoliciesPage() {
                 <label className="block space-y-1 sm:col-span-2">
                   <Label
                     text="Its text"
-                    hint={`Optional. The policy document, made the first version's text. Up to ${MAX_BYTES / 1024 / 1024}MB - ${[...new Set(ACCEPTED.values())].join(', ')}. Checked for viruses before it is kept.`}
+                    hint={`Optional. The policy document, made the first version's text. Up to ${MAX_BYTES / 1024 / 1024}MB - ${[...new Set(ACCEPTED.values())].join(', ')}. Checked for viruses before it is kept.${uploadsOnlyFor ? ` You may attach a file only to a policy for ${uploadsOnlyFor.join(', ')}.` : ''}`}
                   />
                   <input
                     type="file"

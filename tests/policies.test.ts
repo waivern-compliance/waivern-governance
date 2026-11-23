@@ -701,6 +701,55 @@ describe('adding a policy with its text', () => {
     }
   });
 
+  it("refuses another organisation's entity before scanning the file", async () => {
+    const clamd = await fakeClamd();
+    try {
+      const w = await world('policy-text-foreign');
+      const elsewhere = await world('policy-text-elsewhere');
+      await assert.rejects(
+        withScanner(clamd.port, () =>
+          createPolicy({
+            organisationId: w.org.id,
+            entityId: elsewhere.entity.id,
+            title: 'Acceptable use policy',
+            text: {
+              filename: 'invoice.txt',
+              contentType: 'text/plain',
+              content: Buffer.from(EICAR)
+            },
+            actor: w.author.actor
+          })
+        )
+      );
+      assert.equal(clamd.scans, 0);
+      for (const org of [w.org.id, elsewhere.org.id]) {
+        const events = await db
+          .select({ action: auditEvents.action })
+          .from(auditEvents)
+          .where(eq(auditEvents.organisationId, org));
+        assert.equal(
+          events.some((e) => e.action === 'document.refused_infected'),
+          false
+        );
+      }
+    } finally {
+      await clamd.close();
+    }
+  });
+
+  it('refuses an empty file rather than adding the policy without it', async () => {
+    const w = await world('policy-text-empty');
+    await assert.rejects(
+      addWithText(w, Buffer.alloc(0), 'application/pdf'),
+      (e: Error) => e instanceof PolicyRefused && /empty/.test(e.message)
+    );
+    const kept = await db
+      .select({ id: policies.id })
+      .from(policies)
+      .where(eq(policies.organisationId, w.org.id));
+    assert.equal(kept.length, 0);
+  });
+
   it('refuses a file in a trial, which adds its policies without one', async () => {
     // A trial has one member, so not the two-person world.
     const [org] = await db
