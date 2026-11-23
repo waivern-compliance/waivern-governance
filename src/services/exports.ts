@@ -935,7 +935,13 @@ export async function exportThirdParties(organisationId: string) {
           current?.transferMechanism ?? null,
           (current?.subProcessors ?? []).join('; '),
           gaps.map((g) => SUPPLIER_GAP_WORDS[g]).join('; ') || 'nothing',
-          hardGaps.length > 0 ? 'yes' : 'no',
+          // Outside UK and EU law no contract is owed, so "no" would read as
+          // a contract in force.
+          privacy === 'out_of_scope'
+            ? 'not applicable'
+            : hardGaps.length > 0
+              ? 'yes'
+              : 'no',
           PRIVACY_STANDING_LABEL[privacy],
           AI_STANDING_LABEL[ai.standing],
           ai.assessed?.approved ? ai.assessed.conditions : null

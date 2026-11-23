@@ -58,6 +58,7 @@ import {
   requestsNeedingAttention
 } from './data-subject-requests';
 import { pruneIntakeAttempts } from './dsr-intake';
+import { anyEntityUnderDataProtectionLaw } from './entities';
 import { assetsDueForReview, assetsNeedingRenewal } from './information-assets';
 import { reviewsNeedingAttention } from './information-request-reviews';
 import { informationRequestsNeedingAttention } from './information-requests';
@@ -476,6 +477,9 @@ async function raiseCountryReviews(organisationId: string): Promise<number> {
  * ignored as a block.
  */
 async function raiseDpaReviews(organisationId: string): Promise<number> {
+  // An agreement's expiry matters here because Article 28 requires one in
+  // force. With no entity under UK or EU data protection law, nothing does.
+  if (!(await anyEntityUnderDataProtectionLaw(organisationId))) return 0;
   const due = await dpasNeedingAttention(organisationId);
   if (due.length === 0) return 0;
 

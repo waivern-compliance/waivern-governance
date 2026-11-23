@@ -42,6 +42,7 @@ import {
   type AiSupplierGap
 } from '@/lib/thirdparty/ai-procurement';
 
+import { anyEntityUnderDataProtectionLaw } from './entities';
 import type { Actor } from './templates';
 import { assertMemberOf } from './tenancy-guards';
 import { heldTransferAssessment } from './transfer-assessments';
@@ -101,6 +102,14 @@ export const HARD_GAPS: Article28Gap[] = [
   'dpa_unsigned',
   'dpa_expired'
 ];
+
+/**
+ * The gaps that hold whatever law applies: somebody has to answer for a third
+ * party, and one a tool reported has to be looked at. The rest come from UK or
+ * EU data protection law - Article 28's contract and Chapter V's transfers - so
+ * an organisation with no entity under either is not asked for them.
+ */
+const GAPS_UNDER_ANY_LAW: Article28Gap[] = ['never_reviewed', 'no_owner'];
 
 /**
  * How much notice is worth having before a contract lapses.
@@ -280,9 +289,10 @@ export function article28Gaps(
  * pass one and fail the other.
  */
 export type PrivacyStanding =
-  'not_met' | 'met_with_gaps' | 'met' | 'controller';
+  'not_met' | 'met_with_gaps' | 'met' | 'controller' | 'out_of_scope';
 
 export const PRIVACY_STANDING_LABEL: Record<PrivacyStanding, string> = {
+  out_of_scope: 'No UK or EU data protection law applies',
   controller: 'Another controller: Article 28 does not apply',
   not_met: 'Article 28 not met',
   met_with_gaps: 'Article 28 met, with gaps',
@@ -291,8 +301,11 @@ export const PRIVACY_STANDING_LABEL: Record<PrivacyStanding, string> = {
 
 export function privacyStanding(
   gaps: readonly Article28Gap[],
-  role: SupplierRole = 'processor'
+  role: SupplierRole = 'processor',
+  /** Whether any entity is subject to UK or EU data protection law. */
+  lawApplies = true
 ): PrivacyStanding {
+  if (!lawApplies) return 'out_of_scope';
   if (role === 'controller') return 'controller';
   if (gaps.some((g) => HARD_GAPS.includes(g))) return 'not_met';
   return gaps.length > 0 ? 'met_with_gaps' : 'met';
@@ -457,21 +470,25 @@ async function rowsFor(organisationId: string): Promise<SupplierRow[]> {
     bySupplier.set(d.supplierId, list);
   }
 
-  const [aiAssessed, aiSystems, transfersHeld] = await Promise.all([
+  const [aiAssessed, aiSystems, transfersHeld, lawApplies] = await Promise.all([
     aiSupplierAssessments(organisationId),
     aiSystemsBySupplier(organisationId),
-    transferAssessmentsBySupplier(organisationId)
+    transferAssessmentsBySupplier(organisationId),
+    anyEntityUnderDataProtectionLaw(organisationId)
   ]);
 
   const now = new Date();
   return supplierRows.map(({ supplier, ownerEmail }) => {
     const own = bySupplier.get(supplier.id) ?? [];
+    // Suppliers belong to the organisation, not to an entity, so whether the
+    // law reaches them is read from the organisation: any entity under UK or
+    // EU law and every supplier is judged by it.
     const gaps = article28Gaps(
       supplier,
       own,
       now,
       transfersHeld.get(supplier.id) ?? { tra: false, tia: false }
-    );
+    ).filter((g) => lawApplies || GAPS_UNDER_ANY_LAW.includes(g));
     const assessed = aiAssessed.get(supplier.id) ?? null;
     const systems = aiSystems.get(supplier.id) ?? 0;
     return {
@@ -481,7 +498,7 @@ async function rowsFor(organisationId: string): Promise<SupplierRow[]> {
       ownerEmail,
       gaps,
       hardGaps: gaps.filter((g) => HARD_GAPS.includes(g)),
-      privacy: privacyStanding(gaps, supplier.role),
+      privacy: privacyStanding(gaps, supplier.role, lawApplies),
       ai: {
         standing: aiStanding(
           supplier.aiInvolvement as AiInvolvement | null,
@@ -515,11 +532,16 @@ export async function loadSupplier(supplierId: string, organisationId: string) {
 
 export async function registerHealth(organisationId: string) {
   return withOrganisation(organisationId, async () => {
-    const listed = await rowsFor(organisationId);
+    const [listed, lawApplies] = await Promise.all([
+      rowsFor(organisationId),
+      anyEntityUnderDataProtectionLaw(organisationId)
+    ]);
     // Retired suppliers are kept, not checked: they are no longer the register.
     const rows = listed.filter((r) => !r.supplier.retiredAt);
     const retired = listed.filter((r) => r.supplier.retiredAt);
     return {
+      /** Whether Article 28 is asked of these suppliers at all. */
+      lawApplies,
       total: rows.length,
       covered: rows.filter((r) => r.hardGaps.length === 0).length,
       uncovered: rows.filter((r) => r.hardGaps.length > 0).length,

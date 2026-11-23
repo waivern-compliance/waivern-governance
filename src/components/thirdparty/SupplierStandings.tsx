@@ -20,7 +20,8 @@ const PRIVACY_TONE: Record<PrivacyStanding, Tone> = {
   met: 'ok',
   met_with_gaps: 'warn',
   not_met: 'stop',
-  controller: 'quiet'
+  controller: 'quiet',
+  out_of_scope: 'quiet'
 };
 
 const AI_TONE: Record<AiStanding, Tone> = {
