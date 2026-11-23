@@ -652,7 +652,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: 'Versions and approval',
         body: [
-          'A policy starts with a draft version. Attach its text on the policy page, choose that file for the version, and submit it. The approvers are given a task. Somebody who may decide approvals, and who is not the person who submitted it, approves it, naming where it was agreed, such as the board, the date and the minute, or rejects it, saying why.',
+          "A policy starts with a draft version. Attach its text when you add the policy, and it is made that version's text; or add the policy first and attach the text on the policy page, then choose that file for the version. The file is checked for viruses where the deployment runs a scanner: an infected one is refused, the policy is not added, and the attempt is recorded in the audit trail. A trial adds its policies without files. Once the version has its text, submit it. The approvers are given a task. Somebody who may decide approvals, and who is not the person who submitted it, approves it, naming where it was agreed, such as the board, the date and the minute, or rejects it, saying why.",
           'Approving a version puts the policy in force, supersedes the version before, and sets the next review from the interval. Once submitted, a version cannot be changed, and the file it names cannot be removed: it is what was decided. To change a policy, draft a new version and send it for approval again.'
         ]
       },

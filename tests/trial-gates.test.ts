@@ -90,7 +90,7 @@ const SERVICE_EXEMPT: Record<string, string> = {
   'domains.joinByVerifiedDomain':
     'joins an organisation that has verified a domain, which a trial cannot (claimDomain and verifyDomain refuse), and the database refuses a trial a second member (migration 0115)',
   'documents.insertDocument':
-    "runs inside a guarded caller's transaction: attachDocument, an import, or the Integration API, which refuses a trial when it authenticates",
+    "runs inside a guarded caller's transaction: attachDocument, createPolicy once checkedText has refused a trial, an import, or the Integration API, which refuses a trial when it authenticates",
   'assistant.converse':
     "asks the organisation's own AI provider, which a trial cannot configure (saveProvider refuses), and there is no platform default",
   'extraction.persist':
@@ -176,6 +176,7 @@ describe('services a trial must not reach', () => {
 const GATED: Record<string, (typeof TRIAL_WITHHELD)[number]> = {
   'src/app/app/third-parties/documentActions.ts uploadDocumentsAction':
     'file.upload',
+  'src/app/app/policies/actions.ts uploadedText': 'file.upload',
   'src/app/app/admin/imports/actions.ts uploadImportAction': 'file.upload',
   'src/app/app/admin/imports/actions.ts addImportFilesAction': 'file.upload',
   'src/app/app/admin/imports/actions.ts readImportedAgreementsAction':

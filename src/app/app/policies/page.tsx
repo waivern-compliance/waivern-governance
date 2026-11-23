@@ -7,9 +7,11 @@ import { HelpLink } from '@/components/help/HelpLink';
 import { NotPermitted } from '@/components/NotPermitted';
 import { db, scoped } from '@/db/client';
 import { entities, memberships, users } from '@/db/schema';
+import { ACCEPTED, MAX_BYTES } from '@/lib/documents/limits';
 import { ukLawApplies } from '@/lib/dpa2018/applies';
-import { can, scopedEntityIds } from '@/lib/rbac';
+import { can, scopedEntityIds, withheldByTrial } from '@/lib/rbac';
 import { getActiveSession, visibleEntityIds } from '@/lib/session';
+import { TRIAL_REFUSAL } from '@/lib/trial-rules';
 import { policyRegister } from '@/services/policies';
 import { policyDocumentRegister } from '@/services/policy-documents';
 
@@ -61,6 +63,18 @@ export default async function PoliciesPage() {
     policyDocumentRegister(org, visibleEntityIds(active))
   ]);
   const organisationWide = scopedEntityIds(grants, 'record.write') === null;
+  // Asked again for the entity chosen when the form is sent.
+  const mayUpload = can(grants, 'file.upload');
+  const trial = withheldByTrial(grants, 'file.upload');
+  // Where uploading is held for some entities only, say which, rather than
+  // let the whole form be refused for the entity chosen.
+  const uploadScope = scopedEntityIds(grants, 'file.upload');
+  const uploadsOnlyFor =
+    uploadScope === null
+      ? null
+      : orgEntities
+          .filter((e) => uploadScope.includes(e.id))
+          .map((e) => e.name);
   const writable = orgEntities.filter((e) => can(grants, 'record.write', e.id));
   const current = rows.filter((r) => r.policy.status !== 'withdrawn');
   const withdrawn = rows.filter((r) => r.policy.status === 'withdrawn');
@@ -184,6 +198,24 @@ export default async function PoliciesPage() {
                   className={inputClass}
                 />
               </label>
+              {mayUpload ? (
+                <label className="block space-y-1 sm:col-span-2">
+                  <Label
+                    text="Its text"
+                    hint={`Optional. The policy document, made the first version's text. Up to ${MAX_BYTES / 1024 / 1024}MB - ${[...new Set(ACCEPTED.values())].join(', ')}. Checked for viruses before it is kept.${uploadsOnlyFor ? ` You may attach a file only to a policy for ${uploadsOnlyFor.join(', ')}.` : ''}`}
+                  />
+                  <input
+                    type="file"
+                    name="text"
+                    accept={[...ACCEPTED.keys()].join(',')}
+                    className="w-full text-xs file:mr-3 file:rounded file:border file:border-line file:bg-surface file:px-3 file:py-1.5 file:text-xs"
+                  />
+                </label>
+              ) : trial ? (
+                <p className="text-xs text-ink-soft sm:col-span-2">
+                  {TRIAL_REFUSAL['file.upload']}
+                </p>
+              ) : null}
             </div>
             <button
               type="submit"
