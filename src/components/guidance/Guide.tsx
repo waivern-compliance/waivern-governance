@@ -118,12 +118,22 @@ export function Guide({ guidance }: { guidance: Guidance }) {
                     {step.watchOut}
                   </p>
                 ) : null}
-                <Link
-                  href={step.href}
-                  className="inline-block rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
-                >
-                  Go there
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={step.href}
+                    className="inline-block rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
+                  >
+                    Go there
+                  </Link>
+                  {step.also ? (
+                    <Link
+                      href={step.also.href}
+                      className="inline-block rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium hover:bg-ground focus-visible:outline-2 focus-visible:outline-brand"
+                    >
+                      {step.also.label}
+                    </Link>
+                  ) : null}
+                </div>
               </div>
             </details>
           </li>
