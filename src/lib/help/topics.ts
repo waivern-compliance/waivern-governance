@@ -713,6 +713,56 @@ export const HELP_TOPICS: HelpTopic[] = [
     related: ['ropa', 'organisation']
   },
   {
+    id: 'tour',
+    title: 'The guided tour',
+    summary:
+      'A two-minute tour of the home page showing how the tool is meant to be used: set it up, assess, then keep up with what comes round.',
+    keywords: [
+      'tour',
+      'walkthrough',
+      'introduction',
+      'first time',
+      'onboarding',
+      'replay',
+      'how to use'
+    ],
+    sections: [
+      {
+        heading: 'What it shows',
+        body: [
+          'The tour points at real things on your home page, in the order the work is meant to happen. It does not take you anywhere else, and it changes nothing.'
+        ],
+        points: [
+          'Set up: the step-by-step guide, your legal entities and the data protection law each is under, and the Settings where an administrator adds people and chooses the AI framework and whether to manage Cyber Essentials.',
+          'Assess: choosing a template from the library, which leads with the ones that fit your laws and programmes, then answering, submitting and having an assessment approved.',
+          'Keep it current: the tasks the hourly check raises when a policy, assessment, supplier or AI system is due for review, or when something a record relied on has changed. They appear under Waiting on you.'
+        ]
+      },
+      {
+        heading: 'It fits your programme',
+        body: [
+          'Where no entity is subject to UK or EU data protection law, the tour says why you see AI governance alone and leaves out what only the privacy programme needs.',
+          'Where something it points at is not on your home page - the guide is hidden, say, or Settings is not yours to change - the step is shown on its own, with nothing highlighted.'
+        ]
+      },
+      {
+        heading: 'Moving through it',
+        body: [
+          'Nothing moves on by itself, so take as long as you need; read at an ordinary pace, it takes under two minutes. Use Next and Back, or the right and left arrow keys. Escape or Skip the tour leaves it at any step.',
+          'Where your device asks for less motion, the highlight jumps rather than glides, and nothing fades or draws in.'
+        ]
+      },
+      {
+        heading: 'Offered once',
+        body: [
+          'It is offered on your home page until you take it or say no thanks. Finishing it, skipping it part way and saying no thanks each count as an answer, so it is not offered again. The choice is held against you rather than an organisation, and recorded in the audit log of the organisation you were working in.',
+          'Take it again at any time from Help or your profile page.'
+        ]
+      }
+    ],
+    related: ['guide', 'getting-started', 'tasks']
+  },
+  {
     id: 'guide',
     title: 'The step-by-step guide on your home page',
     summary:
@@ -3482,6 +3532,7 @@ export const HELP_GROUPS: Array<{ heading: string; ids: string[] }> = [
     heading: 'Getting your bearings',
     ids: [
       'getting-started',
+      'tour',
       'guide',
       'personas',
       'roles-and-access',

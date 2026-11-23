@@ -97,6 +97,7 @@ import * as tierSvc from '@/services/supplier-tier';
 import * as sweep from '@/services/sweep';
 import * as templatesSvc from '@/services/templates';
 import * as thirdParty from '@/services/third-party';
+import * as tourSvc from '@/services/tour';
 import * as training from '@/services/training';
 import * as trends from '@/services/trends';
 import * as trialGuard from '@/services/trial-guard';
@@ -4588,6 +4589,8 @@ const NOT_TENANT_SCOPED: Record<string, string> = {
     "a person's own choice, held on their user row, which belongs to no organisation",
   'member-email.emailNotificationsFor':
     'a person reading their own choice from their user row',
+  'tour.tourStateFor':
+    'a person reading their own answer to the guided tour from their user row, which belongs to no organisation',
   'contributor-links.redeemContributorLink':
     'the token is the authority, and carries its organisation',
   // The Integration API: the signed connection carries the organisation.
@@ -4935,6 +4938,21 @@ describe('the supplier review cycle', () => {
       .from(suppliers)
       .where(eq(suppliers.id, B.partner.id));
     assert.equal(theirs.next?.getTime(), reviewed.getTime());
+  });
+});
+
+describe('the guided tour', () => {
+  it("cannot record an answer for another organisation's member", async () => {
+    await assert.rejects(
+      tourSvc.recordTourOutcome({
+        organisationId: A.org.id,
+        userId: B.owner.user.id,
+        actorLabel: A.owner.user.email,
+        outcome: 'dismissed'
+      }),
+      /No such person/
+    );
+    assert.equal((await tourSvc.tourStateFor(B.owner.user.id)).outcome, null);
   });
 });
 

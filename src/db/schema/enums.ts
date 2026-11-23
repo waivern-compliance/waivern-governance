@@ -1120,6 +1120,13 @@ export const guidanceMode = pgEnum('guidance_mode', [
   'maintain'
 ]);
 
+/**
+ * How somebody left the guided tour of the home page. Either way it is not
+ * offered again: "dismissed" covers turning the offer down and leaving part
+ * way, and both stay replayable from Help and the profile page.
+ */
+export const tourOutcome = pgEnum('tour_outcome', ['finished', 'dismissed']);
+
 /** Where somebody's request for a new organisation has got to. */
 export const organisationRequestStatus = pgEnum('organisation_request_status', [
   'pending',

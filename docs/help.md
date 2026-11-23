@@ -10,6 +10,7 @@ Every help topic the application carries, in the order it presents them.
 **Getting your bearings**
 
 - [What this is, and what it is not](#what-this-is-and-what-it-is-not) - A workflow tool for privacy and AI governance: it routes work, records decisions, and keeps an audit trail nobody can quietly edit.
+- [The guided tour](#the-guided-tour) - A two-minute tour of the home page showing how the tool is meant to be used: set it up, assess, then keep up with what comes round.
 - [The step-by-step guide on your home page](#the-step-by-step-guide-on-your-home-page) - An ordered route through the work for anybody who has not done this before, measured against what your registers actually hold.
 - [Why your screens look different from a colleague's](#why-your-screens-look-different-from-a-colleagues) - A persona changes what you are shown first and in whose words. It never changes what you are allowed to see or do.
 - [Roles, and why you cannot see something](#roles-and-why-you-cannot-see-something) - Access is granted per role, and can be scoped to a single entity. Two powers are deliberately held apart from the rest.
@@ -119,6 +120,40 @@ It is anonymous unless you tick the box to let us email you about it. Anonymous 
 **See also:** Tasks, and being mentioned · Roles, and why you cannot see something · Why your screens look different from a colleague's
 
 <sub>Also searchable as: overview, introduction, waivern govern, purpose, feedback</sub>
+
+## The guided tour
+
+*A two-minute tour of the home page showing how the tool is meant to be used: set it up, assess, then keep up with what comes round.*
+
+### What it shows
+
+The tour points at real things on your home page, in the order the work is meant to happen. It does not take you anywhere else, and it changes nothing.
+
+- Set up: the step-by-step guide, your legal entities and the data protection law each is under, and the Settings where an administrator adds people and chooses the AI framework and whether to manage Cyber Essentials.
+- Assess: choosing a template from the library, which leads with the ones that fit your laws and programmes, then answering, submitting and having an assessment approved.
+- Keep it current: the tasks the hourly check raises when a policy, assessment, supplier or AI system is due for review, or when something a record relied on has changed. They appear under Waiting on you.
+
+### It fits your programme
+
+Where no entity is subject to UK or EU data protection law, the tour says why you see AI governance alone and leaves out what only the privacy programme needs.
+
+Where something it points at is not on your home page - the guide is hidden, say, or Settings is not yours to change - the step is shown on its own, with nothing highlighted.
+
+### Moving through it
+
+Nothing moves on by itself, so take as long as you need; read at an ordinary pace, it takes under two minutes. Use Next and Back, or the right and left arrow keys. Escape or Skip the tour leaves it at any step.
+
+Where your device asks for less motion, the highlight jumps rather than glides, and nothing fades or draws in.
+
+### Offered once
+
+It is offered on your home page until you take it or say no thanks. Finishing it, skipping it part way and saying no thanks each count as an answer, so it is not offered again. The choice is held against you rather than an organisation, and recorded in the audit log of the organisation you were working in.
+
+Take it again at any time from Help or your profile page.
+
+**See also:** The step-by-step guide on your home page · What this is, and what it is not · Tasks, and being mentioned
+
+<sub>Also searchable as: tour, walkthrough, introduction, first time, onboarding, replay, how to use</sub>
 
 ## The step-by-step guide on your home page
 

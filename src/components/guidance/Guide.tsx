@@ -50,7 +50,11 @@ export function Guide({ guidance }: { guidance: Guidance }) {
 
   return (
     <section className="space-y-4 rounded border border-brand/40 bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div
+        // The guided tour points here: the whole guide is taller than a screen.
+        data-tour="guide"
+        className="flex flex-wrap items-start justify-between gap-3"
+      >
         <div>
           <h2 className="text-sm font-semibold">
             {STAGE_LABEL[guidance.stage]}
@@ -66,7 +70,15 @@ export function Guide({ guidance }: { guidance: Guidance }) {
 
       <ol className="divide-y divide-line overflow-hidden rounded border border-line bg-ground">
         {guidance.steps.map((step, index) => (
-          <li key={step.id}>
+          <li
+            key={step.id}
+            // The first set-up step in either programme, for the guided tour.
+            data-tour={
+              step.id === 'entities' || step.id === 'ai-entities'
+                ? 'entities'
+                : undefined
+            }
+          >
             <details
               open={step.id === next?.id}
               className="group"

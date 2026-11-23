@@ -8,6 +8,7 @@ import {
   STALE_AFTER_HOURS
 } from '@/lib/email/member';
 import { getActiveSession } from '@/lib/session';
+import { TOUR_START_HREF } from '@/lib/tour/steps';
 import { emailNotificationsFor } from '@/services/member-email';
 
 import { EmailNotificationsForm } from './EmailNotificationsForm';
@@ -117,6 +118,22 @@ export default async function ProfilePage() {
             within the hour.
           </p>
         ) : null}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+          Guided tour
+        </h2>
+        <p className="max-w-prose text-sm">
+          Two minutes on how the tool is meant to be used: set it up, assess,
+          then keep up with what comes round.{' '}
+          <Link
+            href={TOUR_START_HREF}
+            className={linkClass}
+          >
+            Take the tour
+          </Link>
+        </p>
       </section>
     </main>
   );

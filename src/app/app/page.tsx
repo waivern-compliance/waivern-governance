@@ -11,10 +11,13 @@ import {
   QuickLinks
 } from '@/components/home/homes';
 import { PersonaSwitcher } from '@/components/home/PersonaSwitcher';
+import { Tour } from '@/components/tour/Tour';
 import { PERSONA_LABEL } from '@/lib/persona';
 import { getActiveSession, ORGANISATION_COOKIE } from '@/lib/session';
+import { offerTour, tourRequested, tourSteps } from '@/lib/tour/steps';
 import { guidanceFor } from '@/services/guidance';
 import { programmeScope } from '@/services/programme-scope';
+import { tourStateFor } from '@/services/tour';
 
 /**
  * One home, four arrangements.
@@ -23,7 +26,11 @@ import { programmeScope } from '@/services/programme-scope';
  * is shown first and in whose words — never what they may reach. Every link
  * here comes from a capability check, and every page behind one checks again.
  */
-export default async function Home() {
+export default async function Home({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const active = await getActiveSession();
   if (!active) redirect('/sign-in');
 
@@ -32,7 +39,11 @@ export default async function Home() {
   // Above the persona views rather than inside one: somebody finding their
   // feet needs the order of the work before they need their own slice of it.
   // Worked out once, for the guide and the home below it.
-  const scope = await programmeScope(active.membership.organisationId);
+  const [scope, tour, params] = await Promise.all([
+    programmeScope(active.membership.organisationId),
+    tourStateFor(active.userId),
+    searchParams
+  ]);
   const guidance = await guidanceFor({
     organisationId: active.membership.organisationId,
     chosen: active.membership.guidance ?? null,
@@ -74,6 +85,14 @@ export default async function Home() {
           </button>
         </form>
       </header>
+
+      {/* Offered once, above the guide it points at first, and started
+          straight away from the replay links in Help and the profile page. */}
+      <Tour
+        steps={tourSteps(scope)}
+        offer={offerTour(tour)}
+        start={tourRequested(params.tour)}
+      />
 
       <Guide guidance={guidance} />
 
