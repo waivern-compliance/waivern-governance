@@ -1,4 +1,4 @@
-import { and, count, eq, ne, or } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, or } from 'drizzle-orm';
 
 import { db, withOrganisation } from '@/db/client';
 import {
@@ -15,6 +15,7 @@ import { appendAuditEvent } from '@/lib/audit';
 
 import type { Actor } from './templates';
 import { refuseDuringTrial } from './trial-guard';
+import { OPEN_TASK } from './workflow';
 
 /**
  * What one person is holding, and how to hand it to somebody else.
@@ -65,7 +66,7 @@ export async function holdingsOf(
               and(
                 eq(tasks.organisationId, organisationId),
                 eq(tasks.assigneeUserId, userId),
-                ne(tasks.status, 'done')
+                inArray(tasks.status, OPEN_TASK)
               )
             )
         ),
@@ -232,7 +233,7 @@ export async function handOver(input: {
           and(
             eq(tasks.organisationId, input.organisationId),
             eq(tasks.assigneeUserId, input.fromUserId),
-            ne(tasks.status, 'done')
+            inArray(tasks.status, OPEN_TASK)
           )
         );
       await tx
