@@ -138,7 +138,11 @@ On the Microsoft side this needs:
 2. **Consent.** Users in other directories are asked to consent to the
    application on first sign-in, which many directories block for apps from
    unverified publishers. Complete **publisher verification** (Branding &
-   properties, with a Microsoft Partner Network ID), or ask each customer's
+   properties, with a Microsoft Partner Network ID). Its publisher domain is
+   verified by Microsoft fetching
+   `https://<your domain>/.well-known/microsoft-identity-association.json`,
+   which Govern serves from `AUTH_MICROSOFT_ENTRA_ID_ID`, so set that and
+   deploy before choosing **Verify and save domain**. Or ask each customer's
    administrator to grant tenant-wide admin consent at
    `https://login.microsoftonline.com/<their tenant id>/adminconsent?client_id=<application id>`.
    The application asks only for `openid profile email User.Read`.
