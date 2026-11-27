@@ -16,10 +16,10 @@ declare global {
  * Added by script rather than server-rendered, so it neither holds up the
  * page while Cookiebot's servers answer nor puts nodes into the part of the
  * document React hydrates (Cookiebot inserts its own scripts next to it).
- * Manual blocking mode, Cookiebot's default: the service sets only strictly
- * necessary cookies, so there is nothing for automatic blocking to hold back,
- * and Cookiebot says automatic blocking is not fully compatible with a
- * Content-Security-Policy. Like any script the page's own code adds, it
+ * Manual blocking mode, Cookiebot's default: the one non-essential tag, Google
+ * Analytics, waits for consent itself (`GoogleAnalytics.tsx`), so there is
+ * nothing for automatic blocking to hold back, and Cookiebot says automatic
+ * blocking is not fully compatible with a Content-Security-Policy. Like any script the page's own code adds, it
  * needs no nonce: the policy's `'strict-dynamic'` covers it.
  */
 export function CookieBanner({ cookiebotId }: { cookiebotId: string }) {
