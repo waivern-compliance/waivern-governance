@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { connection } from 'next/server';
 
+import { GoogleAnalytics } from '@/components/site/GoogleAnalytics';
 import { SiteFooter } from '@/components/site/SiteFooter';
+import { ANALYTICS_HEADER } from '@/lib/analytics';
 import { BANNER_HEADER, PUBLIC_FORM_HEADER } from '@/lib/cookiebot';
 import { waivernHosted } from '@/lib/hosting';
 import { PRODUCT_DESCRIPTION, PRODUCT_NAME } from '@/lib/product';
@@ -31,6 +33,9 @@ export default async function RootLayout({
   // organisation's public request form. The proxy decides from the path.
   const sent = await headers();
   const banner = sent.get(BANNER_HEADER);
+  // Google Analytics, where the banner can ask for consent to it
+  // (`lib/analytics.ts`).
+  const analytics = sent.get(ANALYTICS_HEADER);
   const policies = waivernHosted() && sent.get(PUBLIC_FORM_HEADER) !== '1';
   return (
     <html lang="en-GB">
@@ -44,6 +49,7 @@ export default async function RootLayout({
             cookiebotId={banner}
           />
         ) : null}
+        {analytics ? <GoogleAnalytics measurementId={analytics} /> : null}
       </body>
     </html>
   );

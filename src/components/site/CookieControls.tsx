@@ -6,7 +6,7 @@ import { COOKIEBOT_BANNER_SRC, declarationSrc } from '@/lib/cookiebot';
 
 declare global {
   interface Window {
-    Cookiebot?: { renew: () => void };
+    Cookiebot?: { renew: () => void; consent?: { statistics: boolean } };
   }
 }
 

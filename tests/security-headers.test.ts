@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 
+import { analyticsFor, measurementId, reportedLocation } from '@/lib/analytics';
 import { bannerFor, cookiebotId } from '@/lib/cookiebot';
 import { contentSecurityPolicy } from '@/proxy';
 
@@ -68,7 +69,9 @@ describe('content security policy', () => {
     assert.equal(directive(plain, 'frame-src'), undefined);
     assert.doesNotMatch(plain, /cookiebot/);
 
-    const withBanner = contentSecurityPolicy('n', false, "'none'", true);
+    const withBanner = contentSecurityPolicy('n', false, "'none'", {
+      cookiebot: true
+    });
     assert.equal(
       directive(withBanner, 'connect-src'),
       "connect-src 'self' https://consent.cookiebot.com https://consentcdn.cookiebot.com"
@@ -100,6 +103,67 @@ describe('content security policy', () => {
     assert.equal(bannerFor('/sign-in', env), id.toLowerCase());
     assert.equal(bannerFor('/app/ropa', env), id.toLowerCase());
     assert.equal(bannerFor('/request/abcdefgh12', env), null);
+  });
+});
+
+describe('Google Analytics', () => {
+  const banner = 'FA73AFDF-3E2E-4EE6-9C8D-ACD111F6962E';
+
+  it('reaches Google only where the tag may load', () => {
+    const plain = contentSecurityPolicy('n', false, "'none'", {
+      cookiebot: true
+    });
+    assert.doesNotMatch(plain, /google/);
+
+    const withTag = contentSecurityPolicy('n', false, "'none'", {
+      cookiebot: true,
+      analytics: true
+    });
+    assert.equal(
+      directive(withTag, 'connect-src'),
+      "connect-src 'self' https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com"
+    );
+    assert.match(directive(withTag, 'img-src') ?? '', /google-analytics/);
+    // The tag is trusted through the page's own code, never by host.
+    assert.equal(
+      directive(withTag, 'script-src'),
+      "script-src 'self' 'nonce-n' 'strict-dynamic'"
+    );
+  });
+
+  it('accepts only a GA4 measurement ID, which ends up in a script address', () => {
+    assert.equal(measurementId({}), null);
+    assert.equal(measurementId({ GA_MEASUREMENT_ID: 'UA-1234-1' }), null);
+    assert.equal(measurementId({ GA_MEASUREMENT_ID: 'G-AB"><x' }), null);
+    assert.equal(
+      measurementId({ GA_MEASUREMENT_ID: ' g-abc123xyz ' }),
+      'G-ABC123XYZ'
+    );
+  });
+
+  it('loads only where the banner can ask for consent', () => {
+    const tag = { GA_MEASUREMENT_ID: 'G-ABC123XYZ' };
+    assert.equal(analyticsFor('/app/ropa', tag), null);
+
+    const env = { ...tag, COOKIEBOT_ID: banner };
+    assert.equal(analyticsFor('/sign-in', env), 'G-ABC123XYZ');
+    assert.equal(analyticsFor('/app/ropa', env), 'G-ABC123XYZ');
+    assert.equal(analyticsFor('/request/abcdefgh12', env), null);
+    assert.equal(analyticsFor('/contribute/some-token', env), null);
+  });
+
+  it('reports the path alone, with record IDs replaced', () => {
+    assert.equal(
+      reportedLocation(
+        'https://govern.example.org',
+        '/app/breaches/0b6f3c3e-8a51-4f0c-9d2e-1c2b3a4d5e6f/notify'
+      ),
+      'https://govern.example.org/app/breaches/:id/notify'
+    );
+    assert.equal(
+      reportedLocation('https://govern.example.org', '/app/ropa'),
+      'https://govern.example.org/app/ropa'
+    );
   });
 });
 
