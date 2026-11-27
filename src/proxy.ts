@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { ANALYTICS_CSP, ANALYTICS_HEADER, analyticsFor } from '@/lib/analytics';
 import { pinForwardedAddress } from '@/lib/app-url';
 import {
   BANNER_HEADER,
@@ -51,23 +52,28 @@ function identityProviderOrigins(): string[] {
  * against it (`lib/embedding.ts`), which the caller passes in.
  *
  * Where a page shows a cookie consent banner, it also needs to reach
- * Cookiebot and show its consent frame (`lib/cookiebot.ts`).
+ * Cookiebot and show its consent frame (`lib/cookiebot.ts`), and where it may
+ * report to Google Analytics once consent is given, Google (`lib/analytics.ts`).
  */
 export function contentSecurityPolicy(
   nonce: string,
   isDev: boolean,
   ancestors = "'none'",
-  cookiebot = false
+  { cookiebot = false, analytics = false } = {}
 ): string {
-  const extra = (hosts: readonly string[]) =>
-    cookiebot ? hosts.map((h) => ` ${h}`).join('') : '';
+  const hosts = (on: boolean, list: readonly string[]) =>
+    on ? list.map((h) => ` ${h}`).join('') : '';
+  const extra = (
+    banner: readonly string[],
+    tag: readonly string[] = []
+  ): string => hosts(cookiebot, banner) + hosts(analytics, tag);
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' blob: data:${extra(COOKIEBOT_CSP.img)}`,
+    `img-src 'self' blob: data:${extra(COOKIEBOT_CSP.img, ANALYTICS_CSP.img)}`,
     "font-src 'self'",
-    `connect-src 'self'${extra(COOKIEBOT_CSP.connect)}`,
+    `connect-src 'self'${extra(COOKIEBOT_CSP.connect, ANALYTICS_CSP.connect)}`,
     ...(cookiebot ? [`frame-src 'self'${extra(COOKIEBOT_CSP.frame)}`] : []),
     "object-src 'none'",
     "base-uri 'self'",
@@ -99,11 +105,12 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const framing = await framingFor(pathname);
   const banner = bannerFor(pathname);
+  const analytics = analyticsFor(pathname);
   const csp = contentSecurityPolicy(
     nonce,
     process.env.NODE_ENV === 'development',
     frameAncestors(framing ?? []),
-    banner !== null
+    { cookiebot: banner !== null, analytics: analytics !== null }
   );
 
   const requestHeaders = new Headers(request.headers);
@@ -116,6 +123,8 @@ export async function proxy(request: NextRequest) {
   // browser cannot send its own.
   if (banner) requestHeaders.set(BANNER_HEADER, banner);
   else requestHeaders.delete(BANNER_HEADER);
+  if (analytics) requestHeaders.set(ANALYTICS_HEADER, analytics);
+  else requestHeaders.delete(ANALYTICS_HEADER);
   if (isPublicForm(pathname)) requestHeaders.set(PUBLIC_FORM_HEADER, '1');
   else requestHeaders.delete(PUBLIC_FORM_HEADER);
 
